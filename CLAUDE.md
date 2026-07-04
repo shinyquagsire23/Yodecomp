@@ -174,6 +174,11 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   4. A store before a call that passes `this` is kept (compiler can't prove the callee won't read it) —
      e.g. `mScore=0;` survives before `mScore=CalcTimeScore();`.
   5. x87 stack-slot / register allocation depends on **local declaration order** — reorder locals to match.
+  6. **CMP operand order** (`cmp width,x;jg` vs `cmp x,width;jl` for the same `x<width`) is instruction
+     selection MSVC 4.2 picks internally — often NOT forceable by flipping the C expression. When a
+     function is otherwise identical but a few comparisons have swapped operands + inverted jcc, it's
+     permuter territory (like the parked World funcs). Verify a claimed match by **direct disassembly
+     diff**, not only `tools/match.py` (its best-fit pairing can occasionally mis-report).
 - **Completion-% endgame** (user goal): the rigorous version is an **asm-first build** — disassemble all,
   assemble+link a byte-identical EXE with link.exe 3.10, then swap asm→C keeping it identical. Heavy infra;
   `tools/progress.py` gives the byte-% now without it.

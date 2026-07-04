@@ -16,7 +16,7 @@ void Zone::SetTile(int x, int y, int layer, unsigned short val)
         tiles[(y * 18 + x) * 3 + layer] = val;
 }
 
-// FUNCTION: YODA 0x00405380
+// FUNCTION: YODA 0x00405380  [WIP: not byte-exact -- MSVC emits `cmp width,x;jg` for x<width; can't force from C (instruction selection). Permuter territory.]
 int Zone::GetEdgeCode(int x, int y)
 {
     if (x >= 0 && x < width && y >= 0 && y < height) return 0;
@@ -26,4 +26,18 @@ int Zone::GetEdgeCode(int x, int y)
     if (y < 0 && x >= 0 && x < width) return 2;
     if (y >= height && x >= 0 && x < width) return 3;
     return 99;
+}
+
+// FUNCTION: YODA 0x00405330  [WIP: ~7 bytes off -- register allocation / count>0 guard scheduling.]
+int Zone::FindObjectAt(int x, int y)
+{
+    int result = 0;
+    for (int i = 0; i < objectCount; i++) {
+        ZoneObj *obj = objects[i];
+        if (obj->x == x && obj->y == y && obj->type == 1) {
+            result = (int)obj;
+            break;
+        }
+    }
+    return result;
 }
