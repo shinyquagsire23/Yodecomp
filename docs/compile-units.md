@@ -94,6 +94,15 @@ recreation). The `WorldGen` module is really **world-load/save + the `.DTA` asse
 This is the highest-value area to decompile next — it's data-driven, mostly small integer/parse
 functions (good match targets), and fully documented by DesktopAdventures.
 
+## Certain MFC vtable methods named (2026-07-04)
+From the vtables + `CRuntimeClass` structs, these boilerplate/entry virtuals are named with certainty:
+- `CDeskcppView_GetRuntimeClass` (0x408560), `CMainFrame_GetRuntimeClass` (0x419070),
+  `CDeskcppDoc_GetRuntimeClass` (0x419f40) — pattern `MOV EAX,<CRuntimeClass>; RET`.
+- `CDeskcppDoc_CreateObject` (0x419ed0) — from `CRuntimeClass.m_pfnCreateObject` (+0xc).
+- `App_InitInstance` (0x4198c0) — the sole `AddDocTemplate` caller (CWinApp::InitInstance override).
+- `Wld_Serialize` (0x424fc0) = `CDeskcppDoc::Serialize` (ASAV44 `.wld`); `View_DrawScreen` (0x409110)
+  is the view paint (calls `Dta_Load` — the `.dta` loads **lazily** on first draw, not OnOpenDocument).
+
 ## Named compile-unit outline (anchors + proximity, 2026-07-04)
 Overlaying the named functions onto the data-ref segments identifies most `.obj`s. **Working-outward
 rule:** unnamed `FUN_*` in a segment almost certainly belong to that segment's theme (one `.obj` = one
