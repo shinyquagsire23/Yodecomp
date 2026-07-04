@@ -257,6 +257,16 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
 - Ghidra dumps that feed the above live in `toolchain/test/cu_{refs2,calls,strings}.txt` (regen via scripts).
 
 ### Conventions
+- **Bulk `this`-typing by distinctive field offsets (propagation, 2026-07-04).** To type many
+  `__thiscall` functions at once, scan each untyped one's instructions for `[reg+off]` displacements
+  matching a struct's *distinctive* offsets and move it into that class namespace (a Ghidra script:
+  `func.setParentNamespace(getOrCreateClass("Zone"))` types the auto-`this` as `Zone*`, same as
+  `set_function_this_type`). Use only **distinctive** offsets (Zone `0x7ac/0x7c0/0x7d4/0x844`, World
+  `0x4b4/0x2c0/0x2e20/0x3330`, Canvas `0x438`); **avoid common ones** (`0x44/0x98/0xc0`) — they
+  false-positive. When a signal is weak (GameView `doc@0x44`), require **corroboration** (`0x44` AND a
+  class-specific field like `frameCounter@0xb0`/`draggedTile@0x140`). Verify a sample after (e.g. a
+  frame method that does `GetActiveView(this)` will look like GameView but isn't — revert those to the
+  global namespace). Typed ~106 methods (World 36 / Zone 32 / GameView 32 / Canvas 6) this way.
 - **Define/maintain structs in Ghidra so the DECOMPILER does the idiomatic work for you.** Before
   transcribing a function, create its struct(s) in the Ghidra DB with correct field types and apply
   them (`create_struct` / a StructureDataType script, then `set_function_this_type "Zone *"` for the
