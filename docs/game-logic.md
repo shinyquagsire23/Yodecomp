@@ -38,6 +38,23 @@ DesktopAdventures `commands[]`): `0`SetMapTile `1`ClearTile `4`SayText `5`ShowTe
 lives in the render-heavy `.obj` (0x4070e0–0x408110) with `Render_Blit`. *(Formerly mis-named
 `Render_DrawTileSprite` before the two-phase structure was understood.)*
 
+### In-memory record structs (modeled in the DB 2026-07-04)
+The file format (DesktopAdventures `iact.c`) is `condCount:u16`, `conditions[7×u16]` (opcode + 6 args),
+`cmdCount:u16`, `commands[opcode + 5 args + strlen:u16 + string]`. YodaDemo widens the `u16`s to `int`
+in memory and stores conditions/commands as **arrays of pointers**:
+```
+IactScript (0x30):  read into zone->iactScripts (CObArray @zone+0x7c0/0x7c4)
+  +0x08 IactCondition** conditions   +0x0c int condCount
+  +0x1c IactCommand**   commands      +0x20 int cmdCount
+  +0x2c int doneFlag                  (set to 1 by the FlagOnce command → one-shot)
+IactCondition (0x20):  +0x04 int opcode   +0x08 int args[6]
+IactCommand   (0x20):  +0x04 int opcode   +0x08 int args[5]   +0x1c CString text (ShowText/SayText)
+```
+After typing, `Iact_Run`/`Iact_RunCommands` decompile as `this->iactScripts[i]->condCount`,
+`script->conditions[..]`, `script->commands[..]`, `script->doneFlag = 1`, `this->tempVar`, `this->tiles[..]`.
+`MapEntity` corrected to its real size **0x64** (the entity reader `Iact_ReadZaux` `new`s 0x64-byte
+records into `zone->entities`; also fills `+0x26`, `+0x28`, and a `[0x20]` block @+0x40).
+
 ## Player event handlers (input → `Iact_Run`)
 Each maps a player action to an `Iact_Run` event type on the current zone (`doc...->+0x2c0`):
 | Function | Addr | Event | Fires when |
@@ -107,9 +124,11 @@ stitches scripts, world data, and drawing together; `Render` (0x4070e0–0x40811
 (`Iact_RunCommands` draw-cmds, `Render_Blit`).
 
 ## Still to map
-- The `IactScript` / condition / command **record layouts** (arg fields at `cond+8/+0xc/+0x10/+0x14/
-  +0x18`; the command-list pointer inside the script record) — enough is known to name the opcodes;
-  the exact struct still needs a careful pass to model in the DB.
+- The **IACT reader** that populates `zone->iactScripts` (allocates `IactScript`/condition/command
+  records from the file) — `Iact_ReadZaux` handles entities; the script reader is a sibling still to
+  pin (ACTN chunk / another zone-tier reader).
+- Naming the remaining condition/command opcode cases against `scrdoc.txt` args (e.g. `Random`,
+  `SetTempVar`, `WarpToMap`) — the switch structure is mapped; per-case bodies can be annotated.
 - The individual `Game_Tick` sub-loops (player step, monster AI, projectile/attack) — currently one
   giant function; splitting it is the next decomp step for the gameplay core.
 - `View_FUN_0040b160` (entity draw) and the rest of the `View`/CView `.obj`.
