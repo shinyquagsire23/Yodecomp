@@ -83,11 +83,18 @@ window proc / game tick (the ~10.8 KB `FUN_0040b270`, jt~70 — still to map).
 Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zone pointer hangs off the
 view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
 
-## Rendering
-- **`Iact_RunCommands` (0x004070e0)** — the IACT command executor (see above); its many draw-commands
-  use `doc->tileArray` (+0x84), camera (`+0x3330`/`+0x3334`), hero grid pos — which is why it first
-  read as a renderer.
-- **`Render_Blit` (0x00408000)** — `BitBlt` wrapper (dest DC, x,y,w,h, src DC, srcX,srcY).
+## Rendering pipeline (named via GameView propagation 2026-07-04)
+```
+View_DrawScreen (0x409110)      full redraw: SelectPalette(doc->palette @+0x2c4) + panels + viewport
+  └ View_DrawGameArea (0x40a200)   blit the 0x120×0x120 (9×9-tile) play viewport
+       ├ View_DrawMap (0x40ed90)      camera-visible tile grid (doc->cameraX>>5 … Zone_GetTile+tileArray)
+       ├ View_DrawObjects (0x40ec30)  visible zone->objects
+       ├ Game_DrawEntities (0x40b160) placed entities via doc->characters[ent->charId]
+       └ View_DrawTileAt (0x40a3a0)   one tile/sprite at grid (x,y) (grid→pixel <<5)
+  └ Render_Blit (0x408000)          low-level BitBlt wrapper (dest DC,x,y,w,h,src DC,srcX,srcY)
+```
+`doc->palette` (World+0x2c4, CPalette*) is selected by every draw fn. `Iact_RunCommands`' draw-commands
+reuse the same tile/camera machinery (why it first read as a renderer).
 
 ## Game tick & enemy AI
 - **`Game_Tick` (0x0040b270)** — the main per-frame update (~10.8 KB, **no callers** ⇒ a registered
