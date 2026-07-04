@@ -21,8 +21,12 @@ Writes every setting with `CWinApp::WriteProfileInt(app, "OPTIONS", "<name>", ap
 | `LScore`     | +0x33b0 | last score |
 | `Terrain`    | +0x2e3c | planet/terrain type (also the world's `currentPlanet`) |
 
-After the profile writes it serializes additional state. **Note:** `param_1` here is the *app* object,
-not the `World` doc — these offsets coincidentally overlap doc offsets but are a different object.
+After the profile writes it serializes additional state. **Correction (2026-07-04):** the settings live
+on the **`World` doc**, not a separate app object — `Settings_Save` is `__fastcall(World *param_1)` and
+writes `param_1->playSound/playMusic/difficulty/...` while calling `CWinApp::WriteProfileInt(app, …)` on
+the *app* (`this`) as the registry writer. Confirmed by `Player_Move`, which gates audio on
+`doc->playSound`/`doc->playMusic`. All nine fields are now named in the `World` struct at the offsets in
+the table above (the 0x33xx block only fits the 0x33c0 doc, not a small CWinApp).
 
 ## Load
 No `GetProfile`-heavy loader exists in the app region (all functions call `GetProfile` < 3×), so the
