@@ -91,10 +91,17 @@ View_DrawScreen (0x409110)      full redraw: SelectPalette(doc->palette @+0x2c4)
        ├ View_DrawObjects (0x40ec30)  visible zone->objects
        ├ Game_DrawEntities (0x40b160) placed entities via doc->characters[ent->charId]
        └ View_DrawTileAt (0x40a3a0)   one tile/sprite at grid (x,y) (grid→pixel <<5)
-  └ Render_Blit (0x408000)          low-level BitBlt wrapper (dest DC,x,y,w,h,src DC,srcX,srcY)
+  └ Render_Blit (0x408000)          int Render_Blit(Canvas*, CDC* dest, destX,destY,w,h,srcX,srcY)
+                                     → BitBlt(dest->m_hDC, …, this->hdc, …, SRCCOPY)
 ```
 `doc->palette` (World+0x2c4, CPalette*) is selected by every draw fn. `Iact_RunCommands`' draw-commands
 reuse the same tile/camera machinery (why it first read as a renderer).
+
+**Full prototypes set (2026-07-04):** the whole path is now typed — `View_DrawScreen`/`View_DrawGameArea`
+`(GameView*, CDC*)`, `View_DrawMap`/`View_DrawObjects`/`Game_DrawEntities(GameView*)`, `View_DrawTileAt`
+`(GameView*, short x,y,frame)`, `Render_Blit`/`Canvas_Blit`/`Canvas_Init`/`Canvas_GetSize` as `Canvas*`
+methods. `doc->canvas` is the `Canvas` (0x43c DIBSection) blitted to the paint `CDC`. (Consolidated a
+duplicate `CDC` type — the empty `/Demangler/CDC` placeholder now carries the real `m_hDC@4` layout.)
 
 ## Game tick & enemy AI
 - **`Game_Tick` (0x0040b270)** — the main per-frame update (~10.8 KB, **no callers** ⇒ a registered
