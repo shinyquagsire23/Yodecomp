@@ -4,8 +4,13 @@ Lives in the big `0x41c340–0x429000` `.obj` (one monolithic TU that also holds
 `Dta_*`). Kicked off from `Dta_Load` when it reads the **`ENDF`** tag: asset load first, then generate.
 
 ## Pipeline
+The **generator megafunction is `Worldgen_Generate` (0x41f960, ~6.6 KB)** — 16× `_rand`, writes the
+10×10 grid (`World+0x4b4`), and drives a large helper subtree (`0x41c3b0–0x421930`, the bulk of the
+worldgen code, which sits *before* the `.DTA` loader in the TU). `Worldgen_Randomize`/`Populate` below
+are the RNG seed + a placement stage in that flow.
 ```
 ENDF (in Dta_Load)  /  new-game trigger (GameData_FUN_004037a0)
+  → Worldgen_Generate (0x41f960)    THE generator: build the quest into the 10×10 grid (rand-driven)
   → Worldgen_Randomize (0x424380)   seed RNG: GetCursorPos + time() + clock() → srand (0x42a640),
                                      then packs rand() bytes into the world seed
   → Worldgen_Populate (0x425e30)    lay the quest into the 10×10 world grid (World+0x4b4)
