@@ -1,0 +1,33 @@
+# YodaDemo.exe — struct registry (single source of truth)
+
+Every struct is **traced to its allocation** so the size is correct, and defined **once** in the Ghidra
+DB (no duplicates). When a function still decompiles with non-idiomatic casts, the fix is to model the
+struct it touches — then re-verify the decompilation reads like human C++.
+
+Legend: **TRACED** = size confirmed at an `operator_new`/alloc site; **INFERRED** = size bounded by
+observed field accesses (not yet pinned to an alloc — a TODO).
+
+| Struct | Size | Provenance | What / key fields |
+|---|---|---|---|
+| `Zone` | **0x848** | TRACED — `operator_new(0x848)` in `Dta_ReadZone` (0x426acf) → `Zone_Ctor` | 18×18 map. `tiles[972]@0x10`, `objects@0x7ac`, `iactScripts@0x7c0`, `entities@0x7d4`, `tempVar@0x834`/`randVar@0x838`/`globalVar@0x844` |
+| `Tile` | **0x40c** | TRACED — `operator_new(0x40c)` in `Game_OnWalk`/`Game_MovePlayer`/`FUN_0041a030` → `Tile_Ctor` (0x404da0) | 32×32 graphic. `pixels[0x400]@0`, `flags@0x404`, `name` CString@0x408 |
+| `MapEntity` | **0x64** | TRACED — `operator_new(100)` in `Iact_ReadZaux` (0x406270) | spawned monster/NPC. `charId@4`, `homeX/Y@6/8`, `x/y@0x12/14`, `dx/dy@0x38/3a`, `[0x20]@0x40` |
+| `IactScript` | **0x30** | TRACED — `operator_new(0x30)` in `Dta_ParseActn`/`Iact_ReadScript` | `conditions@8`(CObArray)`/condCount@0xc`, `commands@0x1c/cmdCount@0x20`, `doneFlag@0x2c` |
+| `IactCondition` | **0x1c** | TRACED — `operator_new(0x1c)` in `Iact_ReadScript` | `opcode@4` (`IactCondOp`) + `args[5]@8` |
+| `IactCommand` | **0x20** | TRACED — `operator_new(0x20)` in `Iact_ReadScript` | `opcode@4` (`IactCmdOp`) + `args[5]@8` + `text` CString@0x1c |
+| `MapZone` | **0x34** | TRACED — grid stride at `World+0x4b4` (100 records) | overview-grid cell. `exists@0`, `flagSolved@0x18`, `flagA/B@0x20/24` |
+| `World` | 0x3400 | **INFERRED** (oversized to cover `+0x3374`) — TODO: pin via the document `CRuntimeClass.m_nObjectSize` | the CDocument game doc. `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
+| `GameView` | 0x300 | **INFERRED** — TODO: pin via the view `CRuntimeClass.m_nObjectSize` | the CView subclass. `doc@0x44`(World*), `frameCounter@0xb0` |
+| `ZoneObj` | 0x10 | **INFERRED** from field accesses (`type@8`,`x@0xa`,`y@0xc`) — TODO: trace alloc | a placed object in a zone's `objects` array |
+| `CFile` | 0x40 | model-only (MFC) — only `vtbl@0` + `Read`@vtbl+0x3c matter for the match | MFC file; `CFile_vtbl.Read` is a fn-ptr |
+
+## Enums
+- `IactCondOp` (`COND_*`, 0x00–0x23) — condition opcodes per `scrdoc.txt`; applied to `IactCondition.opcode`
+- `IactCmdOp` (`CMD_*`, 0x00–0x25) — command opcodes per `iact.c` `commands[]`; applied to `IactCommand.opcode`
+
+## Open items (non-idiomatic casts still to resolve → model these next)
+- Pin `World` / `GameView` real sizes from their `CRuntimeClass` (search the class-name strings →
+  the `{name, nObjectSize, …}` struct) so the docs aren't oversized guesses.
+- `World+0x3270` — a drawing buffer/DC handle used by the render fns (`FUN_00408110`/`Render_FUN_00408040`);
+  model it to clean up `*(void**)&doc->field_0x3270`.
+- `ZoneObj` alloc site (for exact size) — likely in `Iact_ReadZax*` or the hotspot reader.

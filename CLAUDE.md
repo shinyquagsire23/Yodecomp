@@ -243,6 +243,16 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   `*(short*)((char*)z+0xc)` — transcription becomes copy-paste. Proven: after defining `Zone` (0x848,
   `tiles` as `ushort[972]@0x10`, `objects` as `ZoneObj**@0x7ac`) and `ZoneObj`, `Zone_GetTile`
   decompiled to `this->tiles[(y*18+x)*3+layer]`. Keep the Ghidra struct and the `src/` struct in sync.
+- **Trace every struct to its allocation before trusting its size, and define it once.** The correct
+  size comes from the `operator_new(N)`/alloc site (e.g. `Zone`=0x848, `Tile`=0x40c, `MapEntity`=0x64,
+  `IactScript`=0x30 were all pinned this way), NOT from how far field accesses happen to reach. Keep a
+  single canonical definition per struct in the DB and the registry `docs/structs.md` — no duplicates.
+  A struct whose size is only bounded by observed accesses is INFERRED (a TODO to trace), not done.
+- **Non-idiomatic C++ in a decompilation is a signal to keep documenting, not to stop.** Messy casts
+  like `*(short*)((char*)p+0x84)` or a field typed as the wrong struct (`tileArray` as `Zone*` →
+  `tileArray->tiles+id*2-8`) mean a struct/type is still missing or wrong. Model it and re-check that
+  the function now reads like human code (`this->tileArray[id]`). Prefer documenting over matching until
+  the types are clean — matching messy casts wastes effort.
 - **Matched C/C++ must be REAL, idiomatic, portable source — not machine-translated pointer math.**
   A human wrote this game; the decomp should read like human code, not Ghidra output. Concretely:
   - Walk arrays with `p++` / `arr[i]`, never `(T*)((char*)p + sizeofT)` or `*(T*)(base + byteoff)`.
