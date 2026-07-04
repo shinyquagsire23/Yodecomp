@@ -16,8 +16,8 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | `IactCondition` | **0x1c** | TRACED — `operator_new(0x1c)` in `Iact_ReadScript` | `opcode@4` (`IactCondOp`) + `args[5]@8` |
 | `IactCommand` | **0x20** | TRACED — `operator_new(0x20)` in `Iact_ReadScript` | `opcode@4` (`IactCmdOp`) + `args[5]@8` + `text` CString@0x1c |
 | `MapZone` | **0x34** | TRACED — grid stride at `World+0x4b4` (100 records) | overview-grid cell. `exists@0`, `flagSolved@0x18`, `flagA/B@0x20/24` |
-| `World` | 0x3400 | **INFERRED** (oversized to cover `+0x3374`) — TODO: pin via the document `CRuntimeClass.m_nObjectSize` | the CDocument game doc. `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
-| `GameView` | 0x300 | **INFERRED** — TODO: pin via the view `CRuntimeClass.m_nObjectSize` | the CView subclass. `doc@0x44`(World*), `frameCounter@0xb0` |
+| `World` | **0x33c0** | TRACED — `CDeskcppDoc` `CRuntimeClass.m_nObjectSize` @0x44c2b0 | the CDocument game doc (real MFC name `CDeskcppDoc`). `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
+| `GameView` | **0x310** | TRACED — `CDeskcppView` `CRuntimeClass.m_nObjectSize` @0x44b228 | the CView subclass (real MFC name `CDeskcppView`). `doc@0x44`(World*), `frameCounter@0xb0` |
 | `ZoneObj` | 0x10 | **INFERRED** from field accesses (`type@8`,`x@0xa`,`y@0xc`) — TODO: trace alloc | a placed object in a zone's `objects` array |
 | `CFile` | 0x40 | model-only (MFC) — only `vtbl@0` + `Read`@vtbl+0x3c matter for the match | MFC file; `CFile_vtbl.Read` is a fn-ptr |
 
@@ -25,9 +25,14 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 - `IactCondOp` (`COND_*`, 0x00–0x23) — condition opcodes per `scrdoc.txt`; applied to `IactCondition.opcode`
 - `IactCmdOp` (`CMD_*`, 0x00–0x25) — command opcodes per `iact.c` `commands[]`; applied to `IactCommand.opcode`
 
+## Real MFC class names (from `CRuntimeClass`)
+The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDeskcppDoc` (=`World`,
+0x33c0), `CDeskcppView` (=`GameView`, 0x310). Descriptive names `World`/`GameView` are kept in the DB
+for readability; the CRuntimeClass structs live at 0x44c2b0 / 0x44b228 and pin the sizes. To pin any
+other MFC-derived class size, find its `CRuntimeClass {char* name, int nObjectSize, …}` in `.rdata`.
+
 ## Open items (non-idiomatic casts still to resolve → model these next)
-- Pin `World` / `GameView` real sizes from their `CRuntimeClass` (search the class-name strings →
-  the `{name, nObjectSize, …}` struct) so the docs aren't oversized guesses.
 - `World+0x3270` — a drawing buffer/DC handle used by the render fns (`FUN_00408110`/`Render_FUN_00408040`);
   model it to clean up `*(void**)&doc->field_0x3270`.
 - `ZoneObj` alloc site (for exact size) — likely in `Iact_ReadZax*` or the hotspot reader.
+- `World+0x88` `tileCount`, the tile-array `CObArray` object (doc+0x80) — confirm it's a `CPtrArray`.
