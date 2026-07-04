@@ -28,7 +28,7 @@ int World::CalcCompletionScore()
         for (x = 10; x != 0; x--) {
             if (pZone->exists > 0 && pZone->field24 == 1 && pZone->field20 == 1)
                 count = count + 1.0f;
-            pZone = (Zone *)((char *)pZone + 0x34);
+            pZone++;
         }
     }
     {
@@ -79,7 +79,7 @@ int World::CalcSolvedScore()
         for (x = 10; x != 0; x--) {
             if (pZone->exists > 0 && (total = total + 1.0f, pZone->field18 == 1))
                 solved = solved + 1.0f;
-            pZone = (Zone *)((char *)pZone + 0x34);
+            pZone++;
         }
     }
     {

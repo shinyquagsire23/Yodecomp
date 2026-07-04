@@ -29,13 +29,13 @@ int Zone::GetEdgeCode(int x, int y)
 }
 
 // FUNCTION: YODA 0x00405330  [WIP: ~7 bytes off -- register allocation / count>0 guard scheduling.]
-int Zone::FindObjectAt(int x, int y)
+ZoneObj *Zone::FindObjectAt(int x, int y)
 {
-    int result = 0;
+    ZoneObj *result = 0;
     for (int i = 0; i < objectCount; i++) {
         ZoneObj *obj = objects[i];
         if (obj->x == x && obj->y == y && obj->type == 1) {
-            result = (int)obj;
+            result = obj;
             break;
         }
     }

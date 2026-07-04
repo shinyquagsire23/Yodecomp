@@ -27,7 +27,7 @@ struct Zone {
     unsigned short GetTile(int x, int y, int layer);        // 0x00405430  MATCH
     void           SetTile(int x, int y, int layer, unsigned short val); // 0x00405480  MATCH
     int            GetEdgeCode(int x, int y);               // 0x00405380  WIP (cmp operand order)
-    int            FindObjectAt(int x, int y);              // 0x00405330  WIP (reg alloc, ~7 bytes)
+    ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330  WIP (reg alloc, ~7 bytes)
 };
 
 #endif

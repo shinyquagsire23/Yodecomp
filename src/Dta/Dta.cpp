@@ -10,19 +10,13 @@
 int GameDoc::ParseZax3(CFile *pFile)
 {
     short count = auxCount;
-    int   i = 0;
-    int   off = 0;
-    if (count > 0) {
-        char buf[8];
-        do {
-            pFile->Read(buf, 8);
-            void *rec = *(void **)((char *)auxArray + off);
-            if (rec == 0)
-                return 0;
-            ((ZoneAux *)rec)->LoadZax3(pFile);
-            off += 4;
-            i++;
-        } while (i < count);
+    char  buf[8];
+    for (int i = 0; i < count; i++) {
+        pFile->Read(buf, 8);
+        ZoneAux *rec = (ZoneAux *)auxArray[i];
+        if (rec == 0)
+            return 0;
+        rec->LoadZax3(pFile);
     }
     return 1;
 }
@@ -32,19 +26,13 @@ int GameDoc::ParseZax3(CFile *pFile)
 int GameDoc::ParseZaux(CFile *pFile)
 {
     short count = auxCount;
-    int   i = 0;
-    int   off = 0;
-    if (count > 0) {
-        char buf[8];
-        do {
-            pFile->Read(buf, 8);
-            void *rec = *(void **)((char *)auxArray + off);
-            if (rec == 0)
-                return 0;
-            ((ZoneAux *)rec)->LoadZaux(pFile);
-            off += 4;
-            i++;
-        } while (i < count);
+    char  buf[8];
+    for (int i = 0; i < count; i++) {
+        pFile->Read(buf, 8);
+        ZoneAux *rec = (ZoneAux *)auxArray[i];
+        if (rec == 0)
+            return 0;
+        rec->LoadZaux(pFile);
     }
     return 1;
 }
@@ -53,19 +41,13 @@ int GameDoc::ParseZaux(CFile *pFile)
 int GameDoc::ParseZax2(CFile *pFile)
 {
     short count = auxCount;
-    int   i = 0;
-    int   off = 0;
-    if (count > 0) {
-        char buf[8];
-        do {
-            pFile->Read(buf, 8);
-            void *rec = *(void **)((char *)auxArray + off);
-            if (rec == 0)
-                return 0;
-            ((ZoneAux *)rec)->LoadZax2(pFile);
-            off += 4;
-            i++;
-        } while (i < count);
+    char  buf[8];
+    for (int i = 0; i < count; i++) {
+        pFile->Read(buf, 8);
+        ZoneAux *rec = (ZoneAux *)auxArray[i];
+        if (rec == 0)
+            return 0;
+        rec->LoadZax2(pFile);
     }
     return 1;
 }

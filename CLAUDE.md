@@ -197,6 +197,15 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   `tools/progress.py` gives the byte-% now without it.
 
 ### Conventions
+- **Matched C/C++ must be REAL, idiomatic, portable source — not machine-translated pointer math.**
+  A human wrote this game; the decomp should read like human code, not Ghidra output. Concretely:
+  - Walk arrays with `p++` / `arr[i]`, never `(T*)((char*)p + sizeofT)` or `*(T*)(base + byteoff)`.
+    (The compiler strength-reduces `arr[i]` back into the offset walk, so it still byte-matches.)
+  - No `(int)ptr` / `(int)`-casts of pointers; give functions their real pointer/enum return types.
+  - Prefer struct member access (`z->width`) over `*(short*)((char*)z + 0xc)`. Explicit `_padNN[]`
+    fields to hit known offsets are fine (and necessary) — but name the real fields you know.
+  - The byte-match is the correctness oracle: rewrite to idiomatic form, recompile, confirm it still
+    matches. If an idiomatic form breaks the match, keep the faithful form but leave a `// TODO: idiom`.
 - Prefix functions per compile unit (see Phase 3). Loose-Hungarian for variables.
 - Mirror OpenJKDF2 structure (`~/workspace/OpenJKDF2`): CMake, per-module source files, `Module_Function` naming.
 - Progress artifacts live in `docs/`. The toolchain lives in `toolchain/`.
