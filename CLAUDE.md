@@ -166,7 +166,13 @@ reached by jump tables; (c) large `[d1]` runs of **switch/jump code near the gia
 destructor funclets (`CString::~CString`/`CFile::~CFile`/… via the parent's frame) are C++ exception
 cleanup, not real functions. Each is code-referenced from exactly one parent function's body → named
 `<parentName>_eh<idx>` (e.g. `Settings_Save_eh0`, `GameData_FUN_00401ea0_eh4`) so the association is
-obvious. Detection: size <0x18 + a code ref from a ≥0x18 parent. The ~65 remaining tiny funcs are shared
+obvious. **Detection (refined 2026-07-04):** size <0x18 AND the funclet sits **adjacent to a parent's
+body** (`F.addr ≤ parent.entry + parent.size + 0x100` — funclets are emitted right after their parent)
+AND that parent has a **code-ref** to F. Do NOT use raw distance-from-entry: a large parent's funclet
+is far from its *entry* but right after its *body* (e.g. `Iact_RunCommands` @0x4070e0 is 0xbd2 B, so
+its funclets sit ~0xbd2 after the entry — still legit). A tiny function merely *called* from a distant
+function is NOT its funclet (it's a real function → CU-tag it). Isolated tiny stubs with no adjacent
+code-ref parent = shared vtable `ret N` stubs → CU-tag by region. The ~65 remaining tiny funcs are shared
 vtable `ret N` stubs (referenced only from `.rdata` vtables, no single parent) — left as-is.
 **Pitfalls proven:** `find_code_gaps` is ~826 mostly-`0xCC`-padding noise; a **capstone call-scan gives
 huge false positives** (misdecoded jump-table/data bytes → fake call targets); and `create_function` on
