@@ -58,7 +58,7 @@ below GameData in .text and is its own tiny group (FP pool `0x44b09c`).
 419120-419730      8      44bf30         459e20    Frame_  CFrameWnd/CMainFrame (Frame_OnCreate, PreCreateWindow)
 419730-41b2f0      20     44c130         456210    App_    CDeskcppApp (CWinApp: App_Ctor) + Log_Write + doc-render helpers
 41b2f0-41bee0      28     44c438         -         Settings_ CDeskcppApp settings (Settings_Save, WriteProfileInt)
-41bee0-41c340      9      44d064         -         Worldgen_ worldgen helper class (rand; called by the generator)
+41bee0-41c340      9      44d064         -         Wld_    .wld save/load helper class (serializes world objects; ctor reached from Wld_Serialize)
 41c340-429000      130    44d2b4         4560f8    ** WorldGen + .wld save/load **
 ```
 

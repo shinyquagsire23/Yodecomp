@@ -24,6 +24,18 @@ The **demo** ships a fixed subset of zones, so `Worldgen_Populate` largely does 
   `CFile`, `SetSize`s + `operator_new`s the world structures on load. Format: `*.wld` (`World Files
   (*.wld)`), sig `ASAV44`. (MFC `CDocument::Serialize`-style; the load branch rebuilds the doc.)
 
+## Untangling Dta / Worldgen / Wld (call-graph clustering, 2026-07-04)
+The big `0x41c340–0x429000` TU (+ the `0x41bee0` helper class) mixes three concerns that share the
+`World` doc. `Dta_Load` calls `Worldgen` on `ENDF`, so naive reachability from the loader swallows
+everything — the fix is to anchor **DTA on the chunk parsers** (not `Dta_Load`), Worldgen on
+`Worldgen_*`, WLD on `Wld_Serialize`, and take **exclusive** reachability:
+- **`Worldgen_`** — generation-exclusive: the `Worldgen_*` entry points + helpers `0x421460`, `0x421e50`,
+  `0x426690` (were mis-tagged `Dta_`).
+- **`Wld_`** — save/load-exclusive: `Wld_Serialize` (0x424fc0) + the `0x41bee0` helper class
+  (`0x41bee0–0x41c340`, serializes world objects) + `0x41c340` (were mis-tagged `Worldgen_`/`Dta_`).
+- **`Dta_`** — the loader (`Dta_Load`) + chunk parsers + shared record/zone readers (the common data
+  layer used by *both* load and gen — genuinely shared, kept `Dta_`).
+
 ## Notes
 - The generator + `Dta_*` loader share the `.obj`, so both operate on the same `World` doc; the
   worldgen functions above are now typed `World*`. Many remaining `Dta_FUN_*` in this range are
