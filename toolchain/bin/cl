@@ -1,0 +1,21 @@
+#!/bin/bash
+# Wrapper: invoke VC++ 4.2 CL.EXE under CrossOver wine.
+# Passes cl options through untouched; converts existing-file/dir args to Z:\ windows paths.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+VC="$HERE/vc42"
+export WINEDEBUG="${WINEDEBUG:--all}"
+export WINEPREFIX="${WINEPREFIX:-$HOME/.wine}"
+winp(){ printf 'Z:%s' "$(printf '%s' "$1" | sed 's#/#\\#g')"; }
+export INCLUDE="$(winp "$VC/INCLUDE");$(winp "$VC/MFC/INCLUDE")"
+export LIB="$(winp "$VC/LIB");$(winp "$VC/MFC/LIB")"
+args=()
+for a in "$@"; do
+  if [[ -e "$a" ]]; then
+    abs="$(cd "$(dirname "$a")" && pwd)/$(basename "$a")"
+    args+=("$(winp "$abs")")
+  else
+    args+=("$a")
+  fi
+done
+exec wine "$VC/BIN/CL.EXE" "${args[@]}"

@@ -1,0 +1,18 @@
+# Copyrighted Microsoft Visual C++ 4.2 toolchain — acquire separately (see toolchain/README.md)
+/toolchain/vc42/
+
+# Copyrighted game binary + assets — not redistributed
+/YodaDemo/
+
+# Build artifacts
+*.obj
+*.pdb
+*.ilk
+build/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

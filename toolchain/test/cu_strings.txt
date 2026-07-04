@@ -1,0 +1,51 @@
+4029c0 4560b4 GameData
+401ac0 4560c8 Nevada
+4029c0 4560d0 Alaska
+402280 4560d8 Oregon
+40f060 456120 MS Sans Serif
+416030 456138 OPTIONS
+41b2f0 456140 GameSpeed
+41b2f0 45616c LCount
+41b2f0 456174 LScore
+41b2f0 45617c HScore
+41b2f0 456184 Count
+416030 45618c MIDILoad
+415820 4561a4 Super Jedi!
+415820 4561b0 gojedi
+415820 4561b8 Invincible!
+415820 4561c4 goyoda
+41b2f0 456204 PlayMusic
+419cb0 456210 c:\yodalog.txt
+41b2f0 45681c Terrain
+41b2f0 456824 WorldSize
+41b2f0 456830 Difficulty
+41b2f0 45683c PlaySound
+421620 456848 !!!!No Place to put Find Puzzle!!! 
+424fc0 456913 ASAV44
+424fc0 45692c *.wld
+4278a0 456ac8 .?AV_AFX_CTL3D_STATE@@
+424fc0 46abc2 World Files (*.wld) | *.wld
+40f4b0 46ae22 Well done, Luke! 
+4102d0 46b228 This is a STORAGE DEVICE. There may be s
+4102d0 46b3c6 This is your X-WING fighter.    To take 
+4102d0 46b44e Watch out! This is a dangerous ENEMY.   
+4102d0 46b6e8 This is a DOOR.    It may open when you 
+4102d0 46b86e You can PUSH and PULL this object.    St
+4102d0 46ba1a This CHARACTER may be important to your 
+4102d0 46bb26 This is YODA, Jedi Master.
+4102d0 46bb5c I don't see anything special here, so le
+4102d0 46be96 I don't see anything special here, so le
+4102d0 46c118 I don't see anything special here, so le
+4102d0 46c53c I don't see anything special here, so le
+4102d0 46c708 I don't see anything special here, so le
+4102d0 46ca54 Watch out! This is DARTH VADER.    Bewar
+4102d0 46cac6 Congratulations! You've won a battle wit
+4102d0 46cbbe The Empire has defeated you... temporari
+4102d0 46cca2 This EWOK is a friendly creature. It won
+4102d0 46cd0c This JAWA is a friendly creature. It won
+4102d0 46cd76 This is a friendly DROID. It won't hurt 
+4102d0 46cde0 This is LUKE, Jedi-in-training...
+4102d0 46ce24 This is an active TELEPORT STATION.    S
+4102d0 46d01c This is a TELEPORT STATION.    It won't 
+4102d0 46d0c6 This is a MEDICAL DROID. Visit him whene
+4102d0 46d18c This is a WEAPON.  Pick it up!

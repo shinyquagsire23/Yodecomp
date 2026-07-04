@@ -1,0 +1,200 @@
+  0:    sub     $0x8,%esp
+  3:    mov     $0xa,%eax
+  8:    push    %ebx
+  9:    push    %esi
+  a:    push    %edi
+  b:    lea     0x4b4(%ecx),%esi
+  11:    xor     %edi,%edi
+  13:    mov     %edi,c(%esp)
+  17:    flds    0xc(%esp)
+i 1b:    flds    $T175
+  21: ~> mov     $0xa,%edx
+  26:    mov     $0x1,%ebx
+  2b: ~> cmpw    $0x0,(%esi)
+  2f:    jle     41 ~>
+  31:    cmp     %ebx,0x24(%esi)
+  34:    jne     41 ~>
+  36:    cmp     %ebx,0x20(%esi)
+  39:    jne     41 ~>
+  3b:    fld     %st(1)
+  3d:    fadd    %st(1),%st
+  3f:    fstp    %st(2)
+  41: ~> add     $0x34,%esi
+  44:    dec     %edx
+  45:    jne     2b ~>
+  47:    dec     %eax
+  48:    jne     21 ~>
+  4a:    fstp    %st(0)
+  4c:    fsts    0xc(%esp)
+  50:    fidivl  0x58(%ecx)
+i 53:    fmuls   $T176
+i 59:    fcoml   $T177
+  5f:    fstpl   0xc(%esp)
+  63:    fnstsw  %ax
+  65:    test    $0x1,%ah
+  68:    jne     89 ~>
+  6a:    fldl    0xc(%esp)
+i 6e:    fcompl  $T178
+  74:    fnstsw  %ax
+  76:    test    $0x41,%ah
+  79:    je      89 ~>
+  7b:    mov     $0x12c,%edi
+  80:    mov     %edi,%eax
+  82:    pop     %edi
+  83:    pop     %esi
+  84:    pop     %ebx
+  85:    add     $0x8,%esp
+  88:    ret     
+  89: ~> fldl    0xc(%esp)
+i 8d:    fcompl  $T179
+  93:    fnstsw  %ax
+  95:    test    $0x1,%ah
+  98:    jne     b9 ~>
+  9a:    fldl    0xc(%esp)
+i 9e:    fcompl  $T180
+  a4:    fnstsw  %ax
+  a6:    test    $0x41,%ah
+  a9:    je      b9 ~>
+  ab:    mov     $0x10e,%edi
+  b0:    mov     %edi,%eax
+  b2:    pop     %edi
+  b3:    pop     %esi
+  b4:    pop     %ebx
+  b5:    add     $0x8,%esp
+  b8:    ret     
+  b9: ~> fldl    0xc(%esp)
+i bd:    fcompl  $T181
+  c3:    fnstsw  %ax
+  c5:    test    $0x1,%ah
+  c8:    jne     e9 ~>
+  ca:    fldl    0xc(%esp)
+i ce:    fcompl  $T182
+  d4:    fnstsw  %ax
+  d6:    test    $0x41,%ah
+  d9:    je      e9 ~>
+  db:    mov     $0xf0,%edi
+  e0:    mov     %edi,%eax
+  e2:    pop     %edi
+  e3:    pop     %esi
+  e4:    pop     %ebx
+  e5:    add     $0x8,%esp
+  e8:    ret     
+  e9: ~> fldl    0xc(%esp)
+i ed:    fcompl  $T183
+  f3:    fnstsw  %ax
+  f5:    test    $0x1,%ah
+  f8:    jne     119 ~>
+  fa:    fldl    0xc(%esp)
+i fe:    fcompl  $T184
+  104:    fnstsw  %ax
+  106:    test    $0x41,%ah
+  109:    je      119 ~>
+  10b:    mov     $0xd2,%edi
+  110:    mov     %edi,%eax
+  112:    pop     %edi
+  113:    pop     %esi
+  114:    pop     %ebx
+  115:    add     $0x8,%esp
+  118:    ret     
+  119: ~> fldl    0xc(%esp)
+i 11d:    fcompl  $T185
+  123:    fnstsw  %ax
+  125:    test    $0x1,%ah
+  128:    jne     149 ~>
+  12a:    fldl    0xc(%esp)
+i 12e:    fcompl  $T186
+  134:    fnstsw  %ax
+  136:    test    $0x41,%ah
+  139:    je      149 ~>
+  13b:    mov     $0xb4,%edi
+  140:    mov     %edi,%eax
+  142:    pop     %edi
+  143:    pop     %esi
+  144:    pop     %ebx
+  145:    add     $0x8,%esp
+  148:    ret     
+  149: ~> fldl    0xc(%esp)
+i 14d:    fcompl  $T187
+  153:    fnstsw  %ax
+  155:    test    $0x1,%ah
+  158:    jne     179 ~>
+  15a:    fldl    0xc(%esp)
+i 15e:    fcompl  $T188
+  164:    fnstsw  %ax
+  166:    test    $0x41,%ah
+  169:    je      179 ~>
+  16b:    mov     $0x96,%edi
+  170:    mov     %edi,%eax
+  172:    pop     %edi
+  173:    pop     %esi
+  174:    pop     %ebx
+  175:    add     $0x8,%esp
+  178:    ret     
+  179: ~> fldl    0xc(%esp)
+i 17d:    fcompl  $T189
+  183:    fnstsw  %ax
+  185:    test    $0x1,%ah
+  188:    jne     1a9 ~>
+  18a:    fldl    0xc(%esp)
+i 18e:    fcompl  $T190
+  194:    fnstsw  %ax
+  196:    test    $0x41,%ah
+  199:    je      1a9 ~>
+  19b:    mov     $0x78,%edi
+  1a0:    mov     %edi,%eax
+  1a2:    pop     %edi
+  1a3:    pop     %esi
+  1a4:    pop     %ebx
+  1a5:    add     $0x8,%esp
+  1a8:    ret     
+  1a9: ~> fldl    0xc(%esp)
+i 1ad:    fcompl  $T191
+  1b3:    fnstsw  %ax
+  1b5:    test    $0x1,%ah
+  1b8:    jne     1d9 ~>
+  1ba:    fldl    0xc(%esp)
+i 1be:    fcompl  $T192
+  1c4:    fnstsw  %ax
+  1c6:    test    $0x41,%ah
+  1c9:    je      1d9 ~>
+  1cb:    mov     $0x5a,%edi
+  1d0:    mov     %edi,%eax
+  1d2:    pop     %edi
+  1d3:    pop     %esi
+  1d4:    pop     %ebx
+  1d5:    add     $0x8,%esp
+  1d8:    ret     
+  1d9: ~> fldl    0xc(%esp)
+i 1dd:    fcompl  $T193
+  1e3:    fnstsw  %ax
+  1e5:    test    $0x1,%ah
+  1e8:    jne     209 ~>
+  1ea:    fldl    0xc(%esp)
+i 1ee:    fcompl  $T194
+  1f4:    fnstsw  %ax
+  1f6:    test    $0x41,%ah
+  1f9:    je      209 ~>
+  1fb:    mov     $0x3c,%edi
+  200:    mov     %edi,%eax
+  202:    pop     %edi
+  203:    pop     %esi
+  204:    pop     %ebx
+  205:    add     $0x8,%esp
+  208:    ret     
+  209: ~> fldz    
+  20b:    fcompl  0xc(%esp)
+  20f:    fnstsw  %ax
+  211:    test    $0x41,%ah
+  214:    je      22c ~>
+  216:    fldl    0xc(%esp)
+i 21a:    fcompl  $T196
+  220:    fnstsw  %ax
+  222:    test    $0x41,%ah
+  225:    je      22c ~>
+  227:    mov     $0x1e,%edi
+  22c: ~> mov     %edi,%eax
+  22e:    pop     %edi
+  22f:    pop     %esi
+  230:    pop     %ebx
+  231:    add     $0x8,%esp
+  234:    ret     
