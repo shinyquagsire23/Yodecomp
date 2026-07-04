@@ -91,6 +91,24 @@ Named methods: `Zone_Ctor` (0x405150), `Zone_Dtor` (0x4054d0), `Zone_ScalarDtor`
 x,y with type==1), `Zone_GetEdgeCode` (0x405380, classify a coord as in-bounds / off-edge direction —
 used for map-to-map transitions), `Zone_ReadData` (0x405ae0).
 
+### Zone-loading pipeline (named 2026-07-04)
+`Dta_ReadZone` (0x426a00) `new`s a Zone, calls `Zone_Ctor` (0x405150, 18×18) + `Zone_ReadData`
+(0x405ae0, IZON body), then the per-tier aux readers — all also invoked later by the `Dta_ParseZax*`
+chunk parsers, one per stored zone object:
+- `Zone_ReadZaux` (0x406270) — ZAUX record   `Zone_ReadZax2` (0x406410) — ZAX2
+- `Zone_ReadZax3` (0x406490) — ZAX3           `Zone_ReadZax4` (0x406510) — ZAX4
+Each is `__thiscall(Zone *zone, CFile *pFile)` reading that tier's data into the zone. So the aux
+chunk parsers (`Dta_ParseZaux/Zax2/Zax3`) just iterate `doc->zoneObjects[i]` and call the matching
+`Zone_ReadZax*`. (In `src/Dta/Dta.h` these are modeled as `ZoneAux::Load*` — a masked reloc, so the
+name doesn't affect the byte-match; the real target is a `Zone` method.)
+
+### Struct/type modeling in the Ghidra DB (2026-07-04)
+Defined & applied: `World` (game document — `zones MapZone[100]@0x4b4`, `totalZones`, `score`,
+`zoneObjects Zone**@0x98`, `zoneCount@0x9c`, `tileArray@0x84`, `currentPlanet@0x2e3c`, `counter@0x3320`),
+`MapZone` (0x34 overview cell), `Zone` (0x848 map class), `ZoneObj`, and `CFile`+`CFile_vtbl` (`Read`
+fn-ptr @ vtbl+0x3c). Applied `this`/param types across the World-score, Zone, and Dta-parser functions
+so the decompiler emits `this->zoneObjects[i]`, `this->tiles[..]`, `pFile->vtbl->Read(..)` directly.
+
 ### Module dependency (wrapping)
 `Dta_Load` (0x422670, world-load module) → `Dta_ParseZone` → `Dta_ReadZone` → **Zone class**
 (`Zone_Ctor`/`Zone_ReadData`, the 0x405150 module, vtable 0x44b1c0) → MFC `CDWordArray`. This is the

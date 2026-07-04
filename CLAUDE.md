@@ -210,6 +210,17 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   the oracle. Stops at 0 diffs, writing `*.matched.cpp`. Only mutates the target function; keeps the rest
   of the TU as context. Use it on the reg-alloc/x87 parked near-matches. (Dedups no-op variants; splits
   `int y, x;` so counters can reorder. Slow — one `cl` per variant; run in background.)
+  **Permuter TODOs (decl-order alone is NOT enough for several parked funcs):**
+  - *Loop transforms* — swap the two nested loops' variable roles / iteration direction. `CalcSolvedScore`
+    stayed at diff=9 through all 720 decl orderings because its miss is the outer/inner counter register
+    swap (y↔x → EAX/EDX), which decl-order can't touch.
+  - *Statement reordering* — permute adjacent independent statements (the `off+=4; i++;` vs call-arg-push
+    scheduling that mattered for the Dta parsers). Currently only decl-order + comparison forms.
+  - *Temp insertion / expression regrouping* — add/remove a scratch local or reassociate an expression to
+    nudge register allocation (may help the Dta ESI/EDI/EBP rotation and `FindObjectAt`).
+  - *cmp operand order* — `mutate_cmps` flips `a<b`↔`b>a` but MSVC often normalizes both to the same code
+    (see `GetEdgeCode`); a real fix may need to route one operand through a temp so it's loaded first.
+  - Quality-of-life: parallelize compiles (N wine procs), and hill-climb/anneal instead of exhaustive.
 - **`segment_cus.py <cu_refs2.txt>`** — first-pass `.obj` segmentation from data-ref clustering (Phase 3).
 - Ghidra dumps that feed the above live in `toolchain/test/cu_{refs2,calls,strings}.txt` (regen via scripts).
 
