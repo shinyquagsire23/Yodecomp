@@ -143,9 +143,28 @@ script's conditions on a player/entity event → on pass, **`Iact_RunCommands`**
 commands. Structs + reader/executor functions are all modeled/named in the DB; opcode tables verified
 against `scrdoc.txt` + `iact.c`.
 
+## Struct model & upward propagation (2026-07-04)
+Opcode **enums** in the DB: `IactCondOp` (`COND_*`, 0x00–0x23) and `IactCmdOp` (`CMD_*`, 0x00–0x25),
+applied to `IactCondition.opcode` / `IactCommand.opcode`. (The executors walk the record arrays by raw
+byte offset, so their `switch` doesn't fold to `->opcode`; the enums still name the opcode space and
+render wherever a record is cleanly typed. Case→name mapping is in the two opcode tables above.)
+
+**`GameView`** (the MFC CView subclass; `this` of the game-loop methods): `+0x44 World* doc`,
+`+0xb0 short frameCounter`. Typing it makes `view->doc->…` cascade everywhere. `World` field map grew
+to include the game-state offsets pinned from IACT + the loop: `currentZone@0x2c0`, `playerX/Y@0x2e20/24`,
+`cameraX/Y@0x3330/34`, `iactBusy@0x5c`, plus the earlier health/inventory/experience/gameState fields.
+
+Propagating `GameView*`/`World*`/`Zone*` upward turned the giant game functions idiomatic and let them
+be named at a glance:
+- `Game_Tick` (0x40b270): `this->frameCounter++`, `doc->currentZone->entities[i]`, `doc->characters[..]`,
+  `doc->cameraX >> 5`.
+- `Game_DrawEntities` (0x40b160, was `View_FUN_0040b160`): draws each placed entity via
+  `doc->characters[ent->charId]` + `Zone_SetTile`.
+- `Game_OnBumpTile` / `Game_OnDragItem`: now `this->doc->…`.
+This is the pattern to keep applying: type one `this`, name the fields it reveals, and the next caller
+up decompiles for free.
+
 ## Still to map
-- Naming the remaining condition/command opcode cases against `scrdoc.txt` args (e.g. `SetTempVar`,
-  `WarpToMap`, `AddItemToInv`) — the switch structure is mapped; per-case bodies can be annotated.
 - The individual `Game_Tick` sub-loops (player step, monster AI, projectile/attack) — currently one
   giant function; splitting it is the next decomp step for the gameplay core.
-- `View_FUN_0040b160` (entity draw) and the rest of the `View`/CView `.obj`.
+- The rest of the `GameView`/CView `.obj` (menu/command handlers, OnDraw) — keep propagating `GameView*`.
