@@ -149,11 +149,15 @@ def main():
         nf = head + "\n" + "\n".join(d) + ("\n" if d else "") + body
         return text[:s] + nf + text[e:]
 
+    seen = set()
     orders = perms if perms is not None else [tuple(rng.sample(range(len(decls)), len(decls))) for _ in range(iters)]
     for order in orders:
         for cmp_seed in range(6):            # a few comparison-form combos per ordering
-            tried += 1
             cand_text = build(order, cmp_seed)
+            if cand_text in seen:            # skip duplicate variants (no-op mutations)
+                continue
+            seen.add(cand_text)
+            tried += 1
             r = compile_diff(cand_text, addr, workdir, base, target_name)
             if r is None:
                 continue

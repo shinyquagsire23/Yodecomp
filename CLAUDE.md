@@ -196,7 +196,32 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   assemble+link a byte-identical EXE with link.exe 3.10, then swap asm→C keeping it identical. Heavy infra;
   `tools/progress.py` gives the byte-% now without it.
 
+### Tooling (`tools/`, all Python; run from repo root)
+- **`match.py <src.cpp> [--exe ...]`** — compile the `.cpp`'s object (must exist next to it), then for each
+  `// FUNCTION: YODA 0xADDR` marker, best-fit the COMDAT function to its address and byte-compare with
+  relocations masked. Reports MATCH / DIFF(n) per function. (Best-fit can mis-pair near-identical funcs —
+  confirm with a direct disasm diff. It also exposes `coff_functions`/`trim_pad`/`mask` for reuse.)
+- **`progress.py`** — completion dashboard: compiles every `src/**/*.cpp`, sums matched bytes ÷ 128158
+  total app-region function bytes (534 funcs). One number to track progress.
+- **`bytematch.py --va 0x.. --obj ..`** — single-function reloc-masked compare (the original harness).
+- **`permute.py <src.cpp> 0xADDR [--iters N]`** — the **permuter**. Searches source variations of one
+  function (leading local-declaration order → register/x87-slot allocation; constant-comparison form
+  `x<N`↔`x<=N-1`; relational operand flip), cl-compiles each, and uses the reloc-masked byte-match as
+  the oracle. Stops at 0 diffs, writing `*.matched.cpp`. Only mutates the target function; keeps the rest
+  of the TU as context. Use it on the reg-alloc/x87 parked near-matches. (Dedups no-op variants; splits
+  `int y, x;` so counters can reorder. Slow — one `cl` per variant; run in background.)
+- **`segment_cus.py <cu_refs2.txt>`** — first-pass `.obj` segmentation from data-ref clustering (Phase 3).
+- Ghidra dumps that feed the above live in `toolchain/test/cu_{refs2,calls,strings}.txt` (regen via scripts).
+
 ### Conventions
+- **Define/maintain structs in Ghidra so the DECOMPILER does the idiomatic work for you.** Before
+  transcribing a function, create its struct(s) in the Ghidra DB with correct field types and apply
+  them (`create_struct` / a StructureDataType script, then `set_function_this_type "Zone *"` for the
+  `this`, or `set_local_variable_type` / `set_function_prototype` for params). Ghidra then emits
+  `this->tiles[i]`, `zone->width`, `p++`, `objects[i]->type` automatically instead of
+  `*(short*)((char*)z+0xc)` — transcription becomes copy-paste. Proven: after defining `Zone` (0x848,
+  `tiles` as `ushort[972]@0x10`, `objects` as `ZoneObj**@0x7ac`) and `ZoneObj`, `Zone_GetTile`
+  decompiled to `this->tiles[(y*18+x)*3+layer]`. Keep the Ghidra struct and the `src/` struct in sync.
 - **Matched C/C++ must be REAL, idiomatic, portable source — not machine-translated pointer math.**
   A human wrote this game; the decomp should read like human code, not Ghidra output. Concretely:
   - Walk arrays with `p++` / `arr[i]`, never `(T*)((char*)p + sizeofT)` or `*(T*)(base + byteoff)`.
