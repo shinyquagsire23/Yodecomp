@@ -3,13 +3,40 @@
 The gameplay loop turns player input into **IACT script triggers** that run zone action scripts.
 Cross-referenced with `~/workspace/DesktopAdventures/src/iact.c` + `scrdoc.txt` / `SCRIPTS.md`.
 
-## Script/IACT interpreter
-- **`Iact_Run` (0x00406780)** — evaluates a zone's IACT scripts. `__thiscall`; `param_1` = **event type**
-  (`2`=BumpTile, `3`=DragItem, `4`=Walk, `5`=variant). It switches on each script's **condition opcode**
-  (`record+4`, values `0x00-0x23` per `scrdoc.txt`: FirstEnter/Enter/BumpTile/DragItem/Walk/TempVarEq/
-  RandVar*/EnemyDead/HasItem/CheckEndItem/HealthLs/GlobalVar*/…). When a script's conditions match the
-  event, its command list runs (SetMapTile/ShowText/PlaySound/SpawnItem/WarpToMap/AddHealth/… `0x00-0x25`).
-  Uses `Zone_FindObjectAt` (0x403250) and the zone tile grid.
+## IACT script system — two phases (fully mapped 2026-07-04)
+Each zone owns a **`CObArray` of IACT scripts** (`zone->iactScripts` @+0x7c0, count @+0x7c4). A script
+record has a **conditions list** (`+0xc` = condition count) and a **done flag** (`+0x2c`, set by the
+FlagOnce command so a one-shot script won't refire). Execution is two functions:
+
+### Phase 1 — `Iact_Run` (0x00406780): evaluate conditions
+`__thiscall(Zone *this, int event, x, y, dx, dy, …, World *doc, view)`; `event` = `2`=BumpTile,
+`3`=DragItem, `4`=Walk, `5`=variant. Outer loop over `iactScripts`, inner loop over each script's
+conditions, **`switch(cond->opcode)`** (`cond+4`; args at `cond+8/+0xc/+0x10/+0x14/+0x18`). If **all**
+conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition opcodes (verified vs
+`scrdoc.txt`, with the offsets they read):
+| op | name | reads |
+|----|------|-------|
+| 0xb | EnemyDead | `zone->entities[arg]` alive? (+0x7d4/0x7d8) |
+| 0xc | AllEnemiesDead | loops `zone->entities` |
+| 0xd | HasItem | `doc->inventory[]` (+0xac/0xb0) |
+| 0xe/0xf | CheckEnd/StartItem | tile at player pos / `doc->startItem` (+0x2e38) |
+| 0x11/0x12 | GameInProgress/Completed | `doc->gameState` (+0x68 == -1/1) |
+| 0x13/0x14 | HealthLs/Gt | `doc` health = `healthHi*-100 - healthLo + 0x191` (+0x3314/0x3318) |
+| 0x18 | PlayerAtPos | camera `doc+0x3330/0x3334` |
+| 0x19–0x1b,0x21 | GlobalVar Eq/Ls/Gt/Ne | `zone->globalVar` (+0x844) |
+| 0x1c,0x23 | Experience Eq/Gt | `doc->experience` (+0x332c) |
+| 0x1d | (object check) | loops `zone->objects` (+0x7ac/0x7b0) |
+| 0x1f,0x20 | TempVarNe/RandVarNe | `zone->tempVar/randVar` (+0x834/+0x838) |
+| 0x22 | CheckMapTileVar | zone tile grid |
+
+### Phase 2 — `Iact_RunCommands` (0x004070e0): execute actions
+`__thiscall(Zone *this, int scriptIndex, CDC*, World *doc, view)` — indexes
+`this->iactScripts[scriptIndex]` and **`switch(cmd->opcode)`** over `0x00-0x25` (matches
+DesktopAdventures `commands[]`): `0`SetMapTile `1`ClearTile `4`SayText `5`ShowText `a`PlaySound
+`c`Random(`_rand`) `f`SetMapTileVar `10/11`Release/LockCamera `12`SetPlayerPos(`camera=arg<<5`)
+`13`MoveCamera `14`FlagOnce `15`ShowObject `1b`SpawnItem … `25`AddHealth. Most commands draw, so it
+lives in the render-heavy `.obj` (0x4070e0–0x408110) with `Render_Blit`. *(Formerly mis-named
+`Render_DrawTileSprite` before the two-phase structure was understood.)*
 
 ## Player event handlers (input → `Iact_Run`)
 Each maps a player action to an `Iact_Run` event type on the current zone (`doc...->+0x2c0`):
@@ -27,14 +54,15 @@ Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zo
 view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
 
 ## Rendering
-- **`Render_DrawTileSprite` (0x004070e0)** — draws a tile/sprite to a `CDC`, using `doc->tileArray`
-  (+0x84), the camera position (`+0x3330`/`+0x3334`), and the hero grid position. Big switch over
-  tile/sprite kind.
+- **`Iact_RunCommands` (0x004070e0)** — the IACT command executor (see above); its many draw-commands
+  use `doc->tileArray` (+0x84), camera (`+0x3330`/`+0x3334`), hero grid pos — which is why it first
+  read as a renderer.
+- **`Render_Blit` (0x00408000)** — `BitBlt` wrapper (dest DC, x,y,w,h, src DC, srcX,srcY).
 
 ## Game tick & enemy AI
 - **`Game_Tick` (0x0040b270)** — the main per-frame update (~10.8 KB, **no callers** ⇒ a registered
   timer/idle callback). `void __fastcall(view*)`. Drives everything each frame:
-  - **Player**: `Player_FUN_00409060` (step/move), `Player_FUN_00409460` (tile-collision, reads all 3
+  - **Player**: `Player_Move` (step/move), `Player_CheckWalkable` (tile-collision, reads all 3
     layers via `Zone_GetTile`).
   - **Enemy/monster AI**: **inlined here** (no separate AI function). Iterates the zone's spawned-entity
     list `zone->entities` (a 2nd `CObArray`, `m_pData@+0x7d4`, count `@+0x7d8`), each a **`MapEntity`**:
@@ -52,7 +80,7 @@ view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
     pick a move, **`Iact_ProbeMove`(zone,x,y,dx,dy)** (0x406550) to test tile walkability + animation
     timing (`GetTickCount`), then `Zone_SetTile` + `Player_Move` to relocate/animate, and `Iact_Run` to
     fire the entity's scripts. `MapEntity` + `Zone.entities` are now modeled in the Ghidra DB.
-  - **Scripts**: `Iact_FUN_00406550` (a `GetTickCount`-based timed script/position helper) and the
+  - **Scripts**: `Iact_ProbeMove` (a `GetTickCount`-based timed script/position helper) and the
     `Game_On*` event handlers → `Iact_Run`.
   So "character driving" for both player and enemies lives in `Game_Tick`; decompiling its per-entity
   loops (there are several, guarded by `_rand`) is the way to pull out the enemy AI.
@@ -62,7 +90,7 @@ view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
 Game_Tick (View .obj, 0x40b270, timer/idle)
   ├─ Player_Move (0x409060)          entity move by direction (deltas @doc+0x330c/0x3310)
   ├─ Player_CheckWalkable (0x409460) reads all 3 tile layers → blocked?
-  ├─ Iact_FUN_00406550               timed script/position helper (GetTickCount)
+  ├─ Iact_ProbeMove               timed script/position helper (GetTickCount)
   ├─ Zone_GetTile / Zone_SetTile     tile read/write
   └─ _rand ×36                       inlined enemy/monster AI (random movement)
 
@@ -76,10 +104,12 @@ Game_OnWalk (0x409650) / Game_MovePlayer (0x409c10)   [near-identical: two movem
 **Layering confirmed:** `View`/tick → `Player` (movement+draw glue) → `Iact` (scripts) + `Render`
 (blit) + `World`/`Zone` (data) + GDI. The Player `.obj` (0x408c60–0x40a560) is the action layer that
 stitches scripts, world data, and drawing together; `Render` (0x4070e0–0x408110) is pure blitting
-(`Render_DrawTileSprite`, `Render_Blit`).
+(`Iact_RunCommands` draw-cmds, `Render_Blit`).
 
 ## Still to map
-- The **command executor** switch (SetMapTile/ShowText/… `0x00-0x25`) — inside/near `Iact_Run`.
+- The `IactScript` / condition / command **record layouts** (arg fields at `cond+8/+0xc/+0x10/+0x14/
+  +0x18`; the command-list pointer inside the script record) — enough is known to name the opcodes;
+  the exact struct still needs a careful pass to model in the DB.
 - The individual `Game_Tick` sub-loops (player step, monster AI, projectile/attack) — currently one
   giant function; splitting it is the next decomp step for the gameplay core.
 - `View_FUN_0040b160` (entity draw) and the rest of the `View`/CView `.obj`.
