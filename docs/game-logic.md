@@ -47,9 +47,22 @@ IactScript (0x30):  read into zone->iactScripts (CObArray @zone+0x7c0/0x7c4)
   +0x08 IactCondition** conditions   +0x0c int condCount
   +0x1c IactCommand**   commands      +0x20 int cmdCount
   +0x2c int doneFlag                  (set to 1 by the FlagOnce command → one-shot)
-IactCondition (0x20):  +0x04 int opcode   +0x08 int args[6]
+IactCondition (0x1c):  +0x04 int opcode   +0x08 int args[5]
 IactCommand   (0x20):  +0x04 int opcode   +0x08 int args[5]   +0x1c CString text (ShowText/SayText)
 ```
+(`conditions`/`commands` are actually embedded `CObArray`s — the objects sit at `script+0x04` and
+`script+0x18`, so `m_pData` lands at +0x08/+0x1c and `m_nSize` at +0x0c/+0x20.)
+
+### The IACT reader (found 2026-07-04) — the ACTN chunk carries all zones' scripts
+**`Dta_ParseActn` (0x423510)** is the IACT script reader (not just "action scripts"): it loops
+`{ zoneId:short (-1 skips); zone = doc->zoneObjects[id]; scriptCount:short; SetSize zone->iactScripts;
+per script: new IactScript(0x30) }`. The per-record readers are a small class cluster at
+**0x418700–0x418dd0** (now `Iact_*`):
+- `Iact_ScriptCtor` (0x418700) + `Iact_ReadScript` (0x4188d0) — reads condCount then cmdCount,
+  allocating each record and calling its reader
+- `Iact_ConditionCtor` (0x418b10) + `Iact_ReadCondition` (0x418be0) — `new(0x1c)`, reads opcode+5 args
+- `Iact_CommandCtor` (0x418c30) + `Iact_ReadCommand` (0x418d40) — `new(0x20)`, reads opcode+5 args+string
+So the pipeline is **ACTN load → `IactScript` records per zone → `Iact_Run`/`Iact_RunCommands` execute**.
 After typing, `Iact_Run`/`Iact_RunCommands` decompile as `this->iactScripts[i]->condCount`,
 `script->conditions[..]`, `script->commands[..]`, `script->doneFlag = 1`, `this->tempVar`, `this->tiles[..]`.
 `MapEntity` corrected to its real size **0x64** (the entity reader `Iact_ReadZaux` `new`s 0x64-byte
@@ -123,12 +136,16 @@ Game_OnWalk (0x409650) / Game_MovePlayer (0x409c10)   [near-identical: two movem
 stitches scripts, world data, and drawing together; `Render` (0x4070e0–0x408110) is pure blitting
 (`Iact_RunCommands` draw-cmds, `Render_Blit`).
 
+## IACT — end to end (complete)
+`ACTN` chunk → `Dta_ParseActn` (0x423510) reads `IactScript`/`IactCondition`/`IactCommand` records
+(reader class @0x418700–0x418dd0) into `zone->iactScripts` → **`Iact_Run`** (0x406780) evaluates a
+script's conditions on a player/entity event → on pass, **`Iact_RunCommands`** (0x4070e0) executes its
+commands. Structs + reader/executor functions are all modeled/named in the DB; opcode tables verified
+against `scrdoc.txt` + `iact.c`.
+
 ## Still to map
-- The **IACT reader** that populates `zone->iactScripts` (allocates `IactScript`/condition/command
-  records from the file) — `Iact_ReadZaux` handles entities; the script reader is a sibling still to
-  pin (ACTN chunk / another zone-tier reader).
-- Naming the remaining condition/command opcode cases against `scrdoc.txt` args (e.g. `Random`,
-  `SetTempVar`, `WarpToMap`) — the switch structure is mapped; per-case bodies can be annotated.
+- Naming the remaining condition/command opcode cases against `scrdoc.txt` args (e.g. `SetTempVar`,
+  `WarpToMap`, `AddItemToInv`) — the switch structure is mapped; per-case bodies can be annotated.
 - The individual `Game_Tick` sub-loops (player step, monster AI, projectile/attack) — currently one
   giant function; splitting it is the next decomp step for the gameplay core.
 - `View_FUN_0040b160` (entity draw) and the rest of the `View`/CView `.obj`.
