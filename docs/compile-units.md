@@ -13,7 +13,7 @@ separate classes *within one `.obj`*, so treat fine splits as class-level, the b
 ## Major modules (the architecture)
 | .text range | funcs | module (theme from strings) | key strings |
 |---|---|---|---|
-| `0x401ac0–0x4042b0` | 69 | **GameData** — reads `YodaDemo.dta`; 9 doc-methods typed `World*` (`World_FindTile` 0x403aa0, `World_GetTileData` 0x403a40, `Game_RefreshZone` 0x403ae0) | `GameData`, `Nevada`, `Alaska`, `Oregon` |
+| `0x401ac0–0x4042b0` | 69 | **GameData** — reads `YodaDemo.dta`; 9 doc-methods typed `World*` (`GameData_FindTile` 0x403aa0, `GameData_GetTileData` 0x403a40, `GameData_RefreshZone` 0x403ae0) | `GameData`, `Nevada`, `Alaska`, `Oregon` |
 | `0x408c60–0x40a560` | 26 | **Core utilities** — called by everyone, no strings | (none) |
 | `0x40a560–0x418700` | **107** | **Game UI / view / hints / sound** | `OPTIONS`, `MS Sans Serif`, `MIDILoad`, `Super Jedi!`, `goyoda`/`gojedi` (cheats), `This is a DOOR/WEAPON/EWOK…` tile hints, `Congratulations! You've won…` |
 | `0x419730–0x41b2f0` | 20 | **Utility + debug log** — `Log_Write` (0x419cb0) appends to `c:\yodalog.txt` (fopen/fputs/fclose); rest is a utility class. Most log callers compiled out under NDEBUG (only `Worldgen_PlacePuzzle`'s "No Place to put Find Puzzle" survives) | `c:\yodalog.txt` |

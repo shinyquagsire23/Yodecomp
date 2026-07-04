@@ -20,7 +20,7 @@ The **demo** ships a fixed subset of zones, so `Worldgen_Populate` largely does 
 (explicit zone ids written into the grid); the full game's generator randomizes the quest graph.
 
 ## Save / load
-- **`World_Serialize` (0x424fc0)** — `.wld` serialization. Reads/writes the **`ASAV44`** signature via
+- **`Wld_Serialize` (0x424fc0)** — `.wld` serialization. Reads/writes the **`ASAV44`** signature via
   `CFile`, `SetSize`s + `operator_new`s the world structures on load. Format: `*.wld` (`World Files
   (*.wld)`), sig `ASAV44`. (MFC `CDocument::Serialize`-style; the load branch rebuilds the doc.)
 
