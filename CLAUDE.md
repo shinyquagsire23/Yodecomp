@@ -179,6 +179,19 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
      function is otherwise identical but a few comparisons have swapped operands + inverted jcc, it's
      permuter territory (like the parked World funcs). Verify a claimed match by **direct disassembly
      diff**, not only `tools/match.py` (its best-fit pairing can occasionally mis-report).
+  7. **Register allocation is TU-context-dependent (big one).** Three byte-identical source functions
+     (Dta `ParseZaux`/`ParseZax3`/`ParseZax2`) got *different* register allocations in the original
+     (ESI/EDI/EBP roles rotated) purely by their position in the full `.obj`. In a partial TU only ONE
+     reproduces the original's allocation. **Implication:** context-sensitive functions can't all be
+     matched piecemeal — you need to reconstruct the *whole* original translation unit (all its funcs,
+     in source/.text order) or use a permuter. This is a strong argument for the asm-first / full-TU
+     approach for such modules. Simple leaf/accessor funcs (GetTile, etc.) are context-insensitive and
+     match fine piecemeal.
+- **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
+  Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
+  (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see `src/Dta/Dta.h`. Non-virtual
+  `__thiscall` helpers (e.g. record loaders) → model as member functions (implicitly thiscall); the
+  call is a masked relocation so the exact target/name is irrelevant to the match.
 - **Completion-% endgame** (user goal): the rigorous version is an **asm-first build** — disassemble all,
   assemble+link a byte-identical EXE with link.exe 3.10, then swap asm→C keeping it identical. Heavy infra;
   `tools/progress.py` gives the byte-% now without it.
