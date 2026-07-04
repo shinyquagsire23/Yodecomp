@@ -63,7 +63,7 @@ loops `Dta_ReadZone` (0x426a00) per zone. `Dta_ReadZone`:
    0x10f, 0x1d7, 0x217, 0x282, …) — this is how the **demo** ships a subset of the full game's zones.
 2. `operator new(0x848)` → **`Zone_Ctor`(obj, 0x12, 0x12)** — an 18×18 grid zone object (sizeof 0x848),
    which builds 6 `CDWordArray`s (3 tile layers + overlay + hotspots + actions).
-3. `Zone_ReadData`(obj, pFile) reads the IZON body, then loops reading sub-records.
+3. `Iact_ReadIzon`(obj, pFile) reads the IZON body, then loops reading sub-records.
 
 **ZONE record layout** (from `~/workspace/DesktopAdventures/src/map.c`, `assets.h`):
 - `u16 width, height` (18×18), flags, `u8 area_type` — `{UNUSED, DESERT, SNOW, FOREST, UNUSED, SWAMP}`.
@@ -95,17 +95,17 @@ Recovered from `Zone_GetTile`/`Zone_SetTile`/`Zone_FindObjectAt`/`Zone_GetEdgeCo
 Named methods: `Zone_Ctor` (0x405150), `Zone_Dtor` (0x4054d0), `Zone_ScalarDtor` (0x405300),
 `Zone_GetTile` (0x405430), `Zone_SetTile` (0x405480), `Zone_FindObjectAt` (0x405330, find object by
 x,y with type==1), `Zone_GetEdgeCode` (0x405380, classify a coord as in-bounds / off-edge direction —
-used for map-to-map transitions), `Zone_ReadData` (0x405ae0).
+used for map-to-map transitions), `Iact_ReadIzon` (0x405ae0).
 
 ### Zone-loading pipeline (named 2026-07-04)
-`Dta_ReadZone` (0x426a00) `new`s a Zone, calls `Zone_Ctor` (0x405150, 18×18) + `Zone_ReadData`
+`Dta_ReadZone` (0x426a00) `new`s a Zone, calls `Zone_Ctor` (0x405150, 18×18) + `Iact_ReadIzon`
 (0x405ae0, IZON body), then the per-tier aux readers — all also invoked later by the `Dta_ParseZax*`
 chunk parsers, one per stored zone object:
-- `Zone_ReadZaux` (0x406270) — ZAUX record   `Zone_ReadZax2` (0x406410) — ZAX2
-- `Zone_ReadZax3` (0x406490) — ZAX3           `Zone_ReadZax4` (0x406510) — ZAX4
+- `Iact_ReadZaux` (0x406270) — ZAUX record   `Iact_ReadZax2` (0x406410) — ZAX2
+- `Iact_ReadZax3` (0x406490) — ZAX3           `Iact_ReadZax4` (0x406510) — ZAX4
 Each is `__thiscall(Zone *zone, CFile *pFile)` reading that tier's data into the zone. So the aux
 chunk parsers (`Dta_ParseZaux/Zax2/Zax3`) just iterate `doc->zoneObjects[i]` and call the matching
-`Zone_ReadZax*`. (In `src/Dta/Dta.h` these are modeled as `ZoneAux::Load*` — a masked reloc, so the
+`Iact_ReadZax*`. (In `src/Dta/Dta.h` these are modeled as `ZoneAux::Load*` — a masked reloc, so the
 name doesn't affect the byte-match; the real target is a `Zone` method.)
 
 ### Struct/type modeling in the Ghidra DB (2026-07-04)
@@ -117,7 +117,7 @@ so the decompiler emits `this->zoneObjects[i]`, `this->tiles[..]`, `pFile->vtbl-
 
 ### Module dependency (wrapping)
 `Dta_Load` (0x422670, world-load module) → `Dta_ParseZone` → `Dta_ReadZone` → **Zone class**
-(`Zone_Ctor`/`Zone_ReadData`, the 0x405150 module, vtable 0x44b1c0) → MFC `CDWordArray`. This is the
+(`Zone_Ctor`/`Iact_ReadIzon`, the 0x405150 module, vtable 0x44b1c0) → MFC `CDWordArray`. This is the
 `sith*`-wraps-`rd*` style layering: the `.DTA` loader wraps the Zone class wraps MFC containers.
 
 ## Next

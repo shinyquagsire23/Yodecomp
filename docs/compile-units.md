@@ -104,7 +104,7 @@ source file, emitted contiguously). Approximate boundaries:
 | `0x401450–0x401ab9` | **World / game-score** — `World_UpdateScore`/`Calc*Score`/`GetZoneCell` |
 | `0x401ac0–0x405150` | **GameData** + more small classes (`.dta` state; see module map above) |
 | `0x405150–0x405ae0` | **Zone class** — `Zone_Ctor`/`Dtor`/`GetTile`/`SetTile`/`GetEdgeCode`/`FindObjectAt` (18) |
-| `0x405ae0–0x4070e0` | **Zone runtime + IACT scripts** — `Zone_ReadData`/`ReadZaux`/`ReadZax2-4`, `Iact_Run` |
+| `0x405ae0–0x4070e0` | **Zone runtime + IACT scripts** — `Iact_ReadIzon`/`ReadZaux`/`ReadZax2-4`, `Iact_Run` |
 | `0x4070e0–0x408110` | **Tile/sprite rendering** — `Render_DrawTileSprite` (+ ~16 render helpers) |
 | `0x408c60–0x40a560` | **Player / game core** — `Game_OnWalk`, `Game_MovePlayer` (+ movement helpers) |
 | `0x40a560–0x418700` | **Game UI/view (big, 107)** — `Game_OnDragItem`, `Game_OnBumpTile`, window proc `FUN_0040b270` |
