@@ -18,7 +18,7 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | `MapZone` | **0x34** | TRACED — grid stride at `World+0x4b4` (100 records) | overview-grid cell. `exists@0`, `flagSolved@0x18`, `flagA/B@0x20/24` |
 | `World` | **0x33c0** | TRACED — `CDeskcppDoc` `CRuntimeClass.m_nObjectSize` @0x44c2b0 | the CDocument game doc (real MFC name `CDeskcppDoc`). `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
 | `GameView` | **0x310** | TRACED — `CDeskcppView` `CRuntimeClass.m_nObjectSize` @0x44b228 | the CView subclass (real MFC name `CDeskcppView`). `doc@0x44`(World*), `frameCounter@0xb0` |
-| `ZoneObj` | 0x10 | **INFERRED** from field accesses (`type@8`,`x@0xa`,`y@0xc`) — TODO: trace alloc | a placed object in a zone's `objects` array |
+| `ZoneObj` | **0x10** | TRACED — `operator_new(0x10)` in `Dta_ParseHtsp` (0x4236b0, HTSP reader) → `zone->objects@0x7a8` | a placed hotspot/object. `type@8`,`x@0xa`,`y@0xc` |
 | `CFile` | 0x40 | model-only (MFC) — only `vtbl@0` + `Read`@vtbl+0x3c matter for the match | MFC file; `CFile_vtbl.Read` is a fn-ptr |
 
 ## Enums
@@ -31,8 +31,14 @@ The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDe
 for readability; the CRuntimeClass structs live at 0x44c2b0 / 0x44b228 and pin the sizes. To pin any
 other MFC-derived class size, find its `CRuntimeClass {char* name, int nObjectSize, …}` in `.rdata`.
 
-## Open items (non-idiomatic casts still to resolve → model these next)
-- `World+0x3270` — a drawing buffer/DC handle used by the render fns (`FUN_00408110`/`Render_FUN_00408040`);
-  model it to clean up `*(void**)&doc->field_0x3270`.
-- `ZoneObj` alloc site (for exact size) — likely in `Iact_ReadZax*` or the hotspot reader.
-- `World+0x88` `tileCount`, the tile-array `CObArray` object (doc+0x80) — confirm it's a `CPtrArray`.
+## Not a fixed struct (intentionally not modeled with a size)
+- **`World.canvas` @0x3270** — pointer to the offscreen **render bitmap**, read by 18 render/game fns
+  as the `this` for `Canvas_Blit` (0x408110) etc. **No constant `operator_new` size exists** (widest
+  scan found only `Zone`=0x848) ⇒ it's allocated with a *computed* size (`header + W*H` inline pixels),
+  so it is deliberately left as a named `void*` field, not a fake fixed struct. Known header field:
+  stride/pitch @ `canvas+0x438`. Field renamed `doc->canvas` so the readers stop showing `field_0x3270`.
+
+## Open items
+- `World+0x88` `tileCount`, the tile-array `CObArray`/`CPtrArray` object at doc+0x80 — confirm the class.
+- Map the `Canvas` header fields (pixel base, W/H around +0x438) if the render path needs more clarity —
+  but keep it a header-only model (pixels are variable-length inline).
