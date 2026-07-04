@@ -36,9 +36,22 @@ view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
   timer/idle callback). `void __fastcall(view*)`. Drives everything each frame:
   - **Player**: `Player_FUN_00409060` (step/move), `Player_FUN_00409460` (tile-collision, reads all 3
     layers via `Zone_GetTile`).
-  - **Enemy/monster AI**: **inlined here** — `_rand` is called **36×** for random monster movement/
-    behavior, with tile checks and `Zone_SetTile` to move them. There is NO separate AI function; the
-    monolithic tick updates all entities (typical 1997 MFC game).
+  - **Enemy/monster AI**: **inlined here** (no separate AI function). Iterates the zone's spawned-entity
+    list `zone->entities` (a 2nd `CObArray`, `m_pData@+0x7d4`, count `@+0x7d8`), each a **`MapEntity`**:
+    ```
+    MapEntity (sizeof ~0x40):
+      +0x04 short charId    index into doc->characters (<0 = empty slot)
+      +0x06/+0x08 homeX/Y   spawn position
+      +0x0c int   state
+      +0x12/+0x14 x/y       current grid position
+      +0x24 short timer     behavior cooldown
+      +0x38/+0x3a dx/dy     pending movement delta
+      +0x3c short animFlag
+    ```
+    Per entity per frame: look up its char def (`doc->characters[charId]`), `_rand()` (36× total) to
+    pick a move, **`Iact_ProbeMove`(zone,x,y,dx,dy)** (0x406550) to test tile walkability + animation
+    timing (`GetTickCount`), then `Zone_SetTile` + `Player_Move` to relocate/animate, and `Iact_Run` to
+    fire the entity's scripts. `MapEntity` + `Zone.entities` are now modeled in the Ghidra DB.
   - **Scripts**: `Iact_FUN_00406550` (a `GetTickCount`-based timed script/position helper) and the
     `Game_On*` event handlers → `Iact_Run`.
   So "character driving" for both player and enemies lives in `Game_Tick`; decompiling its per-entity
