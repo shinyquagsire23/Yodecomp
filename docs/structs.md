@@ -17,6 +17,8 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | `IactCommand` | **0x20** | TRACED — `operator_new(0x20)` in `Iact_ReadScript` | `opcode@4` (`IactCmdOp`) + `args[5]@8` + `text` CString@0x1c |
 | `MapZone` | **0x34** | TRACED — grid stride at `World+0x4b4` (100 records) | overview-grid cell. `exists@0`, `flagSolved@0x18`, `flagA/B@0x20/24` |
 | `Puzzle` | **0x2c** | TRACED — `operator_new(0x2c)` in `Dta_ParsePuz2` (0x422fd0) → `Puzzle_Read` (0x404480) → `World.puzzles@0xd0` | item-for-item quest. `type@0`, `itemA@0x10`(needed), `itemB@0x12`(reward), `text1..5`@0x18–0x28 (dialogue CStrings) |
+| `Canvas` | **0x43c** | TRACED — `operator_new(0x43c)` (`Settings_FUN_0041bb10`/`Dta_FUN_00426c40`) → `Canvas_Init` (0x407df0) → `World.canvas@0x3270` | DIBSection offscreen buffer. `hdc@0`, `hbitmap@0xc`, BITMAPINFOHEADER@0x10 (`width@0x14`,`height@0x18`,`bitCount@0x1e`), `palette[256]@0x38`, `pBits@0x438` (separate DIB alloc) |
+| `CDC` | 0x10 | model-only (MFC) — only `m_hDC@4` matters | MFC device context; `Render_Blit`'s dest param is `CDC*` (`BitBlt(dest->m_hDC, …)`) |
 | `World` | **0x33c0** | TRACED — `CDeskcppDoc` `CRuntimeClass.m_nObjectSize` @0x44c2b0 | the CDocument game doc (real MFC name `CDeskcppDoc`). `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
 | `GameView` | **0x310** | TRACED — `CDeskcppView` `CRuntimeClass.m_nObjectSize` @0x44b228 | the CView subclass (`CDeskcppView`). `doc@0x44`(World*), `frameCounter@0xb0`, `soundSession@0xc4`, plus ~30 input/drag members typed from `View_HandleInput` (`draggedTile@0x140`(Tile*), `dragX/Y/Layer@0x104/8/c`, `dragActive@0x148`, …) |
 | `ZoneObj` | **0x10** | TRACED — `operator_new(0x10)` in `Dta_ParseHtsp` (0x4236b0, HTSP reader) → `zone->objects@0x7a8` | a placed hotspot/object. `type@8`,`x@0xa`,`y@0xc` |
@@ -32,12 +34,12 @@ The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDe
 for readability; the CRuntimeClass structs live at 0x44c2b0 / 0x44b228 and pin the sizes. To pin any
 other MFC-derived class size, find its `CRuntimeClass {char* name, int nObjectSize, …}` in `.rdata`.
 
-## Not a fixed struct (intentionally not modeled with a size)
-- **`World.canvas` @0x3270** — pointer to the offscreen **render bitmap**, read by 18 render/game fns
-  as the `this` for `Canvas_Blit` (0x408110) etc. **No constant `operator_new` size exists** (widest
-  scan found only `Zone`=0x848) ⇒ it's allocated with a *computed* size (`header + W*H` inline pixels),
-  so it is deliberately left as a named `void*` field, not a fake fixed struct. Known header field:
-  stride/pitch @ `canvas+0x438`. Field renamed `doc->canvas` so the readers stop showing `field_0x3270`.
+## Correction: `World.canvas` IS a fixed struct (2026-07-04)
+Earlier I wrongly concluded the canvas was a computed-size buffer. Tracing `Render_Blit`'s `this`
+argument → it's **`doc->canvas`** (@doc+0x3270), a fixed **`Canvas` = 0x43c** DIBSection wrapper
+(`operator_new(0x43c)` in `Settings_FUN_0041bb10`/`Dta_FUN_00426c40` → `Canvas_Init` 0x407df0). The
+pixels are a **separate** DIB allocation (`CreateDIBSection` fills `pBits@0x438`), not inline — which
+is why the earlier alloc scan didn't see a giant block. Now modeled and typed (see registry).
 
 ## Open items
 - `World+0x88` `tileCount`, the tile-array `CObArray`/`CPtrArray` object at doc+0x80 — confirm the class.
