@@ -143,6 +143,16 @@ record format (18×18, 3 tile layers, hotspots, IACT scripts, area/map-flag enum
   contiguity + the dispatcher's call set delimit the unit. Edges to refine: functions <0x401450 are MFC
   ctor/dtor boilerplate (may be a separate class TU); 0x401ac0+ switches to MFC `CWinApp`/`CString` code.
 
+### Vtable-target function recovery — DONE (2026-07-04)
+The CALL-target prepass (below) found direct-call coverage complete, but **indirect-call (virtual
+method) targets were not all defined**: 67 vtables in `.rdata`/`.data` had 225 entries pointing to
+`LAB_*` code (undefined functions) — MFC virtual impls + shared `ret N`/adjustor stubs + app methods.
+Recovered them all with a safe scanner: find runs of ≥4 consecutive `.text`(0x401000–0x44b000) code
+pointers, `createFunction` at each undefined target that is an instruction start AND not inside an
+existing function (that guard skips switch-table case labels → no false positives). Result: 225 funcs
+created (82 app-region, 366 lib), 0 undefined vtable targets remain. Re-run the scanner anytime; it's
+idempotent.
+
 ### Prepass: recovering un-marked code — DONE, effectively a no-op (2026-07-04)
 **Conclusion: Ghidra's function coverage of the app region is already complete.** Verified with a script
 using Ghidra's authoritative reference data: **all 484 call-targets in 0x401000–0x429000 are already
