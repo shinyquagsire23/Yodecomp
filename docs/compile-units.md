@@ -126,6 +126,14 @@ are the big `0x40a560` view `.obj`. Refine each by decompiling a couple of its u
   not a Ghidra-visible table — reach them by decompiling from these anchors. `Game_Tick` has no direct
   callers ⇒ it's the registered timer/idle proc.
 
+**Propagation pass (2026-07-04):** `GameView` struct (CView subclass, `doc@0x44`/`frameCounter@0xb0`)
+typed onto **23 of the 29** view methods that touch `doc@0x44`/`zone@0x2c0`, so they decompile against
+`this->doc->currentZone->…`. Newly named from the clarified bodies: `Game_Tick` (0x40b270),
+`Game_DrawEntities` (0x40b160), `View_DrawMap` (0x40ed90, camera-visible tile render), `Game_UseTile`
+(0x40a710, tile-type interaction dispatch), `View_HandleInput` (0x412250, iactBusy-gated input),
+`Game_ClassifyTile` (0x40fca0, gameState-aware tile→code). The rest are typed but not yet
+individually named (camera/scroll/GDI helpers) — name incrementally as their `doc->` accesses clarify.
+
 ## Next refinements
 - Subdivide the two giant modules (UI 107, WorldGen 130) — they're likely several `.obj`s each; the
   giant `FUN_0040b270` (~10.8 KB) lives in the UI module and is probably the main window proc.
