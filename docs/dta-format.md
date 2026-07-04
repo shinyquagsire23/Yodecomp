@@ -32,7 +32,13 @@ The read tag is compared against the tag table in **`.data 0x456890–0x456908`*
 | VERS | inline                   | —        | version `long` |
 | STUP | inline                   | —        | startup graphic (uses palette) |
 | TILE | inline                   | —        | tiles: `(32*32)+4` bytes each (graphics) |
-| CHAR | (shared/TBD)             | —        | characters — handler not cleanly isolated in dispatch |
+| CHAR | `Dta_ParseChar`          | 0x421e70 | character base records → `doc->characters[id]` (World+0xc0) |
+
+**Character subsystem** (records at `doc->characters` = `World+0xc0`, indexed by char id):
+`Dta_ParseChar` (0x421e70, CHAR) reads the base character records; then `Dta_ParseCaux` (0x423290, CAUX)
+and `Dta_ParseChwp` (0x423300, CHWP) attach auxiliary + weapon data to `characters[id]` (both loop:
+read `short id`; `id<0` skips, else index `characters[id]` and read that record's data). Format details
+in `~/workspace/DesktopAdventures/src/character.c` (animation frames, health, weapon frames, etc.).
 
 **On `ENDF`:** when `Dta_Load` reads the end-of-data tag it doesn't parse a chunk — it kicks off the
 **random world generation** (the "WorldGen" megafunction area):
