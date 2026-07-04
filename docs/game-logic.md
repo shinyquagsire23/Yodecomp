@@ -44,7 +44,29 @@ view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
   So "character driving" for both player and enemies lives in `Game_Tick`; decompiling its per-entity
   loops (there are several, guarded by `_rand`) is the way to pull out the enemy AI.
 
+## Game-loop call structure (traced 2026-07-04 — reveals the module layering)
+```
+Game_Tick (View .obj, 0x40b270, timer/idle)
+  ├─ Player_Move (0x409060)          entity move by direction (deltas @doc+0x330c/0x3310)
+  ├─ Player_CheckWalkable (0x409460) reads all 3 tile layers → blocked?
+  ├─ Iact_FUN_00406550               timed script/position helper (GetTickCount)
+  ├─ Zone_GetTile / Zone_SetTile     tile read/write
+  └─ _rand ×36                       inlined enemy/monster AI (random movement)
+
+Game_OnWalk (0x409650) / Game_MovePlayer (0x409c10)   [near-identical: two movement variants]
+  ├─ Player_TryStep (0x409610) → Player_CheckWalkable   walkability-gated move
+  ├─ Iact_Run (0x406780)             fire Walk/step scripts
+  ├─ Render_Blit (0x408000) + GetDC/SelectPalette/ReleaseDC   immediate on-screen draw
+  ├─ World_GetZoneCell (0x401a80)    overview-grid lookup
+  └─ View_FUN_0040b160               entity/character draw (iterates doc->characters, Zone_SetTile)
+```
+**Layering confirmed:** `View`/tick → `Player` (movement+draw glue) → `Iact` (scripts) + `Render`
+(blit) + `World`/`Zone` (data) + GDI. The Player `.obj` (0x408c60–0x40a560) is the action layer that
+stitches scripts, world data, and drawing together; `Render` (0x4070e0–0x408110) is pure blitting
+(`Render_DrawTileSprite`, `Render_Blit`).
+
 ## Still to map
 - The **command executor** switch (SetMapTile/ShowText/… `0x00-0x25`) — inside/near `Iact_Run`.
 - The individual `Game_Tick` sub-loops (player step, monster AI, projectile/attack) — currently one
   giant function; splitting it is the next decomp step for the gameplay core.
+- `View_FUN_0040b160` (entity draw) and the rest of the `View`/CView `.obj`.
