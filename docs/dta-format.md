@@ -40,6 +40,12 @@ and `Dta_ParseChwp` (0x423300, CHWP) attach auxiliary + weapon data to `characte
 read `short id`; `id<0` skips, else index `characters[id]` and read that record's data). Format details
 in `~/workspace/DesktopAdventures/src/character.c` (animation frames, health, weapon frames, etc.).
 
+**Puzzle subsystem** (`PUZ2` chunk): `Dta_ParsePuz2` (0x422fd0) reads each puzzle as a **`Puzzle`**
+record (`operator_new(0x2c)` → `Puzzle_Read` 0x404480) into `World.puzzles` (CObArray @doc+0xd0). A
+puzzle is an **item-for-item** quest node: `itemA` (needed) / `itemB` (reward) + 5 dialogue CStrings
+(`text1..5`, per DA `puzzle.h`). Worldgen wires puzzles into the quest chain via `Worldgen_PlacePuzzle`
+(0x421620) — the "!!!!No Place to put Find Puzzle!!!" placer. See `docs/structs.md` for the layout.
+
 **On `ENDF`:** when `Dta_Load` reads the end-of-data tag it doesn't parse a chunk — it kicks off the
 **random world generation** (the "WorldGen" megafunction area):
 - `Worldgen_Randomize` (0x424380) — seeds the RNG from `GetCursorPos`+`time()`+`clock()` (`srand`
