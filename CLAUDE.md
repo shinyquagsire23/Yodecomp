@@ -152,6 +152,12 @@ by one exception-table data ptr; belong to the parent function); (b) **`[j>0]` s
 reached by jump tables; (c) large `[d1]` runs of **switch/jump code near the giant funcs** (e.g. the
 2.4 KB run at 0x40d992 near `FUN_0040b270`); (d) a few trivial **shared vtable `ret N` stubs** (e.g.
 0x40e3f0 = `ret 0x4`, referenced by 15 vtable slots). None should be made standalone functions.
+**EH funclets are named `<parent>_ehN` (2026-07-04).** The ~260 tiny (<0x18 B) `unaff_EBP`-frame
+destructor funclets (`CString::~CString`/`CFile::~CFile`/… via the parent's frame) are C++ exception
+cleanup, not real functions. Each is code-referenced from exactly one parent function's body → named
+`<parentName>_eh<idx>` (e.g. `Settings_Save_eh0`, `GameData_FUN_00401ea0_eh4`) so the association is
+obvious. Detection: size <0x18 + a code ref from a ≥0x18 parent. The ~65 remaining tiny funcs are shared
+vtable `ret N` stubs (referenced only from `.rdata` vtables, no single parent) — left as-is.
 **Pitfalls proven:** `find_code_gaps` is ~826 mostly-`0xCC`-padding noise; a **capstone call-scan gives
 huge false positives** (misdecoded jump-table/data bytes → fake call targets); and `create_function` on
 gap targets in tangled regions (tried 0x403501–0x40379f) yields **overlapping garbage bodies** — undone.
