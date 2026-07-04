@@ -54,11 +54,11 @@ below GameData in .text and is its own tiny group (FP pool `0x44b09c`).
 418700-418b10      9      44bc68         -         small class
 418b10-418c30      5      44bc80         -         small class
 418c30-418dd0      6      44bc98         459558    small class
-418dd0-419120      8      44bd30         -         small class
-419120-419730      8      44bf30         459e20    small class
-419730-41b2f0      20     44c130         456210    ** Logging (yodalog.txt) **
-41b2f0-41bee0      28     44c438         -         ** Settings/registry **
-41bee0-41c340      9      44d064         -         small
+418dd0-419120      8      44bd30         -         Dlg_    CDialog subclass (Dlg_Ctor)
+419120-419730      8      44bf30         459e20    Frame_  CFrameWnd/CMainFrame (Frame_OnCreate, PreCreateWindow)
+419730-41b2f0      20     44c130         456210    App_    CDeskcppApp (CWinApp: App_Ctor) + Log_Write + doc-render helpers
+41b2f0-41bee0      28     44c438         -         Settings_ CDeskcppApp settings (Settings_Save, WriteProfileInt)
+41bee0-41c340      9      44d064         -         Worldgen_ worldgen helper class (rand; called by the generator)
 41c340-429000      130    44d2b4         4560f8    ** WorldGen + .wld save/load **
 ```
 
