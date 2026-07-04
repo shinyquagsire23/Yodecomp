@@ -115,6 +115,17 @@ So: IACT/script functions cluster with the zone readers (`0x405ae0–0x4070e0`);
 `.obj` right after; player movement is the `0x408c60` `.obj`; the drag/bump handlers + main window proc
 are the big `0x40a560` view `.obj`. Refine each by decompiling a couple of its unnamed `FUN_*`.
 
+### View `.obj` (0x40a560–0x418700) — identified functions (string + call-graph anchors)
+- `Game_Tick` (0x40b270) — per-frame update + inlined enemy AI (see game-logic.md)
+- `Game_OnDragItem` (0x4102d0, item-drag + "This is a WEAPON…" hints), `Game_OnBumpTile` (0x413df0)
+- `Game_CheckCheat` (0x415820 — `goyoda`→Invincible, `gojedi`→Super Jedi)
+- `View_OnOptions` (0x416030 — OPTIONS + MIDILoad), `View_OptionsDialog` (0x411180)
+- `Game_ShowWinMessage` (0x40f4b0 — "Well done, Luke!"), `View_DrawText` (0x40f060 — MS Sans Serif)
+- `View_FUN_0040b160` — entity/character draw (iterates `doc->characters`)
+- Message handlers (OnDraw/OnTimer/OnKeyDown/OnLButton…) are wired at runtime (SetTimer/message map),
+  not a Ghidra-visible table — reach them by decompiling from these anchors. `Game_Tick` has no direct
+  callers ⇒ it's the registered timer/idle proc.
+
 ## Next refinements
 - Subdivide the two giant modules (UI 107, WorldGen 130) — they're likely several `.obj`s each; the
   giant `FUN_0040b270` (~10.8 KB) lives in the UI module and is probably the main window proc.
