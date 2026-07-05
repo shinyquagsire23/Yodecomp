@@ -32,6 +32,14 @@ as a struct (then move them or `set_function_this_type`). Global leftovers are o
 Loose-Hungarian still applies to the bare method + variables (`Draw*`, `p`/`b`/`n`). When you `set_function_
 this_type X*`, Ghidra moves the func into namespace `X` automatically — so typing and namespacing are one act.
 
+**Prefer a descriptive guess over `FUN_<addr>` — mark uncertainty with `Maybe`.** A name derived from what a
+function *accesses/calls* (even a vague one) is more useful than an anonymous `FUN_*`, and it refines over
+time. When the behaviour is clear but the exact purpose isn't, append **`Maybe`**: e.g. `World::InitUiMaybe`,
+`GameView::DrawStatusMaybe`. This is the standing signal that the name is a hypothesis to confirm/sharpen
+later (grep `Maybe` to find them). Only leave `FUN_<addr>` when you genuinely can't tell what it touches.
+Still avoid *confidently wrong* names (the `BlitWeaponBox` miss) — read the body first; `Maybe` is for honest
+"looks like X" guesses, not unread ones.
+
 ## Decompiling
 
 A decompiler instance can be accessed via `http://localhost:8089`, which is running an instance of https://github.com/bethington/ghidra-mcp. The binary that should be accessed is `YodaDemo.exe`, which can also be found at `YodaDemo/YodaDemo.exe`.
