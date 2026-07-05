@@ -118,7 +118,7 @@ objects (`ZoneObj.type` = `ObjType`), and both drive the **per-zone save snapsho
 | `GameView::TransitionZoneXWing` (0x40e7c0) | `DrawObjects` (reach an X-Wing spot) | `OBJ_XWING_TO`(0xf) ⇄ `OBJ_XWING_FROM`(0xe) | **arrive→`World::RestoreRecords`**, **depart→`World::BackupRecords`** |
 Both: target zone id = `hotspot->+0xe`; find the paired object in the target via `World::GetZoneById`
 (0x403a70, bounds-checked `zoneObjects[id]`); set `pWorld->cameraX/Y = paired.x/y << 5`, `field90_0x60`
-= direction, `bIactBusy = 6`. The backup/restore is why saves stay sparse (see worldgen.md).
+= direction, `nFrameMode = 6`. The backup/restore is why saves stay sparse (see worldgen.md).
 
 Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zone pointer hangs off the
 view (`+0x2c0`). Characters live in `pWorld->characters` (World+0xc0).
@@ -187,21 +187,21 @@ repaint the two-column list at the new offset.
 direct callers). `param_1` gates the tick (run iff `param_1==0xabcd` force, or `==gameState@0x68`). Each
 frame it: (1) smooths difficulty (`pWorld+0x3320 = avg(+0x331c,+0x3320)`); (2) handles **win/lose** via
 `pWorld->abortFrame` (set by IACT `WinGame`/`LoseGame`: `1`→`gameState=1`+`PlayerMove(0x3f)`, `-1`→
-`gameState=-1`+`PlayerMove(0x3e)`); (3) dispatches on **`pWorld->bIactBusy`** — the game's **frame-mode
+`gameState=-1`+`PlayerMove(0x3e)`); (3) dispatches on **`pWorld->nFrameMode`** — the game's **frame-mode
 state machine** (a `1..8` enum @World+0x5c; the `b`-prefix is a misnomer, it is *not* boolean):
 
-| bIactBusy | frame mode | does |
+| nFrameMode | frame mode | does |
 |---|---|---|
 | 1, 4 | idle / wait | `CyclePalette` only (ambient palette anim) |
 | **2** | **normal play** | `CyclePalette` + `Tick` (entities) + the **player-move dispatch**: if `bMovePending`(`GameView+0x78`), switch `nMoveCommand`(`+0x84`, 0x21–0x28 = the 8 directions) → set `nMoveDX/DY`(`+0x128/+0x12c`) → `OnBumpTile(dx,dy)` |
 | 3 | dialogue up | `CyclePalette` + `Tick` + `ShowTextDialog` (a speech balloon is showing) |
 | 5 | drag in progress | pure wait |
-| 6 | zone transition start | `switch(pWorld->mapChangeReason)` (door/x-wing/script); finishes the swap, then sets `bIactBusy=3` |
+| 6 | zone transition start | `switch(pWorld->mapChangeReason)` (door/x-wing/script); finishes the swap, then sets `nFrameMode=3` |
 | 7 | transition continue | scroll/settle (`mapChangeReason` again) |
 | 8 | play/render variant | `CyclePalette` + `Tick` + `DrawGameArea` (intro / camera scroll?) |
 
 So the loop is **`UpdateFrameMaybe` → `Tick` (entities/AI) + `CyclePalette` (anim) + `DrawGameArea` (render)**,
-selected by `bIactBusy`. (Note: `bIactBusy@0x5c` is distinct from `gameState@0x68` = win(-1/1) — the former
+selected by `nFrameMode`. (Note: `nFrameMode@0x5c` is distinct from `gameState@0x68` = win(-1/1) — the former
 is the per-frame mode, the latter the win/lose result. Mode-2 directions (`nMoveCommand`→dx,dy): 0x25 W(-1,0) 0x27 E(1,0) 0x26 N(0,-1) 0x28 S(0,1) 0x24 NW 0x21 NE 0x23 SW 0x22 SE. Modes 7/8 specifics are
 still to detail.)
 
