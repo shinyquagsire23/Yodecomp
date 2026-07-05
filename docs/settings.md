@@ -28,6 +28,13 @@ the *app* (`this`) as the registry writer. Confirmed by `Player_Move`, which gat
 `doc->playSound`/`doc->playMusic`. All nine fields are now named in the `World` struct at the offsets in
 the table above (the 0x33xx block only fits the 0x33c0 doc, not a small CWinApp).
 
+## Options dialog (sliders)
+The settings ARE edited via an **options dialog with sliders** (confirmed by the user). Its per-slider
+`WM_H/VSCROLL` handlers are `GameView::OptionsSliderScroll{67,8f,90}Maybe` (0x417fa0/0x418280/0x418560,
+control ids 0x67/0x8f/0x90, range [1,100]) — one each for **game speed / difficulty / world (map) size**
+(exact id→setting mapping TBD via DDX/.rc). `this` is the dialog CDialog (mislabeled GameView*). The
+dialog commits the slider values, then `Settings::Save` persists them to the `[OPTIONS]` keys above.
+
 ## Load
 No `GetProfile`-heavy loader exists in the app region (all functions call `GetProfile` < 3×), so the
 **demo** appears to start from defaults and only *save* settings; the full game would read them back
