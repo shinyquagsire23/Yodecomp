@@ -21,7 +21,7 @@ Writes every setting with `CWinApp::WriteProfileInt(app, "OPTIONS", "<name>", ap
 | `LScore`     | +0x33b0 | last score |
 | `Terrain`    | +0x2e3c | planet/terrain type (also the world's `currentPlanet`) |
 
-After the profile writes it serializes additional state. **Correction (2026-07-04):** the settings live
+After the profile writes it serializes additional state via **`Settings::SerializeToFileMaybe`** (0x41b8a0, opens a file + `CArchive`). Related: **`Settings::InitDocCanvasMaybe`** (0x41bb10) creates the doc's offscreen `Canvas` (`operator_new`→`Canvas::Init/Clear/SetPalette`). **`WorldSize`@0x3328 is the menu's map-size option** (small/med/large); the audio on/off (`PlaySound`/`PlayMusic`) are toggled by `World::ToggleSound`/`ToggleMusic` — there is no single options dialog. **Correction (2026-07-04):** the settings live
 on the **`World` doc**, not a separate app object — `Settings_Save` is `__fastcall(World *param_1)` and
 writes `param_1->playSound/playMusic/difficulty/...` while calling `CWinApp::WriteProfileInt(app, …)` on
 the *app* (`this`) as the registry writer. Confirmed by `Player_Move`, which gates audio on
