@@ -68,3 +68,24 @@ everything — the fix is to anchor **DTA on the chunk parsers** (not `Dta_Load`
   generation helpers (grid math, zone/item placement) — named incrementally as their role clarifies.
 - RNG: `srand`=0x42a640, `rand`=0x42a650 (static CRT). The seed mixes cursor pos + wall clock, so each
   play is different (matching Yoda Stories' "random galaxy each game").
+
+## World-namespace functions mapped (2026-07-05, autonomous grind)
+Named ~35 previously-`FUN_*` functions in the `World` (`CDeskcppDoc`) namespace (server-side callee
+analysis; HTTP decompile was too flaky). All names carry `Maybe` where the role is clear but the exact
+content/direction isn't yet pinned:
+- **`World::LoadWorldMaybe`** (0x421fd0) — world load/build: reads the `Terrain` option, opens the data
+  via `CFile`, and hard-calls the DTA parsers (`ParseZone/Zaux/Zax2/Zax3/Actn/Htsp`), sets `nFrameMode`.
+- **Worldgen placement family** — `WorldgenPlaceRandInZone{,2..7}Maybe` (0x41c580/730/cf10/d260/d480/
+  e920/f120): `GetZoneById` → gather candidate spots from the zone's worldgen scratch-lists (CDWordArrays
+  at `zone+0x810/+0x824`) → `_rand`-pick one to place generated content. **Orchestrators** call these:
+  `WorldgenPopulateZoneMaybe` (0x41c8f0), `WorldgenPlaceChain{,2}Maybe`, `WorldgenPlaceItemMaybe`,
+  `WorldgenPlacePuzzlesMaybe` (0x421930, calls `PlacePuzzle`), `WorldgenBuildQuestMaybe` (0x41d940, 2 KB).
+  Array helpers: `Worldgen{Insert,Add}ZoneEntryMaybe`, `Remove{,2}ZoneEntryMaybe`, `BuildZoneListsMaybe`.
+- **`World::BackupZoneGrid`** (0x421460) — active grid (`+0x4b4`) → backup (`+0x1904`); counterpart to
+  `RestoreGridFromBackup`; snapshots a zone on transition (sparse-save mechanism).
+- **Save/load + doc**: `LoadOrSaveWorldMaybe`/`SaveWorldMaybe` (0x423850/b30, `CFile`+`UpdateAllViews`+
+  error box), `SerializeZone{,Objects}Maybe`, `DrawTileToCanvasMaybe` (0x423df0), `GetCanvasDataMaybe`.
+- **Queries**: `FindZoneCellById`, `ZoneHasItemOrDoorMaybe`, `FindObjectByIdMaybe`, `FindValueInListMaybe`,
+  `FindSpecialZoneMaybe`, `CheckZoneObjectsMaybe`; plus `ResetGameStateMaybe` (0x4037a0, new-game health/
+  weapon reset). Remaining `World::FUN_*` are all <0x40 funclets/stubs.
+
