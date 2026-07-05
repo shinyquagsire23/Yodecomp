@@ -55,3 +55,24 @@ int Canvas::BitBlt(CDC* dest, int destX, int destY, int width, int height, int s
         return 0;
     return ::BitBlt(dest->m_hDC, destX, destY, width, height, hdc, srcX, srcY, SRCCOPY);
 }
+
+// FUNCTION: YODA 0x00407f80
+int Canvas::CreatePalette()
+{
+    HWND     hWnd = GetActiveWindow();
+    HDC      dc   = GetDC(hWnd);
+    HPALETTE pal  = CreateHalftonePalette(dc);
+    hPalette = pal;
+    if (pal != 0) {
+        RGBQUAD* pe = palette;
+        GetPaletteEntries(pal, 0, 0x100, (LPPALETTEENTRY)pe);
+        for (int i = 0x1a; i != 0; i--) {
+            BYTE t = pe->rgbBlue;
+            pe->rgbBlue = pe->rgbRed;
+            pe->rgbRed = t;
+            pe++;
+        }
+        return 1;
+    }
+    return 0;
+}
