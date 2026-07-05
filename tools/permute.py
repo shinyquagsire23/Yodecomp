@@ -410,7 +410,10 @@ def main():
     addr = int(sys.argv[2], 0)
     iters = int(sys.argv[sys.argv.index("--iters") + 1]) if "--iters" in sys.argv else 3000
     mode = sys.argv[sys.argv.index("--mode") + 1] if "--mode" in sys.argv else "all"
+    forced = sys.argv[sys.argv.index("--name") + 1] if "--name" in sys.argv else None
     text = open(src).read()
+    if re.search(r"#\s*include\s*<afx", text):   # MFC TU -> needs _MBCS to compile afxwin.h
+        FLAGS.extend(["/D", "_MBCS"])
     s, e = extract_func(text, addr)
     func = text[s:e]
     workdir = os.path.dirname(os.path.abspath(src))
@@ -421,7 +424,7 @@ def main():
     # win the diff-minimisation; fall back to min-diff if unparsed.
     nm = re.search(r"::(\w+)\s*\(", func) or re.search(r"\b([A-Za-z_]\w*)\s*\(", func)
     src_name = nm.group(1) if nm else None
-    b0 = compile_diff(text, addr, workdir, base, None, src_name)
+    b0 = compile_diff(text, addr, workdir, base, forced, src_name)
     if b0 is None:
         print("baseline does not compile")
         return 2

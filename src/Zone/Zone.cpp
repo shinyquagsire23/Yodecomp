@@ -24,9 +24,11 @@ Zone::Zone(short w, short h)
 
 // FUNCTION: YODA 0x00405300  (compiler-generated scalar-deleting destructor ??_GZone -- MATCH, no source)
 
-// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13), all reg-alloc + instr-selection --
-//   loop guard `test edi,edi` vs `cmp edi,eax`(eax=result=0), an ecx/edx/esi register permutation,
-//   and end-cmp operand order. Structurally identical; not source-forceable. Confirmed 2026-07-05.]
+// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13). PERMUTER-CONFIRMED (2026-07-05) as pure
+//   register allocation: asmscore drops to align=0 (instructions 1:1 identical), residual is a clean
+//   3-register rotation (ecx/edx/esi for walk-ptr/x/obj -- orig reuses the dead `this` in ECX for the
+//   walk, mine for the obj) + loop guard `test edi,edi` vs `cmp edi,eax` + counter-cmp operand order.
+//   No stmt/decl/cmp lever reaches it (one leading decl). Semantically identical.]
 ZoneObj *Zone::FindObjectAt(int x, int y)
 {
     ZoneObj *result = 0;
