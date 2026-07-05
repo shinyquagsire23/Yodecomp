@@ -47,3 +47,11 @@ void Canvas::Fill(unsigned char value)
     for (int y = 0; y < height; y++)
         memset(p + y * width, value, width);  // TODO: y/width reg-alloc flip (permuter)
 }
+
+// FUNCTION: YODA 0x00408000
+int Canvas::Render_Blit(CDC* dest, int destX, int destY, int width, int height, int srcX, int srcY)
+{
+    if (hdc == 0)
+        return 0;
+    return BitBlt(dest->m_hDC, destX, destY, width, height, hdc, srcX, srcY, SRCCOPY);
+}

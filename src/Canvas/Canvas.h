@@ -5,6 +5,9 @@
 
 #include <windows.h>
 
+// Minimal MFC CDC surface — only m_hDC (@+0x04, after the CObject vtable) is used.
+struct CDC { void* _vfptr; HDC m_hDC; };
+
 struct Canvas {
     HDC              hdc;          // +0x00  memory DC (CreateCompatibleDC)
     HBITMAP          hDib;         // +0x04  DIB section (CreateDIBSection)
@@ -20,6 +23,8 @@ struct Canvas {
     UINT  SetPalette(UINT start, UINT count, RGBQUAD* colors);  // 0x00407fd0
     void  Clear();                                              // 0x00408040
     void  Fill(unsigned char value);                           // 0x004080a0
+    int   Render_Blit(CDC* dest, int destX, int destY,         // 0x00408000
+                      int width, int height, int srcX, int srcY);
 };
 
 #endif
