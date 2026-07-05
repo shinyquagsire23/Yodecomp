@@ -9,8 +9,9 @@ record has a **conditions list** (`+0xc` = condition count) and a **done flag** 
 FlagOnce command so a one-shot script won't refire). Execution is two functions:
 
 ### Phase 1 — `Iact_Run` (0x00406780): evaluate conditions
-`__thiscall(Zone *this, int event, x, y, dx, dy, …, World *doc, view)`; `event` = `2`=BumpTile,
-`3`=DragItem, `4`=Walk, `5`=variant. Outer loop over `iactScripts`, inner loop over each script's
+Full typed signature: `int Iact_Run(Zone *this, int event, int x, int y, int dx, int dy, int arg5,
+CDC *pDC, World *doc, GameView *view)`; `event` = `2`=BumpTile, `3`=DragItem, `4`=Walk, `5`=variant.
+Now reads idiomatically — `doc->zones[doc->playerY*10 + doc->playerX].flagSolved`, `doc->inventory`, etc. Outer loop over `iactScripts`, inner loop over each script's
 conditions, **`switch(cond->opcode)`** (`cond+4`; args at `cond+8/+0xc/+0x10/+0x14/+0x18`). If **all**
 conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition opcodes (verified vs
 `scrdoc.txt`, with the offsets they read):
@@ -25,7 +26,10 @@ conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition o
 | 0x18 | PlayerAtPos | camera `doc+0x3330/0x3334` |
 | 0x19–0x1b,0x21 | GlobalVar Eq/Ls/Gt/Ne | `zone->globalVar` (+0x844) |
 | 0x1c,0x23 | Experience Eq/Gt | `doc->completionCount` (+0x332c) — **not** RPG XP; it's the # of times the game has been beaten (registry `Count`). These conditions gate repeat-playthrough upgrade events (force powers, lightsaber) |
-| 0x1d | (object check) | loops `zone->objects` (+0x7ac/0x7b0) |
+| 0x16 | `CheckCellItem` (was DA Unk16) | `zones[playerCell].cellItemC` (+0x10) == arg0 |
+| 0x1d | `QuestSpotPresent` (was DA Unk1d) | loops `zone->objects` for `type==OBJ_QUEST_ITEM_SPOT` at coords |
+| 0x1e | `CheckCellItems` (was DA Unk1e) | reads `zones[playerCell].cellItemA/B` (+0xc/0xe) as `tileArray` indices |
+| 0x15 | (no handler) | unimplemented in the demo |
 | 0x1f,0x20 | TempVarNe/RandVarNe | `zone->tempVar/randVar` (+0x834/+0x838) |
 | 0x22 | CheckMapTileVar | zone tile grid |
 
