@@ -28,7 +28,14 @@ int Zone::GetEdgeCode(int x, int y)
     return 99;
 }
 
-// FUNCTION: YODA 0x00405330  [WIP: ~7 bytes off -- register allocation / count>0 guard scheduling.]
+// FUNCTION: YODA 0x00405330  [WIP: 7 bytes off, structure is otherwise identical (asmscore:
+//   align=10, reg_pen=2, identity_miss=5). Exactly two residuals, both TU-context/instr-selection
+//   (lesson #6/#7), NOT source-forceable in this partial TU:
+//     (1) loop guard: orig `test edi,edi;jle`  vs mine `cmp edi,eax;jle` (eax=0 from result=0) --
+//         a pure instruction-selection tie-break for the objectCount<=0 test.
+//     (2) the objects[] walk pointer: orig keeps it in ECX (reusing the incoming `this` slot) and
+//         puts the x-param in EDX; mine swaps them (objects->EDX, x->ECX). Clean ECX<->EDX bijection.
+//   Revisit at full-Zone-TU assembly (allocation context shifts then). Confirmed via disasm 2026-07-05.]
 ZoneObj *Zone::FindObjectAt(int x, int y)
 {
     ZoneObj *result = 0;
