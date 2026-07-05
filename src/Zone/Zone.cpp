@@ -1,22 +1,44 @@
-// Zone — map/zone class. Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+// Zone — CObject-derived map/zone class. Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG
+//        /D _WINDOWS /D _MBCS  (static MFC; see toolchain/README.md).
+// Functions in .text/source order so the reg-allocator's cross-function state matches the original.
 #include "Zone.h"
 
-// FUNCTION: YODA 0x00405430
-unsigned short Zone::GetTile(int x, int y, int layer)
+// FUNCTION: YODA 0x00405150
+Zone::Zone(short w, short h)
 {
-    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
-        return tiles[(y * 18 + x) * 3 + layer];
-    return 0xffff;
+    activatedFlag = 0;
+    width = w;
+    height = h;
+    for (int i = 0; i < width; i++)
+        for (int j = 0; j < height; j++) {
+            tiles[(i * 18 + j) * 3 + 0] = -1;
+            tiles[(i * 18 + j) * 3 + 1] = -1;
+            tiles[(i * 18 + j) * 3 + 2] = -1;
+        }
+    type = 1;
+    tempVar = 0;
+    globalVar = -1;
+    randVar = -1;
+    zoneUnk846 = -1;
 }
 
-// FUNCTION: YODA 0x00405480
-void Zone::SetTile(int x, int y, int layer, unsigned short val)
+// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13), all reg-alloc + instr-selection --
+//   loop guard `test edi,edi` vs `cmp edi,eax`(eax=result=0), an ecx/edx/esi register permutation,
+//   and end-cmp operand order. Structurally identical; not source-forceable. Confirmed 2026-07-05.]
+ZoneObj *Zone::FindObjectAt(int x, int y)
 {
-    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
-        tiles[(y * 18 + x) * 3 + layer] = val;
+    ZoneObj *result = 0;
+    for (int i = 0; i < objects.GetSize(); i++) {
+        ZoneObj *obj = (ZoneObj *)objects[i];
+        if (obj->x == x && obj->y == y && obj->state == 1) {
+            result = obj;
+            break;
+        }
+    }
+    return result;
 }
 
-// FUNCTION: YODA 0x00405380  [WIP: not byte-exact -- MSVC emits `cmp width,x;jg` for x<width; can't force from C (instruction selection). Permuter territory.]
+// FUNCTION: YODA 0x00405380
 int Zone::GetEdgeCode(int x, int y)
 {
     if (x >= 0 && x < width && y >= 0 && y < height) return 0;
@@ -28,38 +50,51 @@ int Zone::GetEdgeCode(int x, int y)
     return 99;
 }
 
-// FUNCTION: YODA 0x00405330  [WIP: 7 bytes off, structure is otherwise identical (asmscore:
-//   align=10, reg_pen=2, identity_miss=5). Exactly two residuals, both TU-context/instr-selection
-//   (lesson #6/#7), NOT source-forceable in this partial TU:
-//     (1) loop guard: orig `test edi,edi;jle`  vs mine `cmp edi,eax;jle` (eax=0 from result=0) --
-//         a pure instruction-selection tie-break for the objectCount<=0 test.
-//     (2) the objects[] walk pointer: orig keeps it in ECX (reusing the incoming `this` slot) and
-//         puts the x-param in EDX; mine swaps them (objects->EDX, x->ECX). Clean ECX<->EDX bijection.
-//   Revisit at full-Zone-TU assembly (allocation context shifts then). Confirmed via disasm 2026-07-05.]
-ZoneObj *Zone::FindObjectAt(int x, int y)
+// FUNCTION: YODA 0x00405430
+unsigned short Zone::GetTile(int x, int y, int layer)
 {
-    ZoneObj *result = 0;
-    for (int i = 0; i < objectCount; i++) {
-        ZoneObj *obj = objects[i];
-        if (obj->x == x && obj->y == y && obj->state == 1) {
-            result = obj;
-            break;
-        }
-    }
-    return result;
+    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
+        return (unsigned short)tiles[(y * 18 + x) * 3 + layer];
+    return 0xffff;
 }
 
-// FUNCTION: YODA 0x004056d0  [EFFECTIVE MATCH: DIFF(5), clean EAX<->EDX bijection -- the original
-//   keeps `obj` in EDX and reuses EAX for the type load; mine does the reverse. Structure byte-identical
-//   (unsigned range-check via JC/JA, cached count + countdown, objects[] reload). Reg-alloc tie-break,
-//   not source-forceable in this partial TU (lesson #6/#7); revisit at full-Zone-TU. Confirmed 2026-07-05.]
-// Marks every "quest" object (ObjType 6..10 = item/npc/weapon/door-in/door-out) as active
-// by setting its state flag; FindObjectAt then matches state==1.
+// FUNCTION: YODA 0x00405480
+void Zone::SetTile(int x, int y, int layer, unsigned short val)
+{
+    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
+        tiles[(y * 18 + x) * 3 + layer] = val;
+}
+
+// FUNCTION: YODA 0x004054d0  [EFFECTIVE MATCH: DIFF(12) on 506 bytes -- pure ESI<->EDI reg-alloc
+//   (count vs offset register) in the 3 element-deletion loops; the objects loop matches, iact/
+//   entities drew the opposite phase. Structurally identical.]
+// Destructor: delete the CObject* elements of objects/iactScripts/entities (virtual dtor via delete),
+// SetSize(0,-1) each, then SetSize the 4 CDWordArray scratch lists; members auto-destruct after.
+Zone::~Zone()
+{
+    int i, n;
+    n = objects.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = objects[i]; if (p) delete p; }
+    objects.SetSize(0, -1);
+    n = iactScripts.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = iactScripts[i]; if (p) delete p; }
+    iactScripts.SetSize(0, -1);
+    n = entities.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = entities[i]; if (p) delete p; }
+    entities.SetSize(0, -1);
+    cobArray4.SetSize(0, -1);
+    cobArray5.SetSize(0, -1);
+    genCandidateA.SetSize(0, -1);
+    genCandidateB.SetSize(0, -1);
+}
+
+// FUNCTION: YODA 0x004056d0
+// Marks every "quest" object (ObjType 6..10 = item/npc/weapon/door-in/door-out) active (state=1).
 void Zone::FlagQuestObjects()
 {
-    int n = objectCount;
+    int n = objects.GetSize();
     for (int i = 0; i < n; i++) {
-        ZoneObj *obj = objects[i];
+        ZoneObj *obj = (ZoneObj *)objects[i];
         if (obj->type >= 6 && obj->type <= 10)
             obj->state = 1;
     }
