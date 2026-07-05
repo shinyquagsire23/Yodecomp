@@ -110,6 +110,16 @@ window proc / game tick (the ~10.8 KB `FUN_0040b270`, jt~70 — still to map).
 weapon type id (`weapon->name[10]`: 0x12/0x1fe/0x1ff/0x200…) and calls `Puzzle::FUN_00404910` to apply the
 hit, then repaints. (Health is applied separately via `GameView::AddHealth` 0x427690, IACT cmd 0x25.)
 
+**Zone transitions** — two handlers move the player between the 10×10 grid's zones via paired hotspot
+objects (`ZoneObj.type` = `ObjType`), and both drive the **per-zone save snapshot**:
+| Handler | Trigger | Hotspot pair | On the state |
+|---|---|---|---|
+| `GameView::TransitionZoneDoor` (0x40e9d0) | `OnBumpTile` (walk into a door) | `OBJ_DOOR_IN`(9) → `OBJ_DOOR_OUT`(0xa) | records return pos in the source zone, `World::EnterZone` |
+| `GameView::TransitionZoneXWing` (0x40e7c0) | `DrawObjects` (reach an X-Wing spot) | `OBJ_XWING_TO`(0xf) ⇄ `OBJ_XWING_FROM`(0xe) | **arrive→`World::RestoreRecords`**, **depart→`World::BackupRecords`** |
+Both: target zone id = `hotspot->+0xe`; find the paired object in the target via `World::GetZoneById`
+(0x403a70, bounds-checked `zoneObjects[id]`); set `pWorld->cameraX/Y = paired.x/y << 5`, `field90_0x60`
+= direction, `bIactBusy = 6`. The backup/restore is why saves stay sparse (see worldgen.md).
+
 Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zone pointer hangs off the
 view (`+0x2c0`). Characters live in `pWorld->characters` (World+0xc0).
 
