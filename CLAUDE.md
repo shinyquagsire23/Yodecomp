@@ -187,6 +187,28 @@ method body; `currentProgram`/`toAddr`/`println`/`createFunction` are in scope; 
 names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/ProgramScriptService.java`).
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
+### ⏭ NEXT SESSION PICKUP (2026-07-05)
+**Canvas CU is DONE** (`src/Canvas/`): **8/11 byte-matched + 3 effective matches** (`Init`/`Clear`/`BlitMasked`,
+reg-alloc-only residuals of 22/2/4 B, annotated `// EFFECTIVE MATCH` in-source). Both hand-MMX blits decoded
+from scratch; `BlitFast` byte-perfect, `BlitMasked` 676/680. Leave it until the full-TU endgame (residuals may
+resolve when the whole `.obj` is assembled — lesson #7). Overall progress **~1.45%** (`tools/progress.py`).
+**Best next moves, in priority order:**
+1. ⭐ **Register-rename-aware permuter scorer** (highest leverage — pays off on EVERY future function). The
+   oracle today is raw byte-diff = flat gradient, so the hill-climb can't rank "same code, swapped regs".
+   Add: capstone-disassemble mine+orig, Needleman-Wunsch align on `(mnemonic, operand-kinds)`, score += a
+   penalty per *inconsistent* register bijection (a reg-map explaining all diffs ⇒ near-0). This is how
+   decomp.me / simonlindholm's decomp-permuter make randomized search converge. See the Permuter TODO list.
+2. **Match a new CU — the Dta/Zone parsers are ripe** (structs already modeled in docs/structs.md &
+   dta-format.md): `Dta_Load` (0x422670) + its 12 named handlers, and the `Zone` class (`Zone_Ctor`/
+   `Zone_ReadData` @0x405150). Write `src/Dta/` + `src/Zone/` matching modules à la `src/Canvas/`. Expect
+   reg-alloc to be TU-context-dependent (lesson #7) — may need most of the `.obj`'s funcs present at once.
+**References loaded & ready:** `DESKADV.EXE` (Indiana Jones' Desktop Adventures — SAME engine, 1995,
+**16-bit NE / WinG / MFC**) is open in Ghidra (`program=DESKADV.EXE`, `seg:off` addrs). NOT byte-matchable
+(different arch + WinG≠DIBSection blitting), but a **structure/naming cross-ref** for the data-driven modules
+(DTA/zone/IACT/worldgen) alongside `~/workspace/DesktopAdventures`. **Fable** (model `fable`) is available for
+planning / review / when stuck on a wall — it correctly diagnosed the Canvas residuals as unreachable
+allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
+
 ### Matching progress + tooling (Phase 4 underway)
 - **`src/World/World.{h,cpp}`** — first matched module, written as C++ (Yoda Stories is C++/MFC; member
   functions compile `__thiscall`, matching the originals). **4/6 World funcs byte-match 100%**:
