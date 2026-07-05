@@ -6,11 +6,16 @@ source variations and compiles each with cl 4.2, using the relocation-masked
 byte-match against the original as the oracle. Stops when a variant byte-matches.
 
 Transformations (the ones proven to move MSVC 4.2 codegen):
+  * STATEMENT reordering  — hill-climb over adjacent *independent* statement swaps
+    (data-dependency-safe; declaration order is NOT touched, so stack-slot offsets
+    stay put — vital for functions whose inline __asm references locals by name).
+    This auto-discovers wins like "assign `s = src;` before declaring `rows`" or
+    "declare `stride` before `cw`" that were previously found by hand.
   * permute the leading local-declaration block   (-> register / x87-slot allocation)
   * toggle constant comparison form  `x < N` <-> `x <= N-1`, `x > N` <-> `x >= N+1`
   * flip relational operands          `a < b` <-> `b > a`   (cheap; sometimes helps)
 
-Usage:  tools/permute.py src/Zone/Zone.cpp 0x405330 [--iters 4000]
+Usage:  tools/permute.py src/Zone/Zone.cpp 0x405330 [--iters 4000] [--mode all|stmt|decl]
 
 The target function is the one whose `// FUNCTION: YODA 0xADDR` marker matches.
 Only that function's body is mutated; the rest of the file is kept (TU context).
@@ -124,70 +129,269 @@ def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
     return best
 
 
+# ---------------------------------------------------------------------------
+# Statement-level reordering  (permuter transform: "statement-reordering")
+# ---------------------------------------------------------------------------
+# Splits a function body into top-level statement units, keeps declarations and
+# control-flow blocks as anchors, and hill-climbs adjacent *independent* swaps.
+# Declaration positions are preserved (so stack-slot offsets don't move — the
+# inline-__asm functions reference locals by name, and their `_emit` bytes hard-
+# code EBP offsets). Only executable statements are reordered, and only past a
+# neighbour they don't data-depend on.
+_ID = re.compile(r"[A-Za-z_]\w*")
+_DECL_LHS = re.compile(
+    r"^\s*(?:const\s+|volatile\s+|unsigned\s+|struct\s+)*"
+    r"(?:int|short|char|long|float|double|bool|void|BITMAPINFOHEADER|BITMAPINFO|CDC|CFile|"
+    r"Zone|ZoneObj|World|Canvas|GameView|[A-Z]\w*)[\s\*]+[A-Za-z_]\w*\s*$")
+
+
+def _norm(s):
+    return re.sub(r"\s+", "", s)
+
+
+def _base(lval):
+    m = _ID.search(lval)
+    return m.group(0) if m else _norm(lval)
+
+
+def _is_field(key):
+    return "." in key or "->" in key or "[" in key
+
+
+def split_statements(inner):
+    """Split a function *body* (no enclosing braces) into top-level statement
+    units. Control-flow constructs (if/for/while/do/switch/__asm) — whether they
+    carry a brace block or a single trailing statement — come back as one unit."""
+    units, i, n, bd, pd, start = [], 0, len(inner), 0, 0, 0
+    typebrace = []                                                 # per-brace: is it a struct/union/enum body?
+    _typekw = re.compile(r"\b(struct|union|enum|class)\b[^;{}]*$")
+    while i < n:
+        c = inner[i]
+        if c == "/" and i + 1 < n and inner[i + 1] == "/":         # line comment
+            j = inner.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if c == "(":
+            pd += 1
+        elif c == ")":
+            pd -= 1
+        elif c == "{":
+            typebrace.append(bool(_typekw.search(inner[start:i])))  # type body vs code block
+            bd += 1
+        elif c == "}":
+            bd -= 1
+            was_type = typebrace.pop() if typebrace else False
+            if bd == 0 and not was_type:                          # code-block close -> statement boundary
+                j = i + 1
+                while j < n and inner[j] in " \t\n":
+                    j += 1
+                if inner[j:j + 4] == "else" or inner[j:j + 5] in ("while", "catch"):
+                    pass                                            # attached else / do-while / catch
+                else:
+                    units.append(inner[start:i + 1])
+                    start = i + 1
+        elif c == ";" and bd == 0 and pd == 0:
+            units.append(inner[start:i + 1])
+            start = i + 1
+        i += 1
+    if inner[start:].strip():
+        units.append(inner[start:])
+    return [u for u in units if u.strip()]
+
+
+def stmt_rw(stmt):
+    """(writes, wbases, reads, kind) for a statement unit.
+    kind in {decl, assign, ctrl1, ctrl, asm, other}; only assign/ctrl1 are movable.
+    writes = full-lvalue keys (field granular); wbases/reads = base identifiers."""
+    s = stmt.strip()
+    if s.startswith("__asm"):
+        ids = set(_ID.findall(s))
+        return set(), ids, ids, "asm"
+    if re.match(r"(if|for|while|do|switch)\b", s):
+        m = re.match(r"if\s*\(([^)]*)\)\s*([^={;]+?)\s*=\s*([^=].*?);\s*$", s, re.S)
+        if m and "{" not in s:                                     # simple `if (c) lval = rhs;`
+            lhs = m.group(2)
+            return ({_norm(lhs)}, {_base(lhs)},
+                    set(_ID.findall(m.group(1))) | set(_ID.findall(m.group(3))), "ctrl1")
+        ids = set(_ID.findall(s))
+        return set(), ids, ids, "ctrl"
+    m = re.match(r"(.+?)([-+*/&|^]?=)\s*([^=].*);\s*$", s, re.S)
+    if m:
+        lhs, op, rhs = m.group(1), m.group(2), m.group(3)
+        if _DECL_LHS.match(lhs):                                   # declaration-with-init -> anchor
+            nm = re.split(r"[\s\*]+", lhs.strip())[-1]
+            return {_norm(nm)}, {_base(nm)}, set(_ID.findall(rhs)), "decl"
+        w = {_norm(lhs)}
+        wb = {_base(lhs)}
+        r = set(_ID.findall(rhs))
+        for x in re.findall(r"\[([^\]]*)\]", lhs):                 # index exprs on the LHS are reads
+            r |= set(_ID.findall(x))
+        if op != "=":                                             # compound assign reads LHS too
+            r |= wb
+        return w, wb, r, "assign"
+    ids = set(_ID.findall(s))
+    return set(), ids, ids, "other"
+
+
+def _conflict(a, b):
+    """True if statements a,b share a data hazard and must keep relative order."""
+    wa, wba, ra, _ = a
+    wb, wbb, rb, _ = b
+    if wa & wb:                                                   # WAW on the same field/var
+        return True
+    if (wba & rb) or (wbb & ra):                                  # RAW / WAR on a base identifier
+        return True
+    common = wba & wbb                                            # same base written by both:
+    if common and not (wa and wb and all(_is_field(k) for k in wa)
+                       and all(_is_field(k) for k in wb)):
+        return True                                              # ok only if both are distinct field writes
+    return False
+
+
+def hillclimb_stmts(text, addr, workdir, base, tgt):
+    """Greedy adjacent-swap hill-climb over movable statements (declarations and
+    control blocks stay put). Returns (best_text, best_diff)."""
+    s, e = extract_func(text, addr)
+    func = text[s:e]
+    head, decls, rest = split_decls(func)
+    inner = rest.rstrip()
+    if inner.endswith("}"):
+        inner = inner[:-1]                                        # drop the function's own close brace
+    units = split_statements(inner)
+    rw = [stmt_rw(u) for u in units]
+
+    def build(order):
+        body = head + "\n" + "\n".join(decls) + ("\n" if decls else "") \
+            + "\n".join(units[k] for k in order) + "\n}"
+        return text[:s] + body + text[e:]
+
+    order = list(range(len(units)))
+    r = compile_diff(build(order), addr, workdir, base, tgt)
+    best = r[1] if r else 999
+    seen = {tuple(order)}
+    tried = 0
+    improved = True
+    while improved:
+        improved = False
+        for i in range(len(order) - 1):
+            a, b = rw[order[i]], rw[order[i + 1]]
+            if a[3] == "decl" and b[3] == "decl":                 # never reorder two decls (offsets)
+                continue
+            if a[3] not in ("assign", "ctrl1") and b[3] not in ("assign", "ctrl1"):
+                continue
+            if _conflict(a, b):
+                continue
+            order[i], order[i + 1] = order[i + 1], order[i]
+            key = tuple(order)
+            if key in seen:
+                order[i], order[i + 1] = order[i + 1], order[i]
+                continue
+            seen.add(key)
+            tried += 1
+            r = compile_diff(build(order), addr, workdir, base, tgt)
+            d = r[1] if r else 999
+            if d < best:
+                best = d
+                improved = True
+                print("  [stmt %d] swap %d<->%d  diff=%d" % (tried, i, i + 1, best))
+                if r and r[0] == 0:
+                    return build(order), 0
+            else:
+                order[i], order[i + 1] = order[i + 1], order[i]   # revert
+    return build(order), best
+
+
 def main():
     src = sys.argv[1]
     addr = int(sys.argv[2], 0)
     iters = int(sys.argv[sys.argv.index("--iters") + 1]) if "--iters" in sys.argv else 3000
+    mode = sys.argv[sys.argv.index("--mode") + 1] if "--mode" in sys.argv else "all"
     text = open(src).read()
     s, e = extract_func(text, addr)
     func = text[s:e]
-    head, decls, rest = split_decls(func)
     workdir = os.path.dirname(os.path.abspath(src))
     base = "_perm_%x" % addr
 
-    # discover the target's mangled name with the original source.
-    # Identify by the source function name (e.g. Canvas::Fill -> "Fill") so short
-    # functions can't win the diff-minimisation; fall back to min-diff if unparsed.
+    # discover the target's mangled name with the original source. Identify by the
+    # source function name (e.g. Canvas::Fill -> "Fill") so short functions can't
+    # win the diff-minimisation; fall back to min-diff if unparsed.
     nm = re.search(r"::(\w+)\s*\(", func) or re.search(r"\b([A-Za-z_]\w*)\s*\(", func)
     src_name = nm.group(1) if nm else None
     b0 = compile_diff(text, addr, workdir, base, None, src_name)
     if b0 is None:
-        print("baseline does not compile"); return 2
+        print("baseline does not compile")
+        return 2
     target_name = b0[2]
-    print("target=%s  baseline diff=%d  decls=%d" % (target_name, b0[1], len(decls)))
+    print("target=%s  baseline diff=%d" % (target_name, b0[1]))
 
-    rng = random.Random(1234)
-    perms = list(itertools.permutations(range(len(decls)))) if len(decls) <= 6 else None
-    best = b0[1]
-    best_text = text
-    tried = 0
-    def build(order, cmp_seed):
-        d = [decls[i] for i in order]
-        body = mutate_cmps(rest, random.Random(cmp_seed))
-        nf = head + "\n" + "\n".join(d) + ("\n" if d else "") + body
-        return text[:s] + nf + text[e:]
+    def cleanup():
+        for f in (base + ".cpp", base + ".obj"):
+            p = os.path.join(workdir, f)
+            if os.path.exists(p):
+                os.remove(p)
 
-    seen = set()
-    orders = perms if perms is not None else [tuple(rng.sample(range(len(decls)), len(decls))) for _ in range(iters)]
-    for order in orders:
-        for cmp_seed in range(6):            # a few comparison-form combos per ordering
-            cand_text = build(order, cmp_seed)
-            if cand_text in seen:            # skip duplicate variants (no-op mutations)
-                continue
-            seen.add(cand_text)
-            tried += 1
-            r = compile_diff(cand_text, addr, workdir, base, target_name)
-            if r is None:
-                continue
-            if r[1] < best:
-                best, best_text = r[1], cand_text
-                print("  [%d] new best diff=%d  (order=%s)" % (tried, best, order))
-            if r[0] == 0:
-                out = src.replace(".cpp", ".matched.cpp")
-                open(out, "w").write(cand_text)
-                print("*** MATCH after %d tries -> %s" % (tried, out))
-                for f in (base + ".cpp", base + ".obj"):
-                    p = os.path.join(workdir, f)
-                    if os.path.exists(p): os.remove(p)
-                return 0
+    def finish(t):
+        out = src.replace(".cpp", ".matched.cpp")
+        open(out, "w").write(t)
+        print("*** MATCH -> %s" % out)
+        cleanup()
+
+    if b0[0] == 0:
+        print("already byte-matches")
+        cleanup()
+        return 0
+
+    best_text, best = text, b0[1]
+
+    # Phase 1 — statement reordering (dependency-safe; declarations untouched)
+    if mode in ("all", "stmt"):
+        best_text, best = hillclimb_stmts(best_text, addr, workdir, base, target_name)
+        print("after statement hill-climb: diff=%d" % best)
+        if best == 0:
+            finish(best_text)
+            return 0
+
+    # Phase 2 — declaration order x comparison form (original search)
+    if mode in ("all", "decl"):
+        s2, e2 = extract_func(best_text, addr)
+        func2 = best_text[s2:e2]
+        head, decls, rest = split_decls(func2)
+        rng = random.Random(1234)
+        perms = list(itertools.permutations(range(len(decls)))) if len(decls) <= 6 else None
+        tried = 0
+
+        def build(order, cmp_seed):
+            d = [decls[i] for i in order]
+            body = mutate_cmps(rest, random.Random(cmp_seed))
+            nf = head + "\n" + "\n".join(d) + ("\n" if d else "") + body
+            return best_text[:s2] + nf + best_text[e2:]
+
+        seen = set()
+        orders = perms if perms is not None else \
+            [tuple(rng.sample(range(len(decls)), len(decls))) for _ in range(iters)]
+        for order in orders:
+            for cmp_seed in range(6):
+                cand = build(order, cmp_seed)
+                if cand in seen:
+                    continue
+                seen.add(cand)
+                tried += 1
+                r = compile_diff(cand, addr, workdir, base, target_name)
+                if r is None:
+                    continue
+                if r[1] < best:
+                    best, best_text = r[1], cand
+                    print("  [decl %d] new best diff=%d  (order=%s)" % (tried, best, order))
+                if r[0] == 0:
+                    finish(cand)
+                    return 0
+                if tried >= iters:
+                    break
             if tried >= iters:
                 break
-        if tried >= iters:
-            break
-    print("no exact match in %d tries; best diff=%d" % (tried, best))
-    for f in (base + ".cpp", base + ".obj"):
-        p = os.path.join(workdir, f)
-        if os.path.exists(p): os.remove(p)
+
+    print("no exact match; best diff=%d" % best)
+    cleanup()
     return 1
 
 

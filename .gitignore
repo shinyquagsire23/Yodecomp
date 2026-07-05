@@ -3,6 +3,7 @@
 
 # Copyrighted game binary + assets — not redistributed
 /YodaDemo/
+/INDYDESK/
 
 # Build artifacts
 *.obj
