@@ -24,7 +24,7 @@ conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition o
 | 0x13/0x14 | HealthLs/Gt | `doc` health = `healthHi*-100 - healthLo + 0x191` (+0x3314/0x3318) |
 | 0x18 | PlayerAtPos | camera `doc+0x3330/0x3334` |
 | 0x19–0x1b,0x21 | GlobalVar Eq/Ls/Gt/Ne | `zone->globalVar` (+0x844) |
-| 0x1c,0x23 | Experience Eq/Gt | `doc->experience` (+0x332c) |
+| 0x1c,0x23 | Experience Eq/Gt | `doc->completionCount` (+0x332c) — **not** RPG XP; it's the # of times the game has been beaten (registry `Count`). These conditions gate repeat-playthrough upgrade events (force powers, lightsaber) |
 | 0x1d | (object check) | loops `zone->objects` (+0x7ac/0x7b0) |
 | 0x1f,0x20 | TempVarNe/RandVarNe | `zone->tempVar/randVar` (+0x834/+0x838) |
 | 0x22 | CheckMapTileVar | zone tile grid |

@@ -15,7 +15,7 @@ Writes every setting with `CWinApp::WriteProfileInt(app, "OPTIONS", "<name>", ap
 | `Difficulty` | +0x331c | difficulty level |
 | `GameSpeed`  | +0x3324 | game speed |
 | `WorldSize`  | +0x3328 | generated world size |
-| `Count`      | +0x332c | (session/level count) |
+| `Count`      | +0x332c | **completion count** — # times the game has been beaten (persists across sessions). IACT `COND_Experience*` checks it to gate repeat-playthrough item upgrades (force/lightsaber); this is what DA calls "experience". Field named `completionCount` |
 | `LCount`     | +0x33a8 | last count |
 | `HScore`     | +0x33ac | high score |
 | `LScore`     | +0x33b0 | last score |
