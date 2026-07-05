@@ -47,7 +47,7 @@ the engine keeps saved copies so an adventure can be replayed/reset. Exact recor
   are the live/mutated state. On save, `Wld_Serialize` walks the active zones and serializes only those
   that (a) were actually loaded (`exists`/loaded flag set) and (b) differ from their backup — i.e. the
   player changed them. So `World::BackupRecords`/`RestoreRecords` + `RestoreGridFromBackup` aren't just
-  replay/reset: the backup is the baseline the save-diff is taken against. (**TODO:** find the exact
+  replay/reset: the backup is the baseline the save-diff is taken against. **Confirmed 2026-07-05:** `GameView::TransitionZone` (0x40e7c0) drives it — entering a zone via a door calls `World::RestoreRecords` (restore that zone's saved state), leaving calls `World::BackupRecords` (snapshot the current zone), so per-zone state is captured on every transition. (**TODO:** find the exact
   per-zone loaded/dirty flag `Wld_Serialize` tests, and confirm the diff vs. a plain dirty-bit.)
 
 ## Untangling Dta / Worldgen / Wld (call-graph clustering, 2026-07-04)
