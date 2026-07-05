@@ -28,6 +28,8 @@ struct Canvas {
                       int width, int height, int srcX, int srcY);
     int   CreatePalette();                                     // 0x00407f80
     void  Free();                                              // 0x00407eb0
+    void  BlitFast(void* src, int flags, short height,        // 0x00408110
+                   unsigned short srcStride, short destX, short destY);
 };
 
 #endif

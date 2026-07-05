@@ -3,7 +3,10 @@
 // (tools/match.py). Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
 #include "Canvas.h"
 #include <string.h>
-#pragma intrinsic(memset)
+#pragma intrinsic(memset, memcpy)
+
+// MMX-support flag (set once at startup); gates the accelerated blit path.
+extern int Canvas_bUnk;
 
 // FUNCTION: YODA 0x00407df0
 Canvas* Canvas::Init(int width, int height)
@@ -140,4 +143,78 @@ void Canvas::Fill(unsigned char value)
     char* p = (char*)pData;
     for (int y = 0; y < height; y++)
         memset(p + y * width, value, width);  // TODO: y/width reg-alloc flip (permuter)
+}
+
+// FUNCTION: YODA 0x00408110
+// 32-byte-wide (one tile) row blit. Fast path uses MMX (movq) hand-emitted as
+// bytes because VC++ 4.2's inline assembler predates MMX and rejects the mnemonics.
+void Canvas::BlitFast(void* src, int flags, short height,
+                      unsigned short srcStride, short destX, short destY)
+{
+    short canvasW, canvasH;
+    GetSize(&canvasW, &canvasH);
+    char* dst = (char*)pData + destX + canvasW * destY;
+    void* s   = src;
+    if (canvasH <= height + destY - 1)
+        height = canvasH - destY;
+    int rows = height;
+    if (Canvas_bUnk == 0) {
+        do {
+            memcpy(dst, s, 32);
+            s = (char*)s + srcStride;
+            dst += canvasW;
+            rows--;
+        } while (rows != 0);
+        return;
+    }
+    int cw     = canvasW;
+    int stride = (short)srcStride;
+    __asm {
+        _emit 0x66      // pushaw
+        _emit 0x60
+        mov  ecx, rows
+        mov  esi, s
+        mov  edi, dst
+    mmxl:
+        _emit 0x0f      // movq mm0, [esi]
+        _emit 0x6f
+        _emit 0x06
+        _emit 0x0f      // movq mm1, [esi+8]
+        _emit 0x6f
+        _emit 0x4e
+        _emit 0x08
+        _emit 0x0f      // movq mm2, [esi+0x10]
+        _emit 0x6f
+        _emit 0x56
+        _emit 0x10
+        _emit 0x0f      // movq mm3, [esi+0x18]
+        _emit 0x6f
+        _emit 0x5e
+        _emit 0x18
+        _emit 0x0f      // movq [edi], mm0
+        _emit 0x7f
+        _emit 0x07
+        _emit 0x0f      // movq [edi+8], mm1
+        _emit 0x7f
+        _emit 0x4f
+        _emit 0x08
+        _emit 0x0f      // movq [edi+0x10], mm2
+        _emit 0x7f
+        _emit 0x57
+        _emit 0x10
+        _emit 0x0f      // movq [edi+0x18], mm3
+        _emit 0x7f
+        _emit 0x5f
+        _emit 0x18
+        mov  eax, stride
+        add  esi, eax
+        mov  eax, cw
+        add  edi, eax
+        dec  ecx
+        jnz  mmxl
+        _emit 0x66      // popaw
+        _emit 0x61
+        _emit 0x0f      // emms
+        _emit 0x77
+    }
 }
