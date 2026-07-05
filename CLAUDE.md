@@ -193,10 +193,35 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   `UpdateScore` (0x401450, 4 call relocs), `CalcCompletionScore` (0x401490), `CalcScoreFromCounter`
   (0x4016d0), `GetZoneCell` (0x401a80). `CalcSolvedScore` (0x401780) ~98% (x87 two-accumulator register
   alloc, 9 bytes) — parked; `CalcTimeScore` (0x4019c0) pending (calls `time`/`__ftol`/ext 0x42a3e0).
+- **`src/Canvas/Canvas.{h,cpp}`** — DIBSection offscreen buffer CU (0x407df0–0x4084e8). **8/11 funcs
+  byte-match**: `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Clear`… wait Clear is
+  DIFF — matched set is `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Fill`,**`BlitFast`**.
+  Parked (intrinsic register-coloring, NOT blit-coupled — verified by removing the blits): `Init` (0x407df0,
+  DIFF40, `=0`-store grouping + `lea edi,[ecx+0x10]` biSize peephole), `Clear` (0x408040, DIFF2, y/width
+  EBX↔ESI — Fill matches only because its `value` param shifts reg pressure), `BlitMasked` (0x408240, DIFF4,
+  destX-vs-canvasW `movsx` load order). **The MMX blits were the hard win** — see lessons below.
+- **BIG discovery — the accelerated blits (`BlitFast` 0x408110, `BlitMasked` 0x408240) are HAND-ASM in
+  BOTH branches**, selected by the `App_bCpuHasMMX` global (0x459e28, was `Canvas_bUnk`): a scalar
+  copy loop AND an MMX (`movq`/`pcmpeqb`/`pand`/`por`) loop. Since VC++4.2's inline assembler predates MMX
+  (rejects the mnemonics), the dev emitted MMX opcodes as raw bytes; we reproduce with `__asm { _emit 0xNN }`,
+  **one `_emit` per line** (multiple per line = C2400 syntax error), each annotated `// movq mm0,[esi]`.
+  Structure: C setup (dst=pData+destX+canvasW*destY, clip, rows) then `if (App_bCpuHasMMX!=0){__asm MMX;
+  return;} __asm scalar;` (MMX inline, scalar out-of-line via the `!=0` JZ). Gotchas that mattered:
+  (a) **`keyq`** (BlitMasked's zeroed MMX color-key qword read at `[ebp-0x18]` via `_emit`) is write-only in
+  C so DSE drops it → the `movq` reads garbage & the frame shrinks; mark it **`volatile`** to pin it at -0x18.
+  (b) The `_emit` modrm hard-codes EBP offsets, so the C locals (s,dst,rows,cw/stride,keyq) MUST land on the
+  original's exact slots — get the local *count* right first (frame-size byte is the canary), then coloring.
+  (c) scalar loop uses a running `ebx` index reset each row (`srow:` label BEFORE `xor ebx`); last unrolled
+  unit omits its trailing `inc ebx`/`add ebx,4`.
+- **COLORING TRICKS that cracked the setup (statement order, NOT decl order — decls are offset-locked by the
+  asm):** assign `s = src;` *before* declaring `rows` (fixes the dst accumulator reg + store timing:
+  BlitMasked 34→4, BlitFast 35→7); declare `stride` *before* `cw` (colors stride→EBX: BlitFast 7→0). These
+  are the "statement-reordering" permuter TODO done by hand. The residual load-order/grouping (Init/Clear/
+  BlitMasked) is deeper scheduling that resisted every expression/order variation tried.
 - **`tools/match.py`** — compile a `.cpp`, best-fit each COMDAT function section to a `// FUNCTION: YODA
   0xADDR` marker, byte-compare vs the exe with relocations masked. **`tools/progress.py`** — completion
   dashboard: matched-bytes ÷ **128158** total app-function bytes (534 funcs, from Ghidra). Currently
-  **0.66%**. Run: `python3 tools/progress.py`.
+  **~1.45%**. Run: `python3 tools/progress.py`.
 - **KEY codegen lessons (MSVC 4.2):**
   1. Each C++ function → its **own `.text` COMDAT** in the `.obj` (function-level linking on for C++).
   2. **Comparisons are emitted literally** — `v >= 0x5b` (`CMP 0x5b;JL`) ≠ `v > 0x5a` (`CMP 0x5a;JLE`).
