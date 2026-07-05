@@ -209,13 +209,27 @@ repaint the two-column list at the new offset.
   loops (there are several, guarded by `_rand`) is the way to pull out the enemy AI.
 - **Structure mapped (2026-07-05).** Now `GameView::Tick` (`this=GameView*`, `this->pWorld`). Two switch
   axes drive it:
-  - **Per-entity AI behaviour dispatch (confirmed vs DesktopAdventures `character.h`, 2026-07-05):** the
-    `switch` reads the **high word of the char def's `flags`** — `Character.flags@0x18 >> 16`, i.e. the
-    short at `Char+0x1a` (the decompiler mislabels it `frames+0x1a`) = the **`CharBehavior`** enum (now in
-    the DB): **1 HARD** (aggressive, chases the player) · **2 MEDIUM** (semi-aggressive) · **3 RANDOM**
-    (wander) · **4 STATIONARY** (no move) · **8 ANIMATED** (animate in place; +STATIONARY = animated
-    scenery). Each case runs its movement pattern off the `MapEntity`'s own x/y/`timer@0x24`/state fields +
-    `_rand`, with a nested `switch(dir)` over `CHAR_DIRECTION` (0-5). This *is* the whole enemy AI.
+  - **Per-entity movement AI (mapped 2026-07-05; corrects an earlier wrong note).** The `switch` reads a
+    **per-char-def movement-type field** at `Character+0x36` (the decompiler writes `this_01->frames + 0x1a`
+    off `frames@0x1c`; it is **NOT** `flags>>16` — cases 6/7/9/10 rule that out; the DA `ICHR_BEHAVIOR`
+    flags/`CharBehavior` enum is a *separate* field). Cases are **1,2,3,4,6,7,8,9,10** (no 5).
+    **Common per-entity frame:** each `MapEntity` has a cooldown `timer@0x24`; while >0 it decrements and
+    waits, at 0 it picks a step per its move-type, `Zone::IactProbeMove` tests walkability, `PlayerMove`
+    relocates it (nested `switch(dir)`), and if it reaches the player it melee-attacks via
+    `AddHealth(-damage)` (damage = `char frames+0x22` = `Char+0x3e`). The move-types, by what picks the step:
+    | val | movement style |
+    |---|---|
+    | 1 | passive random wander (coin-flip whether to move) |
+    | 2 | erratic wander (heavy `_rand`) |
+    | 3 | random, else drift toward home (`ent+0x6/0x8`) |
+    | **4** | **direct chase** — deterministic step toward the target, no `_rand` (the aggressive hunter) |
+    | 6 | patterned (mod-3 cycle on a counter) |
+    | 7 | random wander |
+    | 8 | very erratic (`_rand`×9) |
+    | 9 | random wander |
+    | 10 | chase + attack; reads state `ent+0x3e`, double `PlayerMove`/`AddHealth` (likely a ranged/projectile attacker) |
+    This switch *is* the whole enemy AI — there is no separate AI function. (Exact 1↔difficulty mapping and
+    the 6/10 specifics are best confirmed in-game; the chase (4) vs wander (1/2/7/8/9) split is certain.)
   - **Game-mode branches:** `switch(pWorld->field_0x30)` (3×) — a per-frame mode/phase field at
     `World+0x30` (distinct from `gameState@0x68`); TBD which modes (intro/play/cutscene?).
   Hot callees (counts): `Zone::GetTile`×20, `PlayerMove`/`AddHealth`×10, `Zone::IactProbeMove`/
