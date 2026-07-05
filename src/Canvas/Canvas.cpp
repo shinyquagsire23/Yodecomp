@@ -8,6 +8,8 @@
 // Set once at startup: 1 if the CPU supports MMX. Gates the accelerated blit path.
 extern int App_bCpuHasMMX;
 
+// EFFECTIVE MATCH (22B reg-alloc residual): scheduler places the `height` CSE-temp load ~2 stores earlier
+// than the original + a push-edi timing diff. Semantically identical; not source-steerable (see CLAUDE.md).
 // FUNCTION: YODA 0x00407df0
 Canvas* Canvas::Init(int width, int height)
 {
@@ -125,6 +127,8 @@ int Canvas::BitBlt(CDC* dest, int destX, int destY, int width, int height, int s
 }
 
 
+// EFFECTIVE MATCH (2B reg-alloc residual): `y` (user var) vs the inlined-memset `width` CSE-temp get the
+// swapped EBX/ESI pair. Fill matches (its `value` param shifts reg pressure). Not source-steerable.
 // FUNCTION: YODA 0x00408040
 void Canvas::Clear()
 {
@@ -257,6 +261,9 @@ void Canvas::BlitFast(void* src, int flags, short height,
     }
 }
 
+// EFFECTIVE MATCH (4B reg-alloc residual): the two independent movsx loads (destX, canvasW) in the dst
+// setup are emitted in swapped order (same target regs). Scheduler slot-choice; not source-steerable
+// (joint commutative-chain enumeration didn't flip it). The 676 asm bytes are byte-identical.
 // FUNCTION: YODA 0x00408240
 // Color-key (transparent) 32-byte row blit. Both paths are hand-asm (the dev's own style):
 // a scalar masked loop, and an MMX pcmpeqb/pand/por path (movq etc. hand-emitted -- VC++4.2

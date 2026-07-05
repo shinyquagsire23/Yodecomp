@@ -196,10 +196,19 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
 - **`src/Canvas/Canvas.{h,cpp}`** — DIBSection offscreen buffer CU (0x407df0–0x4084e8). **8/11 funcs
   byte-match**: `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Clear`… wait Clear is
   DIFF — matched set is `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Fill`,**`BlitFast`**.
-  Parked (intrinsic register-coloring, NOT blit-coupled — verified by removing the blits): `Init` (0x407df0,
-  **DIFF22**, residual = scheduler placement of the height load + `push edi`), `Clear` (0x408040, DIFF2,
-  y/width EBX↔ESI — Fill matches only because its `value` param shifts reg pressure), `BlitMasked`
-  (0x408240, DIFF4, destX-vs-canvasW `movsx` load order). **Init CSE win (from a DIB-init lead):** the
+  **EFFECTIVE MATCHES (parked, register-alloc-only residuals, semantically identical)** — NOT blit-coupled
+  (verified by removing the blits): `Init` (0x407df0, **DIFF22**, scheduler placement of the height CSE-temp
+  load + `push edi` timing), `Clear` (0x408040, DIFF2, `y` (user var) vs the inlined-memset `width` CSE-temp
+  colored to the swapped EBX/ESI pair — Fill matches only because its `value` param shifts reg pressure),
+  `BlitMasked` (0x408240, DIFF4, destX-vs-canvasW `movsx` emit order). **`/G` flag ruled out (2026-07-04):**
+  swept `/G3 /G4 /G5 /GB`+default — default/`/G3`/`/G4`/`/GB` are IDENTICAL (8/11), **`/G5` (Pentium) is
+  catastrophically worse (1/11)**, so the binary uses the default (non-Pentium) scheduler, which we already
+  have; the residuals are within-model allocator-priority artifacts, not a flag miss. **Fable consult:** these
+  are MSVC-4.2 allocator layer-2 (usage-count priority, first-def/temp-number tie-breaks) fed partly by
+  TU-position state — not reliably source-steerable. Joint commutative-chain enumeration of BlitMasked's dst
+  (24 variants: all `{pData,destX,w*dy}` orders × both mul orders × groupings) did NOT flip it. Decision
+  (isledecomp/reccmp precedent): count as effective matches, revisit at the full-TU endgame (allocator context
+  shifts then anyway — lesson #7). 28 residual bytes vs ~126 KB unmatched = not worth over-fitting now. **Init CSE win (from a DIB-init lead):** the
   original CSEs `&biHeader` into EDI for BOTH the `biSize` store (`mov [edi],0x28`) and the
   `CreateDIBSection` `BITMAPINFO*` arg → model it as `BITMAPINFOHEADER* h=&biHeader; h->biSize=...;
   CreateDIBSection(...,(BITMAPINFO*)h,...)` (biSize via `h`, other fields via `biHeader.`); this killed the
@@ -272,17 +281,27 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   the oracle. Stops at 0 diffs, writing `*.matched.cpp`. Only mutates the target function; keeps the rest
   of the TU as context. Use it on the reg-alloc/x87 parked near-matches. (Dedups no-op variants; splits
   `int y, x;` so counters can reorder. Slow — one `cl` per variant; run in background.)
-  **Permuter TODOs (decl-order alone is NOT enough for several parked funcs):**
-  - *Loop transforms* — swap the two nested loops' variable roles / iteration direction. `CalcSolvedScore`
-    stayed at diff=9 through all 720 decl orderings because its miss is the outer/inner counter register
-    swap (y↔x → EAX/EDX), which decl-order can't touch.
-  - *Statement reordering* — permute adjacent independent statements (the `off+=4; i++;` vs call-arg-push
-    scheduling that mattered for the Dta parsers). Currently only decl-order + comparison forms.
-  - *Temp insertion / expression regrouping* — add/remove a scratch local or reassociate an expression to
-    nudge register allocation (may help the Dta ESI/EDI/EBP rotation and `FindObjectAt`).
-  - *cmp operand order* — `mutate_cmps` flips `a<b`↔`b>a` but MSVC often normalizes both to the same code
-    (see `GetEdgeCode`); a real fix may need to route one operand through a temp so it's loaded first.
-  - Quality-of-life: parallelize compiles (N wine procs), and hill-climb/anneal instead of exhaustive.
+  **Permuter status + TODOs:**
+  - ✅ *Statement reordering* — DONE (2026-07-04). Dependency-safe hill-climb over adjacent independent
+    statement swaps; declaration order untouched (offsets stay put for the `_emit`-asm funcs). Auto-found the
+    `s=src`-before-`rows` win (BlitMasked 34→4) unattended. `--mode all|stmt|decl`.
+  - ⭐ **NEXT (highest value, Fable-recommended): register-rename-aware scorer.** Today's oracle = raw byte-diff
+    count, which is FLAT across most mutations (2→2→2→47) so the hill-climb has no gradient. Fix: capstone-
+    disassemble both, Needleman-Wunsch align on (mnemonic, operand-kinds), score = align cost + penalty per
+    *inconsistent register mapping* (a bijective reg-map that explains all diffs scores near-0). Turns "same
+    code, swapped regs" from a plateau into a rankable near-miss — this is how decomp.me / simonlindholm's
+    decomp-permuter make randomized search work. Pays off on every future function, not just these three.
+  - *Joint commutative-chain enumeration* — flatten `a+b+c`/`a*b`, enumerate all operand orders ×
+    parenthesizations *together* (single-axis reassoc misses the joint points). Small/exhaustive. (Tried on
+    BlitMasked's dst — 24 variants, didn't flip its 4-byte residual, but cheap & worth it generally.)
+  - *Multi-use temp insertion* — insert `T t = expr;` at each legal position, ONLY where `expr` has ≥2 uses
+    (single-use temps are copy-propagated away at /O2 — proven: `int` temps did nothing on BlitMasked). Also
+    *CSE-structure toggling* (one shared temp vs recompute-at-each-site) and *short↔int type toggling* (moves
+    where `movsx` widening temps materialize; mine the original's 16-bit ops as priors).
+  - *Loop transforms* — swap nested-loop variable roles / direction (`CalcSolvedScore` y↔x → EAX/EDX).
+  - Quality-of-life: parallelize compiles (N wine workers); with a graded scorer, random-restart+greedy beats
+    annealing (spaces are 10²–10⁴, bottleneck is one `wine cl`). Add a "movability probe" (fixed ~200-mutation
+    battery: does the contested decision EVER flip? never → knob is outside this function → park immediately).
 - **`segment_cus.py <cu_refs2.txt>`** — first-pass `.obj` segmentation from data-ref clustering (Phase 3).
 - Ghidra dumps that feed the above live in `toolchain/test/cu_{refs2,calls,strings}.txt` (regen via scripts).
 
