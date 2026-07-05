@@ -220,54 +220,350 @@ void Canvas::BlitFast(void* src, int flags, short height,
 }
 
 // FUNCTION: YODA 0x00408240
-// Color-key (transparent) 32-byte-wide row blit. Fast path uses MMX pcmpeqb/pand/por
-// masking, hand-emitted as bytes (VC++4.2 predates MMX). WIP.
+// Color-key (transparent) 32-byte row blit. Both paths are hand-asm (the dev's own style):
+// a scalar masked loop, and an MMX pcmpeqb/pand/por path (movq etc. hand-emitted -- VC++4.2
+// predates MMX). The MMX color key is a zeroed qword (keyq); transparent color is 0.
 void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
                         short destX, short destY, char key)
 {
     short canvasW, canvasH;
     GetSize(&canvasW, &canvasH);
     char* dst = (char*)pData + destX + canvasW * destY;
+    char* s   = src;
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
-    int rows = height;
-    if (App_bCpuHasMMX == 0) {
-        do {
-        if (src[0] != key) dst[0] = src[0];
-        if (src[1] != key) dst[1] = src[1];
-        if (src[2] != key) dst[2] = src[2];
-        if (src[3] != key) dst[3] = src[3];
-        if (src[4] != key) dst[4] = src[4];
-        if (src[5] != key) dst[5] = src[5];
-        if (src[6] != key) dst[6] = src[6];
-        if (src[7] != key) dst[7] = src[7];
-        if (src[8] != key) dst[8] = src[8];
-        if (src[9] != key) dst[9] = src[9];
-        if (src[10] != key) dst[10] = src[10];
-        if (src[11] != key) dst[11] = src[11];
-        if (src[12] != key) dst[12] = src[12];
-        if (src[13] != key) dst[13] = src[13];
-        if (src[14] != key) dst[14] = src[14];
-        if (src[15] != key) dst[15] = src[15];
-        if (src[16] != key) dst[16] = src[16];
-        if (src[17] != key) dst[17] = src[17];
-        if (src[18] != key) dst[18] = src[18];
-        if (src[19] != key) dst[19] = src[19];
-        if (src[20] != key) dst[20] = src[20];
-        if (src[21] != key) dst[21] = src[21];
-        if (src[22] != key) dst[22] = src[22];
-        if (src[23] != key) dst[23] = src[23];
-        if (src[24] != key) dst[24] = src[24];
-        if (src[25] != key) dst[25] = src[25];
-        if (src[26] != key) dst[26] = src[26];
-        if (src[27] != key) dst[27] = src[27];
-        if (src[28] != key) dst[28] = src[28];
-        if (src[29] != key) dst[29] = src[29];
-        if (src[30] != key) dst[30] = src[30];
-        if (src[31] != key) dst[31] = src[31];
-            src += srcStride;
-            dst += canvasW;
-            rows--;
-        } while (rows != 0);
+    int  rows = height;
+    volatile struct { int lo, hi; } keyq;
+    keyq.lo = 0;
+    keyq.hi = 0;
+    if (App_bCpuHasMMX != 0) {
+        __asm {
+        _emit 0x66      // pushaw
+        _emit 0x60
+        mov  ecx, rows
+        mov  esi, s
+        mov  edi, dst
+    mloop:
+        _emit 0x0f      // movq mm3, keyq
+        _emit 0x6f
+        _emit 0x5d
+        _emit 0xe8
+        _emit 0x0f      // movq mm0, [esi+0x0]
+        _emit 0x6f
+        _emit 0x06
+        _emit 0x0f      // movq mm1, [edi+0x0]
+        _emit 0x6f
+        _emit 0x0f
+        _emit 0x0f      // pcmpeqb mm3, mm0
+        _emit 0x74
+        _emit 0xd8
+        _emit 0x0f      // pand mm1, mm3
+        _emit 0xdb
+        _emit 0xcb
+        _emit 0x0f      // por mm1, mm0
+        _emit 0xeb
+        _emit 0xc8
+        _emit 0x0f      // movq [edi+0x0], mm1
+        _emit 0x7f
+        _emit 0x0f
+        _emit 0x0f      // movq mm3, keyq
+        _emit 0x6f
+        _emit 0x5d
+        _emit 0xe8
+        _emit 0x0f      // movq mm0, [esi+0x8]
+        _emit 0x6f
+        _emit 0x46
+        _emit 0x08
+        _emit 0x0f      // movq mm1, [edi+0x8]
+        _emit 0x6f
+        _emit 0x4f
+        _emit 0x08
+        _emit 0x0f      // pcmpeqb mm3, mm0
+        _emit 0x74
+        _emit 0xd8
+        _emit 0x0f      // pand mm1, mm3
+        _emit 0xdb
+        _emit 0xcb
+        _emit 0x0f      // por mm1, mm0
+        _emit 0xeb
+        _emit 0xc8
+        _emit 0x0f      // movq [edi+0x8], mm1
+        _emit 0x7f
+        _emit 0x4f
+        _emit 0x08
+        _emit 0x0f      // movq mm3, keyq
+        _emit 0x6f
+        _emit 0x5d
+        _emit 0xe8
+        _emit 0x0f      // movq mm0, [esi+0x10]
+        _emit 0x6f
+        _emit 0x46
+        _emit 0x10
+        _emit 0x0f      // movq mm1, [edi+0x10]
+        _emit 0x6f
+        _emit 0x4f
+        _emit 0x10
+        _emit 0x0f      // pcmpeqb mm3, mm0
+        _emit 0x74
+        _emit 0xd8
+        _emit 0x0f      // pand mm1, mm3
+        _emit 0xdb
+        _emit 0xcb
+        _emit 0x0f      // por mm1, mm0
+        _emit 0xeb
+        _emit 0xc8
+        _emit 0x0f      // movq [edi+0x10], mm1
+        _emit 0x7f
+        _emit 0x4f
+        _emit 0x10
+        _emit 0x0f      // movq mm3, keyq
+        _emit 0x6f
+        _emit 0x5d
+        _emit 0xe8
+        _emit 0x0f      // movq mm0, [esi+0x18]
+        _emit 0x6f
+        _emit 0x46
+        _emit 0x18
+        _emit 0x0f      // movq mm1, [edi+0x18]
+        _emit 0x6f
+        _emit 0x4f
+        _emit 0x18
+        _emit 0x0f      // pcmpeqb mm3, mm0
+        _emit 0x74
+        _emit 0xd8
+        _emit 0x0f      // pand mm1, mm3
+        _emit 0xdb
+        _emit 0xcb
+        _emit 0x0f      // por mm1, mm0
+        _emit 0xeb
+        _emit 0xc8
+        _emit 0x0f      // movq [edi+0x18], mm1
+        _emit 0x7f
+        _emit 0x4f
+        _emit 0x18
+        xor  eax, eax
+        mov  ax, srcStride
+        add  esi, eax
+        xor  eax, eax
+        mov  ax, canvasW
+        add  edi, eax
+        dec  ecx
+        jnz  mloop
+        _emit 0x66      // popaw
+        _emit 0x61
+        _emit 0x0f      // emms
+        _emit 0x77
+        }
+        return;
+    }
+    __asm {
+        _emit 0x66      // pushaw
+        _emit 0x60
+        mov  ecx, rows
+        mov  esi, s
+        mov  edi, dst
+    srow:
+        xor  ebx, ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s0
+        mov  [ebx+edi], al
+    s0:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s1
+        mov  [ebx+edi], al
+    s1:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s2
+        mov  [ebx+edi], al
+    s2:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s3
+        mov  [ebx+edi], al
+    s3:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s4
+        mov  [ebx+edi], al
+    s4:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s5
+        mov  [ebx+edi], al
+    s5:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s6
+        mov  [ebx+edi], al
+    s6:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s7
+        mov  [ebx+edi], al
+    s7:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s8
+        mov  [ebx+edi], al
+    s8:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s9
+        mov  [ebx+edi], al
+    s9:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s10
+        mov  [ebx+edi], al
+    s10:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s11
+        mov  [ebx+edi], al
+    s11:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s12
+        mov  [ebx+edi], al
+    s12:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s13
+        mov  [ebx+edi], al
+    s13:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s14
+        mov  [ebx+edi], al
+    s14:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s15
+        mov  [ebx+edi], al
+    s15:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s16
+        mov  [ebx+edi], al
+    s16:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s17
+        mov  [ebx+edi], al
+    s17:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s18
+        mov  [ebx+edi], al
+    s18:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s19
+        mov  [ebx+edi], al
+    s19:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s20
+        mov  [ebx+edi], al
+    s20:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s21
+        mov  [ebx+edi], al
+    s21:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s22
+        mov  [ebx+edi], al
+    s22:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s23
+        mov  [ebx+edi], al
+    s23:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s24
+        mov  [ebx+edi], al
+    s24:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s25
+        mov  [ebx+edi], al
+    s25:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s26
+        mov  [ebx+edi], al
+    s26:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s27
+        mov  [ebx+edi], al
+    s27:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s28
+        mov  [ebx+edi], al
+    s28:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s29
+        mov  [ebx+edi], al
+    s29:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s30
+        mov  [ebx+edi], al
+    s30:
+        inc  ebx
+        mov  al, [ebx+esi]
+        cmp  al, key
+        je   s31
+        mov  [ebx+edi], al
+    s31:
+        xor  eax, eax
+        mov  ax, srcStride
+        add  esi, eax
+        xor  eax, eax
+        mov  ax, canvasW
+        add  edi, eax
+        dec  ecx
+        jnz  srow
+        _emit 0x66      // popaw
+        _emit 0x61
     }
 }
