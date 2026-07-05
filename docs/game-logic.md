@@ -38,6 +38,15 @@ DesktopAdventures `commands[]`): `0`SetMapTile `1`ClearTile `4`SayText `5`ShowTe
 lives in the render-heavy `.obj` (0x4070e0–0x408110) with `Render_Blit`. *(Formerly mis-named
 `Render_DrawTileSprite` before the two-phase structure was understood.)*
 
+**DA-authoritative enums (2026-07-04):** `IactCmdOp` (all 38 `CMD_*` 0x00–0x25) and `IactCondOp` (all
+36 `COND_*` 0x00–0x23) are now defined in the DB from DA `iact.h` (`IACT_CMDS`/`IACT_TRIGGERS`) — the
+exact names, applied to `IactCommand.opcode`/`IactCondition.opcode` (the jump-table switch still shows
+numeric case labels, a Ghidra rendering limit). `Iact_RunCommands` params typed `(Zone*, int, CDC*,
+World* doc, GameView* view)`. **Inventory** confirmed via the item commands: `CMD_AddItemToInv` (0x1c) →
+`Game_AddItemToInv` (0x428f50) does `SetAtGrow(&doc->inventory, doc->inventoryCount, tileWrapper)`;
+`CMD_RemoveItemFromInv` (0x1d) → `Game_RemoveItem`. `doc->inventory` = **CObArray @0xa8** of held items
+(Tile-wrappers, each item's `Tile*` at wrapper+4, name CString at +8), `inventoryCount` @0xb0.
+
 ### In-memory record structs (modeled in the DB 2026-07-04)
 The file format (DesktopAdventures `iact.c`) is `condCount:u16`, `conditions[7×u16]` (opcode + 6 args),
 `cmdCount:u16`, `commands[opcode + 5 args + strlen:u16 + string]`. YodaDemo widens the `u16`s to `int`
