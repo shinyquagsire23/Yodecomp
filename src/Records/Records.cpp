@@ -108,7 +108,11 @@ void *Character::GetFrameTile(int dx, int dy, CObArray *paTiles, int nAnimBank)
 
 // ============================== MapEntity ==============================
 
-// FUNCTION: YODA 0x00404c80
+// FUNCTION: YODA 0x00404c80  [DIFF(73) pending v2: per-value-register stream reconstruction proves
+//   this source order is the original's (zero/-1/one streams each match emission order exactly);
+//   only the SCHEDULE differs (vtable-store slotting) => TU-position state. Expect this to snap to
+//   MATCH once the functions between Puzzle::Ctor and here (Puzzle::Read, Character::Read,
+//   GetProjectileTile) are present. Same story as Puzzle::Ctor's ESI/EDI flip. Lesson #7.]
 MapEntity::MapEntity()
 {
     damageTaken = 0;
