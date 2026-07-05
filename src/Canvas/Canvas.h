@@ -18,6 +18,7 @@ struct Canvas {
     void*            pData;        // +0x438 pixel bits (8bpp)
 
     // --- methods (see Canvas.cpp) ---
+    Canvas* Init(int width, int height);                       // 0x00407df0
     void* GetData();                                            // 0x00407f50
     void  GetSize(short* outWidth, short* outHeight);           // 0x00407f60
     UINT  SetPalette(UINT start, UINT count, RGBQUAD* colors);  // 0x00407fd0

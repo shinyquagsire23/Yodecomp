@@ -5,6 +5,38 @@
 #include <string.h>
 #pragma intrinsic(memset)
 
+// FUNCTION: YODA 0x00407df0
+Canvas* Canvas::Init(int width, int height)
+{
+    biHeader.biCompression = 0;
+    biHeader.biPlanes = 1;
+    biHeader.biSize = 0x28;
+    biHeader.biXPelsPerMeter = 0;
+    biHeader.biYPelsPerMeter = 0;
+    biHeader.biClrImportant = 0;
+    biHeader.biHeight = height;
+    biHeader.biBitCount = 8;
+    if (0 < height)
+        biHeader.biHeight = -height;
+    biHeader.biClrUsed = 0x100;
+    biHeader.biWidth = width;
+    biHeader.biSizeImage = height * width;
+    hdc = CreateCompatibleDC(0);
+    if (hdc != 0) {
+        CreatePalette();
+        hDib = CreateDIBSection(hdc, (BITMAPINFO*)&biHeader, 0, &pData, 0, 0);
+        if (hDib != 0) {
+            hOldBitmap = SelectObject(hdc, hDib);
+            return this;
+        }
+        DeleteDC(hdc);
+        if (hPalette != 0)
+            DeleteObject(hPalette);
+        hdc = 0;
+    }
+    return this;
+}
+
 // FUNCTION: YODA 0x00407eb0
 void Canvas::Free()
 {
