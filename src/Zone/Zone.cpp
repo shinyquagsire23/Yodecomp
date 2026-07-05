@@ -22,6 +22,8 @@ Zone::Zone(short w, short h)
     zoneUnk846 = -1;
 }
 
+// FUNCTION: YODA 0x00405300  (compiler-generated scalar-deleting destructor ??_GZone -- MATCH, no source)
+
 // FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13), all reg-alloc + instr-selection --
 //   loop guard `test edi,edi` vs `cmp edi,eax`(eax=result=0), an ecx/edx/esi register permutation,
 //   and end-cmp operand order. Structurally identical; not source-forceable. Confirmed 2026-07-05.]
