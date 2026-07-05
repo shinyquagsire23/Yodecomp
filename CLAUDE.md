@@ -245,6 +245,26 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
 ### ⏭ NEXT SESSION PICKUP (2026-07-05, updated)
+**RUNTIME ENGINE now heavily documented (2026-07-05 sessions).** The gameplay/render code is mapped end to
+end — see `docs/game-logic.md` (esp. the **Main frame loop & state machine** + **enemy AI** sections),
+`docs/worldgen.md`, `docs/settings.md`, `docs/structs.md`. Key anchors:
+- **Main loop:** `GameView::UpdateFrameMaybe` (0x40d470) → `switch(World.nFrameMode)` (the 1..8 `FrameMode`
+  enum @World+0x5c, was `bIactBusy`): 2=play (player-move dispatch via `nMoveCommand` 0x21-0x28 → OnBumpTile),
+  3=dialogue, 6/7=zone transition, etc. Drives `GameView::Tick` (0x40b270, per-entity **enemy AI**: switch on
+  `Character+0x36` `CharMoveType`, 4=chase/1-2-7-8-9=wander/…) + `CyclePalette` (0x415af0) + `DrawGameArea`.
+- **UI:** inventory scroll (`InvScrollBar`), weapon box / health dial / direction arrows (`DrawDirectionArrows`
+  + `GameData::GetExitDirections`), the **options slider dialog** (`OptionsSliderScroll{67,8f,90}Maybe` +
+  `EnableOptionsControls*`), `OnDragItem` (R2-D2/`strArtooHelp` hint system + weapon use), `TextDialog` class.
+- **Zones/save:** `TransitionZone{XWing,Door,Script}` + `Backup/RestoreRecords` + `BackupZoneGrid`/
+  `RestoreGridFromBackup` = the sparse-`.wld` per-zone snapshot mechanism. `World::LoadWorldMaybe` (0x421fd0).
+- **Namespace sweep:** `World` (115/197 named) + `GameView` substantial funcs all named; worldgen placement
+  family named (`WorldgenPlaceRandInZone*Maybe`, etc.). Remaining `FUN_*` are <0x40 funclets/stubs. `Maybe`
+  suffix marks honest guesses to sharpen (grep it). **Lessons this session:** a func calling a shared
+  subsystem (palette/settings) says nothing about its *own* role — trace the primary caller (that's how the
+  real main loop was found); read the body before naming; and I twice had to *correct* my own labels
+  (Tick≠main-loop, AI switch≠flags>>16) — verify field offsets against the struct.
+**Byte-matching (the original goal) has NOT advanced this run — it stayed at ~1.45%; this run was pure RE/docs.**
+
 **Canvas CU is DONE** (`src/Canvas/`): **8/11 byte-matched + 3 effective matches** (`Init`/`Clear`/`BlitMasked`,
 reg-alloc-only residuals of 22/2/4 B, annotated `// EFFECTIVE MATCH` in-source). Overall progress **~1.45%**
 (`tools/progress.py`).
