@@ -187,21 +187,25 @@ method body; `currentProgram`/`toAddr`/`println`/`createFunction` are in scope; 
 names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/ProgramScriptService.java`).
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-05)
+### ⏭ NEXT SESSION PICKUP (2026-07-05, updated)
 **Canvas CU is DONE** (`src/Canvas/`): **8/11 byte-matched + 3 effective matches** (`Init`/`Clear`/`BlitMasked`,
-reg-alloc-only residuals of 22/2/4 B, annotated `// EFFECTIVE MATCH` in-source). Both hand-MMX blits decoded
-from scratch; `BlitFast` byte-perfect, `BlitMasked` 676/680. Leave it until the full-TU endgame (residuals may
-resolve when the whole `.obj` is assembled — lesson #7). Overall progress **~1.45%** (`tools/progress.py`).
+reg-alloc-only residuals of 22/2/4 B, annotated `// EFFECTIVE MATCH` in-source). Overall progress **~1.45%**
+(`tools/progress.py`).
+**✅ Priority #1 DONE this session — the register-rename-aware permuter scorer** (`tools/asmscore.py`, wired
+into `permute.py` as the oracle; + a `--mode cmp` comparison-flip hill-climb). Capstone + Needleman-Wunsch,
+4-tier graded score (align / reg_pen / identity_miss / byte_diff). Turns the flat byte-diff plateau into a
+gradient AND diagnoses whether a residual is scheduling/instr-selection (`align>0`) or pure register-alloc
+(`align=0, reg_pen>0`). Verified on Canvas/World/Zone/Dta (int, x87, MMX). See the Permuter TODO list for the
+full write-up + the parked-function movability results (GetEdgeCode cmp knob proven inert; FindObjectAt needs
+mid-body decl hoisting; ParseZaux needs full TU).
 **Best next moves, in priority order:**
-1. ⭐ **Register-rename-aware permuter scorer** (highest leverage — pays off on EVERY future function). The
-   oracle today is raw byte-diff = flat gradient, so the hill-climb can't rank "same code, swapped regs".
-   Add: capstone-disassemble mine+orig, Needleman-Wunsch align on `(mnemonic, operand-kinds)`, score += a
-   penalty per *inconsistent* register bijection (a reg-map explaining all diffs ⇒ near-0). This is how
-   decomp.me / simonlindholm's decomp-permuter make randomized search converge. See the Permuter TODO list.
-2. **Match a new CU — the Dta/Zone parsers are ripe** (structs already modeled in docs/structs.md &
+1. ⭐ **Match a new CU — the Dta/Zone parsers are ripe** (structs already modeled in docs/structs.md &
    dta-format.md): `Dta_Load` (0x422670) + its 12 named handlers, and the `Zone` class (`Zone_Ctor`/
-   `Zone_ReadData` @0x405150). Write `src/Dta/` + `src/Zone/` matching modules à la `src/Canvas/`. Expect
-   reg-alloc to be TU-context-dependent (lesson #7) — may need most of the `.obj`'s funcs present at once.
+   `Zone_ReadData` @0x405150). Write `src/Dta/` + `src/Zone/` matching modules à la `src/Canvas/`. Now that
+   the graded scorer exists, use `asmscore.py` on each to triage reg-alloc vs structural before investing.
+   Expect reg-alloc to be TU-context-dependent (lesson #7) — may need most of the `.obj`'s funcs present.
+2. **Extend the permuter** (scorer now provides the gradient): mid-body declaration hoisting (unblocks
+   `FindObjectAt`), parallelized wine compiles, joint commutative-chain enumeration.
 **References loaded & ready:** `DESKADV.EXE` (Indiana Jones' Desktop Adventures — SAME engine, 1995,
 **16-bit NE / WinG / MFC**) is open in Ghidra (`program=DESKADV.EXE`, `seg:off` addrs). NOT byte-matchable
 (different arch + WinG≠DIBSection blitting), but a **structure/naming cross-ref** for the data-driven modules
@@ -297,22 +301,44 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
 - **`progress.py`** — completion dashboard: compiles every `src/**/*.cpp`, sums matched bytes ÷ 128158
   total app-region function bytes (534 funcs). One number to track progress.
 - **`bytematch.py --va 0x.. --obj ..`** — single-function reloc-masked compare (the original harness).
-- **`permute.py <src.cpp> 0xADDR [--iters N]`** — the **permuter**. Searches source variations of one
-  function (leading local-declaration order → register/x87-slot allocation; constant-comparison form
-  `x<N`↔`x<=N-1`; relational operand flip), cl-compiles each, and uses the reloc-masked byte-match as
-  the oracle. Stops at 0 diffs, writing `*.matched.cpp`. Only mutates the target function; keeps the rest
-  of the TU as context. Use it on the reg-alloc/x87 parked near-matches. (Dedups no-op variants; splits
-  `int y, x;` so counters can reorder. Slow — one `cl` per variant; run in background.)
+- **`permute.py <src.cpp> 0xADDR [--iters N] [--mode all|stmt|cmp|decl]`** — the **permuter**. Searches
+  source variations of one function (statement order; comparison form; leading local-declaration order →
+  register/x87-slot allocation), cl-compiles each, and uses the **graded `asmscore`** (below) as the oracle.
+  Stops at 0 diffs, writing `*.matched.cpp`. Only mutates the target function; keeps the rest of the TU as
+  context. Use it on the reg-alloc/x87 parked near-matches. (Dedups no-op variants; splits `int y, x;` so
+  counters can reorder. Slow — one `cl` per variant; run in background.)
+- **`asmscore.py <src.cpp> 0xADDR`** — ⭐ **the register-rename-aware graded scorer (DONE 2026-07-05).**
+  Replaces the flat raw-byte-diff oracle inside the permuter. Capstone-disassembles candidate + original
+  (relocs masked to 0), Needleman-Wunsch aligns on `(mnemonic, operand-kinds)` with registers normalized,
+  and grades the residual in 4 weighted tiers (1000/100/10/1): **`align`** = structural distance (wrong /
+  inserted / deleted / kind-changed insns; the *scheduling & instruction-selection* signal) · **`reg_pen`**
+  = is the register difference one consistent bijection? (clean rename → 0) · **`identity_miss`** = # reg
+  slots differing from the original's exact register · **`byte_diff`** = the old raw count (finest tie-break;
+  also catches wrong immediates). Standalone CLI prints the breakdown — **use it as a diagnostic**: `align>0`
+  ⇒ scheduling/instr-selection (reach for stmt/cmp reorder or park); `align=0, reg_pen/identity_miss>0` ⇒
+  pure register allocation (decl-order / full-TU territory). Handles integer, x87, and MMX code (verified on
+  Canvas/World/Zone/Dta). Sub-register names (AL/AX/EAX) canonicalize to one slot. This is the technique
+  decomp.me / simonlindholm's decomp-permuter use to make randomized search converge.
   **Permuter status + TODOs:**
   - ✅ *Statement reordering* — DONE (2026-07-04). Dependency-safe hill-climb over adjacent independent
     statement swaps; declaration order untouched (offsets stay put for the `_emit`-asm funcs). Auto-found the
-    `s=src`-before-`rows` win (BlitMasked 34→4) unattended. `--mode all|stmt|decl`.
-  - ⭐ **NEXT (highest value, Fable-recommended): register-rename-aware scorer.** Today's oracle = raw byte-diff
-    count, which is FLAT across most mutations (2→2→2→47) so the hill-climb has no gradient. Fix: capstone-
-    disassemble both, Needleman-Wunsch align on (mnemonic, operand-kinds), score = align cost + penalty per
-    *inconsistent register mapping* (a bijective reg-map that explains all diffs scores near-0). Turns "same
-    code, swapped regs" from a plateau into a rankable near-miss — this is how decomp.me / simonlindholm's
-    decomp-permuter make randomized search work. Pays off on every future function, not just these three.
+    `s=src`-before-`rows` win (BlitMasked 34→4) unattended.
+  - ✅ **Register-rename-aware scorer — DONE (2026-07-05, `asmscore.py`, see above).** Gives the hill-climb a
+    real gradient (structural → bijection-consistency → identity → bytes) where raw byte-diff was a flat
+    plateau. Diagnoses residual *nature* (scheduling vs reg-alloc) at a glance.
+  - ✅ **Comparison-form hill-climb — DONE (2026-07-05, `--mode cmp`).** Greedy per-comparison flip: operand
+    flip `a<b`↔`b>a` (changes `cmp` operand order + jcc) and constant-form toggle `x<N`↔`x<=N-1`. Doubles as
+    the **movability probe** — on `Zone::GetEdgeCode` it flipped every comparison in ~30 compiles and the
+    graded score never moved (stayed align=30), *proving* the cmp knob is outside that function (MSVC
+    canonicalizes it back) → park, don't keep guessing. Confirms lesson #6.
+  - **Parked-function movability results (2026-07-05, via the new scorer):** `Zone::FindObjectAt` (0x405330,
+    score align=10/reg_pen=2/identity_miss=5) — the deciding locals `i`/`obj` are declared *inside* the loop,
+    so the leading-decl permuter can't reach them (needs mid-body decl hoisting — a TODO). `Zone::GetEdgeCode`
+    (align=30) — instruction-selection, cmp-flip proven inert (above). `Dta::ParseZaux` (align=32,
+    byte_diff=78) — piecemeal it's *far* off, not a mere rename; strongly confirms lesson #7 (needs full TU).
+  - *NEXT permuter levers (now that the scorer gives a gradient):* **mid-body declaration hoisting** (move a
+    loop-local decl to the leading block so its allocation is permutable — unblocks FindObjectAt) · parallelize
+    compiles (N wine workers) · joint commutative-chain enumeration.
   - *Joint commutative-chain enumeration* — flatten `a+b+c`/`a*b`, enumerate all operand orders ×
     parenthesizations *together* (single-axis reassoc misses the joint points). Small/exhaustive. (Tried on
     BlitMasked's dst — 24 variants, didn't flip its 4-byte residual, but cheap & worth it generally.)

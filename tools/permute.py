@@ -26,6 +26,7 @@ print = functools.partial(print, flush=True)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import match
+import asmscore
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CL = os.path.join(ROOT, "toolchain/bin/cl")
@@ -88,6 +89,9 @@ def split_decls(func_text):
     return head, decls, rest
 
 
+_FLIP = {"<": ">", ">": "<", "<=": ">=", ">=": "<="}
+
+
 def mutate_cmps(text, rng):
     """Randomly toggle constant-comparison and relational-operand forms in body text."""
     def const_lt(m):
@@ -98,6 +102,19 @@ def mutate_cmps(text, rng):
         return "%s >= %d" % (m.group(1), v + 1) if rng.random() < 0.5 else m.group(0)
     text = re.sub(r"(\b[A-Za-z_]\w*)\s*<\s*(0x[0-9a-fA-F]+|\d+)\b", const_lt, text)
     text = re.sub(r"(\b[A-Za-z_]\w*)\s*>\s*(0x[0-9a-fA-F]+|\d+)\b", const_gt, text)
+
+    # relational-OPERAND flip: `a < b` <-> `b > a` for variable/expression operands
+    # (not constants — those are handled above). This changes the CMP operand order
+    # MSVC emits (`cmp a,b;jl` vs `cmp b,a;jg`), the exact lever for functions whose
+    # only residual is instruction-selection on a comparison (e.g. Zone::GetEdgeCode).
+    def relflip(m):
+        lhs, op, rhs = m.group(1), m.group(2), m.group(3)
+        if re.fullmatch(r"0x[0-9a-fA-F]+|\d+", lhs) or re.fullmatch(r"0x[0-9a-fA-F]+|\d+", rhs):
+            return m.group(0)                       # leave constant comparisons to the toggles above
+        return "%s %s %s" % (rhs, _FLIP[op], lhs) if rng.random() < 0.5 else m.group(0)
+    # operands: a bare identifier or `this->field` / `p.field` on each side
+    operand = r"[A-Za-z_]\w*(?:\s*(?:->|\.)\s*[A-Za-z_]\w*)*"
+    text = re.sub(r"(%s)\s*(<=|>=|<|>)\s*(%s)" % (operand, operand), relflip, text)
     return text
 
 
@@ -121,9 +138,10 @@ def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
             continue
         L = match.trim_pad(code)
         orig = EXE[foff:foff + L]
-        cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
-        diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
-        cand = (0 if (diffs == 0 and len(orig) == L) else 1, diffs, name)
+        # Graded, register-rename-aware score (asmscore) as the oracle: gives the
+        # hill-climb a real gradient instead of the flat raw-byte-diff plateau.
+        res = asmscore.score(orig, code[:L], relocs, exact_len=L)
+        cand = (0 if res.exact else 1, res.total, name, res.byte_diff)
         if best is None or cand < best:
             best = cand
     return best
@@ -293,12 +311,98 @@ def hillclimb_stmts(text, addr, workdir, base, tgt):
             if d < best:
                 best = d
                 improved = True
-                print("  [stmt %d] swap %d<->%d  diff=%d" % (tried, i, i + 1, best))
+                print("  [stmt %d] swap %d<->%d  score=%d" % (tried, i, i + 1, best))
                 if r and r[0] == 0:
                     return build(order), 0
             else:
                 order[i], order[i + 1] = order[i + 1], order[i]   # revert
     return build(order), best
+
+
+# ---------------------------------------------------------------------------
+# Comparison-form hill-climb  (permuter transform: "comparison-flip")
+# ---------------------------------------------------------------------------
+# Each comparison in the body is an independent binary choice of *form* that MSVC
+# 4.2 lowers literally: `a < b` -> `cmp a,b; jl` but `b > a` -> `cmp b,a; jg`, and
+# `x < N` -> `cmp x,N; jl` but `x <= N-1` -> `cmp x,N-1; jle`. Same truth value,
+# different bytes. Greedily flip one site at a time, keeping any flip the graded
+# scorer likes. This is the lever for functions whose only residual is instruction
+# selection on a comparison (e.g. Zone::GetEdgeCode). n independent binary knobs,
+# so greedy single-flip converges in O(n) passes.
+_CMP_SITE = re.compile(
+    r"(?P<lhs>[A-Za-z_]\w*(?:\s*(?:->|\.)\s*[A-Za-z_]\w*)*|0x[0-9a-fA-F]+|\d+)"
+    r"\s*(?P<op><=|>=|<|>)\s*"
+    r"(?P<rhs>[A-Za-z_]\w*(?:\s*(?:->|\.)\s*[A-Za-z_]\w*)*|0x[0-9a-fA-F]+|\d+)")
+_NUM = re.compile(r"^(?:0x[0-9a-fA-F]+|\d+)$")
+
+
+def _cmp_variants(lhs, op, rhs):
+    """All equivalent source forms of one comparison (original first)."""
+    forms = ["%s %s %s" % (lhs, op, rhs)]
+    if _NUM.match(rhs) and not _NUM.match(lhs):                    # constant on the right
+        v = int(rhs, 0)
+        if op == "<":
+            forms.append("%s <= %d" % (lhs, v - 1))
+        elif op == ">":
+            forms.append("%s >= %d" % (lhs, v + 1))
+        elif op == "<=":
+            forms.append("%s < %d" % (lhs, v + 1))
+        elif op == ">=":
+            forms.append("%s > %d" % (lhs, v - 1))
+    elif not _NUM.match(lhs) and not _NUM.match(rhs):              # var vs var -> operand flip
+        forms.append("%s %s %s" % (rhs, _FLIP[op], lhs))
+    return forms
+
+
+def hillclimb_cmps(text, addr, workdir, base, tgt):
+    """Greedy per-comparison form flip. Returns (best_text, best_score)."""
+    s, e = extract_func(text, addr)
+    func = text[s:e]
+    ob = func.index("{")
+    body = func[ob:]
+    sites = [(m.start(), m.end(), m.group("lhs"), m.group("op"), m.group("rhs"))
+             for m in _CMP_SITE.finditer(body)]
+    # keep only sites with >1 form; remember each site's current chosen form
+    sites = [(a, b, _cmp_variants(l, o, r)) for (a, b, l, o, r) in sites if len(_cmp_variants(l, o, r)) > 1]
+    if not sites:
+        return text, None
+    choice = [0] * len(sites)
+
+    def build():
+        nb = []
+        prev = 0
+        for (a, b, forms), c in zip(sites, choice):
+            nb.append(body[prev:a])
+            nb.append(forms[c])
+            prev = b
+        nb.append(body[prev:])
+        nf = func[:ob] + "".join(nb)
+        return text[:s] + nf + text[e:]
+
+    r = compile_diff(build(), addr, workdir, base, tgt)
+    best = r[1] if r else 999
+    tried = 0
+    improved = True
+    while improved:
+        improved = False
+        for i, (a, b, forms) in enumerate(sites):
+            for c in range(len(forms)):
+                if c == choice[i]:
+                    continue
+                old = choice[i]
+                choice[i] = c
+                tried += 1
+                r = compile_diff(build(), addr, workdir, base, tgt)
+                d = r[1] if r else 999
+                if d < best:
+                    best = d
+                    improved = True
+                    print("  [cmp %d] site %d -> '%s'  score=%d" % (tried, i, forms[c], best))
+                    if r and r[0] == 0:
+                        return build(), 0
+                else:
+                    choice[i] = old
+    return build(), best
 
 
 def main():
@@ -322,7 +426,7 @@ def main():
         print("baseline does not compile")
         return 2
     target_name = b0[2]
-    print("target=%s  baseline diff=%d" % (target_name, b0[1]))
+    print("target=%s  baseline score=%d (bytes=%d)" % (target_name, b0[1], b0[3]))
 
     def cleanup():
         for f in (base + ".cpp", base + ".obj"):
@@ -346,10 +450,20 @@ def main():
     # Phase 1 — statement reordering (dependency-safe; declarations untouched)
     if mode in ("all", "stmt"):
         best_text, best = hillclimb_stmts(best_text, addr, workdir, base, target_name)
-        print("after statement hill-climb: diff=%d" % best)
+        print("after statement hill-climb: score=%d" % best)
         if best == 0:
             finish(best_text)
             return 0
+
+    # Phase 1b — comparison-form hill-climb (operand flip / const-form toggle)
+    if mode in ("all", "cmp"):
+        t2, c2 = hillclimb_cmps(best_text, addr, workdir, base, target_name)
+        if c2 is not None:
+            best_text, best = t2, c2
+            print("after comparison hill-climb: score=%d" % best)
+            if best == 0:
+                finish(best_text)
+                return 0
 
     # Phase 2 — declaration order x comparison form (original search)
     if mode in ("all", "decl"):
@@ -381,7 +495,7 @@ def main():
                     continue
                 if r[1] < best:
                     best, best_text = r[1], cand
-                    print("  [decl %d] new best diff=%d  (order=%s)" % (tried, best, order))
+                    print("  [decl %d] new best score=%d (bytes=%d)  (order=%s)" % (tried, best, r[3], order))
                 if r[0] == 0:
                     finish(cand)
                     return 0
@@ -390,7 +504,7 @@ def main():
             if tried >= iters:
                 break
 
-    print("no exact match; best diff=%d" % best)
+    print("no exact match; best score=%d" % best)
     cleanup()
     return 1
 
