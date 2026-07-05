@@ -45,5 +45,5 @@ void Canvas::Fill(unsigned char value)
     GetSize(&width, &height);
     char* p = (char*)pData;
     for (int y = 0; y < height; y++)
-        memset(p + y * width, value, width);
+        memset(p + y * width, value, width);  // TODO: y/width reg-alloc flip (permuter)
 }

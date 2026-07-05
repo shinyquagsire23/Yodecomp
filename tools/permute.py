@@ -96,7 +96,7 @@ def mutate_cmps(text, rng):
     return text
 
 
-def compile_diff(full_text, addr, workdir, base, target_name):
+def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
     cpp = os.path.join(workdir, base + ".cpp")
     obj = os.path.join(workdir, base + ".obj")
     open(cpp, "w").write(full_text)
@@ -109,6 +109,10 @@ def compile_diff(full_text, addr, workdir, base, target_name):
     best = None
     for name, code, relocs in match.coff_functions(obj):
         if target_name and name != target_name:
+            continue
+        # target discovery: pick the function whose mangled name matches the
+        # source function name (?<name>@...), not the smallest-diff one.
+        if target_name is None and name_hint and ("?%s@" % name_hint) not in name:
             continue
         L = match.trim_pad(code)
         orig = EXE[foff:foff + L]
@@ -131,8 +135,12 @@ def main():
     workdir = os.path.dirname(os.path.abspath(src))
     base = "_perm_%x" % addr
 
-    # discover the target's mangled name with the original source
-    b0 = compile_diff(text, addr, workdir, base, None)
+    # discover the target's mangled name with the original source.
+    # Identify by the source function name (e.g. Canvas::Fill -> "Fill") so short
+    # functions can't win the diff-minimisation; fall back to min-diff if unparsed.
+    nm = re.search(r"::(\w+)\s*\(", func) or re.search(r"\b([A-Za-z_]\w*)\s*\(", func)
+    src_name = nm.group(1) if nm else None
+    b0 = compile_diff(text, addr, workdir, base, None, src_name)
     if b0 is None:
         print("baseline does not compile"); return 2
     target_name = b0[2]
