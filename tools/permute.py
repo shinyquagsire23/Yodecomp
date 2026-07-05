@@ -412,7 +412,13 @@ def main():
     mode = sys.argv[sys.argv.index("--mode") + 1] if "--mode" in sys.argv else "all"
     forced = sys.argv[sys.argv.index("--name") + 1] if "--name" in sys.argv else None
     text = open(src).read()
-    if re.search(r"#\s*include\s*<afx", text):   # MFC TU -> needs _MBCS to compile afxwin.h
+    afx = bool(re.search(r"#\s*include\s*<afx", text))
+    if not afx:  # also look through local includes (e.g. Records.cpp -> Records.h -> <afxwin.h>)
+        for inc in re.findall(r'#\s*include\s*"([^"]+)"', text):
+            p = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), inc)
+            if os.path.exists(p) and re.search(r"#\s*include\s*<afx", open(p).read()):
+                afx = True; break
+    if afx:   # MFC TU -> needs _MBCS to compile afxwin.h
         FLAGS.extend(["/D", "_MBCS"])
     s, e = extract_func(text, addr)
     func = text[s:e]
