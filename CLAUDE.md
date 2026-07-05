@@ -197,9 +197,14 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
   byte-match**: `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Clear`… wait Clear is
   DIFF — matched set is `Free`,`GetData`,`GetSize`,`CreatePalette`,`SetPalette`,`BitBlt`,`Fill`,**`BlitFast`**.
   Parked (intrinsic register-coloring, NOT blit-coupled — verified by removing the blits): `Init` (0x407df0,
-  DIFF40, `=0`-store grouping + `lea edi,[ecx+0x10]` biSize peephole), `Clear` (0x408040, DIFF2, y/width
-  EBX↔ESI — Fill matches only because its `value` param shifts reg pressure), `BlitMasked` (0x408240, DIFF4,
-  destX-vs-canvasW `movsx` load order). **The MMX blits were the hard win** — see lessons below.
+  **DIFF22**, residual = scheduler placement of the height load + `push edi`), `Clear` (0x408040, DIFF2,
+  y/width EBX↔ESI — Fill matches only because its `value` param shifts reg pressure), `BlitMasked`
+  (0x408240, DIFF4, destX-vs-canvasW `movsx` load order). **Init CSE win (from a DIB-init lead):** the
+  original CSEs `&biHeader` into EDI for BOTH the `biSize` store (`mov [edi],0x28`) and the
+  `CreateDIBSection` `BITMAPINFO*` arg → model it as `BITMAPINFOHEADER* h=&biHeader; h->biSize=...;
+  CreateDIBSection(...,(BITMAPINFO*)h,...)` (biSize via `h`, other fields via `biHeader.`); this killed the
+  `=0`-store grouping (DIFF40→22). The canonical MS/Quake2 field order (`biSize,biWidth,biHeight,…`) tested
+  *worse* — this binary emits biCompression-first, so it's the CSE that matters, not the field order. **The MMX blits were the hard win** — see lessons below.
 - **BIG discovery — the accelerated blits (`BlitFast` 0x408110, `BlitMasked` 0x408240) are HAND-ASM in
   BOTH branches**, selected by the `App_bCpuHasMMX` global (0x459e28, was `Canvas_bUnk`): a scalar
   copy loop AND an MMX (`movq`/`pcmpeqb`/`pand`/`por`) loop. Since VC++4.2's inline assembler predates MMX
