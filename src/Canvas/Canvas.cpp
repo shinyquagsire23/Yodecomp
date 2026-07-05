@@ -5,8 +5,8 @@
 #include <string.h>
 #pragma intrinsic(memset, memcpy)
 
-// MMX-support flag (set once at startup); gates the accelerated blit path.
-extern int Canvas_bUnk;
+// Set once at startup: 1 if the CPU supports MMX. Gates the accelerated blit path.
+extern int App_bCpuHasMMX;
 
 // FUNCTION: YODA 0x00407df0
 Canvas* Canvas::Init(int width, int height)
@@ -158,7 +158,7 @@ void Canvas::BlitFast(void* src, int flags, short height,
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
     int rows = height;
-    if (Canvas_bUnk == 0) {
+    if (App_bCpuHasMMX == 0) {
         do {
             memcpy(dst, s, 32);
             s = (char*)s + srcStride;
@@ -216,5 +216,58 @@ void Canvas::BlitFast(void* src, int flags, short height,
         _emit 0x61
         _emit 0x0f      // emms
         _emit 0x77
+    }
+}
+
+// FUNCTION: YODA 0x00408240
+// Color-key (transparent) 32-byte-wide row blit. Fast path uses MMX pcmpeqb/pand/por
+// masking, hand-emitted as bytes (VC++4.2 predates MMX). WIP.
+void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
+                        short destX, short destY, char key)
+{
+    short canvasW, canvasH;
+    GetSize(&canvasW, &canvasH);
+    char* dst = (char*)pData + destX + canvasW * destY;
+    if (canvasH <= height + destY - 1)
+        height = canvasH - destY;
+    int rows = height;
+    if (App_bCpuHasMMX == 0) {
+        do {
+        if (src[0] != key) dst[0] = src[0];
+        if (src[1] != key) dst[1] = src[1];
+        if (src[2] != key) dst[2] = src[2];
+        if (src[3] != key) dst[3] = src[3];
+        if (src[4] != key) dst[4] = src[4];
+        if (src[5] != key) dst[5] = src[5];
+        if (src[6] != key) dst[6] = src[6];
+        if (src[7] != key) dst[7] = src[7];
+        if (src[8] != key) dst[8] = src[8];
+        if (src[9] != key) dst[9] = src[9];
+        if (src[10] != key) dst[10] = src[10];
+        if (src[11] != key) dst[11] = src[11];
+        if (src[12] != key) dst[12] = src[12];
+        if (src[13] != key) dst[13] = src[13];
+        if (src[14] != key) dst[14] = src[14];
+        if (src[15] != key) dst[15] = src[15];
+        if (src[16] != key) dst[16] = src[16];
+        if (src[17] != key) dst[17] = src[17];
+        if (src[18] != key) dst[18] = src[18];
+        if (src[19] != key) dst[19] = src[19];
+        if (src[20] != key) dst[20] = src[20];
+        if (src[21] != key) dst[21] = src[21];
+        if (src[22] != key) dst[22] = src[22];
+        if (src[23] != key) dst[23] = src[23];
+        if (src[24] != key) dst[24] = src[24];
+        if (src[25] != key) dst[25] = src[25];
+        if (src[26] != key) dst[26] = src[26];
+        if (src[27] != key) dst[27] = src[27];
+        if (src[28] != key) dst[28] = src[28];
+        if (src[29] != key) dst[29] = src[29];
+        if (src[30] != key) dst[30] = src[30];
+        if (src[31] != key) dst[31] = src[31];
+            src += srcStride;
+            dst += canvasW;
+            rows--;
+        } while (rows != 0);
     }
 }

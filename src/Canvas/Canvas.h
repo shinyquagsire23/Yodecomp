@@ -30,6 +30,8 @@ struct Canvas {
     void  Free();                                              // 0x00407eb0
     void  BlitFast(void* src, int flags, short height,        // 0x00408110
                    unsigned short srcStride, short destX, short destY);
+    void  BlitMasked(char* src, unsigned short srcStride, short height,  // 0x00408240
+                     short destX, short destY, char key);
 };
 
 #endif
