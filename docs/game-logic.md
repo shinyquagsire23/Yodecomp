@@ -193,7 +193,7 @@ state machine** (a `1..8` enum @World+0x5c; the `b`-prefix is a misnomer, it is 
 | bIactBusy | frame mode | does |
 |---|---|---|
 | 1, 4 | idle / wait | `CyclePalette` only (ambient palette anim) |
-| **2** | **normal play** | `CyclePalette` + `Tick` (entities) + sub-switch on `GameView+0x84` (0x21–0x28 = player action/animation states) |
+| **2** | **normal play** | `CyclePalette` + `Tick` (entities) + the **player-move dispatch**: if `bMovePending`(`GameView+0x78`), switch `nMoveCommand`(`+0x84`, 0x21–0x28 = the 8 directions) → set `nMoveDX/DY`(`+0x128/+0x12c`) → `OnBumpTile(dx,dy)` |
 | 3 | dialogue up | `CyclePalette` + `Tick` + `ShowTextDialog` (a speech balloon is showing) |
 | 5 | drag in progress | pure wait |
 | 6 | zone transition start | `switch(pWorld->mapChangeReason)` (door/x-wing/script); finishes the swap, then sets `bIactBusy=3` |
@@ -202,7 +202,7 @@ state machine** (a `1..8` enum @World+0x5c; the `b`-prefix is a misnomer, it is 
 
 So the loop is **`UpdateFrameMaybe` → `Tick` (entities/AI) + `CyclePalette` (anim) + `DrawGameArea` (render)**,
 selected by `bIactBusy`. (Note: `bIactBusy@0x5c` is distinct from `gameState@0x68` = win(-1/1) — the former
-is the per-frame mode, the latter the win/lose result. The 0x21–0x28 action sub-states and modes 7/8 are
+is the per-frame mode, the latter the win/lose result. Mode-2 directions (`nMoveCommand`→dx,dy): 0x25 W(-1,0) 0x27 E(1,0) 0x26 N(0,-1) 0x28 S(0,1) 0x24 NW 0x21 NE 0x23 SW 0x22 SE. Modes 7/8 specifics are
 still to detail.)
 
 ## Game tick & enemy AI
