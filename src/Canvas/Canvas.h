@@ -26,6 +26,7 @@ struct Canvas {
     int   BitBlt(CDC* dest, int destX, int destY,              // 0x00408000
                       int width, int height, int srcX, int srcY);
     int   CreatePalette();                                     // 0x00407f80
+    void  Free();                                              // 0x00407eb0
 };
 
 #endif

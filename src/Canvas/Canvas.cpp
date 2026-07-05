@@ -5,11 +5,39 @@
 #include <string.h>
 #pragma intrinsic(memset)
 
+// FUNCTION: YODA 0x00407eb0
+void Canvas::Free()
+{
+    HDC dc = hdc;
+    if (dc != 0 && hOldBitmap != 0) {
+        SelectObject(dc, hOldBitmap);
+        DeleteObject(hDib);
+        DeleteDC(hdc);
+        hOldBitmap = 0;
+        hDib = 0;
+        hdc = 0;
+    }
+    else if (dc != 0 && hDib != 0 && hOldBitmap == 0) {
+        DeleteObject(hDib);
+        DeleteDC(hdc);
+        hdc = 0;
+        hDib = 0;
+    }
+    else if (hDib != 0 && dc == 0) {
+        DeleteObject(hDib);
+        hDib = 0;
+    }
+    if (hPalette != 0)
+        DeleteObject(hPalette);
+}
+
+
 // FUNCTION: YODA 0x00407f50
 void* Canvas::GetData()
 {
     return pData;
 }
+
 
 // FUNCTION: YODA 0x00407f60
 void Canvas::GetSize(short* outWidth, short* outHeight)
@@ -20,41 +48,6 @@ void Canvas::GetSize(short* outWidth, short* outHeight)
     }
 }
 
-// FUNCTION: YODA 0x00407fd0
-UINT Canvas::SetPalette(UINT start, UINT count, RGBQUAD* colors)
-{
-    if (hdc == 0)
-        return 0;
-    return SetDIBColorTable(hdc, start, count, colors);
-}
-
-// FUNCTION: YODA 0x00408040
-void Canvas::Clear()
-{
-    short width, height;
-    GetSize(&width, &height);
-    char* p = (char*)pData;
-    for (int y = 0; y < height; y++)
-        memset(p + y * width, 0, width);
-}
-
-// FUNCTION: YODA 0x004080a0
-void Canvas::Fill(unsigned char value)
-{
-    short width, height;
-    GetSize(&width, &height);
-    char* p = (char*)pData;
-    for (int y = 0; y < height; y++)
-        memset(p + y * width, value, width);  // TODO: y/width reg-alloc flip (permuter)
-}
-
-// FUNCTION: YODA 0x00408000
-int Canvas::BitBlt(CDC* dest, int destX, int destY, int width, int height, int srcX, int srcY)
-{
-    if (hdc == 0)
-        return 0;
-    return ::BitBlt(dest->m_hDC, destX, destY, width, height, hdc, srcX, srcY, SRCCOPY);
-}
 
 // FUNCTION: YODA 0x00407f80
 int Canvas::CreatePalette()
@@ -75,4 +68,44 @@ int Canvas::CreatePalette()
         return 1;
     }
     return 0;
+}
+
+
+// FUNCTION: YODA 0x00407fd0
+UINT Canvas::SetPalette(UINT start, UINT count, RGBQUAD* colors)
+{
+    if (hdc == 0)
+        return 0;
+    return SetDIBColorTable(hdc, start, count, colors);
+}
+
+
+// FUNCTION: YODA 0x00408000
+int Canvas::BitBlt(CDC* dest, int destX, int destY, int width, int height, int srcX, int srcY)
+{
+    if (hdc == 0)
+        return 0;
+    return ::BitBlt(dest->m_hDC, destX, destY, width, height, hdc, srcX, srcY, SRCCOPY);
+}
+
+
+// FUNCTION: YODA 0x00408040
+void Canvas::Clear()
+{
+    short width, height;
+    GetSize(&width, &height);
+    char* p = (char*)pData;
+    for (int y = 0; y < height; y++)
+        memset(p + y * width, 0, width);
+}
+
+
+// FUNCTION: YODA 0x004080a0
+void Canvas::Fill(unsigned char value)
+{
+    short width, height;
+    GetSize(&width, &height);
+    char* p = (char*)pData;
+    for (int y = 0; y < height; y++)
+        memset(p + y * width, value, width);  // TODO: y/width reg-alloc flip (permuter)
 }
