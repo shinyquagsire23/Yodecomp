@@ -8,17 +8,29 @@ In general, you can adhere to patterns found in `OpenJKDF2`, located at `~/works
 
 In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat').
 
-**Function naming = C++ `Namespace::Method` (updated 2026-07-05).** This is a C++/MFC app, so group
-functions by their compile-unit/class as a **Ghidra namespace** and give the method a bare name — **do NOT
-repeat the group in the method**: `Canvas::BlitMasked` (not `Canvas::Canvas_BlitMasked` or the flat
-`Canvas_BlitMasked`), `GameView::RemoveItem` (not `Game_RemoveItem`), `InvScrollBar::OnVScroll`,
-`Zone::GetTile`. Class structs (`Canvas`,`Zone`,`World`,`GameView`,`InvScrollBar`) get a matching Ghidra
-class namespace via `set_function_this_type`; non-class CU groups (`Dta`,`Worldgen`,`Wld`,`Render`,`Iact`,
-`Sound`,…) get a plain namespace. Still provisional / not-yet-namespaced flat names use `Module_Function`
-(e.g. `Render_DrawRect`, `Worldgen_*`) — a **migration TODO**, not the target. The self-prefix strip that
-converts `Class_Method`→`Class::Method` for class namespaces is idempotent (a `run_script_inline` loop over
-`fm.getFunctions` — already run once for Canvas/Zone/World/GameView/InvScrollBar, 62 funcs). Loose-Hungarian
-still applies to the bare method name where it helps (`Draw*`, `p`/`b`/`n` variable prefixes).
+**Function naming = C++ `Namespace::Method` (migration DONE 2026-07-05).** This is a C++/MFC app, so group
+functions by their **class** as a Ghidra namespace and give the method a bare name — **do NOT repeat the
+group in the method**: `Canvas::BlitMasked` (not `Canvas::Canvas_BlitMasked` / flat `Canvas_BlitMasked`),
+`GameView::RemoveItem`, `World::Load`, `Zone::GetTile`.
+
+⚠️ **CRITICAL: the namespace name MUST equal the struct name — Ghidra derives a `__thiscall` function's
+auto-`this` type from its parent namespace by matching it to a same-named `Structure`.** Put a doc method in
+a `Dta` namespace (no `Dta` struct) and its `this` silently degrades to `void*` (offsets instead of
+`this->field`). So **namespace = the C++ class, not a sub-module.** The whole **doc translation unit**
+(`CDeskcppDoc` = our `World` struct: `.dta` load/parse + worldgen + `.wld` save + inventory/UI) lives in the
+**`World`** namespace; the **view** (`CDeskcppView` = `GameView`) in **`GameView`**. Sub-modules like "Dta"
+or "Worldgen" are a *documentation* concept (docs/compile-units.md), **not** namespaces — an early attempt to
+make `Dta::`/`Worldgen::` namespaces broke `this=World*` and was folded back into `World`.
+
+Namespaces in the DB now: **class** namespaces (`World`,`GameView`,`Zone`,`Canvas`,`Tile`,`ZoneObj`,
+`MapEntity`,`Puzzle`,`IactScript`,`InvScrollBar`,…) — `this` types correctly; and **CU/module** namespaces
+for genuinely separate `.obj`s that aren't a modeled struct (`GameData`,`Iact`,`App`,`Settings`,`Frame`,
+`Dlg`,`Log`,`Mfc`,`Render`) — their `__thiscall` members show `void* this` until/unless the class is modeled
+as a struct (then move them or `set_function_this_type`). Global leftovers are only `FUN_*` (undiscovered),
+`FID_*` (MFC library), and import thunks. Migration was done with idempotent `run_script_inline` loops over
+`fm.getFunctions` (longest-prefix→namespace map, collision→append addr; then a residual self-prefix strip).
+Loose-Hungarian still applies to the bare method + variables (`Draw*`, `p`/`b`/`n`). When you `set_function_
+this_type X*`, Ghidra moves the func into namespace `X` automatically — so typing and namespacing are one act.
 
 ## Decompiling
 
@@ -144,40 +156,30 @@ RNG seed) + `Worldgen_Populate` (0x425e30). So Dta-load and Worldgen share the `
 record format (18×18, 3 tile layers, hotspots, IACT scripts, area/map-flag enums) documented in
 `docs/dta-format.md`. TODO: CHAR handler; `src/Dta/` + `src/Zone/` match modules; Zone_ReadData internals.
 
-### ⏳ PLAN — clean up the over-broad `Dta_` prefix (started 2026-07-05)
-**Problem:** `Dta_` was a *provisional* bulk CU-tag smeared across **0x421520–0x429142** (~90 funcs). But
-that whole span is **one `.obj`** — the `CDeskcppDoc`/`CDeskcppView` document TU (`0x41c340–0x429000`, see
-compile-units.md) — which mixes **four distinct roles**. Only the true `.dta` chunk parsers deserve `Dta_`;
-the rest are worldgen, `.wld` save, and view/doc render+logic that got swept in. Re-prefix each by its
-**actual role**, decided by decompiling (behaviour + `this`-type + neighbours), NOT by its address range.
+### ✅ DONE — `Dta_` cleanup + whole-DB namespace migration (2026-07-05)
+**What `Dta_` was:** a *provisional* bulk CU-tag smeared across **0x421520–0x429142**, but that span is the
+**doc TU** (`CDeskcppDoc` = `World`, `0x41c340–0x429000`) mixing four roles (`.dta` load/parse · worldgen ·
+`.wld` save · doc/UI logic). **Resolution:** the whole doc TU is now the **`World` namespace** (all
+`__thiscall` doc methods get correct `this=World*`) — `World::Load`/`ParseZone`/`Randomize`/`Generate`/
+`Serialize`/… A separate-`Dta`/`Worldgen`/`Wld` namespace attempt was **rejected** because it broke
+`this=World*` (namespace must equal the struct — see the ⚠️ note in the top-of-file convention).
 
-**Role → namespace, and the deciding signal** (target is `Namespace::Method`; some groups are still flat
-`Module_` pending the namespace migration):
-| Namespace | Role | Tell-tale in the decompile |
-|---|---|---|
-| `Dta::` | parse a `.dta` IFF chunk | reads via the load `CFile` (`pFile->Read`, vtbl+0x3c); dispatched by `Dta::Load`; `this`=doc/World |
-| `Worldgen::` | generate world content | walks the 10×10 `World.zones` grid; RNG; `this`/arg = `World*`; no GDI |
-| `Wld::` | `.wld` save/serialize | `CArchive`/`Serialize`/`ASAV44`; read+write symmetric |
-| `GameView::Draw*` / `Render::` | view painting | params include `CDC*`; uses `CPen`/`CBrush`/`GetDC`/`BitBlt`/`Canvas`; `this`=`GameView*` |
-| `GameView::` / `Doc::` | doc/view game logic | inventory/weapon/health state on `World*`/`GameView*`, no GDI & no CFile |
+**Migrated the entire function list** (idempotent `run_script_inline` loops): 62 class self-prefix strips +
+607 global→namespace moves + 161 doc-TU consolidations into `World` + 7 Iact-`.obj` funcs rescued from a
+wrong `Zone` this-typing → `Iact::`. Result: clean `Namespace::Method` across `World`(201)/`GameView`(208)/
+`GameData`(70)/`App`(57)/`Settings`(38)/`Iact`(33)/`Mfc`(29)/`Zone`(24)/`Frame`(21)/… ; only `FUN_*`
+(undiscovered), `FID_*` (MFC lib) and import thunks remain global.
 
-**Done 2026-07-05 (naming now uses `Namespace::Method` — see top-of-file convention):**
-`GameView::DrawWeaponBox` (0x428ac0), `GameView::DrawWeaponIcon` (0x428c40, BitBlt currentWeapon),
-`GameView::BlitWeaponBox` (0x428e30), `GameView::DrawHealthDial` (0x427490, `Chord()` on the health-circle
-rect `World.nHealthDial{L,T,R,B}@0x32c4..d0`), `GameView::DrawHealthNeedle` (0x4278a0, colored pens by
-`healthHi`), `GameView::AddHealth` (0x427690, IACT cmd 0x25 health logic), `Render_DrawRect` (0x424010,
-free fn — CPen frame; global-prefixed until Render is namespaced), `Worldgen_RestoreGridFromBackup`
-(0x421520, copies `zones[100..199]`→`zones[0..99]` — **reveals a 2nd 10×10 `MapZone` grid at zones+100**).
-**Still `Dta_`-tagged, TODO:** `0x428680`(World* doc method) + the remaining `Dta_FUN_*` funclets/stubs and
-any unexamined bodies in 0x424280–0x428680. The genuine parsers (`Dta_Load`/`Dta_Parse*`/`Dta_ReadZone`,
-~0x421e70–0x423bxx) are correct — when the sweep is complete, move them into a `Dta` namespace (strip
-`Dta_`). `Worldgen_*`/`Wld_*` global funcs are correct too; namespace them in the same later pass.
-
-**Procedure (idempotent, address-anchored):** for each remaining `Dta_FUN_<addr>` in 0x424010–0x429142:
-1. decompile; read `this`-type + the tells above; 2. rename with the right prefix (keep the addr suffix if
-role is clear but purpose isn't yet: e.g. `GameView_FUN_<addr>`); 3. set a plate comment when purpose is
-clear; 4. mirror any struct fields found (per the p-prefix/type rules). Verify YodaDemo.exe is the active
-program before writes. Track the sweep in docs/compile-units.md (the CU map is the ledger).
+**Functions identified during the sweep (behaviour + `this`-type + GDI/CFile tells):**
+`GameView::DrawWeaponBox` (0x428ac0) · `DrawWeaponIcon` (0x428c40, BitBlt currentWeapon) ·
+`BlitViewportDither` (0x428e30 — dithers Canvas + blits the 288×288 play viewport; the first tell-based
+guess "BlitWeaponBox" was **wrong**, corrected after reading it — lesson: read the body, don't trust tells) ·
+`DrawHealthDial` (0x427490, `Chord()` on `World.nHealthDial{L,T,R,B}@0x32c4..d0`) · `DrawHealthNeedle`
+(0x4278a0) · `AddHealth` (0x427690, IACT cmd 0x25) · `FUN_00428680` (0x428680 — was mis-typed `World`, is a
+`GameView` tile-clear method) · `Render::DrawRect` (0x424010) · `World::RestoreGridFromBackup` (0x421520 —
+copies `zones[100..199]`→`zones[0..99]`, **revealing a 2nd 10×10 `MapZone` grid at zones+100**).
+**Still TODO (grind):** the unexamined `World::FUN_*` bodies in 0x424280–0x428680 (worldgen internals) and
+the `Iact::void*-this` readers (model the IACT record class to type them).
 
 ### Compile units identified (progress log)
 - **`World_*`** — game-state/score module. Confirmed contiguous cluster **0x401450–0x401ab9**, pinned by
