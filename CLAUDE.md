@@ -8,6 +8,18 @@ In general, you can adhere to patterns found in `OpenJKDF2`, located at `~/works
 
 In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat').
 
+**Function naming = C++ `Namespace::Method` (updated 2026-07-05).** This is a C++/MFC app, so group
+functions by their compile-unit/class as a **Ghidra namespace** and give the method a bare name — **do NOT
+repeat the group in the method**: `Canvas::BlitMasked` (not `Canvas::Canvas_BlitMasked` or the flat
+`Canvas_BlitMasked`), `GameView::RemoveItem` (not `Game_RemoveItem`), `InvScrollBar::OnVScroll`,
+`Zone::GetTile`. Class structs (`Canvas`,`Zone`,`World`,`GameView`,`InvScrollBar`) get a matching Ghidra
+class namespace via `set_function_this_type`; non-class CU groups (`Dta`,`Worldgen`,`Wld`,`Render`,`Iact`,
+`Sound`,…) get a plain namespace. Still provisional / not-yet-namespaced flat names use `Module_Function`
+(e.g. `Render_DrawRect`, `Worldgen_*`) — a **migration TODO**, not the target. The self-prefix strip that
+converts `Class_Method`→`Class::Method` for class namespaces is idempotent (a `run_script_inline` loop over
+`fm.getFunctions` — already run once for Canvas/Zone/World/GameView/InvScrollBar, 62 funcs). Loose-Hungarian
+still applies to the bare method name where it helps (`Draw*`, `p`/`b`/`n` variable prefixes).
+
 ## Decompiling
 
 A decompiler instance can be accessed via `http://localhost:8089`, which is running an instance of https://github.com/bethington/ghidra-mcp. The binary that should be accessed is `YodaDemo.exe`, which can also be found at `YodaDemo/YodaDemo.exe`.
@@ -139,20 +151,27 @@ compile-units.md) — which mixes **four distinct roles**. Only the true `.dta` 
 the rest are worldgen, `.wld` save, and view/doc render+logic that got swept in. Re-prefix each by its
 **actual role**, decided by decompiling (behaviour + `this`-type + neighbours), NOT by its address range.
 
-**Role → prefix, and the deciding signal:**
-| Prefix | Role | Tell-tale in the decompile |
+**Role → namespace, and the deciding signal** (target is `Namespace::Method`; some groups are still flat
+`Module_` pending the namespace migration):
+| Namespace | Role | Tell-tale in the decompile |
 |---|---|---|
-| `Dta_*` (keep) | parse a `.dta` IFF chunk | reads via the load `CFile` (`pFile->Read`, vtbl+0x3c); dispatched by `Dta_Load`; `this`=doc/World |
-| `Worldgen_*` | generate world content | walks the 10×10 `World.zones` grid; RNG; `this`/arg = `World*`; no GDI |
-| `Wld_*` | `.wld` save/serialize | `CArchive`/`Serialize`/`ASAV44`; read+write symmetric |
-| `GameView_Draw*` / `Render_*` | view painting | params include `CDC*`; uses `CPen`/`CBrush`/`GetDC`/`BitBlt`/`Canvas`; `this`=`GameView*` |
-| `Game_*` / `Doc_*` | doc/view game logic | inventory/weapon/health state on `World*`/`GameView*`, no GDI & no CFile |
+| `Dta::` | parse a `.dta` IFF chunk | reads via the load `CFile` (`pFile->Read`, vtbl+0x3c); dispatched by `Dta::Load`; `this`=doc/World |
+| `Worldgen::` | generate world content | walks the 10×10 `World.zones` grid; RNG; `this`/arg = `World*`; no GDI |
+| `Wld::` | `.wld` save/serialize | `CArchive`/`Serialize`/`ASAV44`; read+write symmetric |
+| `GameView::Draw*` / `Render::` | view painting | params include `CDC*`; uses `CPen`/`CBrush`/`GetDC`/`BitBlt`/`Canvas`; `this`=`GameView*` |
+| `GameView::` / `Doc::` | doc/view game logic | inventory/weapon/health state on `World*`/`GameView*`, no GDI & no CFile |
 
-**Confirmed so far (2026-07-05):** `Dta_FUN_00428ac0`→`GameView_DrawWeaponBox` ✓. Still `Dta_`-tagged but
-identified: `0x424010`(CDC*,RECT* → `Render_DrawRect`), `0x428c40`(GameView,CDC* → health-circle draw),
-`0x427490`/`0x4278a0`(GameView,CDC* → view paint helpers), `0x421520`(World* → worldgen grid reset),
-`0x428680`(World* → doc data method). The genuine parsers (`Dta_Load`/`Dta_Parse*`/`Dta_ReadZone`,
-~0x421e70–0x423bxx) and `Worldgen_*`/`Wld_*` already-named funcs are correct — leave them.
+**Done 2026-07-05 (naming now uses `Namespace::Method` — see top-of-file convention):**
+`GameView::DrawWeaponBox` (0x428ac0), `GameView::DrawWeaponIcon` (0x428c40, BitBlt currentWeapon),
+`GameView::BlitWeaponBox` (0x428e30), `GameView::DrawHealthDial` (0x427490, `Chord()` on the health-circle
+rect `World.nHealthDial{L,T,R,B}@0x32c4..d0`), `GameView::DrawHealthNeedle` (0x4278a0, colored pens by
+`healthHi`), `GameView::AddHealth` (0x427690, IACT cmd 0x25 health logic), `Render_DrawRect` (0x424010,
+free fn — CPen frame; global-prefixed until Render is namespaced), `Worldgen_RestoreGridFromBackup`
+(0x421520, copies `zones[100..199]`→`zones[0..99]` — **reveals a 2nd 10×10 `MapZone` grid at zones+100**).
+**Still `Dta_`-tagged, TODO:** `0x428680`(World* doc method) + the remaining `Dta_FUN_*` funclets/stubs and
+any unexamined bodies in 0x424280–0x428680. The genuine parsers (`Dta_Load`/`Dta_Parse*`/`Dta_ReadZone`,
+~0x421e70–0x423bxx) are correct — when the sweep is complete, move them into a `Dta` namespace (strip
+`Dta_`). `Worldgen_*`/`Wld_*` global funcs are correct too; namespace them in the same later pass.
 
 **Procedure (idempotent, address-anchored):** for each remaining `Dta_FUN_<addr>` in 0x424010–0x429142:
 1. decompile; read `this`-type + the tells above; 2. rename with the right prefix (keep the addr suffix if
@@ -420,5 +439,7 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
   - The byte-match is the correctness oracle: rewrite to idiomatic form, recompile, confirm it still
     matches. If an idiomatic form breaks the match, keep the faithful form but leave a `// TODO: idiom`.
 - Prefix functions per compile unit (see Phase 3). Loose-Hungarian for variables.
-- Mirror OpenJKDF2 structure (`~/workspace/OpenJKDF2`): CMake, per-module source files, `Module_Function` naming.
+- Mirror OpenJKDF2 structure (`~/workspace/OpenJKDF2`): CMake, per-module source files. **Naming: C++
+  `Namespace::Method`** (see the convention block at the top of this file) — `Module_Function` flat names
+  are legacy/provisional, to be migrated into namespaces.
 - Progress artifacts live in `docs/`. The toolchain lives in `toolchain/`.

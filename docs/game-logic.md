@@ -137,8 +137,11 @@ The main window (a `CDeskcppView` = our `GameView`) has four regions:
   objects (item's `Tile*` at wrapper+4, name CString at +8); `doc->inventory`(m_pData)@0xac,
   `doc->inventoryCount`(m_nSize)@0xb0.
 - **Below the inventory** — 4 direction arrows (zone transitions), the **weapon box** (drag target from
-  the inventory; rect = `World.nWeaponBox{Left,Top,Right,Bottom}` @0x32a4/a8/ac/b0, drawn by
-  `GameView_DrawWeaponBox` 0x428ac0 which renders `doc->currentWeapon`@0x2e2c), and a **health circle**.
+  the inventory; rect = `World.nWeaponBox{Left,Top,Right,Bottom}` @0x32a4/a8/ac/b0, `GameView::DrawWeaponBox`
+  0x428ac0 draws the frame, `GameView::DrawWeaponIcon` 0x428c40 BitBlts `doc->currentWeapon`@0x2e2c), and a
+  **health circle** — rect `World.nHealthDial{Left,Top,Right,Bottom}` @0x32c4/c8/cc/d0, drawn by
+  `GameView::DrawHealthDial` (0x427490, two `Chord()` pie-halves) + `GameView::DrawHealthNeedle` (0x4278a0,
+  pens colored by `doc->healthHi`). `GameView::AddHealth` (0x427690) is the health logic (IACT cmd 0x25).
 
 ### The inventory scroll bar — `InvScrollBar` (custom `CScrollBar` subclass)
 `GameView.pInvScrollBar` (**+0x40**, `InvScrollBar*`) points to the inventory scroll bar control. It is a
