@@ -328,7 +328,18 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
   `CreateDIBSection` `BITMAPINFO*` arg → model it as `BITMAPINFOHEADER* h=&biHeader; h->biSize=...;
   CreateDIBSection(...,(BITMAPINFO*)h,...)` (biSize via `h`, other fields via `biHeader.`); this killed the
   `=0`-store grouping (DIFF40→22). The canonical MS/Quake2 field order (`biSize,biWidth,biHeight,…`) tested
-  *worse* — this binary emits biCompression-first, so it's the CSE that matters, not the field order. **The MMX blits were the hard win** — see lessons below.
+  *worse* — this binary emits biCompression-first, so it's the CSE that matters, not the field order.
+  **Init source-shape hypotheses EXHAUSTED (2026-07-05, ~10 more probes):** (a) *store order is
+  source-faithful* — reordering assignments reorders the emitted stores 1:1 (natural/stdBmp order scored
+  asmscore align=346 vs baseline 36), so the original's weird field order **IS what the dev typed**;
+  (b) *memset ruled out* — MSVC 4.2 always emits `mov ecx,0xa; rep stosd` (+`push ebx`), never
+  decomposes/DSEs it; (c) *abs ruled out* — `-abs()` intrinsic align=334, ABS-macro ternary align=266;
+  the two-store branch form (`biHeight=height; if(0<height) biHeight=-height;`) already byte-matches;
+  (d) *pointer-for-everything ruled out* — `h->` on all fields makes MSVC address via `[edi+off]` not
+  `[esi+off]` (22→51 B); `[edi]`-only-for-biSize = the existing hybrid, keep it; (e) the 22-B residual
+  (push-edi/lea slot + height-load slot, insns 65/65 identical) ignores decl position and a multi-use
+  `int ht=height;` temp (copy-propagated away). Pure scheduler tie-break — do NOT re-litigate from
+  source; full-TU endgame only. **The MMX blits were the hard win** — see lessons below.
 - **BIG discovery — the accelerated blits (`BlitFast` 0x408110, `BlitMasked` 0x408240) are HAND-ASM in
   BOTH branches**, selected by the `App_bCpuHasMMX` global (0x459e28, was `Canvas_bUnk`): a scalar
   copy loop AND an MMX (`movq`/`pcmpeqb`/`pand`/`por`) loop. Since VC++4.2's inline assembler predates MMX
