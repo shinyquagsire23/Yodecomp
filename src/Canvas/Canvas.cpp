@@ -157,8 +157,8 @@ void Canvas::BlitFast(void* src, int flags, short height,
     void* s;
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
-    int rows = height;
     s = src;
+    int rows = height;
     int cw     = canvasW;
     int stride = (short)srcStride;
     if (App_bCpuHasMMX != 0) {
@@ -269,8 +269,8 @@ void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
     char* s;
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
-    int  rows = height;
     s = src;
+    int  rows = height;
     volatile struct { int lo, hi; } keyq;
     keyq.lo = 0;
     keyq.hi = 0;
