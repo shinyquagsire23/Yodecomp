@@ -24,13 +24,16 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | `MapEntity` | **0x64** | TRACED — `operator_new(0x64)` in `Iact_ReadZaux` (0x406270) → `MapEntity_Ctor` (0x404c80) | placed enemy/NPC/item. DA `izax_entry` maps: `charId@4`(entity_id), `x@6`/`y@8` (live pos, drawn), `active@0xc` (==1), `homeX@0x12`/`homeY@0x14` (spawn/return), `timer@0x24`, **`item@0x26`**/**`numItems@0x28`** (izax item/count), `dx@0x38`/`dy@0x3a`, `animFlag@0x3c`, `extra[32]@0x40` (izax `unk4[16]`) |
 | `World` | **0x33c0** | TRACED — `CDeskcppDoc` `CRuntimeClass.m_nObjectSize` @0x44c2b0 | the CDocument game doc (real MFC name `CDeskcppDoc`). `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
 | `GameView` | **0x310** | TRACED — `CDeskcppView` `CRuntimeClass.m_nObjectSize` @0x44b228 | the CView subclass (`CDeskcppView`). `doc@0x44`(World*), `frameCounter@0xb0`, `soundSession@0xc4`, plus ~30 input/drag members typed from `View_OnLButtonUp` (`draggedTile@0x140`(Tile*), `dragX/Y/Layer@0x104/8/c`, `dragActive@0x148`, …) |
-| `ZoneObj` | **0x10** | TRACED — `operator_new(0x10)` in `Dta_ParseHtsp` (0x4236b0, HTSP reader) → `zone->objects@0x7a8` | a placed hotspot/object. `type@8`,`x@0xa`,`y@0xc` |
+| `ZoneObj` | **0x10** | TRACED — `operator_new(0x10)` in `Dta_ParseHtsp` (0x4236b0) → `ZoneObj_Ctor` (0x404ed0)/`ZoneObj_Read` (0x404fe0) → `zone->objects@0x7ac` | placed hotspot (DA `obj_info`). **Corrected off-by-4:** `vtable@0`, `type@4` (`ObjType`, switched in reader), `x@8`, `y@0xa`, `arg@0xc` (type-dependent), `visible@0xe` (0xffff) |
 | `CFile` | 0x40 | model-only (MFC) — only `vtbl@0` + `Read`@vtbl+0x3c matter for the match | MFC file; `CFile_vtbl.Read` is a fn-ptr |
 
 ## Enums
 - `IactCondOp` (`COND_*`, 0x00–0x23) — condition opcodes per `scrdoc.txt`; applied to `IactCondition.opcode`
 - `IactCmdOp` (`CMD_*`, 0x00–0x25) — command opcodes per `iact.c` `commands[]`; applied to `IactCommand.opcode`
 - `TileFlags` (`TILE_*`, base bits 0x1–0x100) — tile classification per DA `tile.h` (`GAME_OBJECT`/`WEAPON`/`ITEM`/`CHARACTER`/`PUSH_PULL`/…); applied to `Tile.flags`. BIT16+ sub-flags are type-dependent (weapon vs item vs door), left numeric
+- `ObjType` (`OBJ_*`, 0–15) — hotspot type per DA `objectinfo.h`; applied to `ZoneObj.type` (`ZoneObj_Read` switches on it: QUEST_ITEM_SPOT/SPAWN/ITEM/WEAPON/DOOR_IN/OUT/LOCK/TELEPORTER/XWING/…)
+- `MapFlags` (`MAP_*`, 1–18) — zone quest/map flag per DA `map.h` (`ENEMY_TERRITORY`/`ITEM_FOR_ITEM`/`INDOORS`=8/`FIND_THE_FORCE`/…); applied to `Zone.flags`
+- `AreaType` (`AREA_*`: DESERT=1/SNOW=2/FOREST=3/SWAMP=5) — zone terrain per DA `map.h`; applied to `Zone.areaType`
 
 ## Real MFC class names (from `CRuntimeClass`)
 The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDeskcppDoc` (=`World`,
