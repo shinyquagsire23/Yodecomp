@@ -97,7 +97,7 @@ Each maps a player action to an `Iact_Run` event type on the current zone (`pWor
 | Function | Addr | Event | Fires when |
 |---|---|---|---|
 | `Game_OnBumpTile`  | 0x413df0 | 2 BumpTile | player bumps a tile/sprite |
-| `Game_OnDragItem`  | 0x4102d0 | 3 DragItem | an inventory item is dragged onto a tile (switches on tile/item type) |
+| `GameView::UseDraggedItemMaybe`  | 0x4102d0 | 3 DragItem | an inventory item is dragged onto a tile (switches on tile/item type) |
 | `Game_OnWalk`      | 0x409650 | 4 Walk / 5 | player walks onto a tile |
 | `Game_MovePlayer`  | 0x409c10 | 4 Walk / 5 | player movement step |
 
@@ -266,7 +266,7 @@ be named at a glance:
   `pWorld->cameraX >> 5`.
 - `Game_DrawEntities` (0x40b160, was `View_FUN_0040b160`): draws each placed entity via
   `pWorld->characters[ent->charId]` + `Zone_SetTile`.
-- `Game_OnBumpTile` / `Game_OnDragItem`: now `this->pWorld->…`.
+- `Game_OnBumpTile` / `GameView::UseDraggedItemMaybe`: now `this->pWorld->…`.
 This is the pattern to keep applying: type one `this`, name the fields it reveals, and the next caller
 up decompiles for free.
 
