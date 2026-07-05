@@ -159,8 +159,8 @@ void Canvas::BlitFast(void* src, int flags, short height,
         height = canvasH - destY;
     s = src;
     int rows = height;
-    int cw     = canvasW;
     int stride = (short)srcStride;
+    int cw     = canvasW;
     if (App_bCpuHasMMX != 0) {
         __asm {
         _emit 0x66      // pushaw
@@ -178,11 +178,11 @@ void Canvas::BlitFast(void* src, int flags, short height,
         _emit 0x08
         _emit 0x0f      // movq mm2, [esi+0x10]
         _emit 0x6f
-        _emit 0x4e
+        _emit 0x56
         _emit 0x10
         _emit 0x0f      // movq mm3, [esi+0x18]
         _emit 0x6f
-        _emit 0x4e
+        _emit 0x5e
         _emit 0x18
         _emit 0x0f      // movq [edi+0x0], mm0
         _emit 0x7f
@@ -193,11 +193,11 @@ void Canvas::BlitFast(void* src, int flags, short height,
         _emit 0x08
         _emit 0x0f      // movq [edi+0x10], mm2
         _emit 0x7f
-        _emit 0x4f
+        _emit 0x57
         _emit 0x10
         _emit 0x0f      // movq [edi+0x18], mm3
         _emit 0x7f
-        _emit 0x4f
+        _emit 0x5f
         _emit 0x18
         mov  eax, stride
         add  esi, eax
@@ -218,8 +218,8 @@ void Canvas::BlitFast(void* src, int flags, short height,
         mov  ecx, rows
         mov  esi, s
         mov  edi, dst
-        xor  ebx, ebx
     srow:
+        xor  ebx, ebx
         mov  eax, [ebx+esi]
         mov  [ebx+edi], eax
         add  ebx, 4
