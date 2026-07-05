@@ -34,6 +34,7 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 - `ObjType` (`OBJ_*`, 0–15) — hotspot type per DA `objectinfo.h`; applied to `ZoneObj.type` (`ZoneObj_Read` switches on it: QUEST_ITEM_SPOT/SPAWN/ITEM/WEAPON/DOOR_IN/OUT/LOCK/TELEPORTER/XWING/…)
 - `MapFlags` (`MAP_*`, 1–18) — zone quest/map flag per DA `map.h` (`ENEMY_TERRITORY`/`ITEM_FOR_ITEM`/`INDOORS`=8/`FIND_THE_FORCE`/…); applied to `Zone.flags`
 - `AreaType` (`AREA_*`: DESERT=1/SNOW=2/FOREST=3/SWAMP=5) — zone terrain per DA `map.h`; applied to `Zone.areaType`
+- `MapChangeReason` (`MAPCHG_*`, 0–7) — map-transition trigger per DA `player.h` (DOOR_IN/OUT/VEHICLE/XWING/SCRIPT); ready to apply to the World map-change field when located
 
 ## Real MFC class names (from `CRuntimeClass`)
 The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDeskcppDoc` (=`World`,
