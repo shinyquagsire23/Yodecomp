@@ -48,3 +48,19 @@ ZoneObj *Zone::FindObjectAt(int x, int y)
     }
     return result;
 }
+
+// FUNCTION: YODA 0x004056d0  [EFFECTIVE MATCH: DIFF(5), clean EAX<->EDX bijection -- the original
+//   keeps `obj` in EDX and reuses EAX for the type load; mine does the reverse. Structure byte-identical
+//   (unsigned range-check via JC/JA, cached count + countdown, objects[] reload). Reg-alloc tie-break,
+//   not source-forceable in this partial TU (lesson #6/#7); revisit at full-Zone-TU. Confirmed 2026-07-05.]
+// Marks every "quest" object (ObjType 6..10 = item/npc/weapon/door-in/door-out) as active
+// by setting its state flag; FindObjectAt then matches state==1.
+void Zone::FlagQuestObjects()
+{
+    int n = objectCount;
+    for (int i = 0; i < n; i++) {
+        ZoneObj *obj = objects[i];
+        if (obj->type >= 6 && obj->type <= 10)
+            obj->state = 1;
+    }
+}

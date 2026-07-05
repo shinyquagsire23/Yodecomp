@@ -1,21 +1,24 @@
 // Zone — a map/zone object (class @ 0x405150, vtable 0x44b1c0, sizeof 0x848).
-// See docs/dta-format.md for the full layout. Non-virtual here (placeholder vptr)
-// so field offsets are exact; the matched methods don't use the vtable.
+// See docs/dta-format.md / docs/structs.md. Non-virtual here (placeholder vptr) so
+// field offsets are exact; the matched methods don't use the vtable.
 #ifndef ZONE_H
 #define ZONE_H
 
-// A placed object / hotspot in a zone.
+// A placed object / hotspot in a zone (0x10 bytes). Layout confirmed by byte-match of
+// FindObjectAt (accesses +8/+0xa/+0xc) and FlagQuestObjects (reads type@+4, sets state@+8).
 struct ZoneObj {
-    char  _pad00[8];
-    short type;                      // +0x08  (== 1 active)
-    short x;                         // +0x0a
-    short y;                         // +0x0c
+    void  *_vtable;                  // +0x00
+    unsigned int type;               // +0x04  ObjType category (unsigned: FlagQuestObjects uses JC/JA)
+    short  state;                    // +0x08  ==1 active/placed (FlagQuestObjects sets it)
+    short  x;                        // +0x0a
+    short  y;                        // +0x0c
+    short  _visible;                 // +0x0e
 };
 
 struct Zone {
     void          *_vtable;          // +0x00
-    int            type;             // +0x04  (== 8 => special/indoor)
-    char           _pad08[4];        // +0x08
+    int            type;             // +0x04  (flags/areaType dword; == 8 => special/indoor)
+    char           _pad08[4];        // +0x08  activatedFlag
     short          width;            // +0x0c  (18)
     short          height;           // +0x0e  (18)
     unsigned short tiles[18 * 18 * 3];// +0x10  flat grid (0x798 bytes, ends +0x7a8)
@@ -26,8 +29,9 @@ struct Zone {
 
     unsigned short GetTile(int x, int y, int layer);        // 0x00405430  MATCH
     void           SetTile(int x, int y, int layer, unsigned short val); // 0x00405480  MATCH
-    int            GetEdgeCode(int x, int y);               // 0x00405380  WIP (cmp operand order)
-    ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330  WIP (reg alloc, ~7 bytes)
+    int            GetEdgeCode(int x, int y);               // 0x00405380  WIP
+    ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330  WIP (reg alloc)
+    void           FlagQuestObjects();                      // 0x004056d0
 };
 
 #endif
