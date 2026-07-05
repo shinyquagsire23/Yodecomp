@@ -59,8 +59,9 @@ below GameData in .text and is its own tiny group (FP pool `0x44b09c`).
 419730-41b2f0      20     44c130         456210    App_    CDeskcppApp (CWinApp: App_Ctor) + Log_Write + doc-render helpers
 41b2f0-41bee0      28     44c438         -         Settings_ CDeskcppApp settings (Settings_Save, WriteProfileInt)
 41bee0-41c340      9      44d064         -         Wld_    .wld save/load helper class (serializes world objects; ctor reached from Wld_Serialize)
-41c340-429000      130    44d2b4         4560f8    ** CDeskcppDoc TU: Worldgen_ (gen; megafunc Worldgen_Generate 0x41f960) + Dta_ (load) + Wld_ (save) **
-4290xx-4292e7      3      44cfbc         -         doc-TU tail: Game_RemoveItem (0x429150, RemoveItemFromInv) + Doc_TmpObjCtor helper
+41c340-~427490    ~110   44d2b4         4560f8    ** CDeskcppDoc TU (World:: ns): World::Generate (0x41f960) worldgen + World::Load/Parse* (dta) + World::Serialize (wld). this=World* **
+~427490-4292e7    ~20    -              -         ** CDeskcppView draw/inventory tail (GameView:: ns), NOT doc: DrawHealthDial/Needle/AddHealth, DrawWeaponBox/Icon, BlitViewportDither, AddItemToInv, RemoveItem, GameView::FUN_00427d20 (weapon+health render). this=GameView* (doc@0x44, unkHWnd@0x1c) **
+NOTE (2026-07-05): namespace migration folded the doc sub-modules into World:: (namespace must == struct for auto-this). The ~0x427490 boundary splits doc (World) from the view-render tail (GameView) — several tail funcs were mis-this-typed and corrected.
 ```
 
 ## Subdivision of the big modules (call-graph cut analysis, 2026-07-04)
