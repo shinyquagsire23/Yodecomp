@@ -146,8 +146,8 @@ void Canvas::Fill(unsigned char value)
 }
 
 // FUNCTION: YODA 0x00408110
-// 32-byte-wide (one tile) row blit. Fast path uses MMX (movq) hand-emitted as
-// bytes because VC++ 4.2's inline assembler predates MMX and rejects the mnemonics.
+// 32-byte-wide (one tile) row blit. Both paths hand-asm: an MMX movq copy and a scalar
+// dword-copy loop (VC++4.2 predates MMX so the movq's are hand-emitted bytes).
 void Canvas::BlitFast(void* src, int flags, short height,
                       unsigned short srcStride, short destX, short destY)
 {
@@ -159,64 +159,100 @@ void Canvas::BlitFast(void* src, int flags, short height,
         height = canvasH - destY;
     int rows = height;
     s = src;
-    if (App_bCpuHasMMX == 0) {
-        do {
-            memcpy(dst, s, 32);
-            s = (char*)s + srcStride;
-            dst += canvasW;
-            rows--;
-        } while (rows != 0);
-        return;
-    }
     int cw     = canvasW;
     int stride = (short)srcStride;
-    __asm {
+    if (App_bCpuHasMMX != 0) {
+        __asm {
         _emit 0x66      // pushaw
         _emit 0x60
         mov  ecx, rows
         mov  esi, s
         mov  edi, dst
-    mmxl:
-        _emit 0x0f      // movq mm0, [esi]
+    mloop:
+        _emit 0x0f      // movq mm0, [esi+0x0]
         _emit 0x6f
         _emit 0x06
-        _emit 0x0f      // movq mm1, [esi+8]
+        _emit 0x0f      // movq mm1, [esi+0x8]
         _emit 0x6f
         _emit 0x4e
         _emit 0x08
         _emit 0x0f      // movq mm2, [esi+0x10]
         _emit 0x6f
-        _emit 0x56
+        _emit 0x4e
         _emit 0x10
         _emit 0x0f      // movq mm3, [esi+0x18]
         _emit 0x6f
-        _emit 0x5e
+        _emit 0x4e
         _emit 0x18
-        _emit 0x0f      // movq [edi], mm0
+        _emit 0x0f      // movq [edi+0x0], mm0
         _emit 0x7f
         _emit 0x07
-        _emit 0x0f      // movq [edi+8], mm1
+        _emit 0x0f      // movq [edi+0x8], mm1
         _emit 0x7f
         _emit 0x4f
         _emit 0x08
         _emit 0x0f      // movq [edi+0x10], mm2
         _emit 0x7f
-        _emit 0x57
+        _emit 0x4f
         _emit 0x10
         _emit 0x0f      // movq [edi+0x18], mm3
         _emit 0x7f
-        _emit 0x5f
+        _emit 0x4f
         _emit 0x18
         mov  eax, stride
         add  esi, eax
         mov  eax, cw
         add  edi, eax
         dec  ecx
-        jnz  mmxl
+        jnz  mloop
         _emit 0x66      // popaw
         _emit 0x61
         _emit 0x0f      // emms
         _emit 0x77
+        }
+        return;
+    }
+    __asm {
+        _emit 0x66      // pushaw
+        _emit 0x60
+        mov  ecx, rows
+        mov  esi, s
+        mov  edi, dst
+        xor  ebx, ebx
+    srow:
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        add  ebx, 4
+        mov  eax, [ebx+esi]
+        mov  [ebx+edi], eax
+        xor  eax, eax
+        mov  ax, srcStride
+        add  esi, eax
+        xor  eax, eax
+        mov  ax, canvasW
+        add  edi, eax
+        dec  ecx
+        jnz  srow
+        _emit 0x66      // popaw
+        _emit 0x61
     }
 }
 
