@@ -104,6 +104,12 @@ Each maps a player action to an `Iact_Run` event type on the current zone (`doc.
 `FUN_004037a0` (movement/interaction dispatcher) calls `Game_OnWalk`; the chain climbs toward the main
 window proc / game tick (the ~10.8 KB `FUN_0040b270`, jt~70 — still to map).
 
+**Combat — `GameView::UseWeapon` (0x427d20, from `GameView::UseTile` 0x40a710):** the player attacks with
+`doc->currentWeapon` (a `Character*` weapon def). Damage = `weapon->frames[0x22]` scaled by `doc->difficulty`
+(`<0x32` ⇒ `×(10 − diff/5)`, min 1); sets `doc->equippedItem = tileArray[weapon->name[10]]`; branches on the
+weapon type id (`weapon->name[10]`: 0x12/0x1fe/0x1ff/0x200…) and calls `Puzzle::FUN_00404910` to apply the
+hit, then repaints. (Health is applied separately via `GameView::AddHealth` 0x427690, IACT cmd 0x25.)
+
 Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zone pointer hangs off the
 view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
 
