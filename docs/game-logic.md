@@ -142,7 +142,11 @@ The main window (a `CDeskcppView` = our `GameView`) has four regions:
   text plus a bitmap of the item. Backed by `pWorld->invArray` (**CObArray @ World+0xa8**) of Tile-wrapper
   objects (item's `Tile*` at wrapper+4, name CString at +8); `pWorld->inventory`(m_pData)@0xac,
   `pWorld->inventoryCount`(m_nSize)@0xb0.
-- **Below the inventory** — 4 direction arrows (zone transitions), the **weapon box** (drag target from
+- **Below the inventory** — **4 direction arrows** (zone transitions): `GameView::DrawDirectionArrows`
+  (0x4270f0) fills the arrow-panel rect `World.nArrowBox{L,T,R,B}@0x32e4/e8/ec/f0` and draws an enabled/
+  disabled arrow icon per direction from `GameData::GetExitDirections(pWorld)` (0x4032c0) — a bitmask
+  (**W=8, E=4, N=1, S=2**) set when the neighbour cell in the 10×10 grid `exists`; indoor zones (flags
+  8/9/0xd/0xe) get none. The **weapon box** (drag target from
   the inventory; rect = `World.nWeaponBox{Left,Top,Right,Bottom}` @0x32a4/a8/ac/b0, `GameView::DrawWeaponBox`
   0x428ac0 draws the frame, `GameView::DrawWeaponIcon` 0x428c40 BitBlts `pWorld->currentWeapon`@0x2e2c), and a
   **health circle** — rect `World.nHealthDial{Left,Top,Right,Bottom}` @0x32c4/c8/cc/d0, drawn by
