@@ -154,10 +154,11 @@ void Canvas::BlitFast(void* src, int flags, short height,
     short canvasW, canvasH;
     GetSize(&canvasW, &canvasH);
     char* dst = (char*)pData + destX + canvasW * destY;
-    void* s   = src;
+    void* s;
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
     int rows = height;
+    s = src;
     if (App_bCpuHasMMX == 0) {
         do {
             memcpy(dst, s, 32);
@@ -229,10 +230,11 @@ void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
     short canvasW, canvasH;
     GetSize(&canvasW, &canvasH);
     char* dst = (char*)pData + destX + canvasW * destY;
-    char* s   = src;
+    char* s;
     if (canvasH <= height + destY - 1)
         height = canvasH - destY;
     int  rows = height;
+    s = src;
     volatile struct { int lo, hi; } keyq;
     keyq.lo = 0;
     keyq.hi = 0;
