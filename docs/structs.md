@@ -10,7 +10,7 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | Struct | Size | Provenance | What / key fields |
 |---|---|---|---|
 | `Zone` | **0x848** | TRACED — `operator_new(0x848)` in `Dta_ReadZone` (0x426acf) → `Zone_Ctor` | 18×18 map. `activatedFlag@8` (0 until World::PlaceZoneObjectsMaybe stamps its objects into the grid on first entry), `tiles[972]@0x10`, `objects@0x7ac`, `iactScripts@0x7c0`, `entities@0x7d4`, `tempVar@0x834`/`randVar@0x838`/`globalVar@0x844` |
-| `Tile` | **0x40c** | TRACED — `operator_new(0x40c)` in `Game_OnWalk`/`Game_MovePlayer`/`FUN_0041a030` → `Tile_Ctor` (0x404da0) | 32×32 graphic. `pixels[0x400]@0`, `flags@0x404`, `name` CString@0x408 |
+| `Tile` | **0x40c** | TRACED — `operator_new(0x40c)` in `Game_OnWalk`/`Game_MovePlayer`/`FUN_0041a030` → `Tile_Ctor` (0x404da0) | 32×32 graphic. `header@0`(4B, likely vtable), `pixels[0x400]@4` (BlitTile blits from `tile+4`; reconciles `flags@0x404` + the 0x40c size — was listed @0), `flags@0x404` (bit0 = transparent → BlitMasked), `name` CString@0x408 |
 | `IactScript` | **0x30** | TRACED — `operator_new(0x30)` in `Dta_ParseActn`/`Iact_ReadScript` | `conditions@8`(CObArray)`/condCount@0xc`, `commands@0x1c/cmdCount@0x20`, `doneFlag@0x2c` |
 | `IactCondition` | **0x1c** | TRACED — `operator_new(0x1c)` in `Iact_ReadScript` | `opcode@4` (`IactCondOp`) + `args[5]@8` |
 | `IactCommand` | **0x20** | TRACED — `operator_new(0x20)` in `Iact_ReadScript` | `opcode@4` (`IactCmdOp`) + `args[5]@8` + `text` CString@0x1c |
