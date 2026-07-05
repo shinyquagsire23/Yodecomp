@@ -182,6 +182,29 @@ is coincidental). It steps `scrollPos` by nSBCode (SB_LINE ±1, SB_PAGE ±7, SB_
 `[0, scrollMax]`, calls `SetScrollPos(m_hWnd)`, then `GameView_DrawText` on the **parent** GameView to
 repaint the two-column list at the new offset.
 
+## Main frame loop & the frame-mode state machine (mapped 2026-07-05)
+**`GameView::UpdateFrameMaybe` (0x40d470)** is the top-level per-frame loop (a timer/idle callback, no
+direct callers). `param_1` gates the tick (run iff `param_1==0xabcd` force, or `==gameState@0x68`). Each
+frame it: (1) smooths difficulty (`pWorld+0x3320 = avg(+0x331c,+0x3320)`); (2) handles **win/lose** via
+`pWorld->abortFrame` (set by IACT `WinGame`/`LoseGame`: `1`→`gameState=1`+`PlayerMove(0x3f)`, `-1`→
+`gameState=-1`+`PlayerMove(0x3e)`); (3) dispatches on **`pWorld->bIactBusy`** — the game's **frame-mode
+state machine** (a `1..8` enum @World+0x5c; the `b`-prefix is a misnomer, it is *not* boolean):
+
+| bIactBusy | frame mode | does |
+|---|---|---|
+| 1, 4 | idle / wait | `CyclePalette` only (ambient palette anim) |
+| **2** | **normal play** | `CyclePalette` + `Tick` (entities) + sub-switch on `GameView+0x84` (0x21–0x28 = player action/animation states) |
+| 3 | dialogue up | `CyclePalette` + `Tick` + `ShowTextDialog` (a speech balloon is showing) |
+| 5 | drag in progress | pure wait |
+| 6 | zone transition start | `switch(pWorld->mapChangeReason)` (door/x-wing/script); finishes the swap, then sets `bIactBusy=3` |
+| 7 | transition continue | scroll/settle (`mapChangeReason` again) |
+| 8 | play/render variant | `CyclePalette` + `Tick` + `DrawGameArea` (intro / camera scroll?) |
+
+So the loop is **`UpdateFrameMaybe` → `Tick` (entities/AI) + `CyclePalette` (anim) + `DrawGameArea` (render)**,
+selected by `bIactBusy`. (Note: `bIactBusy@0x5c` is distinct from `gameState@0x68` = win(-1/1) — the former
+is the per-frame mode, the latter the win/lose result. The 0x21–0x28 action sub-states and modes 7/8 are
+still to detail.)
+
 ## Game tick & enemy AI
 - **`GameView::Tick` (0x0040b270)** — the per-entity update / enemy-AI step, **called by**
   **`GameView::UpdateFrameMaybe`** (0x40d470, the actual per-frame loop — it drives Tick×5 + `CyclePalette`×6
