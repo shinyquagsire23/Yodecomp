@@ -124,3 +124,12 @@ map-flag `VICTORY_SCREEN(0xd)` (else -1); `World::GetLossZoneMaybe` (0x401a60) r
 iff it has map-flag `LOSS_SCREEN(0xe)` (else NULL). Both demo-hardcoded, called by `UpdateFrameMaybe`
 (0x40d470) — the win/lose end-screen check. (Map-flag enum from DesktopAdventures `map.h`: 13=VICTORY,
 14=LOSS, 1=ENEMY_TERRITORY.)
+
+## Quest-path layout helpers (2026-07-05)
+- **`World::GetGridOrderMaybe`** (0x421e50) — `return gWorldgenGridOrderTable[col + row*10]` (static 10×10
+  dword table @0x456630). Gives the worldgen placement/traversal order weight for a grid cell; called by
+  `Generate`, `PlacePuzzle`, `WorldgenPlacePuzzlesMaybe`, `WorldgenBuildQuestMaybe`, `BuildQuestPathMaybe`.
+- **`GameData::BuildQuestPathMaybe`** (0x403c80) — grid-layout pass over the 10×10 quest grid
+  (`param_1`=cell-type shorts, `param_2`=parallel order-id shorts): counts special cells
+  (0x65/0x68/0x12d..0x130), then walks and assigns sequential order ids (writing 0x132 markers),
+  building the quest path chain. Returns the number of placed quest steps.
