@@ -1,5 +1,6 @@
 #!/bin/bash
-# Wrapper: invoke VC++ 4.2 LINK.EXE (3.10) under CrossOver wine.
+# Wrapper: invoke VC++ 4.2 LINK.EXE under CrossOver wine (static-MFC linkage).
+# Mirrors bin/cl: sets LIB to the VC + MFC lib dirs, converts existing-file args to Z:\ paths.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 VC="$HERE/vc42"
