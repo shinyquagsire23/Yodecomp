@@ -18,7 +18,7 @@ Sound effects go through **WAVMIX32.DLL** — LucasArts' software wave mixer (im
   `WaveMixFreeWave` (per wave) + `WaveMixCloseChannel`/`WaveMixCloseSession`, then clears `soundSession`.
 
 ## Music
-- MIDI background music is loaded/toggled from the **OPTIONS** dialog (`View_OnOptions` 0x416030 refs
+- the **MIDILoad** registry flag (OPTIONS section) is persisted on exit by `GameView::ConfirmExitMaybe` (0x416030, was mislabeled `View_OnOptions`) and lazily read by `GameView::ProcessWalkMaybe` (0x411180); the actual audio on/off is `World::ToggleSound`/`ToggleMusic`. (`0x416030` refs
   `MIDILoad`) — separate from the WAVMIX SFX path.
 
 ## Fields modeled

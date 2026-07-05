@@ -130,7 +130,7 @@ are the big `0x40a560` view `.obj`. Refine each by decompiling a couple of its u
 - `Game_Tick` (0x40b270) — per-frame update + inlined enemy AI (see game-logic.md)
 - `Game_OnDragItem` (0x4102d0, item-drag + "This is a WEAPON…" hints), `Game_OnBumpTile` (0x413df0)
 - `Game_CheckCheat` (0x415820 — `goyoda`→Invincible, `gojedi`→Super Jedi)
-- `View_OnOptions` (0x416030 — OPTIONS + MIDILoad), `View_OptionsDialog` (0x411180)
+- `GameView::ConfirmExitMaybe` (0x416030 — quit/new-adventure prompt; persists OPTIONS/MIDILoad on exit; was `View_OnOptions`), `GameView::ProcessWalkMaybe` (0x411180 — walk-step handler, was `View_OptionsDialog`)
 - `Game_ShowWinMessage` (0x40f4b0 — "Well done, Luke!"), `View_DrawText` (0x40f060 — MS Sans Serif)
 - `View_FUN_0040b160` — entity/character draw (iterates `pWorld->characters`)
 - Message handlers (OnDraw/OnTimer/OnKeyDown/OnLButton…) are wired at runtime (SetTimer/message map),
