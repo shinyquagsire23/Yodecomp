@@ -132,6 +132,34 @@ RNG seed) + `Worldgen_Populate` (0x425e30). So Dta-load and Worldgen share the `
 record format (18×18, 3 tile layers, hotspots, IACT scripts, area/map-flag enums) documented in
 `docs/dta-format.md`. TODO: CHAR handler; `src/Dta/` + `src/Zone/` match modules; Zone_ReadData internals.
 
+### ⏳ PLAN — clean up the over-broad `Dta_` prefix (started 2026-07-05)
+**Problem:** `Dta_` was a *provisional* bulk CU-tag smeared across **0x421520–0x429142** (~90 funcs). But
+that whole span is **one `.obj`** — the `CDeskcppDoc`/`CDeskcppView` document TU (`0x41c340–0x429000`, see
+compile-units.md) — which mixes **four distinct roles**. Only the true `.dta` chunk parsers deserve `Dta_`;
+the rest are worldgen, `.wld` save, and view/doc render+logic that got swept in. Re-prefix each by its
+**actual role**, decided by decompiling (behaviour + `this`-type + neighbours), NOT by its address range.
+
+**Role → prefix, and the deciding signal:**
+| Prefix | Role | Tell-tale in the decompile |
+|---|---|---|
+| `Dta_*` (keep) | parse a `.dta` IFF chunk | reads via the load `CFile` (`pFile->Read`, vtbl+0x3c); dispatched by `Dta_Load`; `this`=doc/World |
+| `Worldgen_*` | generate world content | walks the 10×10 `World.zones` grid; RNG; `this`/arg = `World*`; no GDI |
+| `Wld_*` | `.wld` save/serialize | `CArchive`/`Serialize`/`ASAV44`; read+write symmetric |
+| `GameView_Draw*` / `Render_*` | view painting | params include `CDC*`; uses `CPen`/`CBrush`/`GetDC`/`BitBlt`/`Canvas`; `this`=`GameView*` |
+| `Game_*` / `Doc_*` | doc/view game logic | inventory/weapon/health state on `World*`/`GameView*`, no GDI & no CFile |
+
+**Confirmed so far (2026-07-05):** `Dta_FUN_00428ac0`→`GameView_DrawWeaponBox` ✓. Still `Dta_`-tagged but
+identified: `0x424010`(CDC*,RECT* → `Render_DrawRect`), `0x428c40`(GameView,CDC* → health-circle draw),
+`0x427490`/`0x4278a0`(GameView,CDC* → view paint helpers), `0x421520`(World* → worldgen grid reset),
+`0x428680`(World* → doc data method). The genuine parsers (`Dta_Load`/`Dta_Parse*`/`Dta_ReadZone`,
+~0x421e70–0x423bxx) and `Worldgen_*`/`Wld_*` already-named funcs are correct — leave them.
+
+**Procedure (idempotent, address-anchored):** for each remaining `Dta_FUN_<addr>` in 0x424010–0x429142:
+1. decompile; read `this`-type + the tells above; 2. rename with the right prefix (keep the addr suffix if
+role is clear but purpose isn't yet: e.g. `GameView_FUN_<addr>`); 3. set a plate comment when purpose is
+clear; 4. mirror any struct fields found (per the p-prefix/type rules). Verify YodaDemo.exe is the active
+program before writes. Track the sweep in docs/compile-units.md (the CU map is the ledger).
+
 ### Compile units identified (progress log)
 - **`World_*`** — game-state/score module. Confirmed contiguous cluster **0x401450–0x401ab9**, pinned by
   the dispatcher `World_UpdateScore` (0x401450) which sums four score components into `world+0x70`:
