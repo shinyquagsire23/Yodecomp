@@ -24,6 +24,18 @@ ENDF (in Dta_Load)  /  new-game trigger (GameData_FUN_004037a0)
 The **demo** ships a fixed subset of zones, so `Worldgen_Populate` largely does hardcoded placement
 (explicit zone ids written into the grid); the full game's generator randomizes the quest graph.
 
+> **Naming (2026-07-05):** all `Worldgen_*` are now **`World::`** methods (`World::Generate/Randomize/
+> Populate/SetupGrid/PlaceZone/PlacePuzzle/Serialize`) — the whole doc TU is the `World` (`CDeskcppDoc`)
+> namespace so `this` types as `World*`. The `Worldgen_` names below are the old flat form.
+
+**Backup / restore of the placed records (2026-07-05).** `World::BackupRecords` (0x426690) and
+`World::RestoreRecords` (0x426380) are an inverse copy pair moving a 3-sub-record block between the
+**active** copy at `World+0xda4` and a **backup** at `World+0x2d54`, re-writing the zone-content type
+markers (`0x5d/0x5e/0x5f`, same tags `World::PlaceZone` writes). `World::Populate` initializes the active
+copy. This mirrors `World::RestoreGridFromBackup` (0x421520, whole 10×10 grid zones[100..199]→[0..99]) —
+the engine keeps saved copies so an adventure can be replayed/reset. Exact record identity still TBD
+(the 3 sub-records sit at grid-stride offsets; `0x2d54` = a region just past the 200-entry grid span).
+
 ## Save / load
 - **`Wld_Serialize` (0x424fc0)** — `.wld` serialization. Reads/writes the **`ASAV44`** signature via
   `CFile`, `SetSize`s + `operator_new`s the world structures on load. Format: `*.wld` (`World Files
