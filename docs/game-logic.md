@@ -97,7 +97,7 @@ Each maps a player action to an `Iact_Run` event type on the current zone (`pWor
 | Function | Addr | Event | Fires when |
 |---|---|---|---|
 | `Game_OnBumpTile`  | 0x413df0 | 2 BumpTile | player bumps a tile/sprite |
-| `GameView::UseDraggedItemMaybe`  | 0x4102d0 | 3 DragItem | drop-resolution for a dragged item (switches on item/target tile). Handles weapon use AND the **R2-D2 (Artoo) hint system** — dragging Artoo onto an object shows his speech balloon: a switch on the target category (0..0x14) picks a hint string `strArtooHelp` (resources 0xe020..0xe038) → `ShowTextDialog`. Also plays palette-cycling effects |
+| `GameView::OnDragItem`  | 0x4102d0 | 3 DragItem | drop-resolution for a dragged item (switches on item/target tile). Handles weapon use AND the **R2-D2 (Artoo) hint system** — dragging Artoo onto an object shows his speech balloon: a switch on the target category (0..0x14) picks a hint string `strArtooHelp` (resources 0xe020..0xe038) → `ShowTextDialog`. Also plays palette-cycling effects |
 | `Game_OnWalk`      | 0x409650 | 4 Walk / 5 | player walks onto a tile |
 | `Game_MovePlayer`  | 0x409c10 | 4 Walk / 5 | player movement step |
 
@@ -183,8 +183,9 @@ is coincidental). It steps `scrollPos` by nSBCode (SB_LINE ±1, SB_PAGE ±7, SB_
 repaint the two-column list at the new offset.
 
 ## Game tick & enemy AI
-- **`Game_Tick` (0x0040b270)** — the main per-frame update (~10.8 KB, **no callers** ⇒ a registered
-  timer/idle callback). `void __fastcall(view*)`. Drives everything each frame:
+- **`GameView::Tick` (0x0040b270)** — the per-entity update / enemy-AI step, **called by**
+  **`GameView::UpdateFrameMaybe`** (0x40d470, the actual per-frame loop — it drives Tick×5 + `CyclePalette`×6
+  ambient palette anim + `DrawGameArea`×4 render + win/lose via `abortFrame`). Tick itself, per frame:
   - **Player**: `Player_Move` (step/move), `Player_CheckWalkable` (tile-collision, reads all 3
     layers via `Zone_GetTile`).
   - **Enemy/monster AI**: **inlined here** (no separate AI function). Iterates the zone's spawned-entity
@@ -280,7 +281,7 @@ be named at a glance:
   `pWorld->cameraX >> 5`.
 - `Game_DrawEntities` (0x40b160, was `View_FUN_0040b160`): draws each placed entity via
   `pWorld->characters[ent->charId]` + `Zone_SetTile`.
-- `Game_OnBumpTile` / `GameView::UseDraggedItemMaybe`: now `this->pWorld->…`.
+- `Game_OnBumpTile` / `GameView::OnDragItem`: now `this->pWorld->…`.
 This is the pattern to keep applying: type one `this`, name the fields it reveals, and the next caller
 up decompiles for free.
 
