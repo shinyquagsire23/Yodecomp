@@ -41,7 +41,7 @@ ZoneObj *Zone::FindObjectAt(int x, int y)
     ZoneObj *result = 0;
     for (int i = 0; i < objectCount; i++) {
         ZoneObj *obj = objects[i];
-        if (obj->x == x && obj->y == y && obj->type == 1) {
+        if (obj->x == x && obj->y == y && obj->state == 1) {
             result = obj;
             break;
         }

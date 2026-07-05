@@ -89,3 +89,38 @@ content/direction isn't yet pinned:
   `FindSpecialZoneMaybe`, `CheckZoneObjectsMaybe`; plus `ResetGameStateMaybe` (0x4037a0, new-game health/
   weapon reset). Remaining `World::FUN_*` are all <0x40 funclets/stubs.
 
+
+## Planet tables, seed & gen scratch fields (2026-07-05, World-struct grind)
+`World::Generate` (0x41f960) persists a per-planet obfuscated word list to the registry and uses several
+newly-named World fields:
+- **`World.worldSeed@0x2cc`** — the RNG seed. `Generate(seed)` stores it here and calls `_srand(seed)`;
+  `SavePlanetTable*` writes it as the decimal prefix of each saved registry line.
+- **`World.bHasGeneratedWorldMaybe@0x6c`** — gate flag. When `<0`, `Generate` first *loads* the current
+  planet's persisted table; it's set to `-1` at the end of a successful generate (so regenerations reload).
+- **Per-planet persisted tables** (embedded `CWordArray`), selected by `World.currentPlanet@0x2e3c` (1/2/3):
+  `planetTable1Maybe@0x284` (registry section `GameData`, keys `Nevada0..N`), `planetTable2Maybe@0x298`
+  (`Alaska0..N`), `planetTable3Maybe@0x2ac` (`Oregon0..N`). Load = `GameData::LoadPlanetTable{1,2,3}Maybe`
+  (0x401ac0/401ea0/402280); Save = `GameData::SavePlanetTable{1,2,3}Maybe` (0x402670/4029c0/402d10).
+  Values are obfuscated with a per-save additive key (`rand()%255+1`) added on save, subtracted on load.
+  (Nevada/Alaska/Oregon are just the dev codenames = registry keys for the 3 demo planets.)
+- **`World.paZonePtrGrid@0x2d0`** — a 10×10 (`int[100]`) grid of `Zone*` pointers, parallel to the
+  `MapZone[100]` grid at `+0x4b4`; `Generate` fills it with `zoneObjects[id]` as it places zones.
+- **`World.placedZoneIds@0x220`** (`CWordArray`) — list of zone ids placed this generation.
+  `GameData::FilterEnemyZonesFromListMaybe` (0x403070) rebuilds it in place, dropping any zone whose
+  map-flag == `ENEMY_TERRITORY(1)`.
+- **`questItemsAMaybe@0x1e4` / `questItemsBMaybe@0x1f8`** (`CWordArray`) — the two halves of the main
+  quest item chain (each sized ~half the total quest count; indexed into the item table at `+0xd4`).
+- **`goalTileListMaybe@0x20c`** (`CWordArray`) and **`goalItemTileIdMaybe@0x2e50`** — hold the demo goal
+  item tile id (`0x6c`).
+- **Gen output scratch block `+0x3380..+0x339c`** (8 ints written by `WorldgenPlaceRandInZone7Maybe`,
+  then copied into the placed `MapZone`): `genCellItemCScratch@0x3380`, `genCellQuestSlot5Scratch@0x3384`,
+  `genCellItemAScratch@0x3388`, `genCellItemBScratch@0x338c`, `genCellQuestSlot6Scratch@0x3390`,
+  `genCellQuestSlot0Scratch@0x3394`, `genCellQuestSlot1Scratch@0x3398`, `genZoneTypeScratch@0x339c`
+  (the placed zone's content type → `MapZone.field_0x4`).
+
+## End-screen zone accessors (2026-07-05)
+`World::GetVictoryZoneIndexMaybe` (0x401a40) returns fixed zone index 76 iff `zoneObjects[76]` has
+map-flag `VICTORY_SCREEN(0xd)` (else -1); `World::GetLossZoneMaybe` (0x401a60) returns `zoneObjects[77]`
+iff it has map-flag `LOSS_SCREEN(0xe)` (else NULL). Both demo-hardcoded, called by `UpdateFrameMaybe`
+(0x40d470) — the win/lose end-screen check. (Map-flag enum from DesktopAdventures `map.h`: 13=VICTORY,
+14=LOSS, 1=ENEMY_TERRITORY.)
