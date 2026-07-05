@@ -103,7 +103,7 @@ The five original requirements are reorganized into a dependency-ordered plan. *
 VC++ 4.2 (see table above).
 
 ### Phase 1 — Stand up the matching toolchain (unblocks everything)
-1. Acquire **Visual C++ 4.2** (abandonware; WinWorld / archive.org — MSDN ISOs). Also grab **4.2b** (a patch that tweaks codegen) as a backup knob if we later get 99%-not-100%.
+1. Acquire **Visual C++ 4.2** (abandonware; WinWorld / archive.org — MSDN ISOs). ~~Also grab **4.2b** as a codegen knob~~ — **DEBUNKED (2026-07-05, KB Q156934/Q160491): 4.2b does NOT touch the compiler binaries or codegen**; it only updates MFC libs (incl. NAFXCW), SDK headers/libs, wizards, BSCMAKE. Still relevant for *library-region* matching (its NAFXCW.LIB differs), never for app codegen.
 2. **Do NOT run the installer** (ancient 16-bit ACME setup — fights wine). Just copy the tool tree out of the ISO into `toolchain/`: `BIN\` (cl.exe + sibling DLLs C1.DLL/C1XX.DLL/C2.DLL/MSPDB*.DLL must stay together), `INCLUDE\`, `LIB\`, `MFC\INCLUDE\`, `MFC\LIB\`, `MFC\SRC\` (MFC source — huge help, message-map/vtable code matches nearly for free once class decls are right).
 3. Run under `wine` on Apple-Silicon (Rosetta 2 + new WoW64 runs 32-bit PE tools; `WINEDEBUG=-all`). Set `INCLUDE`/`LIB` env; link with **`/INCREMENTAL:NO`** (incremental linking inserts thunks/padding). **Fallbacks** if wine fights: Docker+Rosetta linux/amd64 with wine or **wibo** (decomp community's minimal PE loader, what decomp.me uses); or a Windows-on-ARM VM.
 4. Write a CMake toolchain file (`toolchain/msvc42-wine.cmake`) modeled on OpenJKDF2's `cmake_modules/toolchain_*.cmake`, wrapping `wine cl.exe` as the compiler.
@@ -339,7 +339,16 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
   `[esi+off]` (22→51 B); `[edi]`-only-for-biSize = the existing hybrid, keep it; (e) the 22-B residual
   (push-edi/lea slot + height-load slot, insns 65/65 identical) ignores decl position and a multi-use
   `int ht=height;` temp (copy-propagated away). Pure scheduler tie-break — do NOT re-litigate from
-  source; full-TU endgame only. **The MMX blits were the hard win** — see lessons below.
+  source; full-TU endgame only. **Hidden-TU-influence family also exhausted (2026-07-05):** (f) a vanished
+  helper *before* Init (unreferenced static / uncalled inline) has ZERO effect — non-emitted code carries no
+  state, so lesson #7's TU-context effect comes only from *emitted* predecessors (Init is its CU's first
+  function → fresh state, same as ours); (g) a helper *inlined into* Init leaves a visible fingerprint (the
+  ptr param becomes the `[edi+off]` addressing base) — original lacks it; (h) dead code / unused locals /
+  `register` hints inside Init: normalized away, bit-identical output; (i) the whole /O axis (`/O1 /O2 /Ox
+  /Os /Ob0 /Oa /Ow`) produces IDENTICAL output for this function; (j) compiling through a `/Yc`+`/Yu`
+  stdafx.h **precompiled header**: identical; (k) **VC 4.2b ruled out by documentation** — the patch never
+  touched the compiler (see Phase-1 note). Only remaining suspect: a different cl point-build (e.g. 4.1/
+  10.10) — weak, since 23 functions already byte-match under our 10.20. **The MMX blits were the hard win** — see lessons below.
 - **BIG discovery — the accelerated blits (`BlitFast` 0x408110, `BlitMasked` 0x408240) are HAND-ASM in
   BOTH branches**, selected by the `App_bCpuHasMMX` global (0x459e28, was `Canvas_bUnk`): a scalar
   copy loop AND an MMX (`movq`/`pcmpeqb`/`pand`/`por`) loop. Since VC++4.2's inline assembler predates MMX
