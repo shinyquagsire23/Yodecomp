@@ -97,7 +97,7 @@ Each maps a player action to an `Iact_Run` event type on the current zone (`pWor
 | Function | Addr | Event | Fires when |
 |---|---|---|---|
 | `Game_OnBumpTile`  | 0x413df0 | 2 BumpTile | player bumps a tile/sprite |
-| `GameView::UseDraggedItemMaybe`  | 0x4102d0 | 3 DragItem | an inventory item is dragged onto a tile (switches on tile/item type) |
+| `GameView::UseDraggedItemMaybe`  | 0x4102d0 | 3 DragItem | drop-resolution for a dragged item (switches on item/target tile). Handles weapon use AND the **R2-D2 (Artoo) hint system** — dragging Artoo onto an object shows his speech balloon: a switch on the target category (0..0x14) picks a hint string `strArtooHelp` (resources 0xe020..0xe038) → `ShowTextDialog`. Also plays palette-cycling effects |
 | `Game_OnWalk`      | 0x409650 | 4 Walk / 5 | player walks onto a tile |
 | `Game_MovePlayer`  | 0x409c10 | 4 Walk / 5 | player movement step |
 
