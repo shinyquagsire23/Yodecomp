@@ -6,7 +6,7 @@ In general, you can adhere to patterns found in `OpenJKDF2`, located at `~/works
 - **`~/workspace/DesktopAdventures`** — the user's own engine recreation of the *Desktop Adventures* engine (Yoda Stories / Indiana Jones' Desktop Adventures). Invaluable for asset-format and game-logic semantics when naming functions/structs. Notably `scrdoc.txt` = reverse-engineered **script opcode format** (pre-script conditions like `BumpTile`, `CheckEndItem`, `EnemyDead`, `HasItem`, `HealthLs`…), plus `SCRIPTS.md`, `README.md`. Use it to name `.DTA`/zone/script parsing code. The 10×10 grid at World+0x4B4 (stride 0x34/zone) is the map's zone grid.
 - `~/workspace/OpenJKDF2` — style/naming conventions (`Module_Function`, loose-Hungarian), CMake layout.
 
-In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat').
+In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat'). Name a pointer after the **struct it points to**, not its MFC role: the `World`(`CDeskcppDoc`) pointer is **`pWorld`**, NOT `doc`/`pDoc` (e.g. `GameView.pWorld@0x44`); a `GameView` pointer is `pView`, etc.
 
 **Function naming = C++ `Namespace::Method` (migration DONE 2026-07-05).** This is a C++/MFC app, so group
 functions by their **class** as a Ghidra namespace and give the method a bare name — **do NOT repeat the

@@ -40,6 +40,15 @@ the engine keeps saved copies so an adventure can be replayed/reset. Exact recor
 - **`Wld_Serialize` (0x424fc0)** — `.wld` serialization. Reads/writes the **`ASAV44`** signature via
   `CFile`, `SetSize`s + `operator_new`s the world structures on load. Format: `*.wld` (`World Files
   (*.wld)`), sig `ASAV44`. (MFC `CDocument::Serialize`-style; the load branch rebuilds the doc.)
+- **Sparse save (confirmed by the author, 2026-07-05):** a `.wld` only stores the maps/zones that have
+  been **loaded AND modified** — not the whole world — to keep saves small. This is *why* the engine
+  keeps the dual copies: the **backup** grid (`zones[100..199]`) + the backup record block at
+  `World+0x2d54` are the **as-loaded reference**, and the **active** copies (`zones[0..99]`, `World+0xda4`)
+  are the live/mutated state. On save, `Wld_Serialize` walks the active zones and serializes only those
+  that (a) were actually loaded (`exists`/loaded flag set) and (b) differ from their backup — i.e. the
+  player changed them. So `World::BackupRecords`/`RestoreRecords` + `RestoreGridFromBackup` aren't just
+  replay/reset: the backup is the baseline the save-diff is taken against. (**TODO:** find the exact
+  per-zone loaded/dirty flag `Wld_Serialize` tests, and confirm the diff vs. a plain dirty-bit.)
 
 ## Untangling Dta / Worldgen / Wld (call-graph clustering, 2026-07-04)
 The big `0x41c340–0x429000` TU (+ the `0x41bee0` helper class) mixes three concerns that share the

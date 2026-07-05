@@ -10,8 +10,8 @@ FlagOnce command so a one-shot script won't refire). Execution is two functions:
 
 ### Phase 1 — `Iact_Run` (0x00406780): evaluate conditions
 Full typed signature: `int Iact_Run(Zone *this, int event, int x, int y, int dx, int dy, int arg5,
-CDC *pDC, World *doc, GameView *view)`; `event` = `2`=BumpTile, `3`=DragItem, `4`=Walk, `5`=variant.
-Now reads idiomatically — `doc->zones[doc->playerY*10 + doc->playerX].flagSolved`, `doc->inventory`, etc. Outer loop over `iactScripts`, inner loop over each script's
+CDC *pDC, World *pWorld, GameView *view)`; `event` = `2`=BumpTile, `3`=DragItem, `4`=Walk, `5`=variant.
+Now reads idiomatically — `pWorld->zones[pWorld->playerY*10 + pWorld->playerX].flagSolved`, `pWorld->inventory`, etc. Outer loop over `iactScripts`, inner loop over each script's
 conditions, **`switch(cond->opcode)`** (`cond+4`; args at `cond+8/+0xc/+0x10/+0x14/+0x18`). If **all**
 conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition opcodes (verified vs
 `scrdoc.txt`, with the offsets they read):
@@ -19,13 +19,13 @@ conditions pass and the script isn't done, calls `Iact_RunCommands`. Condition o
 |----|------|-------|
 | 0xb | EnemyDead | `zone->entities[arg]` alive? (+0x7d4/0x7d8) |
 | 0xc | AllEnemiesDead | loops `zone->entities` |
-| 0xd | HasItem | `doc->inventory[]` (+0xac/0xb0) |
-| 0xe/0xf | CheckEnd/StartItem | tile at player pos / `doc->startItem` (+0x2e38) |
-| 0x11/0x12 | GameInProgress/Completed | `doc->gameState` (+0x68 == -1/1) |
-| 0x13/0x14 | HealthLs/Gt | `doc` health = `healthHi*-100 - healthLo + 0x191` (+0x3314/0x3318) |
-| 0x18 | PlayerAtPos | camera `doc+0x3330/0x3334` |
+| 0xd | HasItem | `pWorld->inventory[]` (+0xac/0xb0) |
+| 0xe/0xf | CheckEnd/StartItem | tile at player pos / `pWorld->startItem` (+0x2e38) |
+| 0x11/0x12 | GameInProgress/Completed | `pWorld->gameState` (+0x68 == -1/1) |
+| 0x13/0x14 | HealthLs/Gt | `pWorld` health = `healthHi*-100 - healthLo + 0x191` (+0x3314/0x3318) |
+| 0x18 | PlayerAtPos | camera `pWorld+0x3330/0x3334` |
 | 0x19–0x1b,0x21 | GlobalVar Eq/Ls/Gt/Ne | `zone->globalVar` (+0x844) |
-| 0x1c,0x23 | Experience Eq/Gt | `doc->completionCount` (+0x332c) — **not** RPG XP; it's the # of times the game has been beaten (registry `Count`). These conditions gate repeat-playthrough upgrade events (force powers, lightsaber) |
+| 0x1c,0x23 | Experience Eq/Gt | `pWorld->completionCount` (+0x332c) — **not** RPG XP; it's the # of times the game has been beaten (registry `Count`). These conditions gate repeat-playthrough upgrade events (force powers, lightsaber) |
 | 0x16 | `CheckCellItem` (was DA Unk16) | `zones[playerCell].cellItemC` (+0x10) == arg0 |
 | 0x1d | `QuestSpotPresent` (was DA Unk1d) | loops `zone->objects` for `type==OBJ_QUEST_ITEM_SPOT` at coords |
 | 0x1e | `CheckCellItems` (was DA Unk1e) | reads `zones[playerCell].cellItemA/B` (+0xc/0xe) as `tileArray` indices |
@@ -46,7 +46,7 @@ lives in the render-heavy `.obj` (0x4070e0–0x408110) with `Render_Blit`. *(For
 36 `COND_*` 0x00–0x23) are now defined in the DB from DA `iact.h` (`IACT_CMDS`/`IACT_TRIGGERS`) — the
 exact names, applied to `IactCommand.opcode`/`IactCondition.opcode` (the jump-table switch still shows
 numeric case labels, a Ghidra rendering limit). `Iact_RunCommands` params typed `(Zone*, int, CDC*,
-World* doc, GameView* view)`.
+World* pWorld, GameView* view)`.
 
 **Note on opcode names:** DA's IACT names come from *strings that leaked out of the DAT* (the packer
 left uninitialized memory holding original command-name fragments). Whether a name leaked depended on
@@ -55,11 +55,11 @@ how many args a command used — commands that filled their arg buffer overwrote
 are renamed from behavior: **CMD** `0x1e` `MarkZoneSolved` (was OpenShow — sets `flagA/B/+1c/+28=1` on
 the player's map cell), `0x1f` `WinGame` (`abortFrame=1`), `0x20` `LoseGame` (`abortFrame=-1` + `-300`);
 **COND** `0x10` `ZoneSolved` (checks the flag `CMD_MarkZoneSolved` sets). Confirmed DA's `_MAYBE`s:
-`0x11` `GameInProgress` (`doc->gameState`@0x68 `== -1`), `0x12` `GameCompleted` (`gameState == 1`).
+`0x11` `GameInProgress` (`pWorld->gameState`@0x68 `== -1`), `0x12` `GameCompleted` (`gameState == 1`).
 `gameState@0x68`: -1 = in progress, 1 = won. (Win/lose direction of `0x1f`/`0x20` inferred from the
 `-300` penalty — verify against the game.) **Inventory** confirmed via the item commands: `CMD_AddItemToInv` (0x1c) →
-`Game_AddItemToInv` (0x428f50) does `SetAtGrow(&doc->inventory, doc->inventoryCount, tileWrapper)`;
-`CMD_RemoveItemFromInv` (0x1d) → `Game_RemoveItem`. `doc->inventory` = **CObArray @0xa8** of held items
+`Game_AddItemToInv` (0x428f50) does `SetAtGrow(&pWorld->inventory, pWorld->inventoryCount, tileWrapper)`;
+`CMD_RemoveItemFromInv` (0x1d) → `Game_RemoveItem`. `pWorld->inventory` = **CObArray @0xa8** of held items
 (Tile-wrappers, each item's `Tile*` at wrapper+4, name CString at +8), `inventoryCount` @0xb0.
 
 ### In-memory record structs (modeled in the DB 2026-07-04)
@@ -79,7 +79,7 @@ IactCommand   (0x20):  +0x04 int opcode   +0x08 int args[5]   +0x1c CString text
 
 ### The IACT reader (found 2026-07-04) — the ACTN chunk carries all zones' scripts
 **`Dta_ParseActn` (0x423510)** is the IACT script reader (not just "action scripts"): it loops
-`{ zoneId:short (-1 skips); zone = doc->zoneObjects[id]; scriptCount:short; SetSize zone->iactScripts;
+`{ zoneId:short (-1 skips); zone = pWorld->zoneObjects[id]; scriptCount:short; SetSize zone->iactScripts;
 per script: new IactScript(0x30) }`. The per-record readers are a small class cluster at
 **0x418700–0x418dd0** (now `Iact_*`):
 - `Iact_ScriptCtor` (0x418700) + `Iact_ReadScript` (0x4188d0) — reads condCount then cmdCount,
@@ -93,7 +93,7 @@ After typing, `Iact_Run`/`Iact_RunCommands` decompile as `this->iactScripts[i]->
 records into `zone->entities`; also fills `+0x26`, `+0x28`, and a `[0x20]` block @+0x40).
 
 ## Player event handlers (input → `Iact_Run`)
-Each maps a player action to an `Iact_Run` event type on the current zone (`doc...->+0x2c0`):
+Each maps a player action to an `Iact_Run` event type on the current zone (`pWorld->currentZone` +0x2c0):
 | Function | Addr | Event | Fires when |
 |---|---|---|---|
 | `Game_OnBumpTile`  | 0x413df0 | 2 BumpTile | player bumps a tile/sprite |
@@ -105,32 +105,32 @@ Each maps a player action to an `Iact_Run` event type on the current zone (`doc.
 window proc / game tick (the ~10.8 KB `FUN_0040b270`, jt~70 — still to map).
 
 **Combat — `GameView::UseWeapon` (0x427d20, from `GameView::UseTile` 0x40a710):** the player attacks with
-`doc->currentWeapon` (a `Character*` weapon def). Damage = `weapon->frames[0x22]` scaled by `doc->difficulty`
-(`<0x32` ⇒ `×(10 − diff/5)`, min 1); sets `doc->equippedItem = tileArray[weapon->name[10]]`; branches on the
+`pWorld->currentWeapon` (a `Character*` weapon def). Damage = `weapon->frames[0x22]` scaled by `pWorld->difficulty`
+(`<0x32` ⇒ `×(10 − diff/5)`, min 1); sets `pWorld->equippedItem = tileArray[weapon->name[10]]`; branches on the
 weapon type id (`weapon->name[10]`: 0x12/0x1fe/0x1ff/0x200…) and calls `Puzzle::FUN_00404910` to apply the
 hit, then repaints. (Health is applied separately via `GameView::AddHealth` 0x427690, IACT cmd 0x25.)
 
 Player/hero grid position is `doc+0x2e20` (x) / `doc+0x2e24` (y); the current zone pointer hangs off the
-view (`+0x2c0`). Characters live in `doc->characters` (World+0xc0).
+view (`+0x2c0`). Characters live in `pWorld->characters` (World+0xc0).
 
 ## Rendering pipeline (named via GameView propagation 2026-07-04)
 ```
-View_DrawScreen (0x409110)      full redraw: SelectPalette(doc->palette @+0x2c4) + panels + viewport
+View_DrawScreen (0x409110)      full redraw: SelectPalette(pWorld->palette @+0x2c4) + panels + viewport
   └ View_DrawGameArea (0x40a200)   blit the 0x120×0x120 (9×9-tile) play viewport
-       ├ View_DrawMap (0x40ed90)      camera-visible tile grid (doc->cameraX>>5 … Zone_GetTile+tileArray)
+       ├ View_DrawMap (0x40ed90)      camera-visible tile grid (pWorld->cameraX>>5 … Zone_GetTile+tileArray)
        ├ View_DrawObjects (0x40ec30)  visible zone->objects
-       ├ Game_DrawEntities (0x40b160) placed entities via doc->characters[ent->charId]
+       ├ Game_DrawEntities (0x40b160) placed entities via pWorld->characters[ent->charId]
        └ View_DrawTileAt (0x40a3a0)   one tile/sprite at grid (x,y) (grid→pixel <<5)
   └ Render_Blit (0x408000)          int Render_Blit(Canvas*, CDC* dest, destX,destY,w,h,srcX,srcY)
                                      → BitBlt(dest->m_hDC, …, this->hdc, …, SRCCOPY)
 ```
-`doc->palette` (World+0x2c4, CPalette*) is selected by every draw fn. `Iact_RunCommands`' draw-commands
+`pWorld->palette` (World+0x2c4, CPalette*) is selected by every draw fn. `Iact_RunCommands`' draw-commands
 reuse the same tile/camera machinery (why it first read as a renderer).
 
 **Full prototypes set (2026-07-04):** the whole path is now typed — `View_DrawScreen`/`View_DrawGameArea`
 `(GameView*, CDC*)`, `View_DrawMap`/`View_DrawObjects`/`Game_DrawEntities(GameView*)`, `View_DrawTileAt`
 `(GameView*, short x,y,frame)`, `Render_Blit`/`Canvas_Blit`/`Canvas_Init`/`Canvas_GetSize` as `Canvas*`
-methods. `doc->canvas` is the `Canvas` (0x43c DIBSection) blitted to the paint `CDC`. (Consolidated a
+methods. `pWorld->canvas` is the `Canvas` (0x43c DIBSection) blitted to the paint `CDC`. (Consolidated a
 duplicate `CDC` type — the empty `/Demangler/CDC` placeholder now carries the real `m_hDC@4` layout.)
 
 ## Window layout & the inventory scroll area (mapped 2026-07-05 from `Game_RemoveItem`)
@@ -139,15 +139,15 @@ The main window (a `CDeskcppView` = our `GameView`) has four regions:
 - **Menu bar** — new adventure / load save / options (map size) / audio.
 - **Play viewport** (left) — 9×9 tiles × 3 layers, drawn by the `View_DrawScreen` pipeline above.
 - **Inventory** (right) — a scrollable **two-column list** of held items; each row is the item's name
-  text plus a bitmap of the item. Backed by `doc->invArray` (**CObArray @ World+0xa8**) of Tile-wrapper
-  objects (item's `Tile*` at wrapper+4, name CString at +8); `doc->inventory`(m_pData)@0xac,
-  `doc->inventoryCount`(m_nSize)@0xb0.
+  text plus a bitmap of the item. Backed by `pWorld->invArray` (**CObArray @ World+0xa8**) of Tile-wrapper
+  objects (item's `Tile*` at wrapper+4, name CString at +8); `pWorld->inventory`(m_pData)@0xac,
+  `pWorld->inventoryCount`(m_nSize)@0xb0.
 - **Below the inventory** — 4 direction arrows (zone transitions), the **weapon box** (drag target from
   the inventory; rect = `World.nWeaponBox{Left,Top,Right,Bottom}` @0x32a4/a8/ac/b0, `GameView::DrawWeaponBox`
-  0x428ac0 draws the frame, `GameView::DrawWeaponIcon` 0x428c40 BitBlts `doc->currentWeapon`@0x2e2c), and a
+  0x428ac0 draws the frame, `GameView::DrawWeaponIcon` 0x428c40 BitBlts `pWorld->currentWeapon`@0x2e2c), and a
   **health circle** — rect `World.nHealthDial{Left,Top,Right,Bottom}` @0x32c4/c8/cc/d0, drawn by
   `GameView::DrawHealthDial` (0x427490, two `Chord()` pie-halves) + `GameView::DrawHealthNeedle` (0x4278a0,
-  pens colored by `doc->healthHi`). `GameView::AddHealth` (0x427690) is the health logic (IACT cmd 0x25).
+  pens colored by `pWorld->healthHi`). `GameView::AddHealth` (0x427690) is the health logic (IACT cmd 0x25).
 
 ### The inventory scroll bar — `InvScrollBar` (custom `CScrollBar` subclass)
 `GameView.pInvScrollBar` (**+0x40**, `InvScrollBar*`) points to the inventory scroll bar control. It is a
@@ -177,7 +177,7 @@ repaint the two-column list at the new offset.
     list `zone->entities` (a 2nd `CObArray`, `m_pData@+0x7d4`, count `@+0x7d8`), each a **`MapEntity`**:
     ```
     MapEntity (sizeof ~0x40):
-      +0x04 short charId    index into doc->characters (<0 = empty slot)
+      +0x04 short charId    index into pWorld->characters (<0 = empty slot)
       +0x06/+0x08 homeX/Y   spawn position
       +0x0c int   state
       +0x12/+0x14 x/y       current grid position
@@ -185,7 +185,7 @@ repaint the two-column list at the new offset.
       +0x38/+0x3a dx/dy     pending movement delta
       +0x3c short animFlag
     ```
-    Per entity per frame: look up its char def (`doc->characters[charId]`), `_rand()` (36× total) to
+    Per entity per frame: look up its char def (`pWorld->characters[charId]`), `_rand()` (36× total) to
     pick a move, **`Iact_ProbeMove`(zone,x,y,dx,dy)** (0x406550) to test tile walkability + animation
     timing (`GetTickCount`), then `Zone_SetTile` + `Player_Move` to relocate/animate, and `Iact_Run` to
     fire the entity's scripts. `MapEntity` + `Zone.entities` are now modeled in the Ghidra DB.
@@ -208,7 +208,7 @@ Game_OnWalk (0x409650) / Game_MovePlayer (0x409c10)   [near-identical: two movem
   ├─ Iact_Run (0x406780)             fire Walk/step scripts
   ├─ Render_Blit (0x408000) + GetDC/SelectPalette/ReleaseDC   immediate on-screen draw
   ├─ World_GetZoneCell (0x401a80)    overview-grid lookup
-  └─ View_FUN_0040b160               entity/character draw (iterates doc->characters, Zone_SetTile)
+  └─ View_FUN_0040b160               entity/character draw (iterates pWorld->characters, Zone_SetTile)
 ```
 **Layering confirmed:** `View`/tick → `Player` (movement+draw glue) → `Iact` (scripts) + `Render`
 (blit) + `World`/`Zone` (data) + GDI. The Player `.obj` (0x408c60–0x40a560) is the action layer that
@@ -229,17 +229,17 @@ byte offset, so their `switch` doesn't fold to `->opcode`; the enums still name 
 render wherever a record is cleanly typed. Case→name mapping is in the two opcode tables above.)
 
 **`GameView`** (the MFC CView subclass; `this` of the game-loop methods): `+0x44 World* doc`,
-`+0xb0 short frameCounter`. Typing it makes `view->doc->…` cascade everywhere. `World` field map grew
+`+0xb0 short frameCounter`. Typing it makes `view->pWorld->…` cascade everywhere. `World` field map grew
 to include the game-state offsets pinned from IACT + the loop: `currentZone@0x2c0`, `playerX/Y@0x2e20/24`,
 `cameraX/Y@0x3330/34`, `iactBusy@0x5c`, plus the earlier health/inventory/experience/gameState fields.
 
 Propagating `GameView*`/`World*`/`Zone*` upward turned the giant game functions idiomatic and let them
 be named at a glance:
-- `Game_Tick` (0x40b270): `this->frameCounter++`, `doc->currentZone->entities[i]`, `doc->characters[..]`,
-  `doc->cameraX >> 5`.
+- `Game_Tick` (0x40b270): `this->frameCounter++`, `pWorld->currentZone->entities[i]`, `pWorld->characters[..]`,
+  `pWorld->cameraX >> 5`.
 - `Game_DrawEntities` (0x40b160, was `View_FUN_0040b160`): draws each placed entity via
-  `doc->characters[ent->charId]` + `Zone_SetTile`.
-- `Game_OnBumpTile` / `Game_OnDragItem`: now `this->doc->…`.
+  `pWorld->characters[ent->charId]` + `Zone_SetTile`.
+- `Game_OnBumpTile` / `Game_OnDragItem`: now `this->pWorld->…`.
 This is the pattern to keep applying: type one `this`, name the fields it reveals, and the next caller
 up decompiles for free.
 

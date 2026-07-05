@@ -60,7 +60,7 @@ below GameData in .text and is its own tiny group (FP pool `0x44b09c`).
 41b2f0-41bee0      28     44c438         -         Settings_ CDeskcppApp settings (Settings_Save, WriteProfileInt)
 41bee0-41c340      9      44d064         -         Wld_    .wld save/load helper class (serializes world objects; ctor reached from Wld_Serialize)
 41c340-~427490    ~110   44d2b4         4560f8    ** CDeskcppDoc TU (World:: ns): World::Generate (0x41f960) worldgen + World::Load/Parse* (dta) + World::Serialize (wld). this=World* **
-~427490-4292e7    ~20    -              -         ** CDeskcppView draw/inventory tail (GameView:: ns), NOT doc: DrawHealthDial/Needle/AddHealth, DrawWeaponBox/Icon, BlitViewportDither, AddItemToInv, RemoveItem, GameView::FUN_00427d20 (weapon+health render). this=GameView* (doc@0x44, unkHWnd@0x1c) **
+~427490-4292e7    ~20    -              -         ** CDeskcppView draw/inventory tail (GameView:: ns), NOT doc: DrawHealthDial/Needle/AddHealth, DrawWeaponBox/Icon, BlitViewportDither, AddItemToInv, RemoveItem, GameView::FUN_00427d20 (weapon+health render). this=GameView* (pWorld@0x44, unkHWnd@0x1c) **
 NOTE (2026-07-05): namespace migration folded the doc sub-modules into World:: (namespace must == struct for auto-this). The ~0x427490 boundary splits doc (World) from the view-render tail (GameView) — several tail funcs were mis-this-typed and corrected.
 ```
 
@@ -132,18 +132,18 @@ are the big `0x40a560` view `.obj`. Refine each by decompiling a couple of its u
 - `Game_CheckCheat` (0x415820 — `goyoda`→Invincible, `gojedi`→Super Jedi)
 - `View_OnOptions` (0x416030 — OPTIONS + MIDILoad), `View_OptionsDialog` (0x411180)
 - `Game_ShowWinMessage` (0x40f4b0 — "Well done, Luke!"), `View_DrawText` (0x40f060 — MS Sans Serif)
-- `View_FUN_0040b160` — entity/character draw (iterates `doc->characters`)
+- `View_FUN_0040b160` — entity/character draw (iterates `pWorld->characters`)
 - Message handlers (OnDraw/OnTimer/OnKeyDown/OnLButton…) are wired at runtime (SetTimer/message map),
   not a Ghidra-visible table — reach them by decompiling from these anchors. `Game_Tick` has no direct
   callers ⇒ it's the registered timer/idle proc.
 
 **Propagation pass (2026-07-04):** `GameView` struct (CView subclass, `doc@0x44`/`frameCounter@0xb0`)
 typed onto **23 of the 29** view methods that touch `doc@0x44`/`zone@0x2c0`, so they decompile against
-`this->doc->currentZone->…`. Newly named from the clarified bodies: `Game_Tick` (0x40b270),
+`this->pWorld->currentZone->…`. Newly named from the clarified bodies: `Game_Tick` (0x40b270),
 `Game_DrawEntities` (0x40b160), `View_DrawMap` (0x40ed90, camera-visible tile render), `Game_UseTile`
 (0x40a710, tile-type interaction dispatch), `View_OnLButtonUp` (0x412250, iactBusy-gated input),
 `Game_ClassifyTile` (0x40fca0, gameState-aware tile→code). The rest are typed but not yet
-individually named (camera/scroll/GDI helpers) — name incrementally as their `doc->` accesses clarify.
+individually named (camera/scroll/GDI helpers) — name incrementally as their `pWorld->` accesses clarify.
 
 ## Next refinements
 - Subdivide the two giant modules (UI 107, WorldGen 130) — they're likely several `.obj`s each; the

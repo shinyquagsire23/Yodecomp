@@ -32,9 +32,9 @@ The read tag is compared against the tag table in **`.data 0x456890–0x456908`*
 | VERS | inline                   | —        | version `long` |
 | STUP | inline                   | —        | startup graphic (uses palette) |
 | TILE | inline                   | —        | tiles: `(32*32)+4` bytes each (graphics) |
-| CHAR | `Dta_ParseChar`          | 0x421e70 | character base records → `doc->characters[id]` (World+0xc0) |
+| CHAR | `Dta_ParseChar`          | 0x421e70 | character base records → `pWorld->characters[id]` (World+0xc0) |
 
-**Character subsystem** (records at `doc->characters` = `World+0xc0`, indexed by char id):
+**Character subsystem** (records at `pWorld->characters` = `World+0xc0`, indexed by char id):
 `Dta_ParseChar` (0x421e70, CHAR) reads the base character records; then `Dta_ParseCaux` (0x423290, CAUX)
 and `Dta_ParseChwp` (0x423300, CHWP) attach auxiliary + weapon data to `characters[id]` (both loop:
 read `short id`; `id<0` skips, else index `characters[id]` and read that record's data). Format details
@@ -110,7 +110,7 @@ chunk parsers, one per stored zone object:
 - `Iact_ReadZaux` (0x406270) — ZAUX record   `Iact_ReadZax2` (0x406410) — ZAX2
 - `Iact_ReadZax3` (0x406490) — ZAX3           `Iact_ReadZax4` (0x406510) — ZAX4
 Each is `__thiscall(Zone *zone, CFile *pFile)` reading that tier's data into the zone. So the aux
-chunk parsers (`Dta_ParseZaux/Zax2/Zax3`) just iterate `doc->zoneObjects[i]` and call the matching
+chunk parsers (`Dta_ParseZaux/Zax2/Zax3`) just iterate `pWorld->zoneObjects[i]` and call the matching
 `Iact_ReadZax*`. (In `src/Dta/Dta.h` these are modeled as `ZoneAux::Load*` — a masked reloc, so the
 name doesn't affect the byte-match; the real target is a `Zone` method.)
 
