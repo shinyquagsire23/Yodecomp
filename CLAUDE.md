@@ -348,7 +348,10 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
   /Os /Ob0 /Oa /Ow`) produces IDENTICAL output for this function; (j) compiling through a `/Yc`+`/Yu`
   stdafx.h **precompiled header**: identical; (k) **VC 4.2b ruled out by documentation** — the patch never
   touched the compiler (see Phase-1 note). Only remaining suspect: a different cl point-build (e.g. 4.1/
-  10.10) — weak, since 23 functions already byte-match under our 10.20. **The MMX blits were the hard win** — see lessons below.
+  10.10) — weak, since 23 functions already byte-match under our 10.20. **PARKED (user decision 2026-07-05):
+  plausible-but-unproven that Canvas was a separately-built/linked library CU (would explain the hand-`_emit`
+  MMX craft + the scheduler residuals being confined to this CU, possibly a different cl point-build). Do
+  not dig further until ~99% completion; Canvas stands at 8/11 exact + 3 effective. **The MMX blits were the hard win** — see lessons below.
 - **BIG discovery — the accelerated blits (`BlitFast` 0x408110, `BlitMasked` 0x408240) are HAND-ASM in
   BOTH branches**, selected by the `App_bCpuHasMMX` global (0x459e28, was `Canvas_bUnk`): a scalar
   copy loop AND an MMX (`movq`/`pcmpeqb`/`pand`/`por`) loop. Since VC++4.2's inline assembler predates MMX
