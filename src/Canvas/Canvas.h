@@ -23,7 +23,7 @@ struct Canvas {
     UINT  SetPalette(UINT start, UINT count, RGBQUAD* colors);  // 0x00407fd0
     void  Clear();                                              // 0x00408040
     void  Fill(unsigned char value);                           // 0x004080a0
-    int   Render_Blit(CDC* dest, int destX, int destY,         // 0x00408000
+    int   BitBlt(CDC* dest, int destX, int destY,              // 0x00408000
                       int width, int height, int srcX, int srcY);
 };
 
