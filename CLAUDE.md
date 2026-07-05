@@ -245,6 +245,18 @@ names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/Progr
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
 ### ⏭ NEXT SESSION PICKUP (2026-07-05, updated)
+**⭐ STATIC-MFC LINKAGE IS STOOD UP (2026-07-05).** `toolchain/bin/link` + `NAFXCW.LIB` verified end to end
+(`toolchain/test/mfctest/` links a `CWinApp`+`CDWordArray` app clean). This unblocks per-function matching
+of **MFC-derived app classes** (`World`=`CDeskcppDoc`, `GameView`=`CDeskcppView`, and Zone's `Ctor`/`Dtor`):
+model the class `: public CObject`/`CDocument` with real MFC members so the compiler emits the member
+ctor/dtor codegen (base/member calls are masked relocations). Recipe + the linker-version-3.10-vs-4.20
+endgame flag are in `toolchain/README.md`. **GOTCHA that cost a detour:** run `bin/cl`/`bin/link` DIRECTLY,
+never `wine bin/cl` (they're bash wrappers that call wine internally; double-wrapping fails silently and you
+then read a stale `.obj`). **Zone matching (2026-07-05):** `GetTile`/`SetTile` exact; `GetEdgeCode`(6)/
+`FindObjectAt`(7)/`FlagQuestObjects`(5) are reg-alloc effective matches awaiting the full-TU (needs the new
+MFC linkage for `Ctor`/`Dtor`). Byte-matching found a real bug: **`ZoneObj` was mis-modeled** — true layout
+`type@4`(uint)/`state@8`/`x@0xa`/`y@0xc` (fixed in Ghidra + `src/Zone/Zone.h`).
+
 **RUNTIME ENGINE now heavily documented (2026-07-05 sessions).** The gameplay/render code is mapped end to
 end — see `docs/game-logic.md` (esp. the **Main frame loop & state machine** + **enemy AI** sections),
 `docs/worldgen.md`, `docs/settings.md`, `docs/structs.md`. Key anchors:
