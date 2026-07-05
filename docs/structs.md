@@ -11,7 +11,6 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 |---|---|---|---|
 | `Zone` | **0x848** | TRACED — `operator_new(0x848)` in `Dta_ReadZone` (0x426acf) → `Zone_Ctor` | 18×18 map. `tiles[972]@0x10`, `objects@0x7ac`, `iactScripts@0x7c0`, `entities@0x7d4`, `tempVar@0x834`/`randVar@0x838`/`globalVar@0x844` |
 | `Tile` | **0x40c** | TRACED — `operator_new(0x40c)` in `Game_OnWalk`/`Game_MovePlayer`/`FUN_0041a030` → `Tile_Ctor` (0x404da0) | 32×32 graphic. `pixels[0x400]@0`, `flags@0x404`, `name` CString@0x408 |
-| `MapEntity` | **0x64** | TRACED — `operator_new(100)` in `Iact_ReadZaux` (0x406270) | spawned monster/NPC. `charId@4`, `homeX/Y@6/8`, `x/y@0x12/14`, `dx/dy@0x38/3a`, `[0x20]@0x40` |
 | `IactScript` | **0x30** | TRACED — `operator_new(0x30)` in `Dta_ParseActn`/`Iact_ReadScript` | `conditions@8`(CObArray)`/condCount@0xc`, `commands@0x1c/cmdCount@0x20`, `doneFlag@0x2c` |
 | `IactCondition` | **0x1c** | TRACED — `operator_new(0x1c)` in `Iact_ReadScript` | `opcode@4` (`IactCondOp`) + `args[5]@8` |
 | `IactCommand` | **0x20** | TRACED — `operator_new(0x20)` in `Iact_ReadScript` | `opcode@4` (`IactCmdOp`) + `args[5]@8` + `text` CString@0x1c |
@@ -22,7 +21,7 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 | `Character` | **0x4c** | TRACED — `operator_new(0x4c)` in `Dta_ParseChar` (0x421e70) → `Character_Read` (0x4047a0) → `World.characters@0xc0` (`Character**`) | DA `ichr_data`: `magic@0`, `unk1@4`, `name[0x10]@8`, `flags@0x18` (FRIENDLY=1/ENEMY=2/IS_WEAPON=4 + behavior), `frames[24]@0x1c` (anim ids; `Game_DrawEntities` draws `frames[0x10]`) |
 | `ChwpEntry` | 6 | DA `chwp_entry` (CHWP chunk) | weapon record attached to `characters[id]`: `id1`,`id2`,`health` |
 | `CauxEntry` | 4 | DA `caux_entry` (CAUX chunk) | aux record: `id1`,`damage` |
-| `MapEntity` | 0x64 | TRACED (`operator_new(0x64)`) | placed enemy/NPC/item (DA `entity`). `charId@4`, `x@6`/`y@8` (live pos, drawn), `active@0xc` (==1), `homeX@0x12`/`homeY@0x14` (spawn/return), `state@0xc`, `timer@0x24`, `dx@0x38`/`dy@0x3a`, `animFlag@0x3c` |
+| `MapEntity` | **0x64** | TRACED — `operator_new(0x64)` in `Iact_ReadZaux` (0x406270) → `MapEntity_Ctor` (0x404c80) | placed enemy/NPC/item. DA `izax_entry` maps: `charId@4`(entity_id), `x@6`/`y@8` (live pos, drawn), `active@0xc` (==1), `homeX@0x12`/`homeY@0x14` (spawn/return), `timer@0x24`, **`item@0x26`**/**`numItems@0x28`** (izax item/count), `dx@0x38`/`dy@0x3a`, `animFlag@0x3c`, `extra[32]@0x40` (izax `unk4[16]`) |
 | `World` | **0x33c0** | TRACED — `CDeskcppDoc` `CRuntimeClass.m_nObjectSize` @0x44c2b0 | the CDocument game doc (real MFC name `CDeskcppDoc`). `tileArray@0x84`(Tile**), `zoneObjects@0x98`(Zone**), `characters@0xc0`, `currentZone@0x2c0`, `playerX/Y@0x2e20/24`, `cameraX/Y@0x3330/34`, health/inventory/score/experience (see game-logic.md) |
 | `GameView` | **0x310** | TRACED — `CDeskcppView` `CRuntimeClass.m_nObjectSize` @0x44b228 | the CView subclass (`CDeskcppView`). `doc@0x44`(World*), `frameCounter@0xb0`, `soundSession@0xc4`, plus ~30 input/drag members typed from `View_OnLButtonUp` (`draggedTile@0x140`(Tile*), `dragX/Y/Layer@0x104/8/c`, `dragActive@0x148`, …) |
 | `ZoneObj` | **0x10** | TRACED — `operator_new(0x10)` in `Dta_ParseHtsp` (0x4236b0, HTSP reader) → `zone->objects@0x7a8` | a placed hotspot/object. `type@8`,`x@0xa`,`y@0xc` |
@@ -31,6 +30,7 @@ observed field accesses (not yet pinned to an alloc — a TODO).
 ## Enums
 - `IactCondOp` (`COND_*`, 0x00–0x23) — condition opcodes per `scrdoc.txt`; applied to `IactCondition.opcode`
 - `IactCmdOp` (`CMD_*`, 0x00–0x25) — command opcodes per `iact.c` `commands[]`; applied to `IactCommand.opcode`
+- `TileFlags` (`TILE_*`, base bits 0x1–0x100) — tile classification per DA `tile.h` (`GAME_OBJECT`/`WEAPON`/`ITEM`/`CHARACTER`/`PUSH_PULL`/…); applied to `Tile.flags`. BIT16+ sub-flags are type-dependent (weapon vs item vs door), left numeric
 
 ## Real MFC class names (from `CRuntimeClass`)
 The app's own classes are `CDeskcpp*` ("Deskcpp" = Desktop Adventures C++): `CDeskcppDoc` (=`World`,
