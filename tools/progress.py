@@ -12,7 +12,8 @@ Usage:  tools/progress.py
 """
 import os, sys, glob, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import match  # reuse coff_functions / trim_pad / mask / diff logic
+import match   # reuse coff_functions / trim_pad / mask / diff logic
+import verify  # reuse owner_of / LIB_OWNERS (MFC base-class COMDAT filter)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOTAL_APP_BYTES = 128158        # Ghidra: sum of app-region (0x401000-0x429000) function body sizes
@@ -26,7 +27,8 @@ import re
 def compile_obj(cpp):
     obj = os.path.splitext(cpp)[0] + ".obj"
     env = dict(os.environ, WINEDEBUG="-all")
-    r = subprocess.run([CL] + FLAGS + [os.path.basename(cpp)],
+    flags = FLAGS + (["/D", "_MBCS"] if re.search(r"#\s*include\s*<afx", open(cpp).read()) else [])
+    r = subprocess.run([CL] + flags + [os.path.basename(cpp)],
                        cwd=os.path.dirname(cpp), env=env, capture_output=True)
     return obj if r.returncode == 0 and os.path.exists(obj) else None
 
@@ -41,7 +43,8 @@ def main():
         if not obj:
             rows.append((rel, "COMPILE FAILED", 0, 0)); continue
         addrs = [int(m, 16) for m in re.findall(r"//\s*FUNCTION:\s*YODA\s+0x([0-9a-fA-F]+)", open(cpp).read())]
-        funcs = match.coff_functions(obj)
+        # drop MFC base-class library COMDATs (CObject::~CObject, Serialize, ??_GCObject, ...)
+        funcs = [f for f in match.coff_functions(obj) if verify.owner_of(f[0]) not in verify.LIB_OWNERS]
         mb = mf = 0
         used = set()
         for name, code, relocs in funcs:
@@ -57,6 +60,8 @@ def main():
                 sc = (0 if (diffs == 0 and len(orig) == L) else 1, diffs)
                 if best is None or sc < best[0]:
                     best = (sc, va, L)
+            if best is None:      # more COMDATs than markers (e.g. unmarked helper) — skip
+                continue
             sc, va, L = best
             used.add(va)
             if sc[0] == 0:
