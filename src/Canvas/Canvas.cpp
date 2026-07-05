@@ -11,9 +11,10 @@ extern int App_bCpuHasMMX;
 // FUNCTION: YODA 0x00407df0
 Canvas* Canvas::Init(int width, int height)
 {
+    BITMAPINFOHEADER* h = &biHeader;
     biHeader.biCompression = 0;
     biHeader.biPlanes = 1;
-    biHeader.biSize = 0x28;
+    h->biSize = 0x28;
     biHeader.biXPelsPerMeter = 0;
     biHeader.biYPelsPerMeter = 0;
     biHeader.biClrImportant = 0;
@@ -27,7 +28,7 @@ Canvas* Canvas::Init(int width, int height)
     hdc = CreateCompatibleDC(0);
     if (hdc != 0) {
         CreatePalette();
-        hDib = CreateDIBSection(hdc, (BITMAPINFO*)&biHeader, 0, &pData, 0, 0);
+        hDib = CreateDIBSection(hdc, (BITMAPINFO*)h, 0, &pData, 0, 0);
         if (hDib != 0) {
             hOldBitmap = SelectObject(hdc, hDib);
             return this;
