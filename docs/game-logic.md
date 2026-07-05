@@ -209,15 +209,17 @@ repaint the two-column list at the new offset.
   loops (there are several, guarded by `_rand`) is the way to pull out the enemy AI.
 - **Structure mapped (2026-07-05).** Now `GameView::Tick` (`this=GameView*`, `this->pWorld`). Two switch
   axes drive it:
-  - **Per-entity behaviour dispatch:** `switch(entity's Character def -> frames+0x1a)` (≈ `Character+0x36`,
-    the behaviour type) selects the movement AI — e.g. case 1 = random-walk biased toward a target, using
-    the `MapEntity`'s own x/y/`timer@0x24`/state fields + `_rand`; a nested `switch(dir)` picks the step.
+  - **Per-entity AI behaviour dispatch (confirmed vs DesktopAdventures `character.h`, 2026-07-05):** the
+    `switch` reads the **high word of the char def's `flags`** — `Character.flags@0x18 >> 16`, i.e. the
+    short at `Char+0x1a` (the decompiler mislabels it `frames+0x1a`) = the **`CharBehavior`** enum (now in
+    the DB): **1 HARD** (aggressive, chases the player) · **2 MEDIUM** (semi-aggressive) · **3 RANDOM**
+    (wander) · **4 STATIONARY** (no move) · **8 ANIMATED** (animate in place; +STATIONARY = animated
+    scenery). Each case runs its movement pattern off the `MapEntity`'s own x/y/`timer@0x24`/state fields +
+    `_rand`, with a nested `switch(dir)` over `CHAR_DIRECTION` (0-5). This *is* the whole enemy AI.
   - **Game-mode branches:** `switch(pWorld->field_0x30)` (3×) — a per-frame mode/phase field at
     `World+0x30` (distinct from `gameState@0x68`); TBD which modes (intro/play/cutscene?).
   Hot callees (counts): `Zone::GetTile`×20, `PlayerMove`/`AddHealth`×10, `Zone::IactProbeMove`/
-  `World::GetTileData`×9, `Zone::SetTile`×8, `World::FindTile`×3, `_rand`×37. The `Character` behaviour
-  enum (frames+0x1a cases) maps to DesktopAdventures' character behaviours — cross-ref `~/workspace/
-  DesktopAdventures` to name the cases; that's the remaining depth in this megafunction.
+  `World::GetTileData`×9, `Zone::SetTile`×8, `World::FindTile`×3, `_rand`×37.
 
 ## Game-loop call structure (traced 2026-07-04 — reveals the module layering)
 ```
