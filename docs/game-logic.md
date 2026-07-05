@@ -127,6 +127,38 @@ reuse the same tile/camera machinery (why it first read as a renderer).
 methods. `doc->canvas` is the `Canvas` (0x43c DIBSection) blitted to the paint `CDC`. (Consolidated a
 duplicate `CDC` type — the empty `/Demangler/CDC` placeholder now carries the real `m_hDC@4` layout.)
 
+## Window layout & the inventory scroll area (mapped 2026-07-05 from `Game_RemoveItem`)
+
+The main window (a `CDeskcppView` = our `GameView`) has four regions:
+- **Menu bar** — new adventure / load save / options (map size) / audio.
+- **Play viewport** (left) — 9×9 tiles × 3 layers, drawn by the `View_DrawScreen` pipeline above.
+- **Inventory** (right) — a scrollable **two-column list** of held items; each row is the item's name
+  text plus a bitmap of the item. Backed by `doc->invArray` (**CObArray @ World+0xa8**) of Tile-wrapper
+  objects (item's `Tile*` at wrapper+4, name CString at +8); `doc->inventory`(m_pData)@0xac,
+  `doc->inventoryCount`(m_nSize)@0xb0.
+- **Below the inventory** — 4 direction arrows (zone transitions), the **weapon box** (drag target from
+  the inventory; rect = `World.nWeaponBox{Left,Top,Right,Bottom}` @0x32a4/a8/ac/b0, drawn by
+  `GameView_DrawWeaponBox` 0x428ac0 which renders `doc->currentWeapon`@0x2e2c), and a **health circle**.
+
+### The inventory scroll bar — `InvScrollBar` (custom `CScrollBar` subclass)
+`GameView.pInvScrollBar` (**+0x40**, `InvScrollBar*`) points to the inventory scroll bar control. It is a
+CWnd-derived object with two extra members:
+
+| off | field | meaning |
+|---|---|---|
+| 0x1c | `m_hWnd` | CWnd handle of the scroll bar (used with `SetScrollRange`/`Pos`, nBar=SB_CTL) |
+| 0x3c | `scrollMax` | max scroll position = `max(0, inventoryCount - 7)` (the list shows **7 rows**) |
+| 0x40 | `scrollPos` | current scroll position, clamped to `[0, scrollMax]` |
+
+`Game_RemoveItem` (0x429150) and `Game_AddItemToInv` (0x428f50) resize the bar after every add/remove:
+`inventoryCount < 8` → range `[0,1]`, `scrollMax=0`; else range `[0, count-7]`, `scrollMax=count-7`.
+
+`InvScrollBar_OnVScroll` (0x409360) is the **reflected** `WM_VSCROLL` handler (`this==pScrollBar`; it was
+mis-attributed to `GameView` by the bulk this-typing — the offset-0x40 collision with `GameView.field_40`
+is coincidental). It steps `scrollPos` by nSBCode (SB_LINE ±1, SB_PAGE ±7, SB_THUMB = absolute), clamps to
+`[0, scrollMax]`, calls `SetScrollPos(m_hWnd)`, then `GameView_DrawText` on the **parent** GameView to
+repaint the two-column list at the new offset.
+
 ## Game tick & enemy AI
 - **`Game_Tick` (0x0040b270)** — the main per-frame update (~10.8 KB, **no callers** ⇒ a registered
   timer/idle callback). `void __fastcall(view*)`. Drives everything each frame:
