@@ -25,7 +25,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB_OWNERS = ("CObject", "CArchive", "CDumpContext", "CRuntimeClass", "CException", "CString",
               "AFX_EXCEPTION_LINK",  # out-of-line inline-dtor COMDAT (folded to NAFXCW at link)
               "CGdiObject", "CPalette", "CFileException", "CFile", "CDocument", "CCmdTarget",
-              "CWinApp")             # MFC classes whose inline ctor/dtor/accessors COMDAT out
+              "CWinApp", "CWnd", "CDialog", "CDataExchange", "CSingleDocTemplate",
+              "CDocTemplate", "CRuntimeClass")  # MFC classes whose inline members COMDAT out
 
 
 def owner_of(mangled):

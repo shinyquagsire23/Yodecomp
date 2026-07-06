@@ -44,7 +44,11 @@ def main():
             rows.append((rel, "COMPILE FAILED", 0, 0)); continue
         addrs = [int(m, 16) for m in re.findall(r"//\s*FUNCTION:\s*YODA\s+0x([0-9a-fA-F]+)", open(cpp).read())]
         # drop MFC base-class library COMDATs (CObject::~CObject, Serialize, ??_GCObject, ...)
-        funcs = [f for f in match.coff_functions(obj) if verify.owner_of(f[0]) not in verify.LIB_OWNERS]
+        # and CRT dynamic-init thunks (_$E123 etc. from a file-scope object with a ctor/dtor):
+        # they byte-match but carry no // FUNCTION marker, so best-fit would mis-pair them.
+        funcs = [f for f in match.coff_functions(obj)
+                 if verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                 and not f[0].lstrip("?").startswith(("_$E", "$E"))]
         mb = mf = 0
         used = set()
         for name, code, relocs in funcs:
