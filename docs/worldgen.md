@@ -133,3 +133,66 @@ iff it has map-flag `LOSS_SCREEN(0xe)` (else NULL). Both demo-hardcoded, called 
   (`param_1`=cell-type shorts, `param_2`=parallel order-id shorts): counts special cells
   (0x65/0x68/0x12d..0x130), then walks and assigns sequential order ids (writing 0x132 markers),
   building the quest path chain. Returns the number of placed quest steps.
+
+## ⭐ Full worldgen function map (2026-07-06, 3-agent RE sweep — doc TU now has ZERO undocumented FUN_*)
+
+**Decoder rings** (from `~/workspace/DesktopAdventures`): `ZoneObj->type` = `OBJ_TYPE`
+(0=QUEST_ITEM_SPOT 1=SPAWN 2=THE_FORCE 5=LOCATOR 9=DOOR_IN 0xc=LOCK 0xd=TELEPORTER); `Zone->type`
+= `map_flags` (1=ENEMY_TERRITORY 2=FINAL_DESTINATION 3=ITEM_FOR_ITEM 4=FIND_USEFUL_NPC 5=ITEM_TO_PASS
+6/7=FROM/TO_ANOTHER_MAP 9=INTRO 0xa=FINAL_ITEM 0xb=MAP_START 0xf=MAP_TO_ITEM_FOR_LOCK 0x10=FIND_USEFUL_DROP
+0x11=FIND_USEFUL_BUILDING 0x12=FIND_THE_FORCE). A zone's four IZAX/IZX2-4 candidate lists are
+`genCandidateA`/`genCandidateB`/`cobArray4`/`cobArray5`. **Every search recurses through DOOR_IN
+(type 9) objects** (child zone id @+0xe) so an indoor sub-zone's item lists count toward its parent.
+
+**Two worldgen zone-entry lists in World** (elements = 8-byte `{u16 zoneId@4, u16 val@6}`, ctor
+`Mfc::0x401390`, vtable 0x44b080): **`worldgenPendingZones` @0x25c** = worklist, push-FRONT
+(`WorldgenPushZoneEntry`/`RemoveZoneEntry`); **`worldgenRefZones` @0x270** = dedup set,
+scan-then-`SetAtGrow` (`WorldgenAddZoneEntry`/`RemoveZoneEntry2`).
+
+**Driver:** `World::Generate` (0x420xxx) → `WorldgenCarveQuestPath` ×3 (difficulty tiers 2/3/4;
+random-walk a connected quest path across the 10×10 order grid, writing path tokens 0x12d-0x130,
+blockers, goal 0x65) → `WorldgenPlaceQuestNode` (0x41f120) ~20× (one per quest step) +
+`WorldgenPlaceBlockades` (ITEM_TO_PASS barriers) + `WorldgenPlacePuzzles` (0x421930, the puzzle pass).
+
+**`WorldgenPlaceQuestNode` (0x41f120) is the hub:** for a target `map_flags` role it collects all
+grid zones of that type on the current planet (`Zone.zoneUnk846 == currentPlanet`), shuffles them
+(`WorldgenShuffleList`, 0x41ef90 Fisher-Yates), and `switch`es on the type to a specialized leaf placer:
+
+| fn | zone/obj target | role |
+|---|---|---|
+| `WorldgenFillQuestItemSpot` 0x41c580 | OBJ_QUEST_ITEM_SPOT(0) via genCandidateA | place required item |
+| `WorldgenFillSpawn` 0x41c730 | OBJ_SPAWN(1) via genCandidateB | place spawn item |
+| `WorldgenPopulateGoalZone` 0x41c8f0 | Zone FINAL_ITEM(0xa) | bind 2 quest items → final item |
+| `WorldgenPlaceItemOnLock` 0x41cdc0 | OBJ_LOCK(0xc) | place lock item |
+| `WorldgenPlaceUsefulObjectMaybe` 0x41d260 | Zone 0x11/0x12 | weapon→THE_FORCE / LOCATOR / item |
+| `WorldgenAssignTransitItemMaybe` 0x41d480 | Zone 6/7 transit | assign required transit item |
+| `WorldgenPlaceUsefulDropChainMaybe` 0x41cbe0 | Zone FIND_USEFUL_DROP(0x10) | drop-quest node |
+| `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 | Zone MAP_TO_ITEM_FOR_LOCK(0xf) | lock-quest node |
+| `WorldgenSelectPuzzleMaybe` 0x41eab0 | puzzles@0xd0 | pick puzzle by type (9999=goal → per-planet storyHistory + hardcoded goal-id sets) |
+| `WorldgenPickItemFromZoneMaybe` 0x41e920 | cobArray4/5 | random unplaced item id |
+
+**Feasibility/dedup helpers:** `ZoneProvidesItemMaybe` 0x41c3b0 (item in IZX2?),
+`ZoneFindInIzxList` 0x41c490 (lookup in cobArray4/5), `IsItemPlaced` 0x41d670 (global item de-dup,
+scans placed-object array @+0x274/count+0x278), `IsZoneUsed` 0x41d8d0 (zone free?),
+`CheckZoneItemsAvailableMaybe` 0x41f830 (quest sub-tree satisfiable?),
+`WorldgenCollectZoneRefsMaybe` 0x41f8e0 (gather all zones a branch references),
+`IsTileInGoalListMaybe` 0x4215e0 (goalTileList contains?), `GetZoneGridOrder` 0x421e50 (10×10 order table).
+Per-cell quest content is recorded into the `genCell*Scratch` fields (World+0x3380 region).
+
+## ⭐ `.wld` save/load — FourCC chunk container (2026-07-06)
+
+Same framing as `.DTA`: each record = 4-byte ASCII tag + u32 length + payload; reader loops
+`Read(tag,4); Read(len,4); strcmp` → dispatch or `Seek(len, current)`; `ENDF` ends. **`VERS` must == 0x200**
+or `AfxMessageBox` + abort. Path = app+0xc0 (CWinApp doc path), read-only binary.
+- **`World::LoadWorld` (0x421fd0)** — new-game world builder (from StartGame): parses the *world-definition*
+  chunks `ZONE/ZAUX/ZAX2/ZAX3/ACTN/HTSP` (= DA's IZON/IZAX/IZX2/IZX3/IACT) into the runtime zone list.
+- **`World::Serialize` (0x423b30, CDocument override)** + **`LoadWorldStateFile` (0x423850, from OnDraw)** —
+  the *state* path: read only `VERS/STUP/ENDF`. Store branch empty (demo Save grayed).
+- **`ReadStupCanvas` (0x423d60)** — the STUP chunk = a 288×288 8-bit canvas snapshot (the map/overview
+  bitmap) streamed row-by-row into `pCanvas` (dest stride 0x240). No ASAV44 magic in the demo (retail only).
+- **`SetCurrentToIntroZone` (0x423d20)** — set currentZone to the INTRO zone (type 9) + RefreshZone (StartGame).
+- **`GameView::DetonateAdjacentTiles` (0x428680)** — bomb blast over the 3×3 around (x,y): destructible
+  layer-1 tiles (flag+0x406 & 2) → `Zone::DamageEntityAt` (dmg 6/8/10 by dir) + clear tile + redraw.
+
+**Correction:** `0x41c340` is a load/save stack-helper ctor (vtable 0x44d2b4), NOT the doc ctor
+(that is `World::World` @0x41a870). `WorldgenSelectPuzzle` (0x41eab0) was mis-named "BuildZoneLists".

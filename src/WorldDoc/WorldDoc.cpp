@@ -520,21 +520,21 @@ World::~World()
     }
     puzzles.SetSize(0, -1);
 
-    n = unk25c.GetSize();
+    n = worldgenPendingZones.GetSize();
     for (i = 0; i < n; i++) {
-        CObject *p = unk25c[i];
+        CObject *p = worldgenPendingZones[i];
         if (p != NULL)
             delete p;
     }
-    unk25c.SetSize(0, -1);
+    worldgenPendingZones.SetSize(0, -1);
 
-    n = unk270.GetSize();
+    n = worldgenRefZones.GetSize();
     for (i = 0; i < n; i++) {
-        CObject *p = unk270[i];
+        CObject *p = worldgenRefZones[i];
         if (p != NULL)
             delete p;
     }
-    unk270.SetSize(0, -1);
+    worldgenRefZones.SetSize(0, -1);
 
     questItemsA.SetSize(0, -1);
     questItemsB.SetSize(0, -1);

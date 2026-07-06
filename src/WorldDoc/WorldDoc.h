@@ -97,8 +97,9 @@ public:
     CWordArray  placedZoneIds;       // +0x0220
     CWordArray  unk234;              // +0x0234
     CWordArray  unk248;              // +0x0248
-    CObArray    unk25c;              // +0x025c
-    CObArray    unk270;              // +0x0270
+    CObArray    worldgenPendingZones;  // +0x025c  worklist (push-front): zones pending expansion
+    CObArray    worldgenRefZones;     // +0x0270  dedup set: zones referenced/required by the quest
+                                     //           (elements = 8-byte {u16 zoneId@4, u16 val@6}; ctor 0x401390)
     CWordArray  storyHistoryNevada;  // +0x0284  planet 1 = Tatooine (Indy-engine key names)
     CWordArray  storyHistoryAlaska;  // +0x0298  planet 2 = Hoth (the demo planet)
     CWordArray  storyHistoryOregon;  // +0x02ac  planet 3 = Endor
