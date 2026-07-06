@@ -214,7 +214,9 @@ void World::CacheUiTilePtrsMaybe()
     apUiTiles[19] = (Tile *)tiles[833];
 }
 
-// FUNCTION: YODA 0x0041a6d0
+// FUNCTION: YODA 0x0041a6d0  [EFFECTIVE MATCH: DIFF(50) at exact length, 138/138 insns —
+//   pure {this,camX,camY} EDI/EBX/ESI 3-cycle + one this-copy schedule slot; permuter-immune
+//   (stmt/cmp/decl all inert — the parked contest family).]
 // Redraws the map cell under the player onto the Canvas at (cameraX,cameraY):
 // layer 0, layer 1 (masked if TILE_GAME_OBJECT), player frame, then layer 2.
 void World::DrawPlayer()
@@ -253,7 +255,11 @@ void World::DrawPlayer()
     }
 }
 
-// FUNCTION: YODA 0x0041a870
+// FUNCTION: YODA 0x0041a870  [WIP: 609/609 insns after the switch() fix (planet blocks are
+//   switches, compare-cascade emitted at top). Residual = the imm-vs-reg STORE-BATCHING open
+//   problem (see CLAUDE.md pickup): our compiles sink `= imm` stores below `= reg(0)` runs;
+//   the orig keeps them interleaved. nMusicEnabled=1 FIRST lands right; the 0x32-triple's
+//   landing is order-invariant. Plus the member-ctor chain edx/ecx temp rename.]
 // World (CDeskcppDoc) constructor: members in EH-state order, registry options,
 // planet rotation, demo overrides, UI layout rects, palette object, install path.
 World::World()
@@ -452,7 +458,9 @@ World::World()
 }
 
 // FUNCTION: YODA 0x0041b2d0  (scalar deleting dtor ??_G — emitted by the compiler)
-// FUNCTION: YODA 0x0041b2f0
+// FUNCTION: YODA 0x0041b2f0  [PHASE-DISPLACED: byte-matched 1441B under the dial at commit
+//   854fba2; the GetLocatorIcon/DrawPlayer rewrites rotated one esi/edi 2-cycle in the tiles
+//   free-loop (DIFF(6), align=0). Source proven correct; resolve at the TU joint pass.]
 // World destructor: write the options back to the registry, then destroy all assets.
 World::~World()
 {
@@ -542,35 +550,54 @@ World::~World()
 // Modified copy of MFC's CDocument::OnOpenDocument (opens the CFile directly).
 BOOL World::OnOpenDocument(LPCTSTR lpszPathName)
 {
+    IsModified();               // MFC source: if (IsModified()) TRACE0(...) — call survives
+
     CFile file;
     CFileException fe;
-    BOOL bOpen = file.Open(lpszPathName, CFile::shareDenyWrite, &fe);
-    if (bOpen) {
-        DeleteContents();
-        SetModifiedFlag();          // dirty during de-serialize
-        CArchive loadArchive(&file, CArchive::load | CArchive::bNoFlushOnDelete, 0x1000, NULL);
-        loadArchive.m_bForceFlat = FALSE;
-        loadArchive.m_pDocument = this;
-        TRY {
-            BeginWaitCursor();
-            Serialize(loadArchive);
-            loadArchive.Close();
-            file.Close();
-        } END_TRY
-        EndWaitCursor();
-        SetModifiedFlag(FALSE);
-    }
-    else {
+    if (!file.Open(lpszPathName, CFile::modeRead | CFile::shareDenyWrite, &fe)) {
         ReportSaveLoadException(lpszPathName, &fe, FALSE, AFX_IDP_FAILED_TO_OPEN_DOC);
+        return FALSE;
     }
-    return bOpen != 0;
+
+    DeleteContents();
+    SetModifiedFlag();          // dirty during de-serialize
+
+    CArchive loadArchive(&file, CArchive::load | CArchive::bNoFlushOnDelete);
+    loadArchive.m_bForceFlat = FALSE;
+    loadArchive.m_pDocument = this;
+    TRY {
+        BeginWaitCursor();
+        Serialize(loadArchive);     // load me
+        loadArchive.Close();
+        file.Close();
+    }
+    CATCH_ALL(e) {
+        file.Abort();               // will not throw an exception
+        DeleteContents();           // remove failed contents
+        EndWaitCursor();
+        TRY {
+            ReportSaveLoadException(lpszPathName, e, FALSE, AFX_IDP_FAILED_TO_OPEN_DOC);
+        }
+        END_TRY
+        return FALSE;
+    }
+    END_CATCH_ALL
+
+    EndWaitCursor();
+    SetModifiedFlag(FALSE);     // start off with unmodified
+    return TRUE;
 }
 
-// FUNCTION: YODA 0x0041bb10
+// FUNCTION: YODA 0x0041bb10  [WIP: 286/286 insns, structure converged; residual = the
+//   reg-rename/schedule family (GetSysColor byte-temp coloring al/cl, temp-store order in
+//   the branch heads, zero-reg sourcing). Cracked this session: nFull=-1 init is the FIRST
+//   statement; nUsed=0 per-branch (not hoisted); peFlags-inside-if + peRed/peBlue/peGreen
+//   store order; pPalette loaded into a local BEFORE ::CreatePalette.]
 // OnNewDocument override: zero the zone-pointer grid, build the game palette from the
 // system palette + master table, create the offscreen Canvas.
 BOOL World::OnNewDocument()
 {
+    int nFull = -1;
     if (!CDocument::OnNewDocument())
         return FALSE;
 
@@ -586,7 +613,6 @@ BOOL World::OnNewDocument()
     HDC hdc = ::GetDC(NULL);
     ::GetDeviceCaps(hdc, BITSPIXEL);
     unk2e5c = 1;
-    int nFull = -1;
     int nSys = ::GetDeviceCaps(hdc, NUMCOLORS);
     if (nSys > 0x14) {
         nFull = nSys;
@@ -596,9 +622,10 @@ BOOL World::OnNewDocument()
     nSys /= 2;
 
     int k;
-    int nUsed = 0;
+    int nUsed;
     if (nFull < 0) {
         // palettized device: mirror the first nSys system entries into the master table
+        nUsed = 0;
         for (k = 0; k < nSys; k++) {
             sysPalette[k].peFlags = 0;
             pSysColorTable[k * 4 + 2] = sysPalette[k].peRed;
@@ -609,34 +636,42 @@ BOOL World::OnNewDocument()
     }
     else {
         // full-color device: synthesize entries 0-3 from the system colors + white at 0xff
-        if (nSys > 0)
+        nUsed = 0;
+        if (nSys > 0) {
+            sysPalette[0].peFlags = 0;
             nUsed = nSys;
+        }
         sysPalette[0].peRed = 0;
-        sysPalette[0].peFlags = 0;
         sysPalette[0].peBlue = 0;
         sysPalette[0].peGreen = 0;
         pSysColorTable[0] = 0;
         pSysColorTable[1] = pSysColorTable[0];
         pSysColorTable[2] = pSysColorTable[1];
         DWORD c = ::GetSysColor(0xf);
-        sysPalette[1].peRed = (BYTE)c;
-        pSysColorTable[6] = (BYTE)c;
-        sysPalette[1].peGreen = (BYTE)(c >> 8);
-        pSysColorTable[5] = (BYTE)(c >> 8);
+        BYTE b = (BYTE)c;
+        sysPalette[1].peRed = b;
+        pSysColorTable[6] = b;
+        b = (BYTE)(c >> 8);
+        sysPalette[1].peGreen = b;
+        pSysColorTable[5] = b;
         sysPalette[1].peBlue = (BYTE)(c >> 0x10);
         pSysColorTable[4] = (BYTE)(c >> 0x10);
         c = ::GetSysColor(0x10);
-        sysPalette[2].peRed = (BYTE)c;
-        pSysColorTable[10] = (BYTE)c;
-        sysPalette[2].peGreen = (BYTE)(c >> 8);
-        pSysColorTable[9] = (BYTE)(c >> 8);
+        b = (BYTE)c;
+        sysPalette[2].peRed = b;
+        pSysColorTable[10] = b;
+        b = (BYTE)(c >> 8);
+        sysPalette[2].peGreen = b;
+        pSysColorTable[9] = b;
         sysPalette[2].peBlue = (BYTE)(c >> 0x10);
         pSysColorTable[8] = (BYTE)(c >> 0x10);
         c = ::GetSysColor(0x14);
-        sysPalette[3].peRed = (BYTE)(c & 0xffff);
-        pSysColorTable[0xe] = (BYTE)(c & 0xffff);
-        sysPalette[3].peGreen = (BYTE)((c & 0xffff) >> 8);
-        pSysColorTable[0xd] = (BYTE)((c & 0xffff) >> 8);
+        WORD w = (WORD)c;
+        sysPalette[3].peRed = (BYTE)w;
+        pSysColorTable[0xe] = (BYTE)w;
+        b = (BYTE)(w >> 8);
+        sysPalette[3].peGreen = b;
+        pSysColorTable[0xd] = b;
         sysPalette[3].peBlue = (BYTE)(c >> 0x10);
         pSysColorTable[0xc] = (BYTE)(c >> 0x10);
         sysPalette[0xff].peBlue = 0xff;
@@ -648,7 +683,7 @@ BOOL World::OnNewDocument()
     }
 
     int nEnd = 0x100 - nSys;
-    if (nUsed < nEnd) {
+    if (nEnd > nUsed) {
         for (k = nUsed; k < nEnd; k++) {
             sysPalette[k].peRed = pSysColorTable[k * 4 + 2];
             sysPalette[k].peGreen = pSysColorTable[k * 4 + 1];
@@ -661,7 +696,8 @@ BOOL World::OnNewDocument()
             sysPalette[k].peFlags = 0;
     }
 
-    pPalette->Attach(::CreatePalette((LOGPALETTE *)&palVersion));
+    CPalette *pPal = pPalette;
+    pPal->Attach(::CreatePalette((LOGPALETTE *)&palVersion));
 
     if (pCanvas == NULL) {
         Canvas *pNew = NULL;
