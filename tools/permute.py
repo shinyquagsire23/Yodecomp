@@ -118,6 +118,9 @@ def mutate_cmps(text, rng):
     return text
 
 
+ORIG_LEN = None      # --len: the original's true extent (EH functions whose candidate length is off)
+
+
 def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
     cpp = os.path.join(workdir, base + ".cpp")
     obj = os.path.join(workdir, base + ".obj")
@@ -137,10 +140,11 @@ def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
         if target_name is None and name_hint and ("?%s@" % name_hint) not in name:
             continue
         L = match.trim_pad(code)
-        orig = EXE[foff:foff + L]
+        tgt = ORIG_LEN if ORIG_LEN is not None else L
+        orig = EXE[foff:foff + tgt]
         # Graded, register-rename-aware score (asmscore) as the oracle: gives the
         # hill-climb a real gradient instead of the flat raw-byte-diff plateau.
-        res = asmscore.score(orig, code[:L], relocs, exact_len=L)
+        res = asmscore.score(orig, code[:L], relocs, exact_len=tgt)
         cand = (0 if res.exact else 1, res.total, name, res.byte_diff)
         if best is None or cand < best:
             best = cand
@@ -411,6 +415,9 @@ def main():
     iters = int(sys.argv[sys.argv.index("--iters") + 1]) if "--iters" in sys.argv else 3000
     mode = sys.argv[sys.argv.index("--mode") + 1] if "--mode" in sys.argv else "all"
     forced = sys.argv[sys.argv.index("--name") + 1] if "--name" in sys.argv else None
+    if "--len" in sys.argv:
+        global ORIG_LEN
+        ORIG_LEN = int(sys.argv[sys.argv.index("--len") + 1], 0)
     text = open(src).read()
     afx = bool(re.search(r"#\s*include\s*<afx", text))
     if not afx:  # also look through local includes (e.g. Records.cpp -> Records.h -> <afxwin.h>)

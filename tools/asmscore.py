@@ -22,8 +22,10 @@ grades the residual as a weighted sum of four tiers (lower = closer):
   3. reg_identity_miss     how many aligned register slots differ from the
                            ORIGINAL's exact register.  Drives a consistent
                            rename toward the original's actual allocation.
-  4. byte_diff             the original raw reloc-masked byte diff, as the finest
-                           tie-break; also catches wrong immediates/displacements.
+  4. byte_diff             reloc-masked byte diff: positional when the lengths
+                           match (the classic DIFF(n) count), otherwise summed
+                           over the instruction alignment; also catches wrong
+                           immediates/displacements.
 
 With weights 1000 / 100 / 10 / 1 the permuter first makes the instruction stream
 structurally identical, then makes the register mapping a clean bijection, then
@@ -33,7 +35,25 @@ Three extra gradient tiers where there used to be a plateau.
 This is the technique decomp.me / simonlindholm's decomp-permuter use to make
 randomized search converge; here it is tailored to MSVC 4.2 x86-32 output.
 
-Standalone:  tools/asmscore.py <src.cpp> 0xADDR   (compiles + scores one function)
+EH-FUNCLET SAFETY (the 2026-07-06 fix). The old scorer masked the ORIGINAL's
+bytes at the CANDIDATE's reloc offsets before disassembling: once any length
+shifted, that zeroed opcode bytes mid-stream, capstone decoded garbage, and the
+align tier turned into noise (the savers' phantom align=1368). Now each side is
+disassembled RAW (both encodings are always valid) and relocation masking happens
+per-instruction per-side: the candidate's COFF reloc fields are zeroed inside its
+own instruction (and at the same intra-instruction offsets in the aligned original
+when the encodings line up), and rel8/rel32 branch targets are zeroed on each side
+independently (length shifts move them; the align tier still checks the branch
+structurally). No pre-decode masking, no positional assumptions. A COMDAT is
+copied verbatim by the linker, so main body + EH funclets + jump tables are
+directly comparable in stream order — no body/funclet split is needed for the
+gradient (differing funclets are real signal: a missing CString temp = a missing
+funclet). Jump-TABLE data at the tail of switch functions still decodes as
+garbage on both sides; that residual noise is roughly symmetric but do not trust
+per-insn identity inside table bytes.
+
+Standalone:  tools/asmscore.py <src.cpp> 0xADDR [--len N]  (compile + score one function;
+             --len overrides the original's extent when the candidate's length is off)
 As a library: score(orig_bytes, mine_bytes, reloc_offsets) -> ScoreResult
 """
 import os
@@ -76,10 +96,18 @@ def _canon_reg(name):
 
 class Insn:
     """A decoded instruction reduced to what the scorer compares."""
-    __slots__ = ("mnem", "opkinds", "regs")
+    __slots__ = ("mnem", "opkinds", "regs", "off", "size", "raw",
+                 "is_rel_branch", "imm_off", "imm_size", "reloc_offs")
 
     def __init__(self, cs_insn):
         self.mnem = cs_insn.mnemonic
+        self.off = cs_insn.address
+        self.size = cs_insn.size
+        self.raw = bytes(cs_insn.bytes)
+        self.is_rel_branch = capstone.CS_GRP_BRANCH_RELATIVE in cs_insn.groups
+        self.imm_off = cs_insn.imm_offset if cs_insn.imm_size else None
+        self.imm_size = cs_insn.imm_size
+        self.reloc_offs = ()          # intra-insn offsets of COFF reloc fields (candidate side)
         kinds = []
         regs = []                     # ordered allocation slots (reg ops + mem base/index)
         for op in cs_insn.operands:
@@ -113,9 +141,44 @@ class Insn:
     def struct_key(self):
         return (self.mnem, self.opkinds)
 
+    def masked(self, extra_offs=()):
+        """Encoding with this side's reloc fields + rel-branch target zeroed,
+        plus any `extra_offs` (the OTHER side's reloc fields, same intra-insn
+        offsets — valid when the two encodings line up structurally)."""
+        b = bytearray(self.raw)
+        zero = set()
+        for o in list(self.reloc_offs) + list(extra_offs):
+            zero.update(range(o, o + 4))
+        if self.is_rel_branch and self.imm_off is not None:
+            zero.update(range(self.imm_off, self.imm_off + self.imm_size))
+        for o in zero:
+            if 0 <= o < len(b):
+                b[o] = 0
+        return bytes(b)
 
-def _decode(buf):
-    return [Insn(i) for i in _md.disasm(bytes(buf), 0x1000)]
+
+def _decode(buf, relocs=()):
+    """Disassemble RAW bytes (no pre-masking — encodings are always valid on both
+    sides). `relocs` are function-relative offsets of 4-byte COFF reloc fields
+    (candidate side); each is attached to the instruction containing it. Trailing
+    int3/nop padding instructions are dropped."""
+    insns = [Insn(i) for i in _md.disasm(bytes(buf), 0)]
+    # cut at the FIRST int3: YodaDemo pads exclusively with 0xCC and no function
+    # body contains one, so everything after it is padding + the next function
+    # (an over-long orig slice must not charge gap costs for foreign code).
+    for k, ins in enumerate(insns):
+        if ins.mnem == "int3":
+            insns = insns[:k]
+            break
+    if relocs:
+        rel = sorted(relocs)
+        for ins in insns:
+            mine = tuple(o - ins.off for o in rel if ins.off <= o < ins.off + ins.size)
+            if mine:
+                ins.reloc_offs = mine
+    while insns and insns[-1].mnem == "nop":
+        insns.pop()
+    return insns
 
 
 def _mask(buf, offs, n):
@@ -125,6 +188,19 @@ def _mask(buf, offs, n):
             if o + k < n:
                 b[o + k] = 0
     return bytes(b)
+
+
+def _pair_bytediff(ai, bi):
+    """Byte difference of one aligned pair, reloc/branch-masked per side.
+    The candidate's reloc field offsets are also applied to the original when the
+    encodings are the same length (same field layout once the structure matches)."""
+    extra = bi.reloc_offs if ai.size == bi.size else ()
+    a = ai.masked(extra)
+    b = bi.masked()
+    if len(a) != len(b):
+        common = sum(1 for x, y in zip(a, b) if x != y)
+        return common + abs(len(a) - len(b))
+    return sum(1 for x, y in zip(a, b) if x != y)
 
 
 def _align(a, b):
@@ -175,18 +251,43 @@ class ScoreResult:
 def score(orig, mine, relocs, exact_len=None):
     """Grade `mine` against `orig` (both raw bytes), relocations masked.
 
-    `relocs` are byte offsets (within the function) of 4-byte reloc fields.
-    `exact_len` (the original's trimmed length) is used for the exact-match test;
-    defaults to len(orig).
-    """
-    n = min(len(orig), len(mine))
-    om = _mask(orig, relocs, len(orig))
-    cm = _mask(mine, relocs, len(mine))
-    byte_diff = sum(1 for i in range(n) if om[i] != cm[i]) + abs(len(orig) - len(mine))
+    `relocs` are byte offsets (within the function) of 4-byte reloc fields in
+    the CANDIDATE (`mine`). `exact_len` (the original's trimmed length) is used
+    for the exact-match test; defaults to len(orig). `orig` may be sliced LONGER
+    than exact_len (margin for EH-funclet tails) — trailing int3 padding is
+    dropped at the instruction level.
 
-    a = _decode(om)
-    b = _decode(cm)
+    Both sides are disassembled RAW; masking is per-instruction per-side (see
+    module docstring — never pre-mask the original at candidate reloc offsets).
+    """
+    tgt = exact_len if exact_len is not None else len(orig)
+    equal = len(mine) == tgt and len(orig) >= tgt
+    a = _decode(orig[:tgt] if equal else orig)
+    b = _decode(mine, relocs)
     align, pairs = _align(a, b)
+
+    # Positional byte comparison is only meaningful while byte offsets coincide —
+    # which the CLI's equal slice lengths do NOT guarantee (an internal +N/-N shift
+    # keeps the totals equal). Trust it only when the alignment says the streams
+    # never slipped: no gaps, no size-changed pairs.
+    slipped = any(ia is None or ib is None for ia, ib in pairs) or \
+        any(a[ia].size != b[ib].size for ia, ib in pairs if ia is not None and ib is not None)
+    if equal and not slipped:
+        # the classic positional reloc-masked count (verify.py's DIFF(n) number)
+        om = _mask(orig, relocs, tgt)
+        cm = _mask(mine, relocs, tgt)
+        byte_diff = sum(1 for i in range(tgt) if om[i] != cm[i])
+    else:
+        # streams slipped: sum byte differences over the instruction alignment
+        # (per-side reloc/branch masking), plus the size of unpaired instructions.
+        byte_diff = 0
+        for ia, ib in pairs:
+            if ia is not None and ib is not None:
+                byte_diff += _pair_bytediff(a[ia], b[ib])
+            elif ia is not None:
+                byte_diff += a[ia].size
+            else:
+                byte_diff += b[ib].size
 
     corr = defaultdict(Counter)     # orig_reg -> Counter(mine_reg)
     total_obs = 0
@@ -217,10 +318,38 @@ def score(orig, mine, relocs, exact_len=None):
     res.byte_diff = byte_diff
     res.n_orig = len(a)
     res.n_mine = len(b)
-    tgt_len = exact_len if exact_len is not None else len(orig)
-    res.exact = (byte_diff == 0 and len(mine) == tgt_len)
+    res.exact = (len(mine) == tgt and byte_diff == 0)
     res.total = W_ALIGN * align + W_REGPEN * reg_pen + W_IDENTITY * identity_miss + W_BYTES * byte_diff
     return res
+
+
+def dump_diff(orig, mine, relocs, out=None):
+    """Print the instruction alignment (orig vs candidate), marking non-identical
+    pairs — the human-readable view of what the align/reg tiers are charging."""
+    out = out or sys.stdout
+    a = _decode(orig)
+    b = _decode(mine, relocs)
+    _, pairs = _align(a, b)
+    txt_a = {i.off: i for i in a}
+    txt_b = {i.off: i for i in b}
+    md2 = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    dis_a = {i.address: "%s %s" % (i.mnemonic, i.op_str) for i in md2.disasm(bytes(orig), 0)}
+    dis_b = {i.address: "%s %s" % (i.mnemonic, i.op_str) for i in md2.disasm(bytes(mine), 0)}
+    for ia, ib in pairs:
+        ai = a[ia] if ia is not None else None
+        bi = b[ib] if ib is not None else None
+        sa = dis_a.get(ai.off, "?") if ai else "-"
+        sb = dis_b.get(bi.off, "?") if bi else "-"
+        if ai and bi and ai.struct_key() == bi.struct_key():
+            mark = " " if ai.regs == bi.regs else "r"   # r = register-only difference
+            if mark == " ":
+                continue
+        elif ai and bi:
+            mark = "S"                                   # structural substitution
+        else:
+            mark = "-" if bi is None else "+"            # deleted / inserted vs orig
+        print("%s  %-42s | %s" % (mark, ("%04x %s" % (ai.off, sa)) if ai else "",
+                                  ("%04x %s" % (bi.off, sb)) if bi else ""), file=out)
 
 
 # --------------------------------------------------------------------------- CLI
@@ -232,6 +361,7 @@ def _cli():
 
     src = sys.argv[1]
     addr = int(sys.argv[2], 0)
+    orig_len = int(sys.argv[sys.argv.index("--len") + 1], 0) if "--len" in sys.argv else None
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cl = os.path.join(root, "toolchain/bin/cl")
     flags = "/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS".split()
@@ -270,13 +400,23 @@ def _cli():
         if want and ("?%s@" % want) not in name:
             continue
         L = match.trim_pad(code)
-        orig = exe[foff:foff + L]
-        res = score(orig, code[:L], relocs, exact_len=L)
+        # --len gives the ORIGINAL's true extent (from Ghidra) — vital when the
+        # candidate's length is off (EH funclets shift everything downstream).
+        tgt = orig_len if orig_len is not None else L
+        orig = exe[foff:foff + tgt]
+        res = score(orig, code[:L], relocs, exact_len=tgt)
         cand = (res.total, name, res)
         if best is None or cand[0] < best[0]:
             best = cand
     print("%#x  best-fit=%s  (want=%s)" % (addr, best[1], want))
     print("  ", best[2])
+    if "--dump" in sys.argv:
+        for name, code, relocs in match.coff_functions(obj):
+            if name != best[1]:
+                continue
+            L = match.trim_pad(code)
+            tgt = orig_len if orig_len is not None else L
+            dump_diff(exe[foff:foff + tgt], code[:L], relocs)
 
 
 if __name__ == "__main__":
