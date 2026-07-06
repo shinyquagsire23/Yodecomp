@@ -5,6 +5,8 @@
 #include "Worldgen.h"
 
 // FUNCTION: YODA 0x0041c3b0
+// [PARKED reg-alloc: original keeps `found` in EDI and spills the objects-loop index; ours
+// allocates the reverse. Structure/insn-count converged; joint TU pass territory.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateB (IZX3)?
 // itemId == -1 means "any": the list just has to be non-empty.
 int World::ZoneProvidesItem(short zoneId, short itemId)
@@ -327,6 +329,8 @@ int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
 }
 
 // FUNCTION: YODA 0x0041ef90
+// [PARKED reg-alloc: the {bAnyEmpty, nMoved, k*2-offset} register contest + the unrotated
+// init loop; structure fully converged (122/122 insns). Joint TU pass territory.]
 // Fisher-Yates-style shuffle of a CWordArray: scatter each element into a random empty slot of a
 // temp array (0xffff = empty sentinel), then copy back.
 void World::WorldgenShuffleList(CWordArray *pList)
@@ -553,6 +557,45 @@ int World::GetZoneGridOrder(int x, int y)
     return gWorldgenGridOrderTable[x + y * 10];
 }
 
+// FUNCTION: YODA 0x00421e70
+// [EFFECTIVE: 17B — SetAtGrow call-site this-reg {EAX,ECX} swap (lea vs add) + one NOP.]
+// CHUNK chunk: allocate + read Character records, -1-terminated id list.
+int World::ParseChar(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id < 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            Character *pNew;
+            TRY {
+                pNew = new Character;
+            }
+            }              // closes the try block the TRY macro opened
+            catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+                _afxExceptionLink.m_pException = e;
+                THROW_LAST();
+                AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                AfxAbort();                            //      (docs/engine-bugs.md #7)
+            }
+            }              // closes the TRY macro's outer (link-scope) brace
+            if (pNew == NULL)
+                return 0;
+            characters.SetAtGrow(characters.GetSize(), pNew);
+            pNew->Read(pFile);
+        }
+    } while (nDone == 0);
+    if (characters.GetAt(0) != NULL)
+        pPlayerChar = (Character *)characters.GetAt(0);
+    return 1;
+}
+
 // FUNCTION: YODA 0x00422f40
 BOOL World::IsModified()
 {
@@ -580,6 +623,45 @@ int World::ParseZone(CFile *pFile)
         zones.SetAt(i, pZone);
     }
     return 1;
+}
+
+// FUNCTION: YODA 0x00422fd0
+// [WIP: nDone++-arm layout family + SetAtGrow this-reg (lea vs add) + a stray NOP from the
+// TRY expansion; structure converged.]
+// CHUNK chunk: allocate + read Puzzle records, -1-terminated id list.
+int World::ParsePuz2(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id < 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            Puzzle *pNew;
+            TRY {
+                pNew = new Puzzle;
+            }
+            }              // closes the try block the TRY macro opened
+            catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+                _afxExceptionLink.m_pException = e;
+                THROW_LAST();
+                AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                AfxAbort();                            //      (docs/engine-bugs.md #7)
+            }
+            }              // closes the TRY macro's outer (link-scope) brace
+            if (pNew == NULL)
+                return 0;
+            puzzles.SetAtGrow(puzzles.GetSize(), pNew);
+            pNew->Read(pFile);
+        }
+        if (nDone != 0)
+            return 1;
+    } while (1);
 }
 
 // FUNCTION: YODA 0x00423110
@@ -634,6 +716,8 @@ int World::ParseZax2(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00423290
+// [EFFECTIVE: block-layout — original parks the nDone++ arm at function end; ours inlines
+// it (arm-order/continue knobs proven inert). Plus one reg rotation.]
 // CAUX chunk: per-character damage words, -1-terminated id list.
 int World::ParseCaux(CFile *pFile)
 {
@@ -658,6 +742,7 @@ int World::ParseCaux(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00423300
+// [EFFECTIVE: same nDone++-arm layout family as ParseCaux; registers exact.]
 // CHWP chunk: per-character weapon id + health, -1-terminated id list.
 int World::ParseChwp(CFile *pFile)
 {
@@ -956,6 +1041,8 @@ int World::Populate()
 }
 
 // FUNCTION: YODA 0x004260e0
+// [WIP: reg 2-cycle {EDX,ECX} in the find loops + EH-state(-1) placement in the 0x217
+// found path; lengths/structure converged.]
 // Place a zone's quest content: find tileId in its IZX3 list and stamp it on a spawn object
 // (zone 0x217 hardcodes the object at (3,3)).
 int World::PlaceZone(short zoneId, unsigned short tileId)

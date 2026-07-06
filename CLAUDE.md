@@ -6,9 +6,11 @@ In general, you can adhere to patterns found in `OpenJKDF2`, located at `~/works
 - **`~/workspace/DesktopAdventures`** — the user's own engine recreation of the *Desktop Adventures* engine (Yoda Stories / Indiana Jones' Desktop Adventures). Invaluable for asset-format and game-logic semantics when naming functions/structs. Notably `scrdoc.txt` = reverse-engineered **script opcode format** (pre-script conditions like `BumpTile`, `CheckEndItem`, `EnemyDead`, `HasItem`, `HealthLs`…), plus `SCRIPTS.md`, `README.md`. Use it to name `.DTA`/zone/script parsing code. The 10×10 grid at World+0x4B4 (stride 0x34/zone) is the map's zone grid.
 - `~/workspace/OpenJKDF2` — style/naming conventions (`Module_Function`, loose-Hungarian), CMake layout.
 
+## Naming Convention and Decompiling Tips
+
 In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat'). Name a pointer after the **struct it points to**, not its MFC role: the `World`(`CDeskcppDoc`) pointer is **`pWorld`**, NOT `doc`/`pDoc` (e.g. `GameView.pWorld@0x44`); a `GameView` pointer is `pView`, etc.
 
-**Function naming = C++ `Namespace::Method` (migration DONE 2026-07-05).** This is a C++/MFC app, so group
+**Function naming = C++ `Namespace::Method`.** This is a C++/MFC app, so group
 functions by their **class** as a Ghidra namespace and give the method a bare name — **do NOT repeat the
 group in the method**: `Canvas::BlitMasked` (not `Canvas::Canvas_BlitMasked` / flat `Canvas_BlitMasked`),
 `GameView::RemoveItem`, `World::Load`, `Zone::GetTile`.
@@ -41,17 +43,21 @@ Still avoid *confidently wrong* names (the `BlitWeaponBox` miss) — read the bo
 "looks like X" guesses, not unread ones.
 For struct fields, an **`Unk`** append like **`Unk0x44`** can be used as a placeholder for fields which have 
 not been seen as written or read to in a way that is clearly identifiable, but the size or type is known.
+For example, an unidentified state machine enum in a struct may start as an int **`Unk`**.
 A **`Related`** append may be used if a function touches several known subsystems, but its actual purpose is 
 unknown. This is an in-between identifier between **`Maybe`** and **`Unk`** in that it gives a signal for what 
 the function touches, without solidifying exactly what the function is/does. This may also be used for fields.
 For example, a function which accesses Palette related functions might be marked
 **`ThisType::FUN_123456_PaletteRelated`**.
+In summary: **`Unk`** (for class fields and structs) and **`FUN_`** (for subroutines) can be upgraded to
+**`Related`**, **`Related`** can be upgraded to **`Maybe`**, and **`Maybe`** can be upgraded to a certain
+identifier.
 
 ## Decompiling
 
 A decompiler instance can be accessed via `http://localhost:8089`, which is running an instance of https://github.com/bethington/ghidra-mcp. The binary that should be accessed is `YodaDemo.exe`, which can also be found at `YodaDemo/YodaDemo.exe`.
 
-**CRITICAL GOTCHA:** The Ghidra project has *multiple* programs open (JK.EXE, DroidWorks.exe, YodaDemo.exe, …) and the *default* active program is **JK.EXE**, not YodaDemo. The HTTP endpoints are stateless — `switch_program` does **not** persist across calls. You **must** append `program=YodaDemo.exe` to *every* request, or you will silently be reading JK.EXE (a different game). The `sithThing_*`/`jkGame_*`/`Video_*` names you see without the param are JK.EXE, not Yoda Stories.
+**CRITICAL GOTCHA:** The Ghidra project has *multiple* programs open (JK.EXE, DroidWorks.exe, YodaDemo.exe, …) and the *current* active program may not be YodaDemo. The HTTP endpoints are stateless — `switch_program` does **not** persist across calls. You **must** append `program=YodaDemo.exe` to *every* request, or you may silently be reading a different game.
 
 Examples (note the mandatory `program=` param):
 `http://localhost:8089/list_functions?program=YodaDemo.exe&limit=3000` - Lists YodaDemo functions.
@@ -442,9 +448,9 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v7 — PHASE D underway: 41 doc-TU funcs transcribed; ~13.5%)
-**Progress ~13.4% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **41 functions,
-23-26 exact depending on the current dial** (the count breathes as functions are added — see
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
+**Progress 13.52% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **43 functions,
+~26 exact depending on the current dial** (the count breathes as functions are added — see
 "dial churn" below). Everything below the fold in v6 still applies; this block is the delta.
 
 **What is DONE in src/Worldgen (exact at least under one dial, all structurally proven):**
@@ -498,10 +504,11 @@ Zaux/Zax2/Zax3 clone trio rotate phases like the GameData loader triplet). Do NO
 (the standing rule). ZoneProvidesItem (found-var in EDI vs stack) and ShuffleList (the
 {bAnyEmpty,nMoved,k*2-offset} contest) are the two structured parks with notes in-source.
 
-**NEXT (in order):** (1) PlaceZone residual is close — one reg 2-cycle + the EH-state(-1)
-placement in the found path; look with fresh eyes or park. (2) ParseChar 0x421e70, then the
-EH-heavy parsers ParsePuz2 0x422fd0 / ParseSnds 0x4233f0 (splitpath) / ParseActn 0x423510 /
-ParseHtsp 0x4236b0. (3) LoadWorld 0x421fd0 + Load 0x422670 (the IFF dispatcher, big switch on
+**NEXT (in order):** (1) ParseChar (17B eff.) + ParsePuz2 done via the ParseTiles TRY/CATCH
+recipe (hand-expanded CATCH_ALL + THROW_LAST + dead OOM box; pNew declared WITHOUT `= NULL` —
+the null-init emits extra stores the original lacks). Their residual = the "nDone++-arm at
+function end" block-layout family (also ParseCaux/Chwp) — arm-order/continue knobs proven
+inert, park it. (2) ParseSnds 0x4233f0 (splitpath) / ParseActn 0x423510 / ParseHtsp 0x4236b0. (3) LoadWorld 0x421fd0 + Load 0x422670 (the IFF dispatcher, big switch on
 FourCC tags — string cmps like Puzzle::Read). (4) PlacePuzzle 0x421620 + WorldgenPlacePuzzles
 0x421930, then the placer family 0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades
 0x41e350, SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120, and last Generate 0x41f960 (6.6KB)

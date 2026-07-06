@@ -129,7 +129,10 @@ public:
     char        _pad3314[0x1c];      // +0x3314
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
-    char        _pad3338[0x48];      // +0x3338
+    char        _pad3338[0x20];      // +0x3338
+    Tile       *pPlayerFrameTile;    // +0x3358
+    Character  *pPlayerChar;         // +0x335c
+    char        _pad3360[0x20];      // +0x3360
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
     int         genCellQuestSlot5Scratch; // +0x3384
     int         genCellItemAScratch;      // +0x3388
@@ -161,7 +164,9 @@ public:
     int  GetZoneGridOrder(int x, int y);                 // 0x00421e50
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50
+    int  ParseChar(CFile *pFile);                        // 0x00421e70
     int  ParseZone(CFile *pFile);                        // 0x00422f60
+    int  ParsePuz2(CFile *pFile);                        // 0x00422fd0
     int  ParseZaux(CFile *pFile);                        // 0x00423110
     int  ParseZax3(CFile *pFile);                        // 0x00423190
     int  ParseZax2(CFile *pFile);                        // 0x00423210
