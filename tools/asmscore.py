@@ -235,6 +235,16 @@ def _cli():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     cl = os.path.join(root, "toolchain/bin/cl")
     flags = "/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS".split()
+    _t = open(src).read()
+    _afx = bool(re.search(r"#\s*include\s*<afx", _t))
+    if not _afx:  # look through local includes (e.g. Records.cpp -> Records.h -> <afxwin.h>)
+        for _inc in re.findall(r'#\s*include\s*"([^"]+)"', _t):
+            _p = os.path.join(os.path.dirname(os.path.abspath(src)), _inc)
+            if os.path.exists(_p) and re.search(r"#\s*include\s*<afx", open(_p).read()):
+                _afx = True
+                break
+    if _afx:  # MFC TU -> needs _MBCS to compile afxwin.h
+        flags += ["/D", "_MBCS"]
     exe = open(os.path.join(root, "YodaDemo/YodaDemo.exe"), "rb").read()
     workdir = os.path.dirname(os.path.abspath(src))
     base = os.path.splitext(os.path.basename(src))[0]

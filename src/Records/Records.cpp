@@ -355,7 +355,10 @@ MapEntity::~MapEntity()
 
 // ============================== Tile ==============================
 
-// FUNCTION: YODA 0x00404da0
+// FUNCTION: YODA 0x00404da0  [EFFECTIVE MATCH: DIFF(22) — was byte-exact until the
+//   DamageEntityAt/HitEntityAt declarations were added to Zone's class decl (required for the TU);
+//   header-decl state perturbs this ctor's scheduling. The same additions moved FindObjectAt 7->2.
+//   One coupled allocator system — resolve jointly at the TU endgame, don't whack-a-mole.]
 Tile::Tile()
 {
     flags = 0;
@@ -522,7 +525,11 @@ void Zone::FlagQuestObjects()
     }
 }
 
-// FUNCTION: YODA 0x00405710
+// FUNCTION: YODA 0x00405710  [EFFECTIVE MATCH: structure fully recovered — 229/230 insns, 132
+//   identical; the residual is one `this`-reload (our allocator puts n in ECX, killing this) plus
+//   the ECX<->EDX role swap cascading through the body. True length 690 vs ours 696. All source
+//   shapes tried (n/nChars order, id-local, shared-return-1 nesting, drop=int, single no-var);
+//   allocator tie-break — same parked class as Puzzle/MapEntity ctors.]
 // Apply weapon damage to the entity at (x,y). On kill: clear the projectile tile, then drop
 // the carried item (or the zone's quest item) as a new type-6 ZoneObj on layer 1.
 int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *pWorld, GameView *pView)
@@ -550,33 +557,34 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
                     }
                     e->charId = -1;
                     int drop = 0;
-                    if (e->numItems == 0)
-                        return 1;
-                    if (e->item == 0) {
-                        int m = objects.GetSize();
-                        for (int j = 0; j < m; j++) {
-                            ZoneObj *o = (ZoneObj *)objects[j];
-                            if (o->type == 0 && (short)o->visible > 0) {
-                                drop = o->visible;   // movsx: short -> int
-                                break;
+                    ZoneObj *no;
+                    if (e->numItems != 0) {
+                        if (e->item == 0) {
+                            int m = objects.GetSize();
+                            for (int j = 0; j < m; j++) {
+                                ZoneObj *o = (ZoneObj *)objects[j];
+                                if (o->type == 0 && (short)o->visible > 0) {
+                                    drop = o->visible;   // movsx: short -> int
+                                    break;
+                                }
                             }
-                        }
-                        if (drop > 0) {
-                            ZoneObj *no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
-                            no->visible = drop;
+                            if (drop > 0) {
+                                no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
+                                no->visible = drop;
+                                no->state = 1;
+                                objects.SetAtGrow(objects.GetSize(), no);
+                                SetTile(x, y, 1, drop);
+                                pView->PlayerCheckWalkable((short)x, (short)y);
+                            }
+                        } else {
+                            no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
+                            no->visible = e->item - 1;
                             no->state = 1;
                             objects.SetAtGrow(objects.GetSize(), no);
-                            SetTile(x, y, 1, drop);
+                            SetTile(x, y, 1, e->item - 1);
                             pView->PlayerCheckWalkable((short)x, (short)y);
                         }
-                        return 1;
                     }
-                    ZoneObj *no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
-                    no->visible = e->item - 1;
-                    no->state = 1;
-                    objects.SetAtGrow(objects.GetSize(), no);
-                    SetTile(x, y, 1, e->item - 1);
-                    pView->PlayerCheckWalkable((short)x, (short)y);
                     return 1;
                 }
             }
@@ -587,7 +595,10 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
     return 0;
 }
 
-// FUNCTION: YODA 0x004059d0
+// FUNCTION: YODA 0x004059d0  [EFFECTIVE MATCH: DIFF(20) at exact length (266) — i/nChars/scratch
+//   register 3-cycle + one cmp-operand flip + one movsx pair order. Permuter-confirmed (2 runs,
+//   stmt+cmp) not source-reachable. Cracked to this point by: nested `int id = e->charId` (single
+//   movsx serving both range tests), int timerVal, SetTile(short val) => push -1.]
 // Non-lethal hit: stun the entity at (x,y) (timer), and clear its in-flight projectile tile.
 int Zone::HitEntityAt(int x, int y, CObArray *paChars, int timerVal, World *pWorld, GameView *pView)
 {
