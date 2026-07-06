@@ -276,18 +276,30 @@ whole /Gy COMDAT `[entry .. last funclet end)`. Both were run LIVE on YodaDemo a
   for REVIEW and only merged when `MERGE_UNNAMED_FUNCLETS=true`. App region only (`[0x401000,0x429000)`).
 - ⚠ `run_ghidra_script` runs on Ghidra's Swing thread — an infinite loop **freezes the GUI** (hit once via a
   no-progress cursor bug). Always guarantee loop progress + a hard iteration cap in gap-walkers.
-- `tools/ghidra_scripts/FillFunctionHoles.java` — the *mid-function* counterpart: MSVC emits C++ EH
-  catch/cleanup blocks in the MIDDLE of a function's COMDAT (no normal-flow edge), so Ghidra leaves them
-  out of the body as UNDEFINED bytes or disassembled-but-ORPHAN instructions between two body ranges (e.g.
-  the 41B catch block at 0x42905b in AddItemToInv). This script finds them, disassembles if needed, and
-  unions them into the owning function so the body is contiguous. Ran live: **14 holes (312B) attached to
-  13 functions** (AddItemToInv/DrawRect/Read/UpdateDragCursor/PlacePuzzle/… now ranges=1). Detection is
-  strict: within [entry,bodyMax], not 0xCC pad (0x00 is NOT padding — it's inside `push 0`), not another
-  function, TILES cleanly into instructions (misaligned decode = data), ends RET/JMP or flows into body,
-  and ≤0x40B. **5 larger holes (>0x40B) are REPORTED, not filled** — they can embed jump tables that also
-  decode as valid x86: Tick@0x40d3bb (65B, the switch region), OnMouseMove@0x413b21 (169B), OnUpdate
-  DifficultyUi@0x416621 (266B), WorldgenBuildQuestMaybe@0x41e143 (282B), WorldgenBuildZoneListsMaybe@
-  0x41ee79 (147B) — hand-check before attaching.
+- `tools/ghidra_scripts/FillFunctionHoles.java` — the *mid-function* counterpart. MSVC emits C++ EH
+  catch/cleanup blocks in the MIDDLE of a function's COMDAT (no normal-flow edge); Ghidra leaves them out
+  of the body. Two kinds, both fixed: **(A) between-range holes** — undefined/orphan code in a gap between
+  two body ranges (e.g. the 41B catch block at 0x42905b in AddItemToInv) → disassemble + union into body,
+  ≤0x40B only; **(B) in-body undefined runs** — undefined bytes already inside the body AddressSet, a run
+  of back-to-back `jmp`-terminated destructor funclets where a caller only disassembled the FIRST (e.g. the
+  member-dtor funclets at 0x404359 in Ctor) → disassemble fully. Ran live: 14 kind-A (312B) + **28 kind-B
+  runs (357B across 18 funcs)** disassembled; parents contiguous.
+  **⭐ ROOT-CAUSE (kind B): the funclet scripts unioned a multi-funclet range but called
+  `disassemble(rangeStart)` ONCE — which follows fall-through and STOPS at the first funclet's `jmp`,
+  leaving the rest as undefined-in-body bytes. Fixed in ParentGapFunclets + FillFunctionHoles with a
+  `disassembleRangeFully()` that steps instruction-by-instruction across the whole range.** Always
+  fully-disassemble an absorbed range, never just its entry.
+  Detection strict: 0xCC-only padding (0x00 is inside `push 0`, NOT pad), TILES cleanly (misaligned = data),
+  ends RET/JMP or flows in. **A between-range hole containing `mov eax,fs:[0]` or `push ebp` is REJECTED** —
+  that's a SEPARATE function whose broken/tiny body left it in the gap, not a catch block (the
+  OnEraseBkgnd-inside-OnMouseMove false positive). Holes >0x40B are REPORTED not filled.
+  ⚠ **KNOWN FOLLOW-UP — broken function bodies + ADJ mis-attribution.** Some real functions have
+  incomplete bodies (e.g. `OnEraseBkgnd`@0x413b20 defined for only its first 6 bytes). Because their body
+  is <0x10, `nearestRealPreceding` treated them as funclet-ish and mis-attached a following funclet to the
+  PRECEDING real function (OnMouseMove got OnEraseBkgnd's 0x413bca funclet → a 2-range body spanning a
+  whole other function). Remaining REVIEW holes (Tick@0x40d3bb switch region, WorldgenBuildQuestMaybe@
+  0x41e143, WorldgenBuildZoneListsMaybe@0x41ee79) are this class or switch data — need manual RE: repair the
+  broken body, then re-home the mis-attached funclet.
 - **App-region boundary is 0x4292f0** (not the approximate 0x429000): the WaveMix import thunks (`jmp [imp]`)
   and MFC/CRT library region begin there. Last app funcs: AddItemToInv/RemoveItem/TmpObjCtor.
 

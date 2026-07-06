@@ -175,9 +175,19 @@ public class ParentGapFunclets extends GhidraScript {
             for (java.util.Map.Entry<Function, AddressSet> e : plan.entrySet()) {
                 Function f = e.getKey();
                 AddressSet add = e.getValue();
-                // disassemble each run start so the body is code, then union
+                // disassemble each run FULLY (not just the start) so a run of
+                // jmp-terminated funclets is all decoded -- disassemble(start)
+                // stops after the first funclet and would leave the rest as
+                // undefined bytes inside the body. Then union.
                 for (AddressRange ar : add) {
-                    if (getInstructionAt(ar.getMinAddress()) == null) disassemble(ar.getMinAddress());
+                    long cur = ar.getMinAddress().getOffset(), end = ar.getMaxAddress().getOffset();
+                    int guard = 0;
+                    while (cur <= end && guard++ < 256) {
+                        if (getInstructionAt(toAddr(cur)) == null) disassemble(toAddr(cur));
+                        ghidra.program.model.listing.Instruction ins = getInstructionAt(toAddr(cur));
+                        if (ins == null) break;
+                        cur += ins.getLength();
+                    }
                 }
                 AddressSet nb = new AddressSet(f.getBody());
                 nb.add(add);
