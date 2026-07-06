@@ -2,8 +2,18 @@
 """Completion dashboard: how much of YodaDemo.exe's app region is byte-matched.
 
 Compiles every src/**/*.cpp with the VC++ 4.2 toolchain, byte-matches each
-annotated function against the original (relocations masked), and reports
-matched-bytes / total-app-function-bytes as a percentage.
+annotated function against the original (relocations masked), and reports two
+tiers against the total app-function bytes:
+
+  EXACT    byte-identical (reloc-masked) — done.
+  PARTIAL  transcribed (has a // FUNCTION marker + a compiled COMDAT) but not
+           byte-exact — the C is written; only byte-matching polish remains.
+
+Everything else still needs DECOMPILING. Functions carried by more than one TU
+(e.g. the retired src/Dta duplicates of Worldgen parsers) are deduped by
+address, an exact copy in any TU winning. Partial byte counts use the compiled
+COMDAT's trimmed length as a proxy for the original function size (close, but
+can drift a few bytes on length-shifted bodies — dashboard precision only).
 
 Denominator (128158 bytes, 534 funcs in 0x401000-0x429000) is from Ghidra:
 sum of function body sizes. Update TOTAL if the app-region function set changes.
@@ -43,8 +53,9 @@ def compile_obj(cpp):
 
 
 def main():
-    matched_bytes = 0
-    matched_funcs = 0
+    # addr -> (exact, nbytes): dedupe functions carried by more than one TU
+    # (exact beats partial; among equals keep the first seen).
+    by_addr = {}
     rows = []
     for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "**", "*.cpp"), recursive=True)):
         obj = compile_obj(cpp)
@@ -60,27 +71,44 @@ def main():
                  and not f[0].lstrip("?").startswith(("_$E", "$E"))]
         # pair each marker to its SAME-named COMDAT (best-fit mis-assigns reloc-masked-identical
         # stubs — two GetMessageMaps become byte-identical once their one imm reloc is masked).
-        mb = mf = 0
+        mb = mf = pf = 0
         for va, name, code, relocs in match.pair_by_name(text, funcs):
             L = match.trim_pad(code)
             foff = (va - match.TEXT_VA) + match.TEXT_RAW
             orig = EXE[foff:foff + L]
             cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
             diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
-            if diffs == 0 and len(orig) == L:
+            exact = diffs == 0 and len(orig) == L
+            if exact:
                 mb += L; mf += 1
-        matched_bytes += mb; matched_funcs += mf
-        rows.append((rel, "%d/%d funcs" % (mf, len(funcs)), mb, len(funcs)))
+            else:
+                pf += 1
+            prev = by_addr.get(va)
+            if prev is None or (exact and not prev[0]):
+                by_addr[va] = (exact, L)
+        rows.append((rel, "%d+%d/%d" % (mf, pf, len(funcs)), mb, len(funcs)))
 
-    print("=" * 56)
+    exact_bytes = sum(L for e, L in by_addr.values() if e)
+    exact_funcs = sum(1 for e, L in by_addr.values() if e)
+    partial_bytes = sum(L for e, L in by_addr.values() if not e)
+    partial_funcs = sum(1 for e, L in by_addr.values() if not e)
+
+    print("=" * 60)
     print(" Yodecomp completion — app region (0x401000-0x429000)")
-    print("=" * 56)
+    print("=" * 60)
+    print("  %-26s %-12s %8s" % ("", "exact+part", "exact B"))
     for rel, note, mb, nf in rows:
-        print("  %-26s %-14s %6d B" % (rel, note, mb))
-    print("-" * 56)
-    pct = 100.0 * matched_bytes / TOTAL_APP_BYTES
-    print("  MATCHED  %d / %d bytes   (%d / %d funcs)" % (matched_bytes, TOTAL_APP_BYTES, matched_funcs, TOTAL_APP_FUNCS))
-    print("  >>> %.2f%% of app-region code byte-matched <<<" % pct)
+        print("  %-26s %-12s %6d B" % (rel, note, mb))
+    print("-" * 60)
+    e_pct = 100.0 * exact_bytes / TOTAL_APP_BYTES
+    p_pct = 100.0 * partial_bytes / TOTAL_APP_BYTES
+    t_pct = e_pct + p_pct
+    print("  EXACT    %6d bytes  (%d funcs)  — byte-matched" % (exact_bytes, exact_funcs))
+    print("  PARTIAL  %6d bytes  (%d funcs)  — transcribed, needs byte-matching"
+          % (partial_bytes, partial_funcs))
+    print("  TOTAL    %6d bytes  (%d funcs in app region)" % (TOTAL_APP_BYTES, TOTAL_APP_FUNCS))
+    print("  >>> %.2f%% exact + %.2f%% partial = %.2f%% transcribed; "
+          "%.2f%% left to decompile <<<" % (e_pct, p_pct, t_pct, 100.0 - t_pct))
 
 
 if __name__ == "__main__":
