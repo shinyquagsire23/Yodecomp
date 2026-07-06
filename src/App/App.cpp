@@ -8,8 +8,8 @@
 #include <stdlib.h>
 
 extern "C" int App_bCpuHasMMX;           // 0x00459e28  (set by the InitInstance CPUID probe)
-int      g_bReplayMode;                  // 0x00459e2c
-CString  g_strReplayPath;                // 0x00459e20
+int         g_bReplayMode;               // 0x00459e2c
+extern CString g_strReplayPath;          // 0x00459e20 — defined in the Frame TU (its thunks live there)
 CWnd    *g_pExistingInstance;            // 0x00459e24
 BYTE     g_bInstanceChecked;             // 0x00459e30  bit0: FindWindow done once
 
