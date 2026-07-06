@@ -62,8 +62,9 @@ public class ParentGapFunclets extends GhidraScript {
 
     // ---- configuration -----------------------------------------------------
     private static final long SCAN_START = 0x401000L;
-    private static final long SCAN_END   = 0x429000L;   // app region only
-    private static final boolean DRY_RUN = false;
+    // app region ends at 0x4292f0 (WaveMix import thunks + MFC/CRT library begin)
+    private static final long SCAN_END   = 0x4292f0L;
+    private static final boolean DRY_RUN = true;
     private static final boolean USE_ADJACENCY = true;  // enable EBP+tail-JMP heuristic
     private static final long MAX_FUNCLET_DIST = 0x400; // funclet must be within this past parent body
     private static final boolean ADD_LABELS = true;     // label each absorbed funclet <parent>_ehN

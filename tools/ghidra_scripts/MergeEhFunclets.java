@@ -48,7 +48,9 @@ import ghidra.program.model.symbol.SourceType;
 public class MergeEhFunclets extends GhidraScript {
 
     private static final long SCAN_START = 0x401000L;
-    private static final long SCAN_END   = 0x429000L;   // app region only
+    // app region ends at 0x4292f0, where the WaveMix import thunks (`jmp [imp]`)
+    // and the MFC/CRT library region begin (CLAUDE.md's 0x429000 was approximate).
+    private static final long SCAN_END   = 0x4292f0L;
     private static final boolean DRY_RUN = true;
     private static final long MAX_FUNCLET_DIST = 0x400;
     private static final long SIZE_CAP = 0x200;          // funclets are tiny; backstop
