@@ -435,9 +435,37 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v5 — MFC scaffolding sprint DONE; 9.99%, 100 funcs)
-**Progress 9.99% byte-exact, 100/534 funcs** (honest name-based count). This sprint cleared the
-whole cleanly-separable small-MFC-class layer (Phase F) + fixed the measurement tooling.
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v6 — PHASE D: transcribe the World/doc TU; 10.01%, 101 funcs)
+**Progress 10.01% byte-exact, 101/534 funcs.** The MFC scaffolding sprint (App/Frame/Dlg + tooling)
+is done and the World/doc TU is FULLY DOCUMENTED (see below). The next push is straight
+transcription of that TU — the single biggest remaining payoff (~52 KB). Everything is staged.
+
+**⭐⭐ START HERE — the Phase-D plan (World/doc TU 0x41c340–0x429000, module src/Worldgen/):**
+1. **The module exists and works.** `src/Worldgen/Worldgen.{h,cpp}` — GetZoneGridOrder (0x421e50)
+   already byte-exact (1/1). `Worldgen.h` has a MINIMAL `World : CObject` facade that you GROW
+   one method-decl at a time as you transcribe. Build/verify exactly like every other TU:
+   `cd src/Worldgen && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS Worldgen.cpp`
+   then `python3 tools/verify.py src/Worldgen/Worldgen.cpp` (name-based pairing works now) and
+   `python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0xADDR --dump` for per-insn diffs.
+2. **Transcribe in .text order, leaf-first.** Start with the dial-INSENSITIVE leaves (this-unused
+   or few-field: GetZoneGridOrder✓, IsItemPlaced 0x41d670, IsZoneUsed 0x41d8d0, GetField44/Set
+   0x422f40/50, IsTileInGoalList 0x4215e0, the accessors) — these match with a tiny facade. Then
+   the recursive query helpers (ZoneProvidesItem, ZoneFindInIzxList, CheckZoneItemsAvailable), then
+   the placers, then the big orchestrators (Generate, WorldgenPlaceQuestNode, LoadWorld, Serialize).
+   docs/worldgen.md is the algorithm bible; every function is named + plate-commented in Ghidra.
+3. **The World facade / TU-phase dial.** Each doc-TU source file compiles its OWN World decl set,
+   and the decl set rotates reg-alloc tie-breaks TU-wide (the dial). For leaves it's inert; for
+   field-heavy functions you'll need the right field OFFSETS (copy from WorldDoc.h — the real
+   ctor-derived World layout: grids@0x4b0, apZoneGrid@0x2d0, the CObArrays/CWordArrays, worldgen
+   scratch@0x3380, the two zone-entry lists worldgenPendingZones@0x25c/worldgenRefZones@0x270).
+   Model touched structs (Zone/ZoneObj already in RecordClasses.h; the 8-byte zone-entry {zoneId@4,
+   val@6}). DON'T consolidate WorldStub.h→WorldDoc.h yet — it's a whole-image endgame concern that
+   risks rotating GameData/Iact dials; keep per-TU facades until then.
+4. **Cross-TU calls** (Parse* chunk handlers, RefreshZone, StartGame, GameView draws, _rand/_time)
+   are masked relocs — declare them as World methods / externs with the right arg widths; the
+   target address is irrelevant to the match. `_rand`/`_time`/`__ftol` need extern "C" decls.
+
+**⏮ The 2026-07-06 v5 sprint (context — all committed):** cleared the small-MFC layer + tooling.
 
 **Sprint deliverables (all committed):**
 - **Tooling name-based pairing** (1f4d227): `match.pair_by_name()` pairs each `// FUNCTION`
@@ -479,18 +507,15 @@ placers; two zone-entry lists @0x25c/0x270; .wld = FourCC container, VERS==0x200
 two zone-entry CObArrays. Decoder rings (ZoneObj.type=OBJ_TYPE, Zone.type=map_flags) from DesktopAdventures.
 Corrections: 0x41c340 = load/save helper ctor (NOT doc ctor); 0x41eab0 = WorldgenSelectPuzzle.
 
-**NEXT: the two monsters are all that's left of substance (~85% of remaining bytes).**
-The small-MFC layer is done; InvScrollBar + the option/slider dialogs are EMBEDDED in the
-GameView TU (0x40a560–0x418700), not separable. Options, in priority order:
-1. **World/doc TU (Phase D, 0x41c340–0x429000, ~52 KB)** — its struct is now largely filled
-   (WorldDoc.h gave the real World class; GameData filled the asset half). Transcribe in .text
-   order: Dta chunk dispatch + worldgen + serialize are doc sections, ONE TU. Biggest payoff.
-   Promote WorldStub.h → WorldDoc.h's real World first (re-verify GameData/Iact dial rotations).
-2. **GameView TU (Phase E, 0x40a560–0x418700, ~57 KB)** — needs GameView struct completion; the
-   Frame TU just pinned several fields (pWorld@0x44, bBusy@0x4c, drag/music fields). Contains
-   the 10.8 KB window-proc/Tick + InvScrollBar + option dialogs.
-3. **Warm-up leftovers:** the parked World scorer CalcSolvedScore (x87, permuter-immune),
-   Records/Iact/Canvas/WorldDoc effective-match JOINT residual passes (endgame).
+**AFTER Phase D (the doc TU above), what's left (~85% of remaining bytes is the two monsters):**
+1. **GameView TU (Phase E, 0x40a560–0x418700, ~57 KB)** — the last monster; needs GameView struct
+   completion (Frame TU pinned pWorld@0x44, bBusy@0x4c, drag/music fields). Contains the 10.8 KB
+   window-proc/Tick + AI + InvScrollBar + the option/slider dialogs (those small MFC classes are
+   EMBEDDED here, not separable). ~0x408c60–0x40a560 is its head (mislabeled "Core utils").
+2. **Warm-up leftovers:** parked World scorer CalcSolvedScore (x87, permuter-immune); the
+   effective-match JOINT residual passes (Records/Iact/Canvas/WorldDoc/Frame reg-alloc tie-breaks).
+3. **Endgame (Phase G):** whole-image build — real link order, .rdata/.data layout, PE timestamp/
+   checksum masking, reccmp-style diff; and the WorldStub.h→WorldDoc.h consolidation (dial-reverify).
 
 ### ⏮ PRIOR PICKUP (2026-07-06 v4 — App TU COMPLETE)
 **Progress 9.55% by progress.py (undercount) — true ~9.9% (App TU per-name is 15/16 exact but
