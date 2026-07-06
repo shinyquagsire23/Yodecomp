@@ -286,8 +286,43 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v9 — Phase D: 50 funcs; PlacePuzzle+WorldgenPlacePuzzles; 14.04%)
-**Progress 14.04% (27/50 exact in src/Worldgen).** v9 delta on the v8 block below:
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v9 FINAL — Phase D: 54 funcs; 14.10% exact, 46.07% transcribed)
+**State: src/Worldgen = 54 markers, 27 exact; global 14.10% exact + 31.97% partial = 46.07%
+transcribed (progress.py now prints both tiers; PARTIAL = has marker+COMDAT but not byte-exact).
+Session commits: 7961680 (3 parsers + dispatchers), ac69ef0 (PlacePuzzle WIP + LogWrite id),
+8199d58 (PlacePuzzle effective + WorldgenPlacePuzzles), 36c3781 (4 placers), then progress.py
+partial tier + Ghidra sync. All .obj files current; the jump-table probe battery (sw*.cpp)
+lived in the job tmp dir — DISPOSABLE, its conclusions are in Load's in-source annotation.**
+
+**▶ START HERE — remaining 5 placers (0x41c8f0-0x41d660), then the hub:**
+PopulateGoalZone 0x41c8f0 (752B), PlaceUsefulDropChainMaybe 0x41cbe0 (480B),
+PlaceItemForLockChainMaybe 0x41d0c0 (416B), PlaceUsefulObjectMaybe 0x41d260 (544B),
+AssignTransitItemMaybe 0x41d480 (480B). **These are exactly PlaceQuestNode's callee set** —
+the 2KB hub (0x41f120, 94 blocks, cc=86, already declared in Worldgen.h) calls:
+SelectPuzzle(Maybe), IsZoneUsed, AddZoneEntry, PickItemFromZone, AssignTransitItem,
+PlaceUsefulObject, PlaceUsefulDropChain, PlaceItemForLockChain, ShuffleList,
+PopulateGoalZone, **FUN_0041c0b0 (UNNAMED — identify first!)**. So: finish the 5 placers +
+0x41c0b0, then PlaceQuestNode becomes mechanical, then SelectPuzzle 0x41eab0, CarveQuestPath
+0x41d940, PlaceBlockades 0x41e350, Generate 0x41f960, save/load monsters, GameView methods.
+**⚠ UNCLAIMED GAP 0x41bee0-0x41c340** (between WorldDoc TU end and Worldgen TU start):
+0x41bee0 = WorldDoc's own CFileException-dtor COMDAT copy (proof the linker does NOT fold
+these across TUs — each TU's copy survives); 0x41c0b0 = the unnamed PlaceQuestNode callee;
+map what else is in there before assuming TU boundaries.
+
+**Placer-family recipes (4/9 done — FillQuestItemSpot 0x41c580 / FillSpawn 0x41c730 clone
+pair, FillQuestItemSpot2Maybe 0x41cf10, PlaceItemOnLock 0x41cdc0; all EFFECTIVE 20-90B,
+pure reg-role/cmp-mirror tie-breaks):** local CWordArray spot-list + rand-pick
+`objects.GetAt(paSpots.GetAt(rand() % n))`; DOOR_IN (type 9) recursion tail-loop; guard+
+do-while UP-count loops (calls inside kill the countdown transform); `if (zoneId < 0)
+return 0;` early form; `short v` 16-bit local for the candidate value; FillQuestItemSpot2:
+conditionally-SCOPED CWordArray inside `if (bFound)` + in-condition recursion assignment
+`(nResult = recurse(...)) == 1`. ⭐ **PlaceItemOnLock crack: `int nResult = 0` lives in EAX
+END-TO-END** — entry xor eax,eax; `nResult = 1` in the success arm; in-condition recursion;
+`return nResult` costs ZERO bytes everywhere. VC4.2 hard-errors C2561 (no return at all) and
+C2202 (a path falls off) — so a "void-looking" original whose callers test EAX ALWAYS has an
+EAX-resident result var. PlaceItemOnLock's sel!=0 arm (cobArray5) is the fall-through.
+
+v9 mid-session delta (PlacePuzzle/WorldgenPlacePuzzles), kept for the recipes:
 - **PlacePuzzle refined to EFFECTIVE (39B, insns 255/255)** — the in-source annotation lists
   three NEW STRUCTURE RECIPES that cracked it: (a) hoisting `int nIso = GetSize()` re-keys
   ARRAY frame slots (use-count driven!) and yields mov+test/idiv-reg; (b) the pick is
@@ -304,21 +339,7 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   block-sinking family (accept copies + retry sunk past the switch) + slot rotation.
 - New fields: worldSize@0x3328 (teleporter min-distance tier), genSkipTeleCheckMaybe@0x2e64.
   New decls: PlaceQuestNode (7-arg, 0x41f120), WorldgenPlacePuzzles, PlacePuzzle.
-**Placer family progress (v9 late): 4/9 transcribed, all EFFECTIVE ~20-90B**
-(FillQuestItemSpot 0x41c580, FillSpawn 0x41c730 — clone pair; FillQuestItemSpot2Maybe
-0x41cf10; PlaceItemOnLock 0x41cdc0). Family recipes: local CWordArray spot-list + rand-pick
-`objects.GetAt(paSpots.GetAt(rand() % n))`; DOOR_IN (type 9) recursion tail-loops; guard+
-do-while up-count loops (NOT countdowns — calls inside); `if (zoneId < 0) return 0;` early
-form. ⭐ **PlaceItemOnLock crack: `int nResult = 0` lives in EAX END-TO-END** — entry
-xor eax,eax, `nResult = 1` in the lock arm, `(nResult = recurse(...)) == 1` in-condition,
-final `return nResult` costs ZERO bytes. VC4.2 hard-errors C2561/C2202 on missing returns —
-a "void-looking" original with a tested result ALWAYS has an EAX-resident result var.
-Its sel!=0 arm (cobArray5) is the fall-through.
-**NEXT:** remaining 5 placers — PopulateGoalZone 0x41c8f0 (752B), PlaceUsefulDropChainMaybe
-0x41cbe0, PlaceItemForLockChainMaybe 0x41d0c0, PlaceUsefulObjectMaybe 0x41d260,
-AssignTransitItemMaybe 0x41d480; then CarveQuestPath 0x41d940, PlaceBlockades 0x41e350,
-SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120 (2KB hub, signature declared), Generate
-0x41f960, save/load monsters, then the GameView methods. ✅ Ghidra sync DONE (v9 late,
+✅ Ghidra sync DONE (v9 late,
 YodaDemo was ACTIVE): World fields added (zoneCountLoadedMaybe@0x54, genSkipTeleCheckMaybe
 @0x2e64, bDtaLoadedMaybe@0x32f8), 0x32d4 quad renamed nView* (+ WorldDoc.h/.cpp updated),
 EnterZone→GetZoneIndex, 0x41c340→CFileExceptionDtorTUEmitted (+plate), Log_Write→LogWrite
@@ -368,22 +389,13 @@ token-collision filter.
   = the .dta path). Cross-TU decls added: ParseTilesMaybe/CacheUiTilePtrsMaybe (WorldDoc).
 - Dial churn this round: Randomize flipped OUT (30B), RemoveZoneEntry2 flipped IN, the
   Zaux/Zax2/Zax3 trio rotated again. Standing rule unchanged: don't grind these.
-- **PlacePuzzle (0x421620, 780B) transcribed WIP ~90%** (in-source annotation has the
-  residual list: array-slot swap vs && order, delete-loop countdown misses, entry spills).
-  Semantics: 3 CPoint* CObArrays (isolated/adjacent-to-306/past-order-cutoff), rand-pick
-  priority isolated>adjacent, far only when both empty; `!!!!No Place to put Find Puzzle`
-  log = `((CTheApp *)AfxGetApp())->LogWrite(...)` — **Log_Write@0x419cb0 is really a
-  CTheApp MEMBER** (call sites set ECX=pApp; body ignores this, so App TU's free-function
-  form still matches; member decl added to App.h, App TU re-verified 11/12).
+- **PlacePuzzle semantics** (function now EFFECTIVE, see v9): 3 CPoint* CObArrays
+  (isolated / adjacent-to-306 / past-order-cutoff), rand-pick priority isolated>adjacent,
+  far only when both empty; `!!!!No Place to put Find Puzzle` log via
+  `((CTheApp *)AfxGetApp())->LogWrite(...)` — **Log_Write@0x419cb0 is really a CTheApp
+  MEMBER** (call sites set ECX=pApp; body ignores this, so App TU's free-function form
+  still matches; member decl in App.h, App TU re-verified 11/12).
   `new CPoint(x,y)` = the raw new(8)+inline-ctor null-check shape.
-**NEXT:** finish PlacePuzzle residuals, then WorldgenPlacePuzzles 0x421930 (decompiled:
-seeds entries 0x1ff/0x1a5, loops worldgenPendingZones calling PlacePuzzle + PlaceQuestNode
-0x41f120, writes mapGrid/apZoneGrid/planGrid 0x132, AddPlacedZoneId), placer family
-0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades 0x41e350, SelectPuzzle 0x41eab0,
-PlaceQuestNode 0x41f120, Generate 0x41f960 (now DECLARED in Worldgen.h), save/load monsters
-(OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile), then (5) the GameView methods
-0x426c40-0x429150. Ghidra renames pending (YodaDemo ACTIVE needed): EnterZone→GetZoneIndex,
-the 0x32d4 quad→view rect, 0x41c340→~CFileException, Log_Write→CTheApp::LogWrite.
 
 ### ⏮ PRIOR (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
 **Progress 13.52% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **43 functions,
