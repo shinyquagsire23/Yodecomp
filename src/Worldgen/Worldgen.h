@@ -114,12 +114,17 @@ public:
     int         playerY;             // +0x2e24
     char        _pad2e28[0xc];       // +0x2e28
     int         unk2e34;             // +0x2e34
-    char        _pad2e38[4];         // +0x2e38
+    short       startItem;           // +0x2e38  (Ghidra names)
+    short       startItem2Maybe;     // +0x2e3a
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
     int         bStartingGameMaybe;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
-    char        _pad2e44[0xc];       // +0x2e44
+    char        _pad2e44[4];         // +0x2e44
+    int         nWeaponHitXMaybe;    // +0x2e48  (Ghidra names)
+    int         nWeaponHitYMaybe;    // +0x2e4c
     int         goalItemTileId;      // +0x2e50
-    char        _pad2e54[0x10];      // +0x2e54
+    int         bHidePlayerMaybe;    // +0x2e54  (Ghidra name)
+    char        _pad2e58[8];         // +0x2e58
+    int         unk2e60;             // +0x2e60
     int         genSkipTeleCheckMaybe; // +0x2e64  worldgen: skip the teleporter-distance test
     char        _pad2e68[0x404];     // +0x2e68
     BYTE       *pSysColorTable;      // +0x326c
@@ -129,12 +134,23 @@ public:
     int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
     int         nViewRight;          // +0x32dc
     int         nViewBottom;         // +0x32e0
-    char        _pad32e4[0x14];      // +0x32e4
+    int         nArrowBoxLeft;       // +0x32e4  (Ghidra names)
+    int         nArrowBoxTop;        // +0x32e8
+    int         nArrowBoxRight;      // +0x32ec
+    int         nArrowBoxBottom;     // +0x32f0
+    int         bWorldReadyMaybe;    // +0x32f4
     int         bDtaLoadedMaybe;     // +0x32f8  set once by Load on first successful .dta open
-    char        _pad32fc[0x10];      // +0x32fc
+    char        _pad32fc[4];         // +0x32fc
+    int         nextCameraXMaybe;    // +0x3300  (Ghidra names)
+    int         nextCameraYMaybe;    // +0x3304
+    Zone       *pPendingZone;        // +0x3308
     int         nSoundEnabled;       // +0x330c
     int         nMusicEnabled;       // +0x3310
-    char        _pad3314[0x14];      // +0x3314
+    int         healthLo;            // +0x3314  (Ghidra names)
+    int         healthHi;            // +0x3318
+    int         difficulty;          // +0x331c
+    int         counter;             // +0x3320
+    int         gameSpeed;           // +0x3324
     int         worldSize;           // +0x3328  1/2/3 (teleporter min-distance tier)
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330

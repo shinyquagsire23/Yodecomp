@@ -318,9 +318,18 @@ Its sel!=0 arm (cobArray5) is the fall-through.
 0x41cbe0, PlaceItemForLockChainMaybe 0x41d0c0, PlaceUsefulObjectMaybe 0x41d260,
 AssignTransitItemMaybe 0x41d480; then CarveQuestPath 0x41d940, PlaceBlockades 0x41e350,
 SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120 (2KB hub, signature declared), Generate
-0x41f960, save/load monsters, then the GameView methods. Ghidra renames pending (YodaDemo
-ACTIVE): EnterZone→GetZoneIndex, 0x32d4 quad→view rect, 0x41c340→~CFileException,
-Log_Write→CTheApp::LogWrite, 0x421930 field names.
+0x41f960, save/load monsters, then the GameView methods. ✅ Ghidra sync DONE (v9 late,
+YodaDemo was ACTIVE): World fields added (zoneCountLoadedMaybe@0x54, genSkipTeleCheckMaybe
+@0x2e64, bDtaLoadedMaybe@0x32f8), 0x32d4 quad renamed nView* (+ WorldDoc.h/.cpp updated),
+EnterZone→GetZoneIndex, 0x41c340→CFileExceptionDtorTUEmitted (+plate), Log_Write→LogWrite
+(+CTheApp-member plate). Ghidra's richer names BACKPORTED into Worldgen.h pads (startItem
+pair@0x2e38, weaponHit pair@0x2e48, bHidePlayer@0x2e54, arrowBox quad@0x32e4, bWorldReady
+@0x32f4, nextCamera pair+pPendingZone@0x3300, healthLo/Hi+difficulty+counter+gameSpeed
+@0x3314-0x3324) — codegen-neutral, verified 27/54 + 7/13 unchanged. progress.py now also
+reports the PARTIAL tier (transcribed-not-exact): 14.10% exact + 31.97% partial = 46.07%
+transcribed. GOTCHA: the MCP add_struct_field auto-prefixes names (bX→nX) — fix with
+modify_struct_field after; rename_function_by_address needs strict_mode=off to bypass the
+token-collision filter.
 
 ### ⏮ PRIOR (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
 **Progress 13.85% byte-exact (was 13.52% at v7).** v8 delta on top of the v7 block below:

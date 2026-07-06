@@ -151,10 +151,10 @@ public:
     int         unk32c8;             // +0x32c8  ctor: 0xfb
     int         unk32cc;             // +0x32cc  ctor: 0x1ea
     int         unk32d0;             // +0x32d0  ctor: 0x11c
-    int         nHealthDialLeft;     // +0x32d4  ctor: 0
-    int         nHealthDialTop;      // +0x32d8  ctor: 0
-    int         nHealthDialRight;    // +0x32dc  ctor: 0x120
-    int         nHealthDialBottom;   // +0x32e0  ctor: 0x120
+    int         nViewLeft;           // +0x32d4  ctor: 0    (288x288 view window rect —
+    int         nViewTop;            // +0x32d8  ctor: 0     UpdateCamera-proven; was
+    int         nViewRight;          // +0x32dc  ctor: 0x120 misnamed nHealthDial*)
+    int         nViewBottom;         // +0x32e0  ctor: 0x120
     int         nArrowBoxLeft;       // +0x32e4  ctor: 0x141
     int         nArrowBoxTop;        // +0x32e8  ctor: 0xf6
     int         nArrowBoxRight;      // +0x32ec  ctor: 0x169

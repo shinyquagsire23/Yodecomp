@@ -377,10 +377,10 @@ World::World()
     unk32cc = 0x1ea;
     unk32c8 = 0xfb;
     nArrowBoxLeft = 0x141;
-    nHealthDialTop = 0;
-    nHealthDialLeft = 0;
-    nHealthDialBottom = 0x120;
-    nHealthDialRight = 0x120;
+    nViewTop = 0;
+    nViewLeft = 0;
+    nViewBottom = 0x120;
+    nViewRight = 0x120;
     healthLo = 1;
     healthHi = 1;
     nArrowBoxTop = 0xf6;
