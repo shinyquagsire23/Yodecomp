@@ -50,19 +50,19 @@ def main():
     if not os.path.exists(obj):
         print("obj not found — compile first (see this file's header):", obj); return 2
 
-    addrs = [int(m, 16) for m in re.findall(r"//\s*FUNCTION:\s*YODA\s+0x([0-9a-fA-F]+)", open(src).read())]
+    text = open(src).read()
     exe_bytes = open(exe, "rb").read()
-    # keep only our COMDATs (drop MFC base-class library methods), preserving .obj (= source) order
-    funcs = [f for f in match.coff_functions(obj) if owner_of(f[0]) not in LIB_OWNERS]
+    # keep only our COMDATs (drop MFC base-class library methods + CRT init thunks), then pair
+    # each marker to its SAME-named COMDAT (best-fit mis-assigns reloc-masked-identical stubs).
+    funcs = [f for f in match.coff_functions(obj)
+             if owner_of(f[0]) not in LIB_OWNERS
+             and not f[0].lstrip("?").startswith(("_$E", "$E"))]
+    paired = match.pair_by_name(text, funcs)
 
-    if len(funcs) != len(addrs):
-        print(f"WARN: {len(addrs)} markers but {len(funcs)} app COMDATs after filtering — "
-              f"positional pairing may be off. app COMDATs: {[f[0] for f in funcs]}")
-
-    # pair positionally: markers (source order) <-> filtered COMDATs (source order)
+    # pair by name (marker's derived mangled substring), positional fallback inside pair_by_name
     ok = exact_bytes = 0
     rows = []
-    for va, (name, code, relocs) in zip(addrs, funcs):
+    for va, name, code, relocs in paired:
         L = match.trim_pad(code)
         orig = exe_bytes[(va - TEXT_VA) + TEXT_RAW:][:L]
         cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)

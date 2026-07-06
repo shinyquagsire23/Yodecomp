@@ -27,7 +27,16 @@ import re
 def compile_obj(cpp):
     obj = os.path.splitext(cpp)[0] + ".obj"
     env = dict(os.environ, WINEDEBUG="-all")
-    flags = FLAGS + (["/D", "_MBCS"] if re.search(r"#\s*include\s*<afx", open(cpp).read()) else [])
+    # MFC TUs need /D_MBCS to compile afxwin.h — detect it through local includes too
+    # (e.g. Iact.cpp -> RecordClasses.h -> <afxwin.h>), not just a direct <afx> include.
+    txt = open(cpp).read()
+    afx = bool(re.search(r"#\s*include\s*<afx", txt))
+    for inc in re.findall(r'#\s*include\s*"([^"]+)"', txt):
+        p = os.path.join(os.path.dirname(cpp), inc)
+        if os.path.exists(p) and re.search(r"#\s*include\s*<afx", open(p).read()):
+            afx = True
+            break
+    flags = FLAGS + (["/D", "_MBCS"] if afx else [])
     r = subprocess.run([CL] + flags + [os.path.basename(cpp)],
                        cwd=os.path.dirname(cpp), env=env, capture_output=True)
     return obj if r.returncode == 0 and os.path.exists(obj) else None
@@ -42,33 +51,23 @@ def main():
         rel = os.path.relpath(cpp, ROOT)
         if not obj:
             rows.append((rel, "COMPILE FAILED", 0, 0)); continue
-        addrs = [int(m, 16) for m in re.findall(r"//\s*FUNCTION:\s*YODA\s+0x([0-9a-fA-F]+)", open(cpp).read())]
+        text = open(cpp).read()
         # drop MFC base-class library COMDATs (CObject::~CObject, Serialize, ??_GCObject, ...)
         # and CRT dynamic-init thunks (_$E123 etc. from a file-scope object with a ctor/dtor):
         # they byte-match but carry no // FUNCTION marker, so best-fit would mis-pair them.
         funcs = [f for f in match.coff_functions(obj)
                  if verify.owner_of(f[0]) not in verify.LIB_OWNERS
                  and not f[0].lstrip("?").startswith(("_$E", "$E"))]
+        # pair each marker to its SAME-named COMDAT (best-fit mis-assigns reloc-masked-identical
+        # stubs — two GetMessageMaps become byte-identical once their one imm reloc is masked).
         mb = mf = 0
-        used = set()
-        for name, code, relocs in funcs:
-            best = None
-            for va in addrs:
-                if va in used:
-                    continue
-                L = match.trim_pad(code)
-                foff = (va - match.TEXT_VA) + match.TEXT_RAW
-                orig = EXE[foff:foff + L]
-                cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
-                diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
-                sc = (0 if (diffs == 0 and len(orig) == L) else 1, diffs)
-                if best is None or sc < best[0]:
-                    best = (sc, va, L)
-            if best is None:      # more COMDATs than markers (e.g. unmarked helper) — skip
-                continue
-            sc, va, L = best
-            used.add(va)
-            if sc[0] == 0:
+        for va, name, code, relocs in match.pair_by_name(text, funcs):
+            L = match.trim_pad(code)
+            foff = (va - match.TEXT_VA) + match.TEXT_RAW
+            orig = EXE[foff:foff + L]
+            cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
+            diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
+            if diffs == 0 and len(orig) == L:
                 mb += L; mf += 1
         matched_bytes += mb; matched_funcs += mf
         rows.append((rel, "%d/%d funcs" % (mf, len(funcs)), mb, len(funcs)))

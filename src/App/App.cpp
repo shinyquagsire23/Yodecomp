@@ -39,6 +39,7 @@ CTheApp theApp;
 /////////////////////////////////////////////////////////////////////////////  CTheApp
 
 // FUNCTION: YODA 0x00419730
+// FUNCTION: YODA 0x004197b0  (??_GCTheApp scalar-deleting dtor — compiler-generated)
 CTheApp::CTheApp()
 {
 }
@@ -192,6 +193,7 @@ void CTheApp::OnAppAbout()
 /////////////////////////////////////////////////////////////////////////////  CAboutDlg
 
 // FUNCTION: YODA 0x00419cf0
+// FUNCTION: YODA 0x00419d60  (??_GCAboutDlg scalar-deleting dtor — compiler-generated)
 CAboutDlg::CAboutDlg(CWnd *pParent)
     : CDialog(100, pParent)
 {
