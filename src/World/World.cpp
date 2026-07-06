@@ -69,7 +69,8 @@ int World::CalcScoreFromCounter()
 // register/slot allocation differs (~9 bytes). Needs a permuter-style search.]
 int World::CalcSolvedScore()
 {
-    int   y, x;
+    int   x;
+    int   y;
     Zone *pZone = mZones;
     int   score = 0;
     float solved = 0.0f;

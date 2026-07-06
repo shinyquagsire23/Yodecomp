@@ -1,3 +1,8 @@
+> **⚠ DEPRECATED (2026-07-05, user decision).** Struct definitions are no longer maintained here.
+> The sources of truth are (1) the **Ghidra DB** (YodaDemo.exe program — structs + field comments) and
+> (2) the **C headers under `src/`** (byte-match-proven layouts). This file is kept for history only;
+> do not update it, do not trust it over Ghidra/src when they disagree.
+
 # YodaDemo.exe — struct registry (single source of truth)
 
 Every struct is **traced to its allocation** so the size is correct, and defined **once** in the Ghidra

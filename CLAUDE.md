@@ -604,11 +604,11 @@ allocator artifacts and steered the `/G`-flag sweep + effective-match decision.
   `this->tiles[i]`, `zone->width`, `p++`, `objects[i]->type` automatically instead of
   `*(short*)((char*)z+0xc)` — transcription becomes copy-paste. Proven: after defining `Zone` (0x848,
   `tiles` as `ushort[972]@0x10`, `objects` as `ZoneObj**@0x7ac`) and `ZoneObj`, `Zone_GetTile`
-  decompiled to `this->tiles[(y*18+x)*3+layer]`. Keep the Ghidra struct and the `src/` struct in sync.
+  decompiled to `this->tiles[(y*18+x)*3+layer]`. Keep the Ghidra struct and the `src/` struct in sync. (docs/structs.md is DEPRECATED — Ghidra + src/ are the only doc sites.)
 - **Trace every struct to its allocation before trusting its size, and define it once.** The correct
   size comes from the `operator_new(N)`/alloc site (e.g. `Zone`=0x848, `Tile`=0x40c, `MapEntity`=0x64,
   `IactScript`=0x30 were all pinned this way), NOT from how far field accesses happen to reach. Keep a
-  single canonical definition per struct in the DB and the registry `docs/structs.md` — no duplicates.
+  single canonical definition per struct in the DB (docs/structs.md is DEPRECATED 2026-07-05 — Ghidra DB + src/ headers are the only struct-doc sites; the .md is history-only).
   A struct whose size is only bounded by observed accesses is INFERRED (a TODO to trace), not done.
 - **Non-idiomatic C++ in a decompilation is a signal to keep documenting, not to stop.** Messy casts
   like `*(short*)((char*)p+0x84)` or a field typed as the wrong struct (`tileArray` as `Zone*` →
