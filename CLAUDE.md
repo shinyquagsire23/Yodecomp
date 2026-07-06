@@ -398,6 +398,10 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   3.10-vs-4.20 flag question (toolchain/README), PE timestamp/checksum masking, reccmp-style final diff.
 
 ### Standing rules that make this work
+- **Original engine bugs go in `docs/engine-bugs.md`** (verified-against-disasm defects in the
+  1997 binary that our byte-exact source must reproduce — script-index clobber, missing bounds
+  checks, …). Mark each reproduction site in src/ with a `// sic:` comment pointing there. New
+  finds during matching get an entry; do NOT "fix" them.
 - **Structs before transcription** (non-Maybe fields + calls) — the user's rule; it held for Records.
 - **Cross-TU calls via stub classes** with correct arg widths/convention (see Records.h World/GameView
   stubs). Each phase PROMOTES stubs toward the real shared headers (src/ include tree mirrors the

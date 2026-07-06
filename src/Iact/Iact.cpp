@@ -386,7 +386,7 @@ int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
 // unless a command warped/spawned (result & 0x808). Opcode semantics: scrdoc.txt in
 // ~/workspace/DesktopAdventures. NOTE the original's COND_CheckCellItems reuses the SCRIPT loop
 // variable (idx) for its second inventory scan — a real bug (script iteration restarts from
-// nInv+1 after that condition); reproduced faithfully.
+// nInv+1 after that condition); reproduced faithfully. Engine-bug inventory: docs/engine-bugs.md.
 int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, World *pWorld,
                   GameView *pView)
 {
@@ -501,6 +501,8 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, Wor
                         matched = 0;
                     break;
                 case COND_EnemyDead:
+                    // sic: '<' not '<=' — args[0]==GetSize() reads past the array
+                    // (docs/engine-bugs.md #2)
                     if (entities.GetSize() < pCond->args[0]
                         || ((MapEntity *)entities[pCond->args[0]])->charId != -1)
                         matched = 0;
@@ -966,6 +968,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld, GameV
             }
             break; }
         case CMD_ShowEntity: {
+            // sic: no bounds check, unlike ShowObject (docs/engine-bugs.md #3)
             MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
             if (p != NULL) {
                 p->active = 1;
