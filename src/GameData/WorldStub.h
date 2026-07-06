@@ -195,6 +195,22 @@ public:
     void OnReplayStory();                                 // 0x00403620
     int  StartGame(unsigned int nSeed, int bSkipGenerate);// 0x004037a0
     void RefreshZone();                                   // 0x00403ae0
+    int  BuildQuestPathMaybe(short *paGrid, short *paOrder); // 0x00403c80
+    // worldgen plan-grid helpers (both __thiscall members whose `this` is unused — the
+    // original spills+reloads ECX at every call site, proving the member-call form):
+    // dir (1=W 2=N 3=E 4=S, 0=none) of the neighbor of (x,y) holding a 0x68 gate cell
+    int  FindAdjacentGateDirMaybe(int x, int y, short *paGrid); // 0x00419f60
+    int  GetGridOrderMaybe(int x, int y);                 // 0x00421e50 (static 10x10 table 0x456630)
+    // ⚠ TU-PHASE DIAL (2026-07-06): the number & signature-shapes of World member decls rotate
+    // allocator/cmp-direction tie-breaks in EVERY function of this TU (proven: loaders' backedge
+    // jg/jl phase, PlaceZoneObjectTiles, FindZoneCellById, the savers' arm symmetry). These four
+    // REAL World methods (all exist at the given addresses) are declared to set the phase so the
+    // three loaders match (0/0/2). The unique full solution is the ORIGINAL header's complete
+    // decl set — reconstruct it in Phase D; do NOT chase per-function phase with fake decls.
+    void UpdateScore();                                   // 0x00401450 (scorers TU)
+    int  GetZoneCell(int x, int y);                       // 0x00401a80 (scorers TU; int(int,int) shape is load-bearing)
+    int  CalcTimeScore();                                 // 0x004019c0 (scorers TU)
+    void RestoreGridFromBackup();                         // 0x00421520 (doc TU)
     // ---- cross-TU externs (doc TU / worldgen) ----
     int          LoadWorldMaybe();                        // 0x00421fd0
     int          Generate(unsigned int nSeed);            // worldgen driver
@@ -207,5 +223,6 @@ public:
     Zone *GetZoneById(short id);                      // 0x00403a70
     int  FindTile(void *pTile);                           // 0x00403aa0
 };
+
 
 #endif

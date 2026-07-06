@@ -351,7 +351,61 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
 - **Milestones** (progress.py %exact): ~8 % after A, ~15 % after B+C, ~55 % after D, ~90 % after E,
   100 % = G's whole-image build. Track effective-match bytes separately (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-05, late-night update)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 — MID-FLIGHT, uncommitted work in tree!)
+**STATE: src/GameData/{GameData.cpp,WorldStub.h} have UNCOMMITTED changes** (BuildQuestPath
+transcription + the TU-phase dial). Last commit 46755fc. Verify (per-NAME ground truth, NOT
+verify.py alone — see traps below): **11/27 exact incl. BOTH Nevada+Alaska loaders (990B each,
+first time ever — Nevada's jg form!)**; Oregon DIFF(2); savers DIFF(611)=shift-noise (real state:
+main 824 vs 808, arm residual); Place DIFF(10) / FindZC DIFF(16) = PHASE-DISPLACED (byte-exact
+under the pre-dial decl set of a4ba541 — source proven correct); BQP main 0x537 vs orig 0x52e.
+
+**⭐⭐ THE TU-PHASE DIAL (2026-07-06, biggest mechanism find yet):** the World class's member-decl
+set in WorldStub.h ROTATES allocator/cmp-direction tie-breaks in EVERY function of the TU.
+Proven by sweep: +0..+5 real decls each give different (loaders, Place, FindZC, BQP) outcomes;
+signature SHAPE matters (`int f(int,int)` = GetZoneCell was load-bearing for Nevada's jg — combos
+without it stay 2/0/2; with it + ≥2 others → 0/0/2). Current dial in WorldStub.h = 4 real decls
+(UpdateScore/GetZoneCell/CalcTimeScore/RestoreGridFromBackup) + note. **Implication: the unique
+all-functions fixed point is the ORIGINAL header's complete decl set — reconstructing the real
+CDeskcppDoc class declaration (all ~200 methods, right order) is now a first-class Phase-D goal.
+Do NOT chase per-function phase with fake decls; only real methods.** Also explains the Records
+Tile::Ctor flip (Zone decls added) and the savers' position drift.
+
+**REMAINING TODO (was mid-task when context cleared):**
+1. Fix 2 annotations in GameData.cpp: 0x403140 marker needs the PHASE-DISPLACED note (edit was
+   rejected mid-flight); 0x403250 still carries a STALE "[EFFECTIVE MATCH: DIFF(16) — id/x
+   register 2-cycle]" tag that should become PHASE-DISPLACED wording.
+2. Run tools/progress.py, then COMMIT everything (suggested msg: BuildQuestPath transcribed
+   (+9B near-match) + TU-phase dial discovery; loaders Nevada+Alaska exact).
+3. Ghidra backport (YodaDemo must be ACTIVE; verify list_open_programs): rename FUN_00419f60 →
+   World::FindAdjacentGateDirMaybe, __thiscall, World namespace (currently in App); move
+   GetGridOrderMaybe (0x421e50) into World namespace + __thiscall (both are members with UNUSED
+   this — Ghidra auto-typed them __stdcall; the ORIGINAL reloads ECX at every call site, which
+   is how the member-call form was proven). Set BuildQuestPathMaybe's param_2 → short* paOrder.
+4. CLAUDE.md: fold the session findings into the permanent sections once committed.
+
+**BuildQuestPath (0x403c80, 1326B code + jump tables to 0x4042b0) — 95% there, +9B/8 loci.**
+Cracks (all annotated in-source): helpers are __thiscall members w/ unused this; `int count;`
+declared AFTER the 3 counters fixed ALL count-vs-target cmp orders; literal forms x<=1 / x<8 /
+x>0&&x<9 / >=3 / >=0x96; walker arms `!= 0x68` inc-first; target = ...+1 then separate -=3;
+fx,fy,found=1 store order; found-flag reuse in swap loop (NO re-store of 1); int-local for the
+1/0x12c pair. Residual loci: prologue push/arg interleave (paGrid EDI vs orig ESI reg-cycle);
+phase-3 0x66 check word-cmp vs orig movsx+int-cmp (a one-case `switch(paGrid[..])` reproduces
+movsx+ECX exactly but perturbs 2 other sites — net wash, kept the idiomatic if); phase-5
+zero-order + swap-block scheduling. Same tie-break class as savers → dial/endgame.
+
+**⚠ TOOL TRAPS confirmed this session (cost hours):**
+- verify.py sometimes runs against a STALE .obj (its internal compile can silently fail/skip;
+  cwd-dependence). ALWAYS `rm GameData.obj && toolchain/bin/cl ...` manually before measuring.
+- verify.py positional pairing MIS-PAIRS the identical-length loader/saver clone families
+  (Oregon "MATCH" at session start was false). Use per-NAME COMDAT diffs (match.coff_functions,
+  substring the mangled name) as ground truth for clones.
+- COMDAT trim length INCLUDES EH funclets → slicing exe[addr:addr+L] + byte/asmscore-diff is
+  GARBAGE for EH functions AND for any function whose code length differs (reloc masks land at
+  wrong offsets on the orig side). Compare main-body (split at first ret) via capstone streams.
+- Shell cwd persists between calls; `cd src/GameData` then later relative paths break. Use
+  absolute paths.
+
+### ⏭ PREVIOUS PICKUP (2026-07-05, late-night — still-valid facts below)
 **GameData CU effectively DONE except BuildQuestPath** (decomp cached at $CLAUDE_JOB_DIR/tmp/questpath.c
 may be gone — re-dump from Ghidra 0x403c80). Progress **6.70%**. Session results (commit a4ba541):
 - **Savers (x3): EFFECTIVE MATCH** — structural convergence via main-body disasm diffing. Cracks:

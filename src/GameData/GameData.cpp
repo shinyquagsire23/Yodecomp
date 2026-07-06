@@ -470,7 +470,9 @@ void World::RemoveEmptyZonesFromPlacedList()
         placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), keep[j]);
 }
 
-// FUNCTION: YODA 0x00403140
+// FUNCTION: YODA 0x00403140  [PHASE-DISPLACED: DIFF(10) under the current WorldStub.h decl dial —
+//   byte-exact under the pre-dial decl set of a4ba541, so the source is proven correct; the diff is
+//   TU-phase (World member-decl set rotates allocator tie-breaks). Resolve at the Phase-D/G joint pass.]
 // Stamp a zone's visible objects into tile layer 1. Types 0/1/2/5/6/7/8 place their tile if
 // active and the cell is empty; type 0xb forces tile 0x1cb.
 void World::PlaceZoneObjectTiles(short zoneId)
@@ -509,8 +511,10 @@ void World::PlaceZoneObjectTiles(short zoneId)
     }
 }
 
-// FUNCTION: YODA 0x00403250  [EFFECTIVE MATCH: DIFF(16) — id/x-counter register 2-cycle
-//   (orig id=DX,x=ESI; ours swapped). Decl hoisting/order inert. Allocator tie-break.]
+// FUNCTION: YODA 0x00403250  [PHASE-DISPLACED: DIFF(16) under the current WorldStub.h decl dial —
+//   byte-exact under the pre-dial decl set of a4ba541, so the source is proven correct; the id/x
+//   register 2-cycle is TU-phase (World member-decl set rotates allocator tie-breaks), not a source
+//   miss. Resolve at the Phase-D/G joint pass.]
 // Locate the world-map cell holding zone `id`; outputs grid coords.
 int World::FindZoneCellById(short id, int *pX, int *pY)
 {
@@ -929,4 +933,292 @@ void World::RefreshZone()
             cy = cy + 1;
         } while (cy < currentZone->width);
     }
+}
+
+// FUNCTION: YODA 0x00403c80  [NEAR MATCH: main code 0x537 vs orig 0x52e (+9B, 421/420 insns);
+//   all five phases structurally converged (this-spill prologue, jump tables, walkers,
+//   parity sbb/and idiom, swap epilogue). Residual loci: (a) prologue push/arg-load interleave
+//   (paGrid binds EDI vs orig ESI — reg 3-cycle); (b) the phase-3 0x66 check emits a word-cmp
+//   vs orig movsx+int-cmp (a one-case `switch(paGrid[..])` reproduces movsx+ECX exactly but
+//   perturbs two other sites — net wash, kept the idiomatic if); (c) phase-5 zero-order +
+//   swap-block scheduling. Same allocator tie-break class as the savers — endgame item.
+//   Cracks that got here: helpers are __thiscall World members with unused this (orig
+//   reloads ECX at every call site); `int count;` declared AFTER the three counters (fixed
+//   ALL count-vs-target cmp operand orders); literal forms x<=1 / x<8 / x>0&&x<9 / >=3 /
+//   >=0x96; walker arms != 0x68 inc-first; target=...+1 then a separate -=3; store order
+//   fx,fy,found=1; found-flag reuse in the swap loop (no re-store of 1); int-local `cell`
+//   for the 1/0x12c pair.]
+// Worldgen plan-grid quest-path pass (called by Generate): counts the special plan cells,
+// derives a random quest-step target, converts blockade-adjacent (0x12d-0x130) and
+// gate-adjacent (0x66/0x68) 300-cells into 0x132 quest steps with sequential order ids,
+// tops up with random ring-3+ placements, then swaps the final step out of the start ring.
+// Returns the number of quest steps placed.
+int World::BuildQuestPathMaybe(short *paGrid, short *paOrder)
+{
+    int nItems = 0;
+    int nGates = 0;
+    int nEmpty = 0;
+    int count;
+    short *p = paGrid;
+    int x;
+    int y;
+    for (y = 0; y < 10; y++) {
+        for (x = 0; x < 10; x++) {
+            switch (*p) {
+            case 0x65:
+                nItems++;
+                break;
+            case 1:
+            case 0x68:
+            case 0x12c:
+                nEmpty++;
+                break;
+            case 0x12d:
+            case 0x12e:
+            case 0x12f:
+            case 0x130:
+                nGates++;
+                break;
+            }
+            p++;
+        }
+    }
+    int target = rand() % (nEmpty / 5 + 1) + nEmpty / 4 - nGates - nItems + 1;
+    target -= 3;
+    if (target < 4)
+        target = 4;
+    count = 0;
+    y = 0;
+    p = paGrid - 1;
+    short *po = paOrder - 2;
+    for (; y < 10; y++) {
+        for (x = 0; x < 10; x++) {
+            switch (p[1]) {
+            case 0x12d:
+                if (p[0] == 0x12c) {
+                    if (x <= 1 || p[-1] != 0x12c) {
+                        p[0] = 0x132;
+                        po[1] = (short)count;
+                    }
+                    else {
+                        p[-1] = 0x132;
+                        po[0] = (short)count;
+                    }
+                    count++;
+                }
+                break;
+            case 0x12e:
+                if (p[2] == 0x12c) {
+                    if (x < 8 && p[3] == 0x12c) {
+                        p[3] = 0x132;
+                        po[4] = (short)count;
+                    }
+                    else {
+                        p[2] = 0x132;
+                        po[3] = (short)count;
+                    }
+                    count++;
+                }
+                break;
+            case 0x12f:
+                if (p[-9] == 0x12c) {
+                    if (y <= 1 || p[-0x13] != 0x12c) {
+                        p[-9] = 0x132;
+                        po[-8] = (short)count;
+                    }
+                    else {
+                        p[-0x13] = 0x132;
+                        po[-0x12] = (short)count;
+                    }
+                    count++;
+                }
+                break;
+            case 0x130:
+                if (p[0xb] == 0x12c) {
+                    if (y < 8 && p[0x15] == 0x12c) {
+                        p[0x15] = 0x132;
+                        po[0x16] = (short)count;
+                    }
+                    else {
+                        p[0xb] = 0x132;
+                        po[0xc] = (short)count;
+                    }
+                    count++;
+                }
+                break;
+            }
+            p++;
+            po++;
+        }
+    }
+    for (y = 0; y < 10; y++) {
+        for (x = 0; x < 10; x++) {
+            if ((int)paGrid[y * 10 + x] != 0x66)
+                continue;
+            switch (FindAdjacentGateDirMaybe(x, y, paGrid)) {
+            case 1: {
+                int cx = x - 1;
+                int stop = 0;
+                do {
+                    if (cx < 0) {
+                        cx = 0;
+                        stop++;
+                    }
+                    else if (paGrid[y * 10 + cx] != 0x68) {
+                        cx++;
+                        stop++;
+                    }
+                    else {
+                        cx--;
+                    }
+                } while (stop == 0);
+                paGrid[y * 10 + cx] = 0x132;
+                paOrder[y * 10 + cx] = (short)count;
+                break;
+            }
+            case 2: {
+                int cy = y - 1;
+                int stop = 0;
+                do {
+                    if (cy < 0) {
+                        cy = 0;
+                        stop++;
+                    }
+                    else if (paGrid[cy * 10 + x] != 0x68) {
+                        cy++;
+                        stop++;
+                    }
+                    else {
+                        cy--;
+                    }
+                } while (stop == 0);
+                paGrid[cy * 10 + x] = 0x132;
+                paOrder[cy * 10 + x] = (short)count;
+                break;
+            }
+            case 3: {
+                int cx = x + 1;
+                int stop = 0;
+                do {
+                    if (cx > 9) {
+                        cx = 9;
+                        stop++;
+                    }
+                    else if (paGrid[y * 10 + cx] != 0x68) {
+                        cx--;
+                        stop++;
+                    }
+                    else {
+                        cx++;
+                    }
+                } while (stop == 0);
+                paGrid[y * 10 + cx] = 0x132;
+                paOrder[y * 10 + cx] = (short)count;
+                break;
+            }
+            case 4: {
+                int cy = y + 1;
+                int stop = 0;
+                do {
+                    if (cy > 9) {
+                        cy = 9;
+                        stop++;
+                    }
+                    else if (paGrid[cy * 10 + x] != 0x68) {
+                        cy--;
+                        stop++;
+                    }
+                    else {
+                        cy++;
+                    }
+                } while (stop == 0);
+                paGrid[cy * 10 + x] = 0x132;
+                paOrder[cy * 10 + x] = (short)count;
+                break;
+            }
+            default:
+                continue;
+            }
+            count++;
+        }
+    }
+    int done = 0;
+    int attempts = 0;
+    do {
+        if (count >= target)
+            done++;
+        if (attempts > 200)
+            done++;
+        if (attempts < 50) {
+            x = rand() % 10;
+            if (x > 0 && x < 9)
+                y = (rand() % 2 == 0) ? 9 : 0;
+            else
+                y = rand() % 10;
+        }
+        else {
+            x = rand() % 10;
+            y = rand() % 10;
+        }
+        if (count >= target)
+            break;
+        if (GetGridOrderMaybe(x, y) >= 3 || attempts >= 0x96) {
+            int cell = paGrid[y * 10 + x];
+            if (cell == 1 || cell == 0x12c) {
+                int bLeftOk = 0;
+                int bRightOk = 0;
+                int bUpOk = 0;
+                int bDownOk = 0;
+                if (x == 0 || paGrid[y * 10 + x - 1] != 0x132)
+                    bLeftOk = 1;
+                if (x == 9 || paGrid[y * 10 + x + 1] != 0x132)
+                    bRightOk = 1;
+                if (y == 0 || paGrid[y * 10 + x - 10] != 0x132)
+                    bUpOk = 1;
+                if (y == 9 || paGrid[y * 10 + x + 10] != 0x132)
+                    bDownOk = 1;
+                if (bLeftOk && bRightOk && bUpOk && bDownOk) {
+                    paGrid[y * 10 + x] = 0x132;
+                    paOrder[y * 10 + x] = (short)count;
+                    count++;
+                }
+            }
+            if (count >= target)
+                break;
+            attempts++;
+        }
+    } while (done == 0);
+    int last = count - 1;
+    int found = 0;
+    int fx = 0;
+    int fy = 0;
+    for (y = 0; y < 10; y++) {
+        for (x = 0; x < 10; x++) {
+            if (paOrder[y * 10 + x] == last && GetGridOrderMaybe(x, y) < 3) {
+                fx = x;
+                fy = y;
+                found = 1;
+                break;
+            }
+        }
+        if (found)
+            break;
+    }
+    if (found) {
+        for (y = 0; y < 10; y++) {
+            for (x = 0; x < 10; x++) {
+                if (paOrder[y * 10 + x] >= 0 && GetGridOrderMaybe(x, y) >= 3
+                    && paOrder[y * 10 + x] != last) {
+                    short t = paOrder[y * 10 + x];
+                    paOrder[y * 10 + x] = (short)last;
+                    found = 0;
+                    paOrder[fy * 10 + fx] = t;
+                    break;
+                }
+            }
+            if (!found)
+                return count;
+        }
+    }
+    return count;
 }
