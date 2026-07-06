@@ -433,7 +433,32 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v3 — asmscore fixed; WorldDoc TU landed; 9.37%)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v4 — App TU COMPLETE; 9.55%+)
+**Progress 9.55% by progress.py (undercount) — true ~9.9% (App TU per-name is 15/16 exact but
+best-fit only credits 4).** This continuation added the **App TU (src/App/, 0x419730–0x419ed0)
+COMPLETE**: 15/16 byte-exact + InitInstance effective. Commits 7afdfb8 (App 15/16), 7f9f871
+(InitInstance), d49a6f9 (tooling).
+
+**App TU (CWinApp app + CAboutDlg + Log_Write):** EXACT — CTheApp ctor/??_G/OnIdle/GetMessageMap
+(@0x419720, 6B before ctor, was mislabeled Frame::)/OnAppAbout, CAboutDlg ctor/??_G/
+DoDataExchange/GetMessageMap/OnInitDialog, Log_Write, AND all four CRT dynamic-init thunks
+`CTheApp theApp;` emits (_$E120-123 @ 0x419830-60, reloc-masked). InitInstance (992B, CPUID/MMX
+hand-asm) = effective (main body align 88→16, residual = 1 mirror-family cmp + EH-funclet layout).
+**New cracks:** Log_Write is `__stdcall` (the RET 4); OnAppAbout parent = `AfxGetApp()->m_pMainWnd`
+not AfxGetMainWnd(); `cpuid` needs `_emit 0x0f/0xa2` (VC4.2 predates it); a version-byte compare
+widens only when written `(int)(BYTE)(dwVer>>8)` (signed movzx) vs staying in AH; `short nBpp`
+keeps the 16-bit store; `CString s; s = p;` (default-ctor-then-assign) ≠ `CString s = p;`
+(copy-ctor) in emitted shape; CWinApp m_hPrevInstance@0x6c / m_lpCmdLine@0x70; App+0xc4 frame-delay
+= World+0x74. **Ghidra:** 10 App/Log funcs renamed, saved.
+
+**⚠ TOOLING DEBT surfaced:** progress.py/verify.py best-fit pairing CANNOT disambiguate
+reloc-masked-identical small stubs (the two 6B GetMessageMaps become byte-identical after masking
+their one imm reloc; the 3B DoDataExchange, etc.) → App shows 4/13 when it's really 15. The fix is
+NAME-BASED pairing (parse the source function name after each // FUNCTION marker like asmscore's
+CLI does, match COMDAT by mangled substring). `$CLAUDE_JOB_DIR/tmp/appcheck.py` is a per-name
+reference impl. Do this before the next MFC-heavy TU or the % will keep lying.
+
+### ⏮ PRIOR PICKUP (2026-07-06 v3 — asmscore fixed; WorldDoc TU landed; 9.37%)
 **Progress 9.37% byte-exact** (positional; was 7.32 at session start). Session commits: the
 asmscore funclet fix + the NEW src/WorldDoc TU (7/13 exact, 2036B).
 
