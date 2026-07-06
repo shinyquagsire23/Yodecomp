@@ -192,3 +192,11 @@ individually named (camera/scroll/GDI helpers) — name incrementally as their `
   document/view/exception classes; decompile ctors to name them.
 - The `GameData` state names (Nevada/Alaska/Oregon) suggest `.dta` section/tileset labels — cross-ref
   `~/workspace/DesktopAdventures` for the `.dta`/zone format.
+
+
+**Heritage & demo-limiting note (2026-07-05):** the registry keys `Nevada`/`Alaska`/`Oregon` are Indiana
+Jones' Desktop Adventures engine leftovers (US-state planet slots). In Yoda Stories: slot 1 = Tatooine
+(desert), slot 2 = Hoth (ice — the demo's planet), slot 3 = Endor (forest). Demo-limiting measures in this
+CU (not present in the full game): goal item hardcoded to 108, Alaska history pre-seeded (0xbd/0xc5 by
+completionCount), File>Save/Load/Replay menu items force-disabled — plus most content stripped from the
+demo DTA itself. Don't over-interpret these as engine semantics.

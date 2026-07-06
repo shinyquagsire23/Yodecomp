@@ -306,7 +306,13 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   (tile/zone/character/sound/puzzle arrays @ +0x80..+0xc0 region, name lists, counts). Matching it
   forces the World struct's ASSET half to be modeled correctly — this is the cheapest way to fill World
   (user insight: don't grind the World struct in the abstract; let GameData matching pull it in).
-  Steps: (1) identify/rename the ~70 funcs non-Maybe (reader sweep, agent-able), (2) model the touched
+  GameData sweep DONE (2026-07-05): planet tables = per-planet story-replay histories (registry keys
+  Nevada/Alaska/Oregon = Indy-engine US-state slots for Tatooine/Hoth/Endor; demo-limited: goal=108
+  hardcode, pre-seeded Alaska list, grayed Save/Load/Replay). 7 message-map handlers recovered from the
+  0x4035xx gap (OnNewWorld/OnReplayStory/...). StartGame(nSeed,bSkipGenerate) RET-8 fix. CU = a SECOND
+  doc-TU source file (all this=World; "GameData" stays a docs label). Remaining Maybe: BuildQuestPathMaybe
+  (behavior documented — 10x10 plan-grid order assignment; purpose label = Phase-D confirm).
+  Original steps were: (1) identify/rename the ~70 funcs non-Maybe (reader sweep, agent-able), (2) model the touched
   World fields + any GameData-local structs in Ghidra & docs/structs.md, (3) src/GameData/ TU in .text
   order, iterate with verify/asmscore. Watch for the TU boundary: 0x401ac0 start (after CWinApp block)
   and the 0x4042b0 end (Records).
