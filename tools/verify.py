@@ -22,7 +22,8 @@ TEXT_VA, TEXT_RAW = 0x401000, 0x400
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # MFC base classes whose COMDATs are library code (linked from NAFXCW.LIB), not ours to match.
-LIB_OWNERS = ("CObject", "CArchive", "CDumpContext", "CRuntimeClass", "CException", "CString")
+LIB_OWNERS = ("CObject", "CArchive", "CDumpContext", "CRuntimeClass", "CException", "CString",
+              "AFX_EXCEPTION_LINK")  # out-of-line inline-dtor COMDAT (folded to NAFXCW at link)
 
 
 def owner_of(mangled):
