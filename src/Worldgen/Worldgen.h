@@ -7,6 +7,7 @@
 #include <afxwin.h>
 #include <afxcoll.h>
 #include "../Records/RecordClasses.h"
+#include "../IactScript/IactScriptClasses.h"
 
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
@@ -99,7 +100,9 @@ public:
     MapZone     mapGrid[100];        // +0x04b0  active 10x10 grid
     MapZone     mapGridBackup[100];  // +0x1900  backup grid
     MapZone     mapScratch[4];       // +0x2d50
-    char        _pad2e20[0x44c];     // +0x2e20  (player/palette fields — see WorldDoc.h)
+    char        _pad2e20[0x1c];      // +0x2e20  (player fields — see WorldDoc.h)
+    int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
+    char        _pad2e40[0x42c];     // +0x2e40  (palette fields — see WorldDoc.h)
     BYTE       *pSysColorTable;      // +0x326c
     Canvas     *pCanvas;             // +0x3270
     char        _pad3274[0x60];      // +0x3274  (viewport/inventory/weapon-box rects)
@@ -134,6 +137,13 @@ public:
     int  GetZoneGridOrder(int x, int y);                 // 0x00421e50
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50
+    int  ParseZone(CFile *pFile);                        // 0x00422f60
+    int  ParseZaux(CFile *pFile);                        // 0x00423110
+    int  ParseZax3(CFile *pFile);                        // 0x00423190
+    int  ParseZax2(CFile *pFile);                        // 0x00423210
+    int  ParseCaux(CFile *pFile);                        // 0x00423290
+    int  ParseChwp(CFile *pFile);                        // 0x00423300
+    int  ParseTnam(CFile *pFile);                        // 0x00423380
     void LoadWorldStateFile();                           // 0x00423850
     virtual void Serialize(CArchive &ar);                // 0x00423b30
     void SetCurrentToIntroZone();                        // 0x00423d20
@@ -145,6 +155,11 @@ public:
     afx_msg void OnToggleMusic();                        // 0x00424310
     afx_msg void OnUpdateToggleMusic(CCmdUI *pCmdUI);    // 0x00424360
     unsigned int Randomize();                            // 0x00424380
+    void RestoreRecords();                               // 0x00426380
+    void BackupRecords();                                // 0x00426690
+    void SetupGrid();                                    // 0x004269a0
+
+    Zone *ReadZone(CFile *pFile, int idx);               // 0x00426a00 (this TU, later)
 
     // ---- cross-TU stubs (defined in other TUs; calls are masked relocs) ----
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)

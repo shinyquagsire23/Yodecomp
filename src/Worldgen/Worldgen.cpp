@@ -565,6 +565,147 @@ void World::SetModifiedFlag(BOOL bModified)
     m_bModified = bModified;
 }
 
+// FUNCTION: YODA 0x00422f60
+// ZONE chunk: count + N zone records.
+int World::ParseZone(CFile *pFile)
+{
+    short nZones;
+    pFile->Read(&nZones, 2);
+    zones.SetSize(nZones, -1);
+    for (int i = 0; i < nZones; i++)
+    {
+        Zone *pZone = ReadZone(pFile, i);
+        if (pZone == NULL)
+            return 0;
+        zones.SetAt(i, pZone);
+    }
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423110
+// ZAUX chunk: per-zone 8-byte header + IZAX payload.
+int World::ParseZaux(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    char buf[8];
+    for (int i = 0; i < nCount; i++)
+    {
+        pFile->Read(buf, 8);
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadZaux(pFile);
+    }
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423190
+// ZAX3 chunk.
+int World::ParseZax3(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    char buf[8];
+    for (int i = 0; i < nCount; i++)
+    {
+        pFile->Read(buf, 8);
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadZax3(pFile);
+    }
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423210
+// ZAX2 chunk.
+int World::ParseZax2(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    char buf[8];
+    for (int i = 0; i < nCount; i++)
+    {
+        pFile->Read(buf, 8);
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadZax2(pFile);
+    }
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423290
+// CAUX chunk: per-character damage words, -1-terminated id list.
+int World::ParseCaux(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id >= 0)
+        {
+            Character *pChar = (Character *)characters.GetAt(id);
+            if (pChar == NULL)
+                return 0;
+            pFile->Read(&pChar->damage, 2);
+        }
+        else
+        {
+            nDone++;
+        }
+    } while (nDone == 0);
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423300
+// CHWP chunk: per-character weapon id + health, -1-terminated id list.
+int World::ParseChwp(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id >= 0)
+        {
+            Character *pChar = (Character *)characters.GetAt(id);
+            if (pChar == NULL)
+                return 0;
+            pFile->Read(&pChar->weaponCharId, 2);
+            pFile->Read(&pChar->health, 2);
+        }
+        else
+        {
+            nDone++;
+        }
+    } while (nDone == 0);
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423380
+// TNAM chunk: short tile id + 24-byte name, -1-terminated.
+int World::ParseTnam(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id < 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            Tile *pTile = (Tile *)tiles.GetAt(id);
+            char buf[24];
+            pFile->Read(buf, 0x18);
+            pTile->name = buf;
+        }
+    } while (nDone == 0);
+    return 1;
+}
+
 // FUNCTION: YODA 0x00423d20
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
 void World::SetCurrentToIntroZone()
@@ -723,4 +864,227 @@ unsigned int World::Randomize()
         break;
     }
     return b3 | b2 | b1 | b0;
+}
+
+// FUNCTION: YODA 0x00426380
+// Restore the center 2x2 quest cells (44,45,54,55) from mapScratch, re-tagging their ids.
+void World::RestoreRecords()
+{
+    mapGrid[44].id = 0x5e;
+    mapGrid[44].cellQuestSlot0 = mapScratch[0].cellQuestSlot0;
+    mapGrid[44].cellQuestSlot1 = mapScratch[0].cellQuestSlot1;
+    mapGrid[44].zoneType = mapScratch[0].zoneType;
+    mapGrid[44].cellItemA = mapScratch[0].cellItemA;
+    mapGrid[44].cellItemB = mapScratch[0].cellItemB;
+    mapGrid[44].cellItemC = mapScratch[0].cellItemC;
+    mapGrid[44].cellQuestSlot5 = mapScratch[0].cellQuestSlot5;
+    mapGrid[44].cellQuestSlot6 = mapScratch[0].cellQuestSlot6;
+    mapGrid[44].flagSolved = mapScratch[0].flagSolved;
+    mapGrid[44].flagA = mapScratch[0].flagA;
+    mapGrid[44].flagB = mapScratch[0].flagB;
+    mapGrid[44].flagC = mapScratch[0].flagC;
+    mapGrid[44].flagD = mapScratch[0].flagD;
+    mapGrid[44].field30 = mapScratch[0].field30;
+    mapGrid[45].id = 0x5f;
+    mapGrid[45].cellQuestSlot0 = mapScratch[1].cellQuestSlot0;
+    mapGrid[45].cellQuestSlot1 = mapScratch[1].cellQuestSlot1;
+    mapGrid[45].zoneType = mapScratch[1].zoneType;
+    mapGrid[45].cellItemA = mapScratch[1].cellItemA;
+    mapGrid[45].cellItemB = mapScratch[1].cellItemB;
+    mapGrid[45].cellItemC = mapScratch[1].cellItemC;
+    mapGrid[45].cellQuestSlot5 = mapScratch[1].cellQuestSlot5;
+    mapGrid[45].cellQuestSlot6 = mapScratch[1].cellQuestSlot6;
+    mapGrid[45].flagSolved = mapScratch[1].flagSolved;
+    mapGrid[45].flagA = mapScratch[1].flagA;
+    mapGrid[45].flagB = mapScratch[1].flagB;
+    mapGrid[45].flagC = mapScratch[1].flagC;
+    mapGrid[45].flagD = mapScratch[1].flagD;
+    mapGrid[45].field30 = mapScratch[1].field30;
+    mapGrid[54].id = 0x5d;
+    mapGrid[54].cellQuestSlot0 = mapScratch[2].cellQuestSlot0;
+    mapGrid[54].cellQuestSlot1 = mapScratch[2].cellQuestSlot1;
+    mapGrid[54].zoneType = mapScratch[2].zoneType;
+    mapGrid[54].cellItemA = mapScratch[2].cellItemA;
+    mapGrid[54].cellItemB = mapScratch[2].cellItemB;
+    mapGrid[54].cellItemC = mapScratch[2].cellItemC;
+    mapGrid[54].cellQuestSlot5 = mapScratch[2].cellQuestSlot5;
+    mapGrid[54].cellQuestSlot6 = mapScratch[2].cellQuestSlot6;
+    mapGrid[54].flagSolved = mapScratch[2].flagSolved;
+    mapGrid[54].flagA = mapScratch[2].flagA;
+    mapGrid[54].flagB = mapScratch[2].flagB;
+    mapGrid[54].flagC = mapScratch[2].flagC;
+    mapGrid[54].flagD = mapScratch[2].flagD;
+    mapGrid[54].field30 = mapScratch[2].field30;
+    mapGrid[55].id = 0x60;
+    mapGrid[55].cellQuestSlot0 = mapScratch[3].cellQuestSlot0;
+    mapGrid[55].cellQuestSlot1 = mapScratch[3].cellQuestSlot1;
+    mapGrid[55].zoneType = mapScratch[3].zoneType;
+    mapGrid[55].cellItemA = mapScratch[3].cellItemA;
+    mapGrid[55].cellItemB = mapScratch[3].cellItemB;
+    mapGrid[55].cellItemC = mapScratch[3].cellItemC;
+    mapGrid[55].cellQuestSlot5 = mapScratch[3].cellQuestSlot5;
+    mapGrid[55].cellQuestSlot6 = mapScratch[3].cellQuestSlot6;
+    mapGrid[55].flagSolved = mapScratch[3].flagSolved;
+    mapGrid[55].flagA = mapScratch[3].flagA;
+    mapGrid[55].flagB = mapScratch[3].flagB;
+    mapGrid[55].flagC = mapScratch[3].flagC;
+    mapGrid[55].flagD = mapScratch[3].flagD;
+    mapGrid[55].field30 = mapScratch[3].field30;
+}
+
+// FUNCTION: YODA 0x00426690
+// Snapshot the center 2x2 quest cells (44,45,54,55) into mapScratch, tagging the scratch ids.
+void World::BackupRecords()
+{
+    mapScratch[0].id = 0x5e;
+    mapScratch[0].cellQuestSlot0 = mapGrid[44].cellQuestSlot0;
+    mapScratch[0].cellQuestSlot1 = mapGrid[44].cellQuestSlot1;
+    mapScratch[0].zoneType = mapGrid[44].zoneType;
+    mapScratch[0].cellItemA = mapGrid[44].cellItemA;
+    mapScratch[0].cellItemB = mapGrid[44].cellItemB;
+    mapScratch[0].cellItemC = mapGrid[44].cellItemC;
+    mapScratch[0].cellQuestSlot5 = mapGrid[44].cellQuestSlot5;
+    mapScratch[0].cellQuestSlot6 = mapGrid[44].cellQuestSlot6;
+    mapScratch[0].flagSolved = mapGrid[44].flagSolved;
+    mapScratch[0].flagA = mapGrid[44].flagA;
+    mapScratch[0].flagB = mapGrid[44].flagB;
+    mapScratch[0].flagC = mapGrid[44].flagC;
+    mapScratch[0].flagD = mapGrid[44].flagD;
+    mapScratch[0].field30 = mapGrid[44].field30;
+    mapScratch[1].id = 0x5f;
+    mapScratch[1].cellQuestSlot0 = mapGrid[45].cellQuestSlot0;
+    mapScratch[1].cellQuestSlot1 = mapGrid[45].cellQuestSlot1;
+    mapScratch[1].zoneType = mapGrid[45].zoneType;
+    mapScratch[1].cellItemA = mapGrid[45].cellItemA;
+    mapScratch[1].cellItemB = mapGrid[45].cellItemB;
+    mapScratch[1].cellItemC = mapGrid[45].cellItemC;
+    mapScratch[1].cellQuestSlot5 = mapGrid[45].cellQuestSlot5;
+    mapScratch[1].cellQuestSlot6 = mapGrid[45].cellQuestSlot6;
+    mapScratch[1].flagSolved = mapGrid[45].flagSolved;
+    mapScratch[1].flagA = mapGrid[45].flagA;
+    mapScratch[1].flagB = mapGrid[45].flagB;
+    mapScratch[1].flagC = mapGrid[45].flagC;
+    mapScratch[1].flagD = mapGrid[45].flagD;
+    mapScratch[1].field30 = mapGrid[45].field30;
+    mapScratch[2].id = 0x5d;
+    mapScratch[2].cellQuestSlot0 = mapGrid[54].cellQuestSlot0;
+    mapScratch[2].cellQuestSlot1 = mapGrid[54].cellQuestSlot1;
+    mapScratch[2].zoneType = mapGrid[54].zoneType;
+    mapScratch[2].cellItemA = mapGrid[54].cellItemA;
+    mapScratch[2].cellItemB = mapGrid[54].cellItemB;
+    mapScratch[2].cellItemC = mapGrid[54].cellItemC;
+    mapScratch[2].cellQuestSlot5 = mapGrid[54].cellQuestSlot5;
+    mapScratch[2].cellQuestSlot6 = mapGrid[54].cellQuestSlot6;
+    mapScratch[2].flagSolved = mapGrid[54].flagSolved;
+    mapScratch[2].flagA = mapGrid[54].flagA;
+    mapScratch[2].flagB = mapGrid[54].flagB;
+    mapScratch[2].flagC = mapGrid[54].flagC;
+    mapScratch[2].flagD = mapGrid[54].flagD;
+    mapScratch[2].field30 = mapGrid[54].field30;
+    mapScratch[3].id = 0x60;
+    mapScratch[3].cellQuestSlot0 = mapGrid[55].cellQuestSlot0;
+    mapScratch[3].cellQuestSlot1 = mapGrid[55].cellQuestSlot1;
+    mapScratch[3].zoneType = mapGrid[55].zoneType;
+    mapScratch[3].cellItemA = mapGrid[55].cellItemA;
+    mapScratch[3].cellItemB = mapGrid[55].cellItemB;
+    mapScratch[3].cellItemC = mapGrid[55].cellItemC;
+    mapScratch[3].cellQuestSlot5 = mapGrid[55].cellQuestSlot5;
+    mapScratch[3].cellQuestSlot6 = mapGrid[55].cellQuestSlot6;
+    mapScratch[3].flagSolved = mapGrid[55].flagSolved;
+    mapScratch[3].flagA = mapGrid[55].flagA;
+    mapScratch[3].flagB = mapGrid[55].flagB;
+    mapScratch[3].flagC = mapGrid[55].flagC;
+    mapScratch[3].flagD = mapGrid[55].flagD;
+    mapScratch[3].field30 = mapGrid[55].field30;
+}
+
+// FUNCTION: YODA 0x004269a0
+// Reset the active 10x10 grid to empty cells.
+void World::SetupGrid()
+{
+    int n = 0;
+    for (int i = 0; i < 10; i++)
+    {
+        for (int j = 0; j < 10; j++)
+        {
+            mapGrid[n].id = -1;
+            mapGrid[n].cellQuestSlot0 = -1;
+            mapGrid[n].cellItemC = -1;
+            mapGrid[n].cellItemA = -1;
+            mapGrid[n].cellQuestSlot1 = -1;
+            mapGrid[n].cellQuestSlot5 = -1;
+            mapGrid[n].cellItemB = -1;
+            mapGrid[n].cellQuestSlot6 = -1;
+            mapGrid[n].flagSolved = 0;
+            mapGrid[n].flagA = 0;
+            mapGrid[n].flagB = 0;
+            mapGrid[n].flagC = 0;
+            mapGrid[n].flagD = 0;
+            mapGrid[n].field30 = -1;
+            n++;
+        }
+    }
+}
+
+// FUNCTION: YODA 0x00426a00
+// Read one ZONE record: skip zones for other planets (demo whitelist forces a fixed id set);
+// returns the Zone, (Zone *)-1 for skipped, NULL on failure.
+Zone *World::ReadZone(CFile *pFile, int idx)
+{
+    BOOL bForce = FALSE;
+    switch (idx)
+    {
+    case 0:
+    case 0x4c:
+    case 0x4d:
+    case 0x5d:
+    case 0x5e:
+    case 0x5f:
+    case 0x60:
+    case 0x10a:
+    case 0x10b:
+    case 0x10f:
+    case 0x1d7:
+    case 0x217:
+    case 0x282:
+        bForce = TRUE;
+    }
+    short nPlanet;
+    int nLen;
+    pFile->Read(&nPlanet, 2);
+    pFile->Read(&nLen, 4);
+    Zone *pZone;
+    if (currentPlanet == nPlanet || bForce)
+    {
+        pZone = new Zone(0x12, 0x12);
+        short nWidth;
+        pFile->Read(&nWidth, 2);
+        pZone->ReadIzon(pFile);
+        short nObjs;
+        pFile->Read(&nObjs, 2);
+        for (int i = 0; i < nObjs; i++)
+        {
+            ZoneObj *pObj = new ZoneObj;
+            pObj->Read(pFile);
+            pZone->objects.SetAtGrow(pZone->objects.GetSize(), pObj);
+        }
+        pZone->ReadZaux(pFile);
+        pZone->ReadZax2(pFile);
+        pZone->ReadZax3(pFile);
+        pZone->ReadZax4(pFile);
+        short nScripts;
+        pFile->Read(&nScripts, 2);
+        for (int j = 0; j < nScripts; j++)
+        {
+            IactScript *pScript = new IactScript;
+            pZone->iactScripts.SetAtGrow(pZone->iactScripts.GetSize(), pScript);
+            pScript->Read(pFile);
+        }
+    }
+    else
+    {
+        pFile->Seek(nLen, CFile::current);
+        return (Zone *)-1;
+    }
+    return pZone;
 }
