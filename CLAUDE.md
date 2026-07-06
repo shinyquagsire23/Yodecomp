@@ -244,6 +244,76 @@ method body; `currentProgram`/`toAddr`/`println`/`createFunction` are in scope; 
 names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/ProgramScriptService.java`).
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
+## 🗺 LONG-TERM ROADMAP (written 2026-07-05, after the Records TU — keep this current)
+
+**The unit of completion is the TRANSLATION UNIT, not the function.** Lesson #7 + the Records coupling
+matrix prove codegen state flows forward through a TU (and through class decls in its header): functions
+match piecemeal only until the TU around them changes. So the plan is TU-by-TU, each TU driven to
+"all functions exact-or-annotated-effective", with a single JOINT residual pass per TU at the endgame.
+
+### App-region inventory (~128 KB, 534 funcs) and TU status
+| TU / module | range | ~size | state |
+|---|---|---|---|
+| World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | 4/6 exact; CalcTimeScore unstarted, CalcSolvedScore x87 park |
+| **GameData** (`.dta` asset store) | 0x401ac0–0x4042b0 | ~10 KB | ⭐ NEXT — 70 funcs, provisional names |
+| **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
+| Iact (`.obj`: Zone readers + IACT) | 0x405ae0–0x407de0 | ~9 KB | named, IactScript struct modeled; RunCommands = 3 KB switch |
+| **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 8/11 + 3 eff. (parked) |
+| Small MFC classes (Frame/Dlg/InvScrollBar/TextDialog/…) | scattered | ~8 KB | RE'd; MFC-source-assisted |
+| Core utils | 0x408c60–0x40a560 | 6.5 KB | shared leaf helpers — high piecemeal match odds |
+| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial |
+| Logging | 0x419730–0x41b2f0 | 7 KB | named (`yodalog.txt`) |
+| Settings/registry | 0x41b2f0–0x41bee0 | 3 KB | named; string-anchored, easy |
+| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41c340–0x429000 | ~52 KB | RE'd; World struct partial (~115/197 named) |
+
+The two monsters (GameView ~57 KB + World ~52 KB) are ~85 % of the remaining bytes. Everything before
+them is deliberately sequenced to FILL THEIR STRUCTS as a side effect, so the monsters become
+transcription rather than research.
+
+### Phase plan
+- **A — GameData CU (NOW).** The `.dta` chunk handlers + asset accessors write `World` fields directly
+  (tile/zone/character/sound/puzzle arrays @ +0x80..+0xc0 region, name lists, counts). Matching it
+  forces the World struct's ASSET half to be modeled correctly — this is the cheapest way to fill World
+  (user insight: don't grind the World struct in the abstract; let GameData matching pull it in).
+  Steps: (1) identify/rename the ~70 funcs non-Maybe (reader sweep, agent-able), (2) model the touched
+  World fields + any GameData-local structs in Ghidra & docs/structs.md, (3) src/GameData/ TU in .text
+  order, iterate with verify/asmscore. Watch for the TU boundary: 0x401ac0 start (after CWinApp block)
+  and the 0x4042b0 end (Records).
+- **B — Iact TU.** Zone deserializers (ReadZaux/Zax2/3/4) + IactScript/commands + the RunCommands
+  interpreter (big mechanical switch; scrdoc.txt in ~/workspace/DesktopAdventures is the opcode bible).
+  Fills Zone/IACT runtime structs + more World fields (script state @ +0x5c/frame modes).
+- **C — Warm-up sweep: Core utils + Settings + Logging (+ World scorers cleanup).** Small, mostly
+  leaf/string-anchored, high exact-rate; finishes tool confidence and clears the map around the monsters.
+  Include the two parked World scorers (CalcTimeScore needs `time`/`__ftol` externs).
+- **D — World/doc TU.** By now its struct should be largely filled (A: assets, B: script state, plus
+  existing worldgen/save docs). Transcribe in .text order; the Dta chunk dispatch + worldgen + serialize
+  sub-modules are documentation sections, ONE TU for matching. Biggest single payoff (~52 KB).
+- **E — GameView TU.** Last monster: needs GameView struct completion (cursor/paint fields already
+  mapped this week) + all cross-TU stubs accumulated in A–D. Contains the 10.8 KB window-proc/Tick.
+- **F — Small MFC TUs + message maps/vtables.** Frame/App/Dlg/InvScrollBar/TextDialog/PaletteDlg etc.
+  `toolchain/vc42/MFC/SRC` makes message-map/vtable codegen nearly free once class decls are right.
+- **G — Endgame.** (1) JOINT residual pass per TU: the annotated effective-matches (Canvas 3, Records 8,
+  World scorers 1, …) are allocator/scheduler tie-breaks that shift with TU context — resolve them with
+  full-TU permuter runs (parallel wine workers TODO) once each TU is otherwise complete. (2) Whole-image
+  build: real link order (app .objs in address order, then LIBCMT/NAFXCW), .rdata/.data layout, linker
+  3.10-vs-4.20 flag question (toolchain/README), PE timestamp/checksum masking, reccmp-style final diff.
+
+### Standing rules that make this work
+- **Structs before transcription** (non-Maybe fields + calls) — the user's rule; it held for Records.
+- **Cross-TU calls via stub classes** with correct arg widths/convention (see Records.h World/GameView
+  stubs). Each phase PROMOTES stubs toward the real shared headers (src/ include tree mirrors the
+  original project's headers by the end).
+- **Fresh-TU determinism**: identical source ⇒ identical bytes; any unexplained diff means the SOURCE
+  differs (shape, type width, decl presence) — hunt the construct, don't blame the compiler. Proven
+  levers live in the Records/Canvas annotations (int-vs-short locals, `= -1` placement, nested `int id`
+  locals, shared-return nesting, memset(0xff), tag[4]=0+intrinsic strcmp, CFile vcall CSE).
+- **Byte-diff numbers lie once lengths diverge** — use verify.py per-function + capstone diffs against
+  the TRUE original extent (funclets + EH stubs included); asmscore for reg-vs-structure triage.
+- **Agents for RE sweeps, main thread for matching.** Reader-analysis naming sweeps parallelize well
+  (see the MapEntity/Puzzle sweep); matching iterations don't.
+- **Milestones** (progress.py %exact): ~8 % after A, ~15 % after B+C, ~55 % after D, ~90 % after E,
+  100 % = G's whole-image build. Track effective-match bytes separately (they count for G, not for %).
+
 ### ⏭ NEXT SESSION PICKUP (2026-07-05, updated)
 **⭐ STATIC-MFC LINKAGE IS STOOD UP (2026-07-05).** `toolchain/bin/link` + `NAFXCW.LIB` verified end to end
 (`toolchain/test/mfctest/` links a `CWinApp`+`CDWordArray` app clean). This unblocks per-function matching
