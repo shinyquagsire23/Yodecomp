@@ -210,14 +210,20 @@ void World::SaveStoryHistoryNevada()
     int lineNo;
     int obfKey;
     CWinApp *pApp = AfxGetApp();
+
     CString line;
-    CString prefix("Nevada");
+
     obfKey = rand() % 0xff + 1;
+
+    CString prefix("Nevada");
+
     int n = storyHistoryNevada.GetSize();
+
     if (n > 3) {
         storyHistoryNevada.RemoveAt(0, 1);
         n = storyHistoryNevada.GetSize();
     }
+
     if (n >= 0) {
         fullLines = n / 10;
         lineNo = 0;

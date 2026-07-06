@@ -221,6 +221,9 @@ public:
     void LoadStoryHistoryNevada();                        // 0x00401ac0
     void LoadStoryHistoryAlaska();                        // 0x00401ea0
     void LoadStoryHistoryOregon();                        // 0x00402280
+    void SaveStoryHistoryNevada();                        // 0x00402670
+    void SaveStoryHistoryAlaska();                        // 0x004029c0
+    void SaveStoryHistoryOregon();                        // 0x00402d10
     void RemoveEmptyZonesFromPlacedList();                // 0x00403070
     void PlaceZoneObjectTiles(short zoneId);              // 0x00403140
     void SaveZoneRecursive(CFile *f, short zoneId, int bFull);          // 0x004033b0
