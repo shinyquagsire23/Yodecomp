@@ -244,6 +244,17 @@ method body; `currentProgram`/`toAddr`/`println`/`createFunction` are in scope; 
 names (no imports). ghidra-mcp source: `~/workspace/ghidra-mcp` (`.../core/ProgramScriptService.java`).
 **Reminder:** after a Ghidra restart, re-confirm YodaDemo.exe is the active program before any write.
 
+**Gap-function scanner: `tools/ghidra_scripts/CreateGapFunctions.java` (2026-07-06).** Reusable,
+policy-driven port of the prepass: scans [0x401000,0x44b000) for inter-function gaps, skips 0xCC/0x00
+padding, classifies each run's first real byte by strongest incoming ref, and creates functions per
+`POLICY` (`DRY_RUN` default). Re-confirmed the prepass empirically — of 491 non-padding gap candidates:
+**CALL-targets = 0** (no missed real functions; SAFE mode is a no-op, as expected), DATA-ref = 311
+(EH/vtable funclets → belong to a parent), JMP = 3 (switch cases), no-ref = 177 (jump-table bytes / dead
+code). `POLICY=FUNCLETS` would promote the 311 funclets to `gap_ehlike_<addr>` functions (289 already
+instruction starts, 22 need disassembly) — do this only if you want EH/vtable refs to resolve to symbols;
+`AGGRESSIVE` also takes JMP/no-ref runs (likely garbage, per the reverted 0x403501 experiment). Copy to
+`~/ghidra_scripts/` and run via `run_ghidra_script`, or run its body via `run_script_inline`.
+
 ## 🗺 LONG-TERM ROADMAP (written 2026-07-05, after the Records TU — keep this current)
 
 **The unit of completion is the TRANSLATION UNIT, not the function.** Lesson #7 + the Records coupling
