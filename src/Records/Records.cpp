@@ -18,7 +18,7 @@ Puzzle::Puzzle()
     itemB = -1;
     unk3 = 0;
     unk2 = 0;
-    unk1 = 0;
+    nType = 0;
 }
 
 // FUNCTION: YODA 0x004043a0  (compiler-generated scalar-deleting destructor ??_GPuzzle)
@@ -45,17 +45,17 @@ Character::~Character()
 }
 
 // FUNCTION: YODA 0x00404750
-void Character::Init(short a, short mt, short c, int d)
+void Character::Init(short nTypeFlags, short nMoveType, short nUnk40, int nUnk44)
 {
     memset(frames, 0xff, sizeof(frames));
-    unk34 = a;
-    unk38 = -1;   // after unk34=a (EAX now holds a, not the fill's 0xffffffff) -> immediate
+    typeFlags = nTypeFlags;
+    weaponCharId = -1;  // after typeFlags= (EAX no longer holds the fill's 0xffffffff) -> immediate
                   // store, which the scheduler hoists to just below the rep stosd.
-    moveType = mt;
-    unk3a = 1;
+    moveType = nMoveType;
+    health = 1;
     damage = 1;
-    unk40 = c;
-    unk44 = d;
+    unk40 = nUnk40;
+    unk44 = nUnk44;
 }
 
 // FUNCTION: YODA 0x00404830
@@ -121,20 +121,20 @@ MapEntity::MapEntity()
     y = -1;
     active = 1;
     unk10 = 0;
-    homeX = 0;
+    bulletX = 0;
     unk18 = 0;
-    homeY = 0;
+    bulletY = 0;
     unk20 = 0;
-    dx = 0;
-    unk1c = 0;
-    dy = 0;
+    bulletDX = 0;
+    bRetreating = 0;
+    bulletDY = 0;
     unk2c = 0;
-    animFlag = 0;
-    unk16 = 0;
-    unk34 = 1;
-    unk3e = 0;
+    bulletStep = 0;
+    aiStepCounter = 0;
+    bRefreshFrame = 1;
+    seqIdx = 0;
     timer = 0;
-    unk30 = 1;
+    wanderDir = 1;
     unk60 = 0;
 }
 

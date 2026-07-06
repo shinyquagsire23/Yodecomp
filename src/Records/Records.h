@@ -14,7 +14,7 @@
 class Puzzle : public CObject
 {
 public:                              // +0x00 CObject vtable (0x44b148)
-    int      unk1;                   // +0x04  ctor: 0
+    int      nType;                  // +0x04  ctor: 0; 0=transaction 1=trade 2=goal-prize 3=world-mission-goal
     int      unk2;                   // +0x08  ctor: 0
     int      unk3;                   // +0x0c  ctor: 0
     short    itemA;                  // +0x10  ctor: -1
@@ -37,21 +37,21 @@ class Character : public CObject
 {
 public:                              // +0x00 CObject vtable (0x44b160)
     short    frames[24];             // +0x04  3 anim banks x 8 facing dirs; -1 = none
-    short    unk34;                  // +0x34  Init arg a
+    short    typeFlags;              // +0x34  ICHR flags low word: 1=hero 2=enemy 4=weapon
     short    moveType;               // +0x36  CharMoveType (enemy-AI switch in GameView::Tick)
-    short    unk38;                  // +0x38  Init: -1
-    short    unk3a;                  // +0x3a  Init: 1
+    short    weaponCharId;           // +0x38  ctor via Init: -1 (none); filled by ParseChwp
+    short    health;                 // +0x3a  Init: 1; filled by ParseChwp (chwp_entry)
     short    currentFrame;           // +0x3c  cached by GetFrameTile
     short    damage;                 // +0x3e  Init default: 1
-    short    unk40;                  // +0x40  Init arg c
+    short    unk40;                  // +0x40  ICHR unk_4 (parse-only, no runtime reader)
     char     _pad42[2];              // +0x42
-    int      unk44;                  // +0x44  Init arg d; ctor 0
+    int      unk44;                  // +0x44  ICHR unk_5 (parse-only); ctor 0
     short    unk48;                  // +0x48  ctor: 0
     char     _pad4a[2];              // +0x4a
 
     Character();                                         // 0x00404670
     virtual ~Character();                                // 0x00404700 (ScalarDtor 0x004046e0)
-    void  Init(short a, short mt, short c, int d);       // 0x00404750
+    void  Init(short nTypeFlags, short nMoveType, short nUnk40, int nUnk44); // 0x00404750
     void  Read(CFile *pFile);                            // 0x004047a0
     void *GetWalkFrameTile(int dx, int dy, CObArray *paTiles);            // 0x00404830
     void *GetFrameTile(int dx, int dy, CObArray *paTiles, int nAnimBank); // 0x00404850
@@ -68,25 +68,25 @@ public:                              // +0x00 CObject vtable (0x44b178)
     short    damageTaken;            // +0x0a  ctor: 0
     int      active;                 // +0x0c  ctor: 1
     short    unk10;                  // +0x10  ctor: 0
-    short    homeX;                  // +0x12  ctor: 0
-    short    homeY;                  // +0x14  ctor: 0
-    short    unk16;                  // +0x16  ctor: 0
+    short    bulletX;                // +0x12  ctor: 0; projectile pos (layer 1)
+    short    bulletY;                // +0x14  ctor: 0
+    short    aiStepCounter;          // +0x16  ctor: 0
     int      unk18;                  // +0x18  ctor: 0
-    int      unk1c;                  // +0x1c  ctor: 0
+    int      bRetreating;            // +0x1c  ctor: 0
     int      unk20;                  // +0x20  ctor: 0
     short    timer;                  // +0x24  ctor: 0
     unsigned short item;             // +0x26
     unsigned short numItems;         // +0x28
-    char     _pad2a[2];              // +0x2a
+    short    unk2a;                  // +0x2a  IZAX unk3
     int      unk2c;                  // +0x2c  ctor: 0
-    short    unk30;                  // +0x30  ctor: 1
+    short    wanderDir;              // +0x30  ctor: 1 (-1..2 dir code)
     char     _pad32[2];              // +0x32
-    int      unk34;                  // +0x34  ctor: 1
-    short    dx;                     // +0x38  ctor: 0
-    short    dy;                     // +0x3a  ctor: 0
-    short    animFlag;               // +0x3c  ctor: 0
-    short    unk3e;                  // +0x3e  ctor: 0
-    char     extra[32];              // +0x40
+    int      bRefreshFrame;          // +0x34  ctor: 1
+    short    bulletDX;               // +0x38  ctor: 0
+    short    bulletDY;               // +0x3a  ctor: 0
+    short    bulletStep;             // +0x3c  ctor: 0 (travel counter, <4 = range)
+    short    seqIdx;                 // +0x3e  ctor: 0 (waypoint/anim seq idx)
+    int      waypoints[8];           // +0x40  4 patrol (x,y) pairs from IZAX tail
     short    unk60;                  // +0x60  ctor: 0
     char     _pad62[2];              // +0x62
 
