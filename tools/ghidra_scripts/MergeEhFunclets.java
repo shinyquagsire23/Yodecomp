@@ -104,7 +104,7 @@ public class MergeEhFunclets extends GhidraScript {
             boolean autoNamed = nm.startsWith("FUN_") || nm.startsWith("case") || nm.startsWith("LAB_");
 
             // real function establishes its own frame -> not a funclet
-            if (establishesOwnFrame(fe)) { nSkipFramed++; continue; }
+            if (establishesOwnFrame(f)) { nSkipFramed++; continue; }
             // frameless but not a funclet (register-only leaf / ret stub) -> leave
             if (!(ehNamed || referencesParentFrame(f) || isStateFunclet(fe))) { nSkipNotFunclet++; continue; }
             // a human-assigned descriptive name = a real function -> never merge.
@@ -201,11 +201,15 @@ public class MergeEhFunclets extends GhidraScript {
         if (nReviewUnnamed > 0 && !MERGE_UNNAMED_FUNCLETS) { println("--- review candidates ---"); println(review.toString()); }
     }
 
-    // Real function: within the first ~5 instructions it does `push ebp`
-    // (MSVC frame prologue, possibly after `mov eax,fs:[0]` for SEH).
-    private boolean establishesOwnFrame(Address entry) {
-        Instruction i = listing.getInstructionAt(entry);
+    // Real function: within the first ~8 instructions it does `push ebp`
+    // (MSVC frame prologue, possibly after `mov eax,fs:[0]` for SEH). The scan is
+    // bounded to the function's OWN body -- a tiny funclet followed by a framed
+    // function must not see the next function's prologue via getNext().
+    private boolean establishesOwnFrame(Function f) {
+        AddressSetView body = f.getBody();
+        Instruction i = listing.getInstructionAt(f.getEntryPoint());
         for (int k = 0; k < 8 && i != null; k++) {
+            if (!body.contains(i.getAddress())) break;   // don't cross into the next function
             if (i.getMnemonicString().equalsIgnoreCase("PUSH")
                     && i.toString().toUpperCase().contains("EBP")) return true;
             i = i.getNext();
