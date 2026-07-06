@@ -20,8 +20,8 @@ struct World {
     char  _pad5c[0x70 - 0x5c];
     int   mScore;        // +0x70  accumulated score
     int   mField74;      // +0x74
-    int   mField78;      // +0x78  (time base)
-    int   mField7c;      // +0x7c  (time offset)
+    int   mTimeBase;     // +0x78  time base (difftime anchor)
+    int   mTimeOffset;   // +0x7c  saved-game elapsed offset
     char  _pad80[0x4b4 - 0x80];
     Zone  mZones[100];   // +0x4b4  10x10 grid, ends +0x1904
     char  _pad1904[0x3320 - 0x1904];

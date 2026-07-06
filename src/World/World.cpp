@@ -98,20 +98,22 @@ int World::CalcSolvedScore()
     return score;
 }
 
-// FUNCTION: YODA 0x004019c0  [logic-complete; NOT byte-exact — MSVC caches mField7c
+// FUNCTION: YODA 0x004019c0  [logic-complete; NOT byte-exact — MSVC caches mTimeOffset
 // in EDI vs the original's re-read from memory (CMP [mem],0). Optimizer CSE choice.]
 int World::CalcTimeScore()
 {
     int v;
-    if (mField7c != 0)
-        v = (int)difftime(mField78, time(0)) + mField7c;
-    else
-        v = (int)difftime(mField78, time(0));
+    if (mTimeOffset != 0) {
+        v = (int)difftime(mTimeBase, time(0));
+        v += mTimeOffset;       // separate statement: the original re-reads [this+0x7c] here
+    } else
+        v = (int)difftime(mTimeBase, time(0));
 
     v = v / 60 + mTotalZones * -5;
     if (v <= 0) return 200;
-    if (v * 20 >= 200) return 0;
-    return 200 - v * 20;
+    int t = v * 20;      // single temp: the original reuses ECX for both the compare and 200-t
+    if (t >= 200) return 0;
+    return 200 - t;
 }
 
 // FUNCTION: YODA 0x00401a80
