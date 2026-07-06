@@ -12,12 +12,31 @@ class Tile;
 class Character;
 class Puzzle;
 
-// Minimal Zone stub: GameData only reads type@+4.
+// A placed object / hotspot stub (0x10 bytes).
+class ZoneObjStub
+{
+public:
+    void        *vftable;        // +0x00
+    unsigned int type;           // +0x04  ObjType (9 = OBJ_DOOR_IN, visible = child zone id)
+    short        state;          // +0x08
+    short        x;              // +0x0a
+    short        y;              // +0x0c
+    short        visible;        // +0x0e  tile id / child zone id
+};
+
+// Zone stub: fields/methods this TU touches (full class in src/Records/Records.h).
 class ZoneStub
 {
 public:
-    void *vftable;               // +0x00
-    int   type;                  // +0x04  ZoneType (1=Empty ... 8=Room ... 16=Find)
+    void       *vftable;         // +0x000
+    int         type;            // +0x004  ZoneType (1=Empty ... 8=Room ... 16=Find)
+    char        _pad08[0x7a0];   // +0x008
+    CObArray    objects;         // +0x7a8  ZoneObj* elements
+
+    unsigned short GetTile(int x, int y, int layer);            // 0x00405430
+    void           SetTile(int x, int y, int layer, short val); // 0x00405480
+    void           ReadSavedState(CFile *pFile, int bFull);     // 0x00405bd0
+    void           WriteSavedState(CFile *pFile, int bFull);    // 0x00405f30
 };
 
 // A 10x10 world-map grid cell (0x34 bytes).
@@ -107,6 +126,10 @@ public:
     void Nop2();                                          // 0x00403060  empty
     int  FindZoneCellById(short id, int *pX, int *pY);    // 0x00403250
     unsigned char GetExitDirections();                    // 0x004032c0  W=8 E=4 N=1 S=2 (returned in AL)
+    void RemoveEmptyZonesFromPlacedList();                // 0x00403070
+    void PlaceZoneObjectTiles(short zoneId);              // 0x00403140
+    void SaveZoneRecursive(CFile *f, short zoneId, int bFull);          // 0x004033b0
+    void LoadZoneRecursive(CFile *f, short zoneId, int bFull);          // 0x00403450
     void OnUpdateFileSave(CCmdUI *pCmdUI);                // 0x00403510  demo: grayed
     void OnUpdateAppExit(CCmdUI *pCmdUI);                 // 0x00403520
     void OnUpdateHideMe(CCmdUI *pCmdUI);                  // 0x00403550
