@@ -5,6 +5,7 @@
 // sextet), RemoveEmptyZonesFromPlacedList, PlaceZoneObjectTiles, Save/LoadZoneRecursive,
 // OnReplayStory, StartGame, RefreshZone, BuildQuestPath.
 #include "WorldStub.h"
+#include <time.h>
 
 // Demo-limiting helper: the three permanently-grayed menu items (Save/Load/Replay) share an
 // inlined disable call — the EAX staging of the pointer arg is the inlining fingerprint.
@@ -231,6 +232,191 @@ void World::OnUpdateReplayStory(CCmdUI *pCmdUI)
     DemoDisable(pCmdUI);
 }
 
+// FUNCTION: YODA 0x00403620
+// File>Replay Story: confirm if a game is in progress, pick the story to replay (current goal or
+// the planet history's most recent), then rebuild the world around it with a fresh seed.
+void World::OnReplayStory()
+{
+    int answer = 6;
+    int savedMode = nFrameMode;
+    nFrameMode = 0;
+    if (gameState == 0)
+        answer = AfxMessageBox(0xe009, 4, 0);
+    if (answer == 6) {
+        if (nCurrentGoalItem > 0) {
+            nRequestedGoalItem = nCurrentGoalItem;
+        }
+        else {
+            switch (currentPlanet) {
+            case 1: {
+                LoadStoryHistoryNevada();
+                int n = storyHistoryNevada.GetSize();
+                if (n > 0) {
+                    nRequestedGoalItem = storyHistoryNevada[n - 1];
+                }
+                else {
+                    AfxMessageBox(0xe01c, 0, -1);
+                    return;
+                }
+                break;
+            }
+            case 2: {
+                LoadStoryHistoryAlaska();
+                int n = storyHistoryAlaska.GetSize();
+                if (n > 0) {
+                    nRequestedGoalItem = storyHistoryAlaska[n - 1];
+                }
+                else {
+                    AfxMessageBox(0xe01c, 0, -1);
+                    return;
+                }
+                break;
+            }
+            case 3: {
+                LoadStoryHistoryOregon();
+                int n = storyHistoryOregon.GetSize();
+                if (n > 0) {
+                    nRequestedGoalItem = storyHistoryOregon[n - 1];
+                }
+                else {
+                    AfxMessageBox(0xe01c, 0, -1);
+                    return;
+                }
+                break;
+            }
+            }
+        }
+        goalTileList.SetSize(0, -1);
+        placedZoneIds.SetSize(0, -1);
+        bWorldInvalid = 1;
+        bStartingGame = 1;
+        int ok = StartGame(Randomize(), 0);   // nested: the 0 is pushed before Randomize runs
+        bStartingGame = 0;
+        if (ok == 0) {
+            nFrameMode = 0xc;
+            return;
+        }
+        bWorldInvalid = 0;
+        return;
+    }
+    nRequestedGoalItem = -1;
+    nFrameMode = savedMode;
+}
+
+// FUNCTION: YODA 0x004037a0  [WIP: DIFF(254) at exact length 666 — structure ~97% (172/178 insns
+//   aligned); residuals: grid-store increment placement ([edx-0x34] pattern), gen-loop layout,
+//   early-out jcc direction. Probes: c-pointer grid (+22B worse), decl swaps inert.]
+// Begin a game session: reset player state, walk-in animation, camera/inventory reset, clear both
+// map grids, load assets, then (unless restoring a save) generate + populate the world.
+int World::StartGame(unsigned int nSeed, int bSkipGenerate)
+{
+    bHidePlayer = 1;
+    healthHi = 1;
+    healthLo = 1;
+    weaponState[0] = 0;
+    currentWeapon = 0;
+    weaponState[1] = 0;
+    gameState = 0;
+    weaponState[2] = 0;
+    abortFrame = 0;
+    weaponState[3] = 0;
+    nMapChangeReason = 1;
+    nFrameMode = 7;
+    nCurrentAmmo = 0;
+    POSITION pos = GetFirstViewPosition();
+    GameViewStub *v = (GameViewStub *)GetNextView(pos);
+    if (v != 0) {
+        for (int i = 0; i < 5; i++) {
+            v->OnWalk(0x5d, (short)i);
+            long c = clock();
+            while (clock() < c + 100)
+                ;
+        }
+        nFrameMode = 0;
+        v->unk118 = 0;
+        v->SoundFlush();
+        v->PlayerMove(0x3a);
+    }
+    FindSpecialZoneMaybe();
+    cameraY = 0;
+    cameraX = 0;
+    UpdateCamera();
+    bWorldReady = 1;
+    nFrameMode = 7;
+    nMapChangeReason = 1;
+    v->DrawGameArea(0);
+    if (bSkipGenerate == 0)
+        v->nTargetZoneId = 0x5d;
+    int n = inventory.GetSize();
+    for (int j = 0; j < n; j++) {
+        CObject *p = inventory[j];
+        if (p)
+            delete p;
+    }
+    inventory.SetSize(0, -1);
+    UpdateAllViews(0, 0, 0);
+    int *pg = paZonePtrGrid;
+    MapZone *mz = zones;
+    for (int r = 0; r < 10; r++) {
+        for (int col = 0; col < 10; col++) {
+            *pg = 0;
+            mz->id = -1;
+            pg++;
+            mz->cellQuestSlot0 = -1;
+            mz->cellQuestSlot1 = -1;
+            mz->zoneType = -1;
+            mz->cellItemA = -1;
+            mz->cellItemB = -1;
+            mz->cellItemC = -1;
+            mz->cellQuestSlot5 = -1;
+            mz->cellQuestSlot6 = -1;
+            mz->flagSolved = 0;
+            mz->flagA = 0;
+            mz->flagB = 0;
+            mz->flagC = 0;
+            mz->flagD = 0;
+            mz->field2c = -1;
+            mz[100].id = -1;
+            mz[100].cellQuestSlot0 = -1;
+            mz[100].cellQuestSlot1 = -1;
+            mz[100].zoneType = -1;
+            mz[100].cellItemA = -1;
+            mz[100].cellItemB = -1;
+            mz[100].cellItemC = -1;
+            mz[100].cellQuestSlot5 = -1;
+            mz[100].cellQuestSlot6 = -1;
+            mz[100].flagSolved = 0;
+            mz[100].flagA = 0;
+            mz[100].flagB = 0;
+            mz[100].flagC = 0;
+            mz[100].flagD = 0;
+            mz[100].field2c = -1;
+            mz++;
+        }
+    }
+    if (LoadWorldMaybe() == 0)
+        return 0;
+    unk2e34 = 0;
+    if (bSkipGenerate == 0) {
+        int ok = 0;
+        unsigned int seed = nSeed;
+        do {
+            if (Generate(seed) == 0)
+                seed = Randomize();
+            else
+                ok = ok + 1;
+        } while (ok == 0);
+        BackupZoneGrid();
+        Populate();
+    }
+    v->bBusy = 0;
+    if (bSkipGenerate == 0)
+        nFrameMode = 0xb;
+    unk3378 = 0;
+    unk2e60 = 0;
+    return 1;
+}
+
 // FUNCTION: YODA 0x00403a40
 Tile *World::GetTileData(int idx)
 {
@@ -266,4 +452,53 @@ int World::FindTile(void *pTile)
         } while (i < n);
     }
     return r;
+}
+
+// FUNCTION: YODA 0x00403ae0  [WIP: DIFF(70), len 410 vs 416 — cracked so far: faithful destX/destY
+//   short accumulators + per-iteration currentZone re-reads + int-promoted GetTile results +
+//   BlitMasked-arm-first. Residual: a movsx-before-add on the accumulators (int-accum probe worse)
+//   + push/mov scheduling at the blit sites.]
+// Redraw the whole current zone into the offscreen canvas: 3 layers per cell; layers 1/2 use the
+// masked blit for game-object tiles.
+void World::RefreshZone()
+{
+    if (currentZone == 0) {
+        pCanvas->Clear();
+        return;
+    }
+    short cy = 0;
+    if (currentZone->width > 0) {
+        short destY = 0;
+        do {
+            short cx = 0;
+            if (currentZone->height > 0) {
+                short destX = 0;
+                do {
+                    int t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 0);
+                    if (t >= 0)
+                        pCanvas->BlitFast(tileArray[t]->pixels, 0x20, 0x20, 0x20, destX, destY);
+                    t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 1);
+                    if (t >= 0) {
+                        Tile *pt = tileArray[t];
+                        if ((pt->flags & 1) != 0)
+                            pCanvas->BlitMasked((char *)pt->pixels, 0x20, 0x20, destX, destY, 0);
+                        else
+                            pCanvas->BlitFast(pt->pixels, 0x20, 0x20, 0x20, destX, destY);
+                    }
+                    t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 2);
+                    if (t >= 0) {
+                        Tile *pt = tileArray[t];
+                        if ((pt->flags & 1) != 0)
+                            pCanvas->BlitMasked((char *)pt->pixels, 0x20, 0x20, destX, destY, 0);
+                        else
+                            pCanvas->BlitFast(pt->pixels, 0x20, 0x20, 0x20, destX, destY);
+                    }
+                    destX = destX + 0x20;
+                    cx = cx + 1;
+                } while (cx < currentZone->height);
+            }
+            destY = destY + 0x20;
+            cy = cy + 1;
+        } while (cy < currentZone->width);
+    }
 }
