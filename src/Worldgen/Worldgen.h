@@ -119,7 +119,9 @@ public:
     int         bStartingGameMaybe;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
     char        _pad2e44[0xc];       // +0x2e44
     int         goalItemTileId;      // +0x2e50
-    char        _pad2e54[0x418];     // +0x2e54
+    char        _pad2e54[0x10];      // +0x2e54
+    int         genSkipTeleCheckMaybe; // +0x2e64  worldgen: skip the teleporter-distance test
+    char        _pad2e68[0x404];     // +0x2e68
     BYTE       *pSysColorTable;      // +0x326c
     Canvas     *pCanvas;             // +0x3270
     char        _pad3274[0x60];      // +0x3274  (viewport/inventory/weapon-box rects)
@@ -132,7 +134,8 @@ public:
     char        _pad32fc[0x10];      // +0x32fc
     int         nSoundEnabled;       // +0x330c
     int         nMusicEnabled;       // +0x3310
-    char        _pad3314[0x18];      // +0x3314
+    char        _pad3314[0x14];      // +0x3314
+    int         worldSize;           // +0x3328  1/2/3 (teleporter min-distance tier)
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
@@ -163,6 +166,8 @@ public:
     void AddPlacedZoneId(short zoneId);                  // 0x0041d920
     int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
+    unsigned short PlaceQuestNode(short nType, int a2, int a3, int a4,
+                                  int a5, short nOrder, short a7);  // 0x0041f120 (this TU, later)
     int  CheckZoneItemsAvailable(short zoneId);          // 0x0041f830
     void WorldgenCollectZoneRefs(short zoneId);          // 0x0041f8e0
     int  Generate(unsigned int nSeed);                   // 0x0041f960 (this TU, later)
@@ -170,6 +175,7 @@ public:
     void RestoreGridFromBackup();                        // 0x00421520
     int  IsTileInGoalList(unsigned int tileId);          // 0x004215e0
     int  PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY); // 0x00421620
+    int  WorldgenPlacePuzzles(short *paPlanGrid);        // 0x00421930
     int  GetZoneGridOrder(int x, int y);                 // 0x00421e50
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50

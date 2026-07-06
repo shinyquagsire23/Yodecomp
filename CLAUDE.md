@@ -286,7 +286,31 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v9 — Phase D: 50 funcs; PlacePuzzle+WorldgenPlacePuzzles; 14.04%)
+**Progress 14.04% (27/50 exact in src/Worldgen).** v9 delta on the v8 block below:
+- **PlacePuzzle refined to EFFECTIVE (39B, insns 255/255)** — the in-source annotation lists
+  three NEW STRUCTURE RECIPES that cracked it: (a) hoisting `int nIso = GetSize()` re-keys
+  ARRAY frame slots (use-count driven!) and yields mov+test/idiv-reg; (b) the pick is
+  sequential-if + `goto cleanup` in the far arm (only shape where the far store cross-jumps
+  into the B-arm tail while the log arm falls through dead re-tests); (c) **the delete/scan
+  countdown recipe**: `int i = 0; int n = GetSize(); do { ...GetAt(i); i++; n--; } while
+  (n != 0);` under a separate `GetSize() > 0` guard — produces the DEC/JNE countdown that
+  plain `while (i < n)` NEVER does. Recipe reused successfully twice in WorldgenPlacePuzzles.
+- **WorldgenPlacePuzzles (0x421930, 1310B) transcribed, EFFECTIVE-WIP** (annotation has the
+  autopsy). More cracks: `int nVal = pEntry->val` kills 66-prefix short loads at dual call
+  sites; the flag-if needs the call arm FIRST + `if (bRetry == 0) call; else = nBanned;`
+  inner shape; n++ precedes the lastX/lastY stores in all FOUR duplicated accept copies
+  (real source duplication, one per worldSize case + first-tele). Residual = the OPEN
+  block-sinking family (accept copies + retry sunk past the switch) + slot rotation.
+- New fields: worldSize@0x3328 (teleporter min-distance tier), genSkipTeleCheckMaybe@0x2e64.
+  New decls: PlaceQuestNode (7-arg, 0x41f120), WorldgenPlacePuzzles, PlacePuzzle.
+**NEXT:** placer family 0x41c580-0x41d660 (leaves — likely high exact yield), CarveQuestPath
+0x41d940, PlaceBlockades 0x41e350, SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120 (the 2KB
+hub — signature already declared), Generate 0x41f960, save/load monsters, then the GameView
+methods. Ghidra renames pending (YodaDemo ACTIVE): EnterZone→GetZoneIndex, 0x32d4 quad→view
+rect, 0x41c340→~CFileException, Log_Write→CTheApp::LogWrite, 0x421930 field names.
+
+### ⏮ PRIOR (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
 **Progress 13.85% byte-exact (was 13.52% at v7).** v8 delta on top of the v7 block below:
 - **ParseActn (402B) + ParseHtsp (407B) EXACT on first compile** — the ParseChar TRY/CATCH
   recipe + an inner SetSize/SetAt loop. Mirror details that mattered: Actn tests `id == -1`

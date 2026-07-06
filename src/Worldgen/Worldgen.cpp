@@ -552,14 +552,18 @@ int World::IsTileInGoalList(unsigned int tileId)
 }
 
 // FUNCTION: YODA 0x00421620
-// [WIP ~90% insn-identical (align=284, byte_diff=146). Residuals: (1) our pick-chain tests
-// the -0x3c array's count first while orig tests -0x50's — either the three CObArrays got
-// swapped frame slots (ParseSnds slot-key family) or the && operand order differs; ctor
-// section aligns clean so start by checking which array each SetAtGrow arm targets in OUR
-// obj vs orig (isolated=-0x50, adjacent=-0x3c, far=-0x64 in orig). (2) cleanup delete-loops:
-// orig fuses i into a DEC/JNE countdown + hoists m_pData reload; ours keeps i+count compare
-// (same missed-countdown as LoadWorld's zone-delete loop — an i-elimination the compiler
-// only does under the right register pressure). (3) movsx/param spill order at entry.]
+// [EFFECTIVE: 39B, insns 255/255 exact, structure fully aligned. Residuals are pure
+// reg-role tie-breaks: the entry movsx-vs-pRow-load scheduling (both statement orders
+// probed; nMax-first is closer) and delete-loops 2/3 swap n/walker between ESI/EDI (loop 1
+// matches; identical clone source, allocator enters each loop with different live state).
+// STRUCTURE LESSONS (hard-won): (a) hoisting `int nIso = paIsolated.GetSize()` re-keyed the
+// three arrays' frame slots to the original AND produced the mov+test / idiv-reg forms —
+// array slot order follows USE COUNTS; (b) the pick is sequential-if + else, NOT an
+// else-if chain, with the far arm ending in an explicit `goto cleanup` — that is the only
+// shape where the far store cross-jumps into the B-arm's tail while the log arm falls
+// through the (dead) re-tests; (c) the delete loops are `int i = 0; int n = GetSize();
+// do { delete GetAt(i); i++; n--; } while (n != 0);` under a separate GetSize()>0 guard —
+// this yields the DEC/JNE countdown the plain guard+do-while i<n form never produces.]
 // Find-puzzle cell picker: scan the 10x10 plan grid; cells whose grid order <= nOrderMax and
 // hold code 1/300 go to the isolated list (no 306/placed-puzzle neighbor) or the adjacent
 // list; cells past the cutoff holding 1 go to the far list. Pick randomly (isolated first,
@@ -573,6 +577,7 @@ int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
     paIsolated.SetSize(0, -1);
     paAdjacent.SetSize(0, -1);
     paFar.SetSize(0, -1);
+    int nMax = nOrderMax;
     short *pRow = paPlanGrid;
     for (int y = 0; y < 10; y++)
     {
@@ -583,7 +588,7 @@ int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
             int bRight = 0;
             int bUp = 0;
             int bDown = 0;
-            if (GetZoneGridOrder(x, y) <= nOrderMax)
+            if (GetZoneGridOrder(x, y) <= nMax)
             {
                 if (*pCell == 1 || *pCell == 300)
                 {
@@ -614,7 +619,8 @@ int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
         }
         pRow += 10;
     }
-    if (paIsolated.GetSize() == 0 && paAdjacent.GetSize() == 0)
+    int nIso = paIsolated.GetSize();
+    if (nIso == 0 && paAdjacent.GetSize() == 0)
     {
         if (paFar.GetSize() == 0)
         {
@@ -623,60 +629,293 @@ int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
         }
         else
         {
-            CPoint *pPt = (CPoint *)paFar.GetAt(rand() % paFar.GetSize());
+            int nFar = paFar.GetSize();
+            CPoint *pPt = (CPoint *)paFar.GetAt(rand() % nFar);
+            nResult = 1;
+            *pX = pPt->x;
+            *pY = pPt->y;
+            goto cleanup;
+        }
+    }
+    if (nIso > 0)
+    {
+        CPoint *pPt = (CPoint *)paIsolated.GetAt(rand() % nIso);
+        nResult = 1;
+        *pX = pPt->x;
+        *pY = pPt->y;
+    }
+    else
+    {
+        int nAdj = paAdjacent.GetSize();
+        if (nAdj > 0)
+        {
+            CPoint *pPt = (CPoint *)paAdjacent.GetAt(rand() % nAdj);
             nResult = 1;
             *pX = pPt->x;
             *pY = pPt->y;
         }
     }
-    else if (paIsolated.GetSize() > 0)
-    {
-        CPoint *pPt = (CPoint *)paIsolated.GetAt(rand() % paIsolated.GetSize());
-        nResult = 1;
-        *pX = pPt->x;
-        *pY = pPt->y;
-    }
-    else if (paAdjacent.GetSize() > 0)
-    {
-        CPoint *pPt = (CPoint *)paAdjacent.GetAt(rand() % paAdjacent.GetSize());
-        nResult = 1;
-        *pX = pPt->x;
-        *pY = pPt->y;
-    }
-    int nIso = paIsolated.GetSize();
-    if (nIso > 0)
+cleanup:
+    if (paIsolated.GetSize() > 0)
     {
         int i = 0;
+        int nDelIso = paIsolated.GetSize();
         do
         {
             delete (CPoint *)paIsolated.GetAt(i);
             i++;
-        } while (i < nIso);
+            nDelIso--;
+        } while (nDelIso != 0);
     }
     paIsolated.SetSize(0, -1);
-    int nAdj = paAdjacent.GetSize();
-    if (nAdj > 0)
+    if (paAdjacent.GetSize() > 0)
     {
         int i = 0;
+        int nDelAdj = paAdjacent.GetSize();
         do
         {
             delete (CPoint *)paAdjacent.GetAt(i);
             i++;
-        } while (i < nAdj);
+            nDelAdj--;
+        } while (nDelAdj != 0);
     }
     paAdjacent.SetSize(0, -1);
-    int nFar = paFar.GetSize();
-    if (nFar > 0)
+    if (paFar.GetSize() > 0)
     {
         int i = 0;
+        int nDelFar = paFar.GetSize();
         do
         {
             delete (CPoint *)paFar.GetAt(i);
             i++;
-        } while (i < nFar);
+            nDelFar--;
+        } while (nDelFar != 0);
     }
     paFar.SetSize(0, -1);
     return nResult;
+}
+
+// FUNCTION: YODA 0x00421930
+// [EFFECTIVE-WIP: structurally converged (insns 368/364). Residuals: (1) the OPEN
+// block-sinking family — the orig sinks all four accept-block copies (first-tele + one per
+// worldSize case), the shared retry block and the return-0 epilogue PAST the switch to
+// 0x421c4b-0x421cd9; ours emits the copies inline at their case arms (condition-polarity
+// probes inert — same mechanism as the dispatcher cleanup blocks / GetLocatorIcon).
+// (2) {nBanned,nLastX,nLastY} local-slot rotation (+0x20/24/28) + reg cascade in the
+// phase-1 cell math. Structure proven: `int nVal = pEntry->val` (one movsx, two pushes),
+// flag-if with the direct-call arm first and `if (bRetry == 0) call else nZoneId=nBanned`
+// inner shape, i++/n-- countdown recipes for the pending-free and teleporter scans,
+// n++ before the lastX/lastY stores in all four accept copies, dead x/y stores in the
+// final forced-partner block.]
+// Puzzle/teleporter placement pass: seed the pending list with the two quest anchors
+// (0x1ff order 2, 0x1a5 order 1), place each pending puzzle via PlacePuzzle+PlaceQuestNode
+// (cell code 306 marks it in the plan grid), free the pending list, then sweep the plan grid
+// placing a zone on every 1/300/0x68 cell. Zones containing a teleporter (obj type 13) must
+// be at least 2 (worldSize 1/2) or 3 (worldSize 3) cells from the previous teleporter — a
+// rejected zone id is banned (bRetry/nBanned) and re-rolled. If only ONE teleporter got
+// placed, force a partner zone at its recorded cell with the distance check disabled.
+int World::WorldgenPlacePuzzles(short *paPlanGrid)
+{
+    int x, y;
+    WorldgenPushZoneEntry(0x1ff, 2);
+    WorldgenPushZoneEntry(0x1a5, 1);
+    int n = worldgenPendingZones.GetSize();
+    int i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            WorldgenZoneEntry *pEntry = (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+            int nVal = pEntry->val;
+            if (PlacePuzzle((short)nVal, paPlanGrid, &x, &y) != 1)
+                return 0;
+            int nZoneId = (short)PlaceQuestNode(0x11, -1, -1, pEntry->zoneId, -1, (short)nVal, 0);
+            if (nZoneId < 0)
+                return 0;
+            int nCell = y * 10 + x;
+            mapGrid[nCell].zoneType = 0x11;
+            mapGrid[nCell].cellItemC = (short)genCellItemCScratch;
+            apZoneGrid[nCell] = (Zone *)zones.GetAt(nZoneId);
+            mapGrid[nCell].id = (short)nZoneId;
+            paPlanGrid[nCell] = 306;
+            AddPlacedZoneId(nZoneId);
+            i++;
+        } while (i < n);
+    }
+    if (n > 0)
+    {
+        int j = 0;
+        int nLeft = n;
+        do
+        {
+            WorldgenZoneEntry *pEntry = (WorldgenZoneEntry *)worldgenPendingZones.GetAt(j);
+            delete pEntry;
+            j++;
+            nLeft--;
+        } while (nLeft != 0);
+    }
+    worldgenPendingZones.SetSize(0, -1);
+    unk234.SetSize(0, -1);
+
+    int bRetry;
+    int nBanned;
+    int nLastX, nLastY;
+    n = 0;
+    bRetry = 0;
+    for (y = 0; y < 10; y++)
+    {
+        for (x = 0; x < 10; x++)
+        {
+            int nCode = paPlanGrid[y * 10 + x];
+            if (nCode == 1 || nCode == 300 || nCode == 0x68)
+            {
+                int nOrder = GetZoneGridOrder(x, y);
+                if (nCode == 0x68 || nOrder < 2)
+                    genSkipTeleCheckMaybe = 1;
+                else
+                    genSkipTeleCheckMaybe = 0;
+                int nZoneId;
+                if (genSkipTeleCheckMaybe != 0)
+                {
+                    nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
+                }
+                else
+                {
+                    if (bRetry == 0)
+                        nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
+                    else
+                        nZoneId = nBanned;
+                }
+                Zone *pZone;
+                for (;;)
+                {
+                    if (nZoneId < 0)
+                        return 0;
+                    pZone = (Zone *)zones.GetAt(nZoneId);
+                    if (genSkipTeleCheckMaybe != 0)
+                        goto place;
+                    i = 0;
+                    {
+                        int nObjs = pZone->objects.GetSize();
+                        if (nObjs > 0)
+                        {
+                            int k = 0;
+                            do
+                            {
+                                if (((ZoneObj *)pZone->objects.GetAt(k))->type == 13)
+                                    i = 1;
+                                k++;
+                                nObjs--;
+                            } while (nObjs != 0);
+                        }
+                    }
+                    if (i == 0)
+                        goto place;
+                    if (n == 0)
+                    {
+                        n++;
+                        nLastX = x;
+                        nLastY = y;
+                        if (bRetry != 0)
+                        {
+                            bRetry = 0;
+                            nBanned = -1;
+                        }
+                        goto place;
+                    }
+                    switch (worldSize)
+                    {
+                    case 1:
+                        if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
+                        {
+                            n++;
+                            nLastX = x;
+                            nLastY = y;
+                            if (bRetry != 0)
+                            {
+                                bRetry = 0;
+                                nBanned = -1;
+                            }
+                            goto place;
+                        }
+                        break;
+                    case 2:
+                        if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
+                        {
+                            n++;
+                            nLastX = x;
+                            nLastY = y;
+                            if (bRetry != 0)
+                            {
+                                bRetry = 0;
+                                nBanned = -1;
+                            }
+                            goto place;
+                        }
+                        break;
+                    case 3:
+                        if (abs(nLastX - x) > 2 || abs(nLastY - y) > 2)
+                        {
+                            n++;
+                            nLastX = x;
+                            nLastY = y;
+                            if (bRetry != 0)
+                            {
+                                bRetry = 0;
+                                nBanned = -1;
+                            }
+                            goto place;
+                        }
+                        break;
+                    default:
+                        goto place;
+                    }
+                    nBanned = nZoneId;
+                    bRetry = 1;
+                    nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
+                }
+place:
+                {
+                    int nCell = y * 10 + x;
+                    mapGrid[nCell].zoneType = 1;
+                    apZoneGrid[nCell] = pZone;
+                    mapGrid[nCell].id = (short)nZoneId;
+                    mapGrid[nCell].cellItemA = -1;
+                    mapGrid[nCell].cellQuestSlot0 = -1;
+                    mapGrid[nCell].cellItemC = -1;
+                    mapGrid[nCell].cellQuestSlot6 = -1;
+                    AddPlacedZoneId(nZoneId);
+                    if (nZoneId == nBanned)
+                    {
+                        nBanned = -1;
+                        bRetry = 0;
+                    }
+                }
+            }
+        }
+    }
+    if (n == 1)
+    {
+        genSkipTeleCheckMaybe = 1;
+        int nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1,
+                                            (short)GetZoneGridOrder(nLastX, nLastY), 0);
+        if (nZoneId >= 0)
+        {
+            x = nLastX;      // sic: dead stores the original keeps
+            y = nLastY;
+            Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+            int nCell = nLastY * 10 + nLastX;
+            mapGrid[nCell].zoneType = 1;
+            apZoneGrid[nCell] = pZone;
+            mapGrid[nCell].id = (short)nZoneId;
+            mapGrid[nCell].cellItemA = -1;
+            mapGrid[nCell].cellQuestSlot0 = -1;
+            mapGrid[nCell].cellItemC = -1;
+            mapGrid[nCell].cellQuestSlot6 = -1;
+            AddPlacedZoneId(nZoneId);
+        }
+    }
+    return 1;
 }
 
 // FUNCTION: YODA 0x00421e50
