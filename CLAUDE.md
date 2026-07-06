@@ -351,7 +351,40 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
 - **Milestones** (progress.py %exact): ~8 % after A, ~15 % after B+C, ~55 % after D, ~90 % after E,
   100 % = G's whole-image build. Track effective-match bytes separately (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-05, updated)
+### ⏭ NEXT SESSION PICKUP (2026-07-05, late-night update)
+**GameData CU effectively DONE except BuildQuestPath** (decomp cached at $CLAUDE_JOB_DIR/tmp/questpath.c
+may be gone — re-dump from Ghidra 0x403c80). Progress **6.70%**. Session results (commit a4ba541):
+- **Savers (x3): EFFECTIVE MATCH** — structural convergence via main-body disasm diffing. Cracks:
+  inner-scoped `{ CString key = prefix + buf; Write...; }` (a bare op+ temp gets a frame-BOTTOM slot,
+  named+scoped key slots among the locals -> frame layout matched); duplicated full-sprintf if/else arms
+  (orig cross-jumps the common tail); `n >= 0` emits test/jl only when n lands in ESI. Residual: int-slot
+  3-cycle {lineNo,base,rem} -> arm2 grabs EBX -> cross-jump fails (+16B). All source knobs exhausted.
+- **⚠ SCORING TRAP (cost the whole permuter run): COMDAT trim length INCLUDES EH funclets; slicing the
+  exe at [addr, addr+COMDAT_len) and byte/asmscore-diffing is GARBAGE for EH functions** (savers showed
+  align=1368 noise; the hill-climb chased phantoms). Compare main-body-to-main-body (split at first ret;
+  Ghidra body vs funclet layout differs from COMDAT order). TODO: teach asmscore/permute.py to split at
+  funclet boundaries and mask relocs per-side (candidate reloc offsets are WRONG for the orig once
+  lengths shift — mask immediates per-instruction instead).
+- **PROVEN: the ORIGINAL binary has TU phase drift** — its three identical-source loaders emit the
+  backedge cmp as jg/jl/jg (Nevada/Alaska/Oregon); ours = jl x3. Not source-controllable (2^3 while-form
+  sweep inert; flipping N's form toggled O's phase but never the target site). Loaders N+O carry 2B each
+  = effective. Also: verify.py's pairing MIS-PAIRED the identical-length loader triplet earlier (Oregon
+  "MATCH" was false) — trust per-NAME diffs for clone families.
+- **src/Records/RecordClasses.h**: the six matched record classes now shared (user rule: NEVER stub a
+  matched module — promote to the real header). Records 26/33 (+Tile::Ctor, from adding Zone's
+  ReadSavedState/WriteSavedState decls — header decls shift TU state; residual diffs shuffled, still 7).
+- **GameView documentation sweep LANDED (agent, saved in Ghidra)**: ~50 struct fields renamed/added
+  (nTransitionStep@0x118 answered the StartGame mystery; nTargetZoneId@0x114 confirmed), ~60 function
+  renames (UpdateFrameMaybe->OnTimer, OnWalk->ZoneTransitionStep, PlayerMove->PlaySound(!),
+  PlayerCheckWalkable->DrawZoneCell(!)), message map @0x44b240 fully mapped, sizeof(CView)=0x40 /
+  ctor=0x408710 / vft=0x44b638, new classes InvScrollBar/BalloonButton/BalloonBitmap/DebugDlg/option
+  dialogs. ⚠ OnKeyDown (0x4150f0) body not fully claimed by Ghidra (0x41526f-0x415658 orphaned,
+  FUN_004156f2 = its split EH tail) — needs a body-repair pass. Old CLAUDE.md aliases (PlayerMove/
+  OnWalk/UpdateFrameMaybe/UseTile) are STALE — grep the new names.
+Next: (1) BuildQuestPath transcription (last GameData func, ~1326B), (2) Phase B Iact TU, (3) the
+asmscore funclet fix before any further permuter runs.
+
+### ⏭ PREVIOUS PICKUP (2026-07-05, superseded but facts still valid)
 **⭐ STATIC-MFC LINKAGE IS STOOD UP (2026-07-05).** `toolchain/bin/link` + `NAFXCW.LIB` verified end to end
 (`toolchain/test/mfctest/` links a `CWinApp`+`CDWordArray` app clean). This unblocks per-function matching
 of **MFC-derived app classes** (`World`=`CDeskcppDoc`, `GameView`=`CDeskcppView`, and Zone's `Ctor`/`Dtor`):
