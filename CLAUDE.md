@@ -451,13 +451,17 @@ inline LOGPALETTE @0x2e68 (palVersion/palNumEntries/sysPalette[256]); CString in
 `CString soundNames[64]` @0xe4. WorldStub.h still carries the old shifted view — consolidation is
 a deliberate dial-verified step, DO IT LATER.
 
-**WorldDoc matching state (src/WorldDoc/WorldDoc.cpp):** MATCH: CreateObject+GetRuntimeClass
-(IMPLEMENT_DYNCREATE compiles byte-exact!), GetMessageMap (empty map — entry list TODO, data-only),
-FindAdjacentGateDir (two-store bool quartet), CacheUiTilePtrs, ??_G + **~World (1441B!)**.
-ParseTiles = DIFF(3) effective (loader-family jl/jg backedge). WIP: ctor DIFF(510) (see below),
-GetLocatorIcon (~90%, block-LAYOUT residual), OnOpenDocument DIFF(292), OnNewDocument DIFF(707)
-(both untouched this session beyond first transcription), DrawPlayer DIFF(50) = {this,camX,camY}
-3-cycle, permuter-immune (parked contest family).
+**WorldDoc matching state (src/WorldDoc/WorldDoc.cpp, 9.39%):** MATCH: CreateObject+
+GetRuntimeClass (IMPLEMENT_DYNCREATE compiles byte-exact!), GetMessageMap (empty map — entry
+list TODO, data-only), FindAdjacentGateDir (two-store bool quartet), CacheUiTilePtrs, ??_G,
+**OnOpenDocument (624B — modified MFC DOCCORE copy; the dead IsModified() vcall from the
+Release-stripped TRACE0 head was the last crack; local CFile+Open, BeginWaitCursor pair, no
+GetLength check, m_bForceFlat-then-m_pDocument, CATCH_ALL{Abort;DeleteContents;EndWaitCursor;
+TRY{Report}END_TRY;return FALSE}).** ~World (1441B) matched at 854fba2, now PHASE-DISPLACED
+(one esi/edi 2-cycle, DIFF 6, align=0 — rotated by the GetLocatorIcon/DrawPlayer rewrites;
+source proven). ParseTiles DIFF(3) eff. (loader jl/jg). OnNewDocument 286/286 insns rename-tier
+(cracks in its header comment). WIP: ctor DIFF(510) (store-batching, below), GetLocatorIcon
+(~90%, block-LAYOUT residual), DrawPlayer DIFF(50) 3-cycle permuter-immune.
 
 **New codegen finds (2026-07-06 v3):**
 - **MFC macros byte-match for free**: IMPLEMENT_DYNCREATE, BEGIN_MESSAGE_MAP, TRY/CATCH — write
