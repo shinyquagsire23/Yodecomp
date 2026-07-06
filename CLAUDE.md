@@ -276,6 +276,20 @@ whole /Gy COMDAT `[entry .. last funclet end)`. Both were run LIVE on YodaDemo a
   for REVIEW and only merged when `MERGE_UNNAMED_FUNCLETS=true`. App region only (`[0x401000,0x429000)`).
 - ⚠ `run_ghidra_script` runs on Ghidra's Swing thread — an infinite loop **freezes the GUI** (hit once via a
   no-progress cursor bug). Always guarantee loop progress + a hard iteration cap in gap-walkers.
+- `tools/ghidra_scripts/FillFunctionHoles.java` — the *mid-function* counterpart: MSVC emits C++ EH
+  catch/cleanup blocks in the MIDDLE of a function's COMDAT (no normal-flow edge), so Ghidra leaves them
+  out of the body as UNDEFINED bytes or disassembled-but-ORPHAN instructions between two body ranges (e.g.
+  the 41B catch block at 0x42905b in AddItemToInv). This script finds them, disassembles if needed, and
+  unions them into the owning function so the body is contiguous. Ran live: **14 holes (312B) attached to
+  13 functions** (AddItemToInv/DrawRect/Read/UpdateDragCursor/PlacePuzzle/… now ranges=1). Detection is
+  strict: within [entry,bodyMax], not 0xCC pad (0x00 is NOT padding — it's inside `push 0`), not another
+  function, TILES cleanly into instructions (misaligned decode = data), ends RET/JMP or flows into body,
+  and ≤0x40B. **5 larger holes (>0x40B) are REPORTED, not filled** — they can embed jump tables that also
+  decode as valid x86: Tick@0x40d3bb (65B, the switch region), OnMouseMove@0x413b21 (169B), OnUpdate
+  DifficultyUi@0x416621 (266B), WorldgenBuildQuestMaybe@0x41e143 (282B), WorldgenBuildZoneListsMaybe@
+  0x41ee79 (147B) — hand-check before attaching.
+- **App-region boundary is 0x4292f0** (not the approximate 0x429000): the WaveMix import thunks (`jmp [imp]`)
+  and MFC/CRT library region begin there. Last app funcs: AddItemToInv/RemoveItem/TmpObjCtor.
 
 ## 🗺 LONG-TERM ROADMAP (written 2026-07-05, after the Records TU — keep this current)
 
