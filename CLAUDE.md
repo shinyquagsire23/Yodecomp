@@ -255,6 +255,28 @@ instruction starts, 22 need disassembly) — do this only if you want EH/vtable 
 `AGGRESSIVE` also takes JMP/no-ref runs (likely garbage, per the reverted 0x403501 experiment). Copy to
 `~/ghidra_scripts/` and run via `run_ghidra_script`, or run its body via `run_script_inline`.
 
+**⭐ EH-funclet parenting → correct function BOUNDS for byte-matching (2026-07-06).** Two companion
+scripts fix the "COMDAT length includes EH funclets" trap by making each function's Ghidra body span its
+whole /Gy COMDAT `[entry .. last funclet end)`. Both were run LIVE on YodaDemo and **saved**.
+- `tools/ghidra_scripts/ParentGapFunclets.java` — absorbs ORPHAN gap funclets (never made into functions)
+  into their parent's body. Ran live: **151 funclets, 2097 B into 137 functions** (143 via unique in-body
+  ref, 8 via the user's EBP+tail-JMP heuristic → adjacency parent).
+- `tools/ghidra_scripts/MergeEhFunclets.java` — folds pre-existing funclet FUNCTIONS (the prior
+  `<parent>_ehN` pass) back into their parent (delete function + union range; labels preserved). Ran live:
+  **209 `_eh`-named funclets merged, 0 failures**; parents now contiguous (`ranges=1`), app-region func
+  count 843→622.
+- **The funclet discriminator (hard-won — 3 wrong theories before this one):** a funclet is NOT
+  "never called" — MSVC destructor funclets ARE `CALL`ed by the parent for normal-path cleanup. The real
+  tell is the FRAME: a funclet **never establishes its own frame** (no `push ebp` in the first ~8 insns;
+  real SEH funcs do `mov eax,fs:[0]; push ebp; mov ebp,esp`) and **addresses the parent's frame** (`lea/
+  mov ecx,[ebp-X]`) or is the `mov eax,imm; jmp <handler>` state shape. Parent = the unique function that
+  references it (caller / EH-table site); window-guarded to the parent's COMDAT. **A human-assigned
+  descriptive name (PositionMaybe, OnLoadWorld) = a REAL function → never merged** (this excluded the false
+  positives). `_eh`-named merge by default; 150 auto-named (`FUN_*`/`case*`) frameless funclets are reported
+  for REVIEW and only merged when `MERGE_UNNAMED_FUNCLETS=true`. App region only (`[0x401000,0x429000)`).
+- ⚠ `run_ghidra_script` runs on Ghidra's Swing thread — an infinite loop **freezes the GUI** (hit once via a
+  no-progress cursor bug). Always guarantee loop progress + a hard iteration cap in gap-walkers.
+
 ## 🗺 LONG-TERM ROADMAP (written 2026-07-05, after the Records TU — keep this current)
 
 **The unit of completion is the TRANSLATION UNIT, not the function.** Lesson #7 + the Records coupling
