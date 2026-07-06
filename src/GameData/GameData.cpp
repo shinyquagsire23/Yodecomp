@@ -470,9 +470,9 @@ void World::RemoveEmptyZonesFromPlacedList()
         placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), keep[j]);
 }
 
-// FUNCTION: YODA 0x00403140  [PHASE-DISPLACED: DIFF(10) under the current WorldStub.h decl dial —
-//   byte-exact under the pre-dial decl set of a4ba541, so the source is proven correct; the diff is
-//   TU-phase (World member-decl set rotates allocator tie-breaks). Resolve at the Phase-D/G joint pass.]
+// FUNCTION: YODA 0x00403140  [DIAL-SENSITIVE: byte-exact under the 2026-07-06 RecordClasses.h
+//   decl set (Zone Iact-method decls added); was DIFF(10) under the pre-dial a4ba541 set. Proven
+//   correct; final state settles at the Phase-D/G joint pass.]
 // Stamp a zone's visible objects into tile layer 1. Types 0/1/2/5/6/7/8 place their tile if
 // active and the cell is empty; type 0xb forces tile 0x1cb.
 void World::PlaceZoneObjectTiles(short zoneId)
@@ -511,10 +511,8 @@ void World::PlaceZoneObjectTiles(short zoneId)
     }
 }
 
-// FUNCTION: YODA 0x00403250  [PHASE-DISPLACED: DIFF(16) under the current WorldStub.h decl dial —
-//   byte-exact under the pre-dial decl set of a4ba541, so the source is proven correct; the id/x
-//   register 2-cycle is TU-phase (World member-decl set rotates allocator tie-breaks), not a source
-//   miss. Resolve at the Phase-D/G joint pass.]
+// FUNCTION: YODA 0x00403250  [DIAL-SENSITIVE: byte-exact under the 2026-07-06 RecordClasses.h
+//   decl set; was DIFF(16) under the pre-dial a4ba541 set. Proven correct; settles at Phase-D/G.]
 // Locate the world-map cell holding zone `id`; outputs grid coords.
 int World::FindZoneCellById(short id, int *pX, int *pY)
 {

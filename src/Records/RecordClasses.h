@@ -137,11 +137,12 @@ public:                              // +0x00 = CObject vtable
     CObArray       entities;         // +0x7d0
     CWordArray     cobArray4;        // +0x7e4  PROVEN CWordArray (ReadZaux: CWordArray::SetAtGrow(ushort))
     CWordArray     cobArray5;        // +0x7f8  same — element type WORD, layout identical to CDWordArray
-    CDWordArray    genCandidateA;    // +0x80c  worldgen candidate-spot scratch
-    CDWordArray    genCandidateB;    // +0x820
+    CWordArray     genCandidateA;    // +0x80c  ALSO CWordArray (ReadZax2: CWordArray::SetAtGrow(ushort))
+    CWordArray     genCandidateB;    // +0x820  same (ReadZax3)
     int            tempVar;          // +0x834
     int            randVar;          // +0x838
-    char           _pad83c[8];       // +0x83c
+    int            zoneUnk83c;       // +0x83c  saved-state dword (ReadSavedState)
+    int            zoneUnk840;       // +0x840  saved-state dword
     short          globalVar;        // +0x844
     short          zoneUnk846;       // +0x846
 
@@ -158,6 +159,12 @@ public:                              // +0x00 = CObject vtable
                                World *pWorld, GameView *pView);          // 0x004059d0
     void           ReadSavedState(CFile *pFile, int bFull);              // 0x00405bd0 (Iact .obj)
     void           WriteSavedState(CFile *pFile, int bFull);             // 0x00405f30 (Iact .obj)
+    // Iact .obj (src/Iact/Iact.cpp) — .dta chunk readers + the IACT interpreter:
+    void           ReadIzon(CFile *pFile);                               // 0x00405ae0 (Iact .obj)
+    void           ReadZaux(CFile *pFile);                               // 0x00406270 (Iact .obj)
+    void           ReadZax2(CFile *pFile);                               // 0x00406410 (Iact .obj)
+    void           ReadZax3(CFile *pFile);                               // 0x00406490 (Iact .obj)
+    void           ReadZax4(CFile *pFile);                               // 0x00406510 (Iact .obj, this unused)
 };
 
 #endif
