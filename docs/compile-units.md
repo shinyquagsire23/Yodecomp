@@ -13,7 +13,7 @@ separate classes *within one `.obj`*, so treat fine splits as class-level, the b
 ## Major modules (the architecture)
 | .text range | funcs | module (theme from strings) | key strings |
 |---|---|---|---|
-| `0x401ac0–0x4042b0` | 69 | **GameData** — reads `YodaDemo.dta`; 9 doc-methods typed `World*` (`GameData_FindTile` 0x403aa0, `GameData_GetTileData` 0x403a40, `GameData_RefreshZone` 0x403ae0) | `GameData`, `Nevada`, `Alaska`, `Oregon` |
+| `0x401ac0–0x4042b0` | 69 | **GameData** — doc(`World`)-method CU: story-history registry persistence, doc menu handlers, zone save/load recursion, asset accessors, worldgen helpers. Fully RE'd + renamed 2026-07-05 (see the GameData CU section below) | `GameData`, `Nevada`, `Alaska`, `Oregon` |
 | `0x408c60–0x40a560` | 26 | **Core utilities** — called by everyone, no strings | (none) |
 | `0x40a560–0x418700` | **107** | **Game UI / view / hints / sound** | `OPTIONS`, `MS Sans Serif`, `MIDILoad`, `Super Jedi!`, `goyoda`/`gojedi` (cheats), `This is a DOOR/WEAPON/EWOK…` tile hints, `Congratulations! You've won…` |
 | `0x419730–0x41b2f0` | 20 | **Utility + debug log** — `Log_Write` (0x419cb0) appends to `c:\yodalog.txt` (fopen/fputs/fclose); rest is a utility class. Most log callers compiled out under NDEBUG (only `Worldgen_PlacePuzzle`'s "No Place to put Find Puzzle" survives) | `c:\yodalog.txt` |
@@ -77,6 +77,46 @@ Cutting each module where few intra-module call edges cross (candidate `.obj` se
 
 Takeaway: the two giants are near-monolithic single TUs; GameData is many small TUs. (Cut analysis is
 approximate — the call graph is sparse, so treat sub-seams as hints, not hard boundaries.)
+
+## GameData CU (0x401ac0–0x4042b0) — fully RE'd + renamed (2026-07-05)
+All real functions are `World` (CDeskcppDoc) methods — this `.obj` is a second doc-class source file
+(think `gamedata.cpp`), NOT a standalone module class. Rest of the range = 8-byte EH funclets
+(`<Parent>_ehN`). Boundary confirmed: preceded by the World-scorers fragment (ends 0x401ab9), followed
+by the Records TU (`Puzzle::Ctor` 0x4042b0); string cluster `.data 0x4560b0–0x4560e8`
+(`GameData`/`Nevada`/`Alaska`/`Oregon`/format strings) is CU-local.
+
+**⭐ Planet-table semantics solved:** `Nevada`/`Alaska`/`Oregon` registry keys (section `GameData`) are
+per-planet **story histories** — CWordArrays of recently played story **goal-item ids** (planet 1=Nevada
+=desert, 2=Alaska=ice (the demo planet), 3=Oregon=forest; matches `AreaType`). Line format
+`<worldSeed>_<obfKey>_<count>_v0_.._v9`, values obfuscated by a per-line additive `rand()%255+1` key;
+the seed prefix is written but discarded on load; lists trimmed to ≤3. `World::Generate` loads the
+current planet's list when no story is requested, appends the built story's goal item (demo hardcodes
+108; also pre-appends 0xbd/0xc5 to the Alaska list by completionCount) and saves it back on success.
+**File>Replay Story (cmd 0x800B)** = `World::OnReplayStory` (0x403620, recovered from a code gap):
+takes `nCurrentGoalItemMaybe@0x33a0` (>0) or the last history element, puts it in
+`nRequestedGoalItemMaybe@0x6c`, and runs `StartGame(Randomize(), 0)` — same story goal, fresh layout
+(msgs 0xE009 confirm / 0xE01C "no story saved to replay").
+
+| addr | function | role |
+|---|---|---|
+| 0x401ac0/0x401ea0/0x402280 | `World::LoadStoryHistoryNevada/Alaska/Oregon` | registry → `storyHistory*@0x284/298/2ac` (de-obfuscate) |
+| 0x402670/0x4029c0/0x402d10 | `World::SaveStoryHistoryNevada/Alaska/Oregon` | write-back twins (obfuscate, seed prefix) |
+| 0x402660/0x403060 | `World::Nop1/Nop2` | **empty (single RET)** — compiled-out debug hooks called by Generate; the TU contains empty member functions (matching note) |
+| 0x403070 | `World::FilterEnemyZonesFromListMaybe` | rebuild `placedZoneIds@0x220` dropping `MAP_ENEMY_TERRITORY(1)` zones |
+| 0x403140 | `World::PlaceZoneObjectTiles` | stamp visible ZoneObjs (OBJ types 0/1/2/5/6/7/8, 0xb→tile 0x1cb) into tile layer 1 |
+| 0x403250 | `World::FindZoneCellById` | 10×10 grid search → (x,y) |
+| 0x4032c0 | `World::GetExitDirections` | compass bitmask W8/E4/N1/S2 of neighbour zones |
+| 0x4033b0/0x403450 | `World::SaveZoneRecursive`/`LoadZoneRecursive` | .wld zone snapshot write/read, recursing OBJ_DOOR_IN(9) child rooms; call `Zone::WriteSavedState`/`ReadSavedState` (0x405f30/0x405bd0) |
+| 0x403510..0x403610 | `World::OnUpdate{FileSave,AppExit,HideMe,NewWorld,LoadWorld,ReplayStory}` | **recovered from the 0x403501–0x40379f gap**: CCmdUI Enable handlers (msgmap 0x44c2d0; Save/Load/Replay grayed in the demo); menu ids from the RT_MENU resource |
+| 0x403620 | `World::OnReplayStory` | ON_COMMAND 0x800B (see above) |
+| 0x4037a0 | `World::StartGame(nSeed, bSkipGenerate)` | was `ResetGameStateMaybe`; full session start: reset state/grids, `LoadWorldMaybe`, Generate-loop+`Populate` (unless bSkipGenerate), RET 8 |
+| 0x403a40/0x403a70/0x403aa0 | `World::GetTileData`/`GetZoneById`/`FindTile` | asset accessors (clean) |
+| 0x403ae0 | `World::RefreshZone` | redraw currentZone's 3 tile layers into the Canvas |
+| 0x403c80 | `World::BuildQuestPathMaybe` | worldgen 10×10 grid puzzle-path layout (called only by Generate) |
+
+Doc-TU handlers renamed from the same message-map evidence: `World::OnNewWorld` (0x424450, was
+`ShowError`), `OnSaveWorld` (0x424540, was `FileDialog`), `OnLoadWorld` (0x424fc0, was `Serialize`),
+`OnToggleSound/Music` + updates (0x4242a0..0x424360).
 
 ## Asset parser (`.DTA`) — inside the WorldGen/save module (2026-07-04)
 Cross-referenced with `~/workspace/DesktopAdventures/src/assets.c` + `scrdoc.txt` (user's engine
