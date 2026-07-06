@@ -50,6 +50,23 @@ public:                              // +0x00 vftable (0x44b050)
     virtual ~MapZone();                                   // 0x00401180
 };
 
+// Canvas stub: only what this TU touches (real module: src/Canvas/, byte-matched).
+class Canvas
+{
+public:
+    char _pad[0x43c];                // no vptr; sizeof == 0x43c
+    void *GetData();                                      // 0x00407f50 (Canvas TU)
+};
+
+// GameView stub: only what this TU touches (real class = CDeskcppView, GameView TU).
+class GameView
+{
+public:
+    char _pad00[0xc4];               // +0x000
+    int  soundSession;               // +0x0c4  0 until SoundInit opens the WAVMIX session
+    void SoundInit();                                     // 0x00411520 (GameView TU)
+};
+
 // World facade for the functions transcribed so far (offsets from the ctor-derived layout in
 // src/WorldDoc/WorldDoc.h; grows toward the real CDeskcppDoc as the TU fills in).
 class World : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
@@ -82,6 +99,20 @@ public:
     MapZone     mapGrid[100];        // +0x04b0  active 10x10 grid
     MapZone     mapGridBackup[100];  // +0x1900  backup grid
     MapZone     mapScratch[4];       // +0x2d50
+    char        _pad2e20[0x44c];     // +0x2e20  (player/palette fields — see WorldDoc.h)
+    BYTE       *pSysColorTable;      // +0x326c
+    Canvas     *pCanvas;             // +0x3270
+    char        _pad3274[0x60];      // +0x3274  (viewport/inventory/weapon-box rects)
+    int         nViewLeft;           // +0x32d4  visible 288x288 window (UpdateCamera writes;
+    int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
+    int         nViewRight;          // +0x32dc
+    int         nViewBottom;         // +0x32e0
+    char        _pad32e4[0x28];      // +0x32e4
+    int         nSoundEnabled;       // +0x330c
+    int         nMusicEnabled;       // +0x3310
+    char        _pad3314[0x1c];      // +0x3314
+    int         cameraX;             // +0x3330
+    int         cameraY;             // +0x3334
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
     int  ZoneProvidesItem(short zoneId, short itemId);   // 0x0041c3b0
@@ -93,6 +124,8 @@ public:
     void WorldgenAddZoneEntry(short zoneId, short val);  // 0x0041d800
     int  IsZoneUsed(short zoneId);                       // 0x0041d8d0
     void AddPlacedZoneId(short zoneId);                  // 0x0041d920
+    int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
+    void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
     int  CheckZoneItemsAvailable(short zoneId);          // 0x0041f830
     void WorldgenCollectZoneRefs(short zoneId);          // 0x0041f8e0
     void BackupZoneGrid();                               // 0x00421460
@@ -101,7 +134,17 @@ public:
     int  GetZoneGridOrder(int x, int y);                 // 0x00421e50
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50
+    void LoadWorldStateFile();                           // 0x00423850
+    virtual void Serialize(CArchive &ar);                // 0x00423b30
     void SetCurrentToIntroZone();                        // 0x00423d20
+    void ReadStupCanvas(CFile *pFile);                   // 0x00423d60
+    int  GetZoneIndex(Zone *pZone);                      // 0x00423dc0 (Ghidra: EnterZone)
+    void UpdateCamera();                                 // 0x00423f50
+    afx_msg void OnToggleSound();                        // 0x004242a0
+    afx_msg void OnUpdateToggleSound(CCmdUI *pCmdUI);    // 0x004242f0
+    afx_msg void OnToggleMusic();                        // 0x00424310
+    afx_msg void OnUpdateToggleMusic(CCmdUI *pCmdUI);    // 0x00424360
+    unsigned int Randomize();                            // 0x00424380
 
     // ---- cross-TU stubs (defined in other TUs; calls are masked relocs) ----
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)

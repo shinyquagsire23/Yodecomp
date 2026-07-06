@@ -1,5 +1,7 @@
 // Worldgen TU (0x41c340–0x429000): worldgen + .wld save/load + .dta load (doc class source file).
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+#include <stdlib.h>
+#include <time.h>
 #include "Worldgen.h"
 
 // FUNCTION: YODA 0x0041c3b0
@@ -251,6 +253,155 @@ void World::AddPlacedZoneId(short zoneId)
     placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), zoneId);
 }
 
+// FUNCTION: YODA 0x0041e920
+// Collect the zone's IZX2/IZX3 item ids not already placed, random-pick one; if none, recurse
+// into DOOR_IN child zones.
+int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
+{
+    int result = -1;
+    unsigned int n = 0;
+    if (a2 == 0)   // sic: n is dead until reused below (kept by the original compiler)
+        n = 1;
+    Zone *pZone = (Zone *)zones.GetAt(zoneId);
+    CWordArray candidates;
+    if (sel != 0)
+    {
+        short nItems = (short)pZone->cobArray5.GetSize();
+        if (nItems > 0)
+        {
+            for (int i = 0; i < nItems; i++)
+            {
+                int v = pZone->cobArray5.GetAt(i);
+                if (IsItemPlaced(v) == 0)
+                {
+                    // sic: identical arms — the original tests the (dead) a2 flag and does the
+                    // same append either way; the compiler cross-jumps, leaving a dead cmp.
+                    if (n == 0)
+                        candidates.SetAtGrow(candidates.GetSize(), v);
+                    else
+                        candidates.SetAtGrow(candidates.GetSize(), v);
+                }
+            }
+        }
+    }
+    else
+    {
+        short nItems = (short)pZone->cobArray4.GetSize();
+        if (nItems > 0)
+        {
+            for (int i = 0; i < nItems; i++)
+            {
+                int v = pZone->cobArray4.GetAt(i);
+                if (IsItemPlaced(v) == 0)
+                {
+                    if (n == 0)
+                        candidates.SetAtGrow(candidates.GetSize(), v);
+                    else
+                        candidates.SetAtGrow(candidates.GetSize(), v);
+                }
+            }
+        }
+    }
+    int nCand = candidates.GetSize();
+    if (nCand > 0)
+        result = candidates.GetAt(rand() % nCand);
+    if (result < 0)
+    {
+        n = pZone->objects.GetSize();
+        int j = 0;
+        if ((int)n > 0)
+        {
+            for (; j < (int)n; j++)
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj->type == 9)
+                {
+                    result = WorldgenPickItemFromZone(pObj->visible, a2, sel);
+                    if (result >= 0)
+                        break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// FUNCTION: YODA 0x0041ef90
+// Fisher-Yates-style shuffle of a CWordArray: scatter each element into a random empty slot of a
+// temp array (0xffff = empty sentinel), then copy back.
+void World::WorldgenShuffleList(CWordArray *pList)
+{
+    short nSize = (short)pList->GetSize();
+    short i = 0;
+    if (nSize > 0)
+    {
+        CWordArray temp;
+        int nInt = nSize;
+        temp.SetSize(nInt, -1);
+        while (i < nSize)
+        {
+            temp.SetAt(i, 0xffff);
+            i++;
+        }
+        i = 0;
+        short k;
+        if (nSize > 0)
+        {
+            do
+            {
+                int r = rand();
+                short slot = (short)(r % nInt);
+                if (temp.GetAt(slot) == 0xffff)
+                {
+                    temp.SetAt(slot, pList->GetAt(i));
+                    pList->SetAt(i, 0xffff);
+                }
+                    i++;
+            } while (nSize > i);
+        }
+        k = nSize - 1;
+        if (k >= 0)
+        {
+            do
+            {
+            if (pList->GetAt(k) != -1)   // sic: WORD zero-extends, never == -1 (engine bug)
+            {
+                short nMoved = 0;
+                BOOL bAnyEmpty = FALSE;
+                do
+                {
+                    if (nSize > 0)
+                    {
+                        unsigned short *pSlot = temp.GetData();
+                        int m = nInt;
+                        do
+                        {
+                            if (*pSlot == 0xffff)
+                                bAnyEmpty = TRUE;
+                            pSlot++;
+                            m--;
+                        } while (m != 0);
+                    }
+                    if (!bAnyEmpty)
+                        break;
+                    int r = rand();
+                    short slot = (short)(r % nInt);
+                    if (temp.GetAt(slot) == 0xffff)
+                    {
+                        nMoved++;
+                        temp.SetAt(slot, pList->GetAt(k));
+                        pList->SetAt(k, 0xffff);
+                    }
+                } while (nMoved == 0);
+            }
+            k--;
+            } while (k >= 0);
+        }
+        for (i = 0; nSize > i; i++)
+            pList->SetAt(i, temp.GetAt(i));
+    }
+}
+
 // FUNCTION: YODA 0x0041f830
 // Recursively verify a quest sub-tree is satisfiable: object types 6-8 must reference items not
 // already placed; DOOR_IN (9) recurses into the child zone.
@@ -402,6 +553,18 @@ int World::GetZoneGridOrder(int x, int y)
     return gWorldgenGridOrderTable[x + y * 10];
 }
 
+// FUNCTION: YODA 0x00422f40
+BOOL World::IsModified()
+{
+    return m_bModified;
+}
+
+// FUNCTION: YODA 0x00422f50
+void World::SetModifiedFlag(BOOL bModified)
+{
+    m_bModified = bModified;
+}
+
 // FUNCTION: YODA 0x00423d20
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
 void World::SetCurrentToIntroZone()
@@ -419,14 +582,145 @@ void World::SetCurrentToIntroZone()
     }
 }
 
-// FUNCTION: YODA 0x00422f40
-BOOL World::IsModified()
+// FUNCTION: YODA 0x00423d60
+// Read the STUP chunk: a 288x288 8-bit canvas snapshot streamed row-by-row (dest stride 0x240).
+void World::ReadStupCanvas(CFile *pFile)
 {
-    return m_bModified;
+    if (pCanvas == NULL)
+    {
+        pFile->Seek(0x14400, CFile::current);
+        return;
+    }
+    int nRows = 0x120;
+    char *pRow = (char *)pCanvas->GetData();
+    do
+    {
+        pFile->Read(pRow, 0x120);
+        pRow += 0x240;
+        nRows--;
+    } while (nRows != 0);
 }
 
-// FUNCTION: YODA 0x00422f50
-void World::SetModifiedFlag(BOOL bModified)
+// FUNCTION: YODA 0x00423dc0
+// Index of a Zone* in the zone list, or -1. (Ghidra name: EnterZone.)
+int World::GetZoneIndex(Zone *pZone)
 {
-    m_bModified = bModified;
+    int i = 0;
+    if (zones.GetSize() > 0)
+    {
+        do
+        {
+            if (zones.GetAt(i) == (CObject *)pZone)
+                return i;
+            i++;
+        } while (i < zones.GetSize());
+    }
+    return -1;
+}
+
+// FUNCTION: YODA 0x00423f50
+// Clamp the visible 288x288 window to the camera position (small zones pin to full window).
+void World::UpdateCamera()
+{
+    if (currentZone->width == 9)
+    {
+        nViewRight = 0x120;
+        nViewBottom = 0x120;
+        nViewLeft = 0;
+        nViewTop = 0;
+        return;
+    }
+    if (cameraX <= 0x80)
+        nViewLeft = 0;
+    else if (cameraX > 0x1a0)
+        nViewLeft = 0x120;
+    else
+        nViewLeft = cameraX - 0x80;
+    if (cameraY <= 0x80)
+        nViewTop = 0;
+    else if (cameraY > 0x1a0)
+        nViewTop = 0x120;
+    else
+        nViewTop = cameraY - 0x80;
+    nViewRight = nViewLeft + 0x120;
+    nViewBottom = nViewTop + 0x120;
+}
+
+
+// FUNCTION: YODA 0x004242a0
+// Audio menu: toggle sound; opening the first sound session lazily.
+void World::OnToggleSound()
+{
+    nSoundEnabled = (nSoundEnabled == 0);
+    POSITION pos = GetFirstViewPosition();
+    GameView *pView = (GameView *)GetNextView(pos);
+    if (pView != NULL && nSoundEnabled != 0 && pView->soundSession == 0)
+        pView->SoundInit();
+}
+
+// FUNCTION: YODA 0x004242f0
+void World::OnUpdateToggleSound(CCmdUI *pCmdUI)
+{
+    pCmdUI->SetCheck(nSoundEnabled);
+}
+
+// FUNCTION: YODA 0x00424310
+// Audio menu: toggle music.
+void World::OnToggleMusic()
+{
+    nMusicEnabled = (nMusicEnabled == 0);
+    POSITION pos = GetFirstViewPosition();
+    GameView *pView = (GameView *)GetNextView(pos);
+    if (pView != NULL && nMusicEnabled != 0 && pView->soundSession == 0)
+        pView->SoundInit();
+}
+
+// FUNCTION: YODA 0x00424360
+void World::OnUpdateToggleMusic(CCmdUI *pCmdUI)
+{
+    pCmdUI->SetCheck(nMusicEnabled);
+}
+
+// FUNCTION: YODA 0x00424380
+// Seed the RNG from cursor position + wall clock, then pack rand() bytes into the world seed
+// (one of 3 rotating byte layouts).
+unsigned int World::Randomize()
+{
+    POINT pt;
+    GetCursorPos(&pt);
+    time_t t = time(NULL);
+    clock_t c = clock();
+    srand(c + t);
+    unsigned int b0 = rand();
+    unsigned int b1 = rand();
+    unsigned int b2 = rand();
+    unsigned int b3 = rand();
+    switch (rand() % 3)
+    {
+    case 0:
+        b1 <<= 8;
+        b1 &= 0xff00;
+        b2 <<= 0x10;
+        b2 &= 0xff0000;
+        b3 <<= 0x18;
+        b3 &= 0xff000000;
+        break;
+    case 1:
+        b2 <<= 8;
+        b2 &= 0xff00;
+        b3 <<= 0x10;
+        b3 &= 0xff0000;
+        b1 <<= 0x18;
+        b1 &= 0xff000000;
+        break;
+    case 2:
+        b3 <<= 8;
+        b3 &= 0xff00;
+        b1 <<= 0x10;
+        b1 &= 0xff0000;
+        b2 <<= 0x18;
+        b2 &= 0xff000000;
+        break;
+    }
+    return b3 | b2 | b1 | b0;
 }
