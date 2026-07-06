@@ -551,6 +551,134 @@ int World::IsTileInGoalList(unsigned int tileId)
     return result;
 }
 
+// FUNCTION: YODA 0x00421620
+// [WIP ~90% insn-identical (align=284, byte_diff=146). Residuals: (1) our pick-chain tests
+// the -0x3c array's count first while orig tests -0x50's — either the three CObArrays got
+// swapped frame slots (ParseSnds slot-key family) or the && operand order differs; ctor
+// section aligns clean so start by checking which array each SetAtGrow arm targets in OUR
+// obj vs orig (isolated=-0x50, adjacent=-0x3c, far=-0x64 in orig). (2) cleanup delete-loops:
+// orig fuses i into a DEC/JNE countdown + hoists m_pData reload; ours keeps i+count compare
+// (same missed-countdown as LoadWorld's zone-delete loop — an i-elimination the compiler
+// only does under the right register pressure). (3) movsx/param spill order at entry.]
+// Find-puzzle cell picker: scan the 10x10 plan grid; cells whose grid order <= nOrderMax and
+// hold code 1/300 go to the isolated list (no 306/placed-puzzle neighbor) or the adjacent
+// list; cells past the cutoff holding 1 go to the far list. Pick randomly (isolated first,
+// then adjacent; far only when both are empty), return the cell in *pX/*pY.
+int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
+{
+    CObArray paIsolated;
+    CObArray paAdjacent;
+    CObArray paFar;
+    int nResult = 0;
+    paIsolated.SetSize(0, -1);
+    paAdjacent.SetSize(0, -1);
+    paFar.SetSize(0, -1);
+    short *pRow = paPlanGrid;
+    for (int y = 0; y < 10; y++)
+    {
+        short *pCell = pRow;
+        for (int x = 0; x < 10; x++)
+        {
+            int bLeft = 0;
+            int bRight = 0;
+            int bUp = 0;
+            int bDown = 0;
+            if (GetZoneGridOrder(x, y) <= nOrderMax)
+            {
+                if (*pCell == 1 || *pCell == 300)
+                {
+                    CPoint *pPt = new CPoint(x, y);
+                    if (x < 1 || pCell[-1] != 306)
+                        bLeft = 1;
+                    if (x > 8 || pCell[1] != 306)
+                        bRight = 1;
+                    if (y < 1 || pCell[-10] != 306)
+                        bUp = 1;
+                    if (y > 8 || pCell[10] != 306)
+                        bDown = 1;
+                    if (bLeft == 0 || bRight == 0 || bUp == 0 || bDown == 0)
+                        paAdjacent.SetAtGrow(paAdjacent.GetSize(), (CObject *)pPt);
+                    else
+                        paIsolated.SetAtGrow(paIsolated.GetSize(), (CObject *)pPt);
+                }
+            }
+            else
+            {
+                if (*pCell == 1)
+                {
+                    CPoint *pPt = new CPoint(x, y);
+                    paFar.SetAtGrow(paFar.GetSize(), (CObject *)pPt);
+                }
+            }
+            pCell++;
+        }
+        pRow += 10;
+    }
+    if (paIsolated.GetSize() == 0 && paAdjacent.GetSize() == 0)
+    {
+        if (paFar.GetSize() == 0)
+        {
+            ((CTheApp *)AfxGetApp())->LogWrite("!!!!No Place to put Find Puzzle!!!\n");
+            nResult = 0;
+        }
+        else
+        {
+            CPoint *pPt = (CPoint *)paFar.GetAt(rand() % paFar.GetSize());
+            nResult = 1;
+            *pX = pPt->x;
+            *pY = pPt->y;
+        }
+    }
+    else if (paIsolated.GetSize() > 0)
+    {
+        CPoint *pPt = (CPoint *)paIsolated.GetAt(rand() % paIsolated.GetSize());
+        nResult = 1;
+        *pX = pPt->x;
+        *pY = pPt->y;
+    }
+    else if (paAdjacent.GetSize() > 0)
+    {
+        CPoint *pPt = (CPoint *)paAdjacent.GetAt(rand() % paAdjacent.GetSize());
+        nResult = 1;
+        *pX = pPt->x;
+        *pY = pPt->y;
+    }
+    int nIso = paIsolated.GetSize();
+    if (nIso > 0)
+    {
+        int i = 0;
+        do
+        {
+            delete (CPoint *)paIsolated.GetAt(i);
+            i++;
+        } while (i < nIso);
+    }
+    paIsolated.SetSize(0, -1);
+    int nAdj = paAdjacent.GetSize();
+    if (nAdj > 0)
+    {
+        int i = 0;
+        do
+        {
+            delete (CPoint *)paAdjacent.GetAt(i);
+            i++;
+        } while (i < nAdj);
+    }
+    paAdjacent.SetSize(0, -1);
+    int nFar = paFar.GetSize();
+    if (nFar > 0)
+    {
+        int i = 0;
+        do
+        {
+            delete (CPoint *)paFar.GetAt(i);
+            i++;
+        } while (i < nFar);
+    }
+    paFar.SetSize(0, -1);
+    return nResult;
+}
+
 // FUNCTION: YODA 0x00421e50
 // Worldgen grid-cell traversal/placement priority (static 10x10 dword table). `this` is unused.
 int World::GetZoneGridOrder(int x, int y)

@@ -323,12 +323,22 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   = the .dta path). Cross-TU decls added: ParseTilesMaybe/CacheUiTilePtrsMaybe (WorldDoc).
 - Dial churn this round: Randomize flipped OUT (30B), RemoveZoneEntry2 flipped IN, the
   Zaux/Zax2/Zax3 trio rotated again. Standing rule unchanged: don't grind these.
-**NEXT:** pickup item (4) unchanged — PlacePuzzle 0x421620 + WorldgenPlacePuzzles 0x421930,
-placer family 0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades 0x41e350,
-SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120, Generate 0x41f960 (now DECLARED in
-Worldgen.h), save/load monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile),
-then (5) the GameView methods 0x426c40-0x429150. Ghidra renames pending (YodaDemo ACTIVE
-needed): EnterZone→GetZoneIndex, the 0x32d4 quad→view rect, 0x41c340→~CFileException.
+- **PlacePuzzle (0x421620, 780B) transcribed WIP ~90%** (in-source annotation has the
+  residual list: array-slot swap vs && order, delete-loop countdown misses, entry spills).
+  Semantics: 3 CPoint* CObArrays (isolated/adjacent-to-306/past-order-cutoff), rand-pick
+  priority isolated>adjacent, far only when both empty; `!!!!No Place to put Find Puzzle`
+  log = `((CTheApp *)AfxGetApp())->LogWrite(...)` — **Log_Write@0x419cb0 is really a
+  CTheApp MEMBER** (call sites set ECX=pApp; body ignores this, so App TU's free-function
+  form still matches; member decl added to App.h, App TU re-verified 11/12).
+  `new CPoint(x,y)` = the raw new(8)+inline-ctor null-check shape.
+**NEXT:** finish PlacePuzzle residuals, then WorldgenPlacePuzzles 0x421930 (decompiled:
+seeds entries 0x1ff/0x1a5, loops worldgenPendingZones calling PlacePuzzle + PlaceQuestNode
+0x41f120, writes mapGrid/apZoneGrid/planGrid 0x132, AddPlacedZoneId), placer family
+0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades 0x41e350, SelectPuzzle 0x41eab0,
+PlaceQuestNode 0x41f120, Generate 0x41f960 (now DECLARED in Worldgen.h), save/load monsters
+(OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile), then (5) the GameView methods
+0x426c40-0x429150. Ghidra renames pending (YodaDemo ACTIVE needed): EnterZone→GetZoneIndex,
+the 0x32d4 quad→view rect, 0x41c340→~CFileException, Log_Write→CTheApp::LogWrite.
 
 ### ⏮ PRIOR (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
 **Progress 13.52% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **43 functions,

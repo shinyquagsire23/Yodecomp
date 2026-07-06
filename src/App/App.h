@@ -27,6 +27,10 @@ public:
     virtual BOOL InitInstance();                         // 0x004198c0
     virtual BOOL OnIdle(LONG lCount);                    // 0x00419ca0
     void OnAppAbout();                                   // 0x00419df0
+    // 0x00419cb0 — same address as the free Log_Write above: call sites in the doc TU pass
+    // ECX = AfxGetApp(), so the original was a member; the body never reads `this`, which is
+    // why the App TU's __stdcall free-function transcription still byte-matched.
+    void LogWrite(char *pszMsg);
 protected:
     DECLARE_MESSAGE_MAP()                                // 0x00419720
 };

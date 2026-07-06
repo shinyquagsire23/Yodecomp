@@ -169,6 +169,7 @@ public:
     void BackupZoneGrid();                               // 0x00421460
     void RestoreGridFromBackup();                        // 0x00421520
     int  IsTileInGoalList(unsigned int tileId);          // 0x004215e0
+    int  PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY); // 0x00421620
     int  GetZoneGridOrder(int x, int y);                 // 0x00421e50
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50
