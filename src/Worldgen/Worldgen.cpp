@@ -5,6 +5,179 @@
 #include <time.h>
 #include "Worldgen.h"
 
+// FUNCTION: YODA 0x0041bfa0
+// [EFFECTIVE: align=12 — clean ESI/EDI rename + one arg-marshal slot at the recursion call
+// (orig loads visible into CX and sel into EAX; ours AX/ECX). Twin 0x41c0b0 scores align=0
+// with the identical source shape → TU-phase tie-break, joint pass.]
+// Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in cobArray4 (sel==0)
+// or cobArray5? Boolean twin of ZoneFindInIzxList.
+int World::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
+{
+    int found = 0;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return 0;
+    if (sel != 0)
+    {
+        int nCount = pZone->cobArray5.GetSize();
+        int i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                if ((short)pZone->cobArray5.GetAt(i) == itemId)
+                {
+                    found = 1;
+                    break;
+                }
+                i++;
+            } while (i < nCount);
+        }
+    }
+    else
+    {
+        int nCount = pZone->cobArray4.GetSize();
+        int i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                if ((short)pZone->cobArray4.GetAt(i) == itemId)
+                {
+                    found = 1;
+                    break;
+                }
+                i++;
+            } while (i < nCount);
+        }
+    }
+    int j = 0;
+    if (found == 0)
+    {
+        int nObjs = pZone->objects.GetSize();
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
+                {
+                    if (pObj->visible >= 0)
+                        found = ZoneHasIzxItemMaybe(pObj->visible, itemId, sel);
+                    if (found == 1)
+                        break;
+                }
+                j++;
+            } while (nObjs > j);
+        }
+    }
+    return found;
+}
+
+// FUNCTION: YODA 0x0041c0b0
+// [EFFECTIVE: align=0, pure reg tie-break (8-reg bijection slots) — may flip exact as the
+// TU fills; do not grind.]
+// Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateA (IZAX)?
+int World::ZoneRequiresItemMaybe(short zoneId, short itemId)
+{
+    int found = 0;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return 0;
+    int nCount = pZone->genCandidateA.GetSize();
+    int i = 0;
+    if (nCount > 0)
+    {
+        do
+        {
+            if ((short)pZone->genCandidateA.GetAt(i) == itemId)
+            {
+                found = 1;
+                break;
+            }
+            i++;
+        } while (i < nCount);
+    }
+    int j = 0;
+    if (found == 0)
+    {
+        int nObjs = pZone->objects.GetSize();
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
+                {
+                    if (pObj->visible >= 0)
+                        found = ZoneRequiresItemMaybe(pObj->visible, itemId);
+                    if (found == 1)
+                        break;
+                }
+                j++;
+            } while (nObjs > j);
+        }
+    }
+    return found;
+}
+
+// FUNCTION: YODA 0x0041c200
+// [EFFECTIVE: align=12 — one mov/xor scheduling transposition at the recursion-loop head +
+// ESI/EDI/EBX 3-cycle role rotation. Structure proven: `int v` (hoisted xor zero-extend),
+// `nAvail <= 0` (TEST/JG), j declared inside the guard. Tie-break family, joint pass.]
+// Pick a random item from zoneId's genCandidateB (IZX3) that IsItemPlaced hasn't seen yet;
+// falls back to DOOR_IN-linked child zones. Returns the item id or -1.
+int World::PickUnplacedItemMaybe(short zoneId)
+{
+    int nResult = -1;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return -1;
+    int i = 0;
+    int nCount = pZone->genCandidateB.GetSize();
+    if (nCount > 0)
+    {
+        CWordArray paItems;
+        if (nCount > 0)
+        {
+            do
+            {
+                int v = pZone->genCandidateB.GetAt(i);
+                if (IsItemPlaced(v) == 0)
+                    paItems.SetAtGrow(paItems.GetSize(), v);
+                i++;
+                nCount--;
+            } while (nCount != 0);
+        }
+        int nAvail = paItems.GetSize();
+        if (nAvail <= 0)
+            nResult = -1;
+        else
+            nResult = paItems.GetAt(rand() % nAvail);
+    }
+    if (nResult < 0)
+    {
+        int j = 0;
+        int nObjs = pZone->objects.GetSize();
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
+                {
+                    if (pObj->visible >= 0)
+                        nResult = PickUnplacedItemMaybe(pObj->visible);
+                    if (nResult >= 0)
+                        break;
+                }
+                j++;
+            } while (nObjs > j);
+        }
+    }
+    return nResult;
+}
+
 // FUNCTION: YODA 0x0041c3b0
 // [PARKED reg-alloc: original keeps `found` in EDI and spills the objects-loop index; ours
 // allocates the reverse. Structure/insn-count converged; joint TU pass territory.]
@@ -47,7 +220,7 @@ int World::ZoneProvidesItem(short zoneId, short itemId)
                 do
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                    if (pObj != NULL && pObj->type == 9)
+                    if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                     {
                         if (pObj->visible >= 0)
                             found = ZoneProvidesItem(pObj->visible, itemId);
@@ -117,7 +290,7 @@ int World::ZoneFindInIzxList(short zoneId, short itemId, int sel)
             do
             {
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                if (pObj != NULL && pObj->type == 9)
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
                     if (pObj->visible >= 0)
                         result = ZoneFindInIzxList(pObj->visible, itemId, sel);
@@ -160,7 +333,7 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
                 {
                     do
                     {
-                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == 0)
+                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == OBJ_QUEST_ITEM_SPOT)
                             paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
                         j++;
                     } while (j < nObjs);
@@ -169,7 +342,7 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
                         paSpots.GetAt(rand() % paSpots.GetSize()));
-                    if (pObj != NULL && pObj->type == 0)
+                    if (pObj != NULL && pObj->type == OBJ_QUEST_ITEM_SPOT)
                     {
                         nResult = v;
                         pObj->visible = v;
@@ -191,7 +364,7 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
             do
             {
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                if (pObj != NULL && pObj->type == 9)
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
                     if (pObj->visible >= 0)
                         nResult = WorldgenFillQuestItemSpot(pObj->visible, itemId);
@@ -231,7 +404,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
                 {
                     do
                     {
-                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == 1)
+                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == OBJ_SPAWN)
                             paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
                         j++;
                     } while (j < nObjs);
@@ -240,7 +413,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
                         paSpots.GetAt(rand() % paSpots.GetSize()));
-                    if (pObj != NULL && pObj->type == 1)
+                    if (pObj != NULL && pObj->type == OBJ_SPAWN)
                     {
                         nResult = v;
                         pObj->visible = v;
@@ -263,7 +436,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
             do
             {
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                if (pObj != NULL && pObj->type == 9)
+                if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
                     if (pObj->visible >= 0)
                         nResult = WorldgenFillSpawn(pObj->visible, itemId);
@@ -275,6 +448,167 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
         }
     }
     return nResult;
+}
+
+// FUNCTION: YODA 0x0041c8f0
+// [EFFECTIVE-WIP: align=92, insns 254/254, all call/store/branch structure converged. Residual
+// = ONE scheduling family: orig evaluates {iB movsx, qB[iB]} before {qA[iA+1], pPuzA2 deref},
+// ours the reverse — statement-order swap and an `int nB` mid-decl both proven INERT (identical
+// score, canonicalized back), so the interleave is scheduler-internal; plus the this=ESI-vs-EDI
+// callee-save cascade (reg_pen=50). Both phase-coupled — joint TU pass. `int nA/nB` locals
+// removed WAS load-bearing (108→92): params CSE-spill on their own.]
+// Populate the FINAL-ITEM goal zone (Zone.type==10): the goal cell consumes puzzle-pair items
+// from BOTH quest chains — questItemsA[iA]/[iA+1] and questItemsB[iB] give the three puzzles
+// whose items must meet here. Two paths: if the zone still provides an unplaced IZX3 item,
+// spawn it; otherwise wire the A/B chain items into quest-item spots. Returns 1 on success.
+int World::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrder, int a5)
+{
+    Zone *pZone = (Zone *)zones.GetAt(zoneId);
+    if (pZone == NULL)
+        return 0;
+    if (pZone->type != ZONE_TYPE_FINAL_ITEM)
+        return 0;
+    short itemA1 = ((Puzzle *)puzzles.GetAt((short)questItemsA.GetAt(iA)))->itemA;
+    Puzzle *pPuzB = (Puzzle *)puzzles.GetAt((short)questItemsB.GetAt(iB));
+    Puzzle *pPuzA2 = (Puzzle *)puzzles.GetAt((short)questItemsA.GetAt(iA + 1));
+    short itemB1 = pPuzB->itemA;
+    short itemA2a = pPuzA2->itemA;
+    short itemA2b = pPuzA2->itemB;
+    if (CheckZoneItemsAvailable(zoneId) == 0)
+        return 0;
+    int bProvides = 0;
+    int nPick = PickUnplacedItemMaybe(zoneId);
+    if (nPick >= 0)
+        bProvides = ZoneProvidesItem(zoneId, nPick);
+    int b1 = ZoneHasIzxItemMaybe(zoneId, itemA1, 0);
+    ZoneHasIzxItemMaybe(zoneId, itemB1, 1);          // sic: result discarded
+    int b2 = ZoneRequiresItemMaybe(zoneId, itemA2a);
+    ZoneRequiresItemMaybe(zoneId, itemA2b);          // sic: result discarded
+    if (b1 == 0 || b2 == 0)
+        return 0;
+    if (bProvides != 0)
+    {
+        if (WorldgenFillSpawn(zoneId, nPick) >= 0)
+        {
+            genCellQuestSlot6Scratch = nPick;
+            genCellItemCScratch = itemA2a;
+            genCellQuestSlot5Scratch = itemA2b;
+            genCellItemAScratch = itemA1;
+            genCellQuestSlot0Scratch = iA;
+            genCellQuestSlot1Scratch = iB;
+            genCellItemBScratch = itemB1;
+            WorldgenCollectZoneRefs(zoneId);
+            return 1;
+        }
+        return 0;
+    }
+    int r1 = ZoneFindInIzxList(zoneId, itemA1, 0);
+    int r2 = WorldgenFillQuestItemSpot(zoneId, itemA2a);
+    if (r1 >= 0 && r2 >= 0)
+    {
+        WorldgenAddZoneEntry(itemA1, nOrder);
+        WorldgenAddZoneEntry(itemA2a, nOrder);
+    }
+    int r3 = ZoneFindInIzxList(zoneId, itemB1, 1);
+    int r4 = WorldgenFillQuestItemSpot(zoneId, itemA2b);
+    if (r3 >= 0 && r4 >= 0)
+    {
+        WorldgenAddZoneEntry(itemB1, nOrder);
+        WorldgenAddZoneEntry(itemA2b, nOrder);
+    }
+    if (r1 >= 0 && r2 >= 0 && r3 >= 0 && r4 >= 0)
+    {
+        genCellQuestSlot6Scratch = -1;
+        genCellItemCScratch = itemA2a;
+        genCellItemAScratch = itemA1;
+        genCellQuestSlot0Scratch = iA;
+        genCellQuestSlot5Scratch = itemA2b;
+        genCellItemBScratch = itemB1;
+        genCellQuestSlot1Scratch = iB;
+        WorldgenCollectZoneRefs(zoneId);
+        return 1;
+    }
+    RemoveZoneEntry2(itemA1);
+    RemoveZoneEntry2(itemA2a);
+    RemoveZoneEntry2(itemB1);
+    RemoveZoneEntry2(itemA2b);
+    return 0;
+}
+
+// FUNCTION: YODA 0x0041cbe0
+// [PHASE-DISPLACED: byte-EXACT at the 57-marker dial state (verified 2026-07-06); adding the
+// UsefulObject/AssignTransit decls rotated it out. Source proven -- do not touch. Both
+// `if (sel)` dispatches are written `!= 0`-first (A-arm fall-through): that was the last crack.]
+// Build one USEFUL-DROP chain node (Zone.type==0x10): resolve the quest item (and the next
+// chain item, if any) from the questItemsA/B list picked by sel, spawn a fresh IZX3 item,
+// record the scratch block + AddZoneEntry. Returns 1 on success.
+int World::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, short nOrder, short sel)
+{
+    if (zoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(zoneId);
+    if (pZone == NULL)
+        return 0;
+    if (pZone->type != ZONE_TYPE_FIND_USEFUL_DROP)
+        return 0;
+    if (CheckZoneItemsAvailable(zoneId) == 0)
+        return 0;
+    unsigned short item1;
+    if (sel != 0)
+        item1 = questItemsA.GetAt(idx);
+    else
+        item1 = questItemsB.GetAt(idx);
+    unsigned short next;
+    if (sel != 0)
+    {
+        if (idx < questItemsA.GetSize() - 1)
+            next = questItemsA.GetAt(idx + 1);
+        else
+            next = 0xffff;
+    }
+    else
+    {
+        if (idx < questItemsB.GetSize() - 1)
+            next = questItemsB.GetAt(idx + 1);
+        else
+            next = 0xffff;
+    }
+    Puzzle *pPuz = (Puzzle *)puzzles.GetAt((short)item1);
+    if (pPuz == NULL)
+        return 0;
+    Puzzle *pPuz2;
+    if ((short)next >= 0)
+    {
+        pPuz2 = (Puzzle *)puzzles.GetAt((short)next);
+        if (pPuz2 == NULL)
+            return 0;
+    }
+    short item1a = pPuz->itemA;
+    short nextItem = -1;
+    if ((short)next >= 0)
+        nextItem = pPuz2->itemA;
+    int nPick = PickUnplacedItemMaybe(zoneId);
+    if (nPick < 0)
+        return 0;
+    int ok2 = 1;
+    int ok1 = ZoneHasIzxItemMaybe(zoneId, item1a, 0);
+    if (nextItem >= 0)
+        ok2 = ZoneRequiresItemMaybe(zoneId, nextItem);
+    if (ok1 != 0 && ok2 != 0)
+    {
+        if (WorldgenFillSpawn(zoneId, nPick) >= 0)
+        {
+            genCellQuestSlot6Scratch = nPick;
+            genCellItemCScratch = nextItem;
+            genCellItemAScratch = item1a;
+            genCellQuestSlot0Scratch = idx;
+            WorldgenAddZoneEntry(nPick, nOrder);
+            WorldgenCollectZoneRefs(zoneId);
+            return 1;
+        }
+        return 0;
+    }
+    return 0;
 }
 
 // FUNCTION: YODA 0x0041cdc0
@@ -331,7 +665,7 @@ int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId,
                 do
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
-                    if (pObj->type == 0xc)
+                    if (pObj->type == OBJ_LOCK)
                     {
                         WorldgenAddZoneEntry(itemId, (short)nVal);
                         if (sel == 0)
@@ -356,7 +690,7 @@ int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId,
                 do
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                    if (pObj->type == 9 &&
+                    if (pObj->type == OBJ_DOOR_IN &&
                         (nResult = WorldgenPlaceItemOnLock(pObj->visible, a2, nVal, itemId, sel)) == 1)
                         break;
                     j++;
@@ -405,7 +739,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
             {
                 do
                 {
-                    if (((ZoneObj *)pZone->objects.GetAt(j))->type == 0)
+                    if (((ZoneObj *)pZone->objects.GetAt(j))->type == OBJ_QUEST_ITEM_SPOT)
                     {
                         bSpot = 1;
                         paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
@@ -433,7 +767,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
                 do
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                    if (pObj->type == 9 &&
+                    if (pObj->type == OBJ_DOOR_IN &&
                         (nResult = WorldgenFillQuestItemSpot2Maybe(pObj->visible, a2, nVal, itemId)) == 1)
                         break;
                     j++;
@@ -442,6 +776,262 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
         }
     }
     return nResult;
+}
+
+// FUNCTION: YODA 0x0041d0c0
+// [EFFECTIVE-WIP: align=56, insns 156/155 — all branches/calls/arms converged (`sel==0`-first
+// arm order was load-bearing). Residual: nOk allocated to EBX in orig vs a stack slot here
+// (the one extra insn = our spill; drives the sbb-into-eax + cmp-mem forms), entangled with
+// the this=EDI-vs-ESI callee-save cascade. Tie-break family — joint pass.]
+// Build a MAP-TO-ITEM-FOR-LOCK node (Zone.type==0xf, must have an EMPTY IZX3 list): resolve
+// the lock item (and follow-up item) from the questItemsA/B chain, register both, place the
+// lock item on the zone's OBJ_LOCK, then the follow-up into a quest-item spot.
+// sic: on CheckZoneItemsAvailable failure it removes item1a TWICE and never removes item2
+// (docs/engine-bugs.md #11); the two `>= 0` guards on zero-extended WORDs are always true.
+int World::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, int nOrder, short sel)
+{
+    short item1a = -1;
+    short item2 = -1;
+    if (zoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(zoneId);
+    if (pZone == NULL)
+        return 0;
+    if (pZone->type != ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK)
+        return 0;
+    if (pZone->genCandidateB.GetSize() > 0)
+        return 0;
+    int item1;
+    if (sel == 0)
+    {
+        item1 = questItemsB.GetAt(idx);
+        if (item1 >= 0)   // sic: always true (zero-extended WORD)
+            item1a = ((Puzzle *)puzzles.GetAt(item1))->itemA;
+        if (questItemsB.GetSize() - 1 >= idx)
+        {
+            int next = questItemsB.GetAt(idx + 1);
+            if (next >= 0)   // sic: always true (zero-extended WORD)
+                item2 = ((Puzzle *)puzzles.GetAt(next))->itemA;
+        }
+    }
+    else
+    {
+        item1 = questItemsA.GetAt(idx);
+        if (item1 >= 0)   // sic: always true (zero-extended WORD)
+            item1a = ((Puzzle *)puzzles.GetAt(item1))->itemA;
+        if (questItemsA.GetSize() - 1 >= idx)
+        {
+            int next = questItemsA.GetAt(idx + 1);
+            if (next >= 0)   // sic: always true (zero-extended WORD)
+                item2 = ((Puzzle *)puzzles.GetAt(next))->itemA;
+        }
+    }
+    WorldgenAddZoneEntry(item1a, nOrder);
+    WorldgenAddZoneEntry(item2, nOrder);
+    if (CheckZoneItemsAvailable(zoneId) == 0)
+    {
+        RemoveZoneEntry2(item1a);
+        RemoveZoneEntry2(item1a);   // sic: should be item2 (docs/engine-bugs.md #11)
+        return 0;
+    }
+    int nOk = 0;
+    if (WorldgenPlaceItemOnLock(zoneId, item1, nOrder, item1a, 0) != 0)
+        nOk = WorldgenFillQuestItemSpot2Maybe(zoneId, item1, nOrder, item2) != 0;
+    if (nOk != 0)
+    {
+        genCellQuestSlot0Scratch = idx;
+        WorldgenCollectZoneRefs(zoneId);
+    }
+    return nOk;
+}
+
+// FUNCTION: YODA 0x0041d260
+// [EFFECTIVE: align=80, insns 164/162 -- guard ||-chain into ONE shared `return 0` was the
+// big crack (170->80). Residual: three backedge cmp-operand mirrors (orig cmp count,i;JG),
+// zero-reg-vs-imm guard compares, and the return-0 epilogue not folding into the common
+// tail (2 extra insns). Tie-break/layout family, joint pass.]
+// Place itemId as a useful object: if the zone's genCandidateA (IZAX) lists it (and the zone
+// has EMPTY cobArray4/genCandidateB lists), pick the target object type from the item tile's
+// flags (TILE_WEAPON -> OBJ_THE_FORCE, TILE_LOCATOR -> OBJ_LOCATOR, TILE_ITEM ->
+// OBJ_QUEST_ITEM_SPOT) and drop it on a random object of that type; else recurse into DOOR_IN
+// children. Returns 1 on success (nPlaced).
+int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrder)
+{
+    Zone *pZone;
+    int bFound = 0;
+    int nPlaced = 0;
+    if (zoneId < 0 || CheckZoneItemsAvailable(zoneId) == 0 ||
+        (pZone = (Zone *)zones.GetAt(zoneId)) == NULL ||
+        pZone->cobArray4.GetSize() > 0 || pZone->genCandidateB.GetSize() > 0)
+        return 0;
+    int nCount = pZone->genCandidateA.GetSize();
+    int i = 0;
+    if (nCount > 0)
+    {
+        do
+        {
+            if ((short)pZone->genCandidateA.GetAt(i) == itemId)
+            {
+                bFound = 1;
+                break;
+            }
+            i++;
+        } while (nCount > i);
+    }
+    unsigned int objType = 0;
+    if (bFound)
+    {
+        CWordArray paSpots;
+        paSpots.SetSize(0, -1);
+        int nTile = itemId;
+        unsigned int flags = ((Tile *)tiles.GetAt(nTile))->flags;
+        if (flags & TILE_WEAPON)
+            objType = OBJ_THE_FORCE;
+        else if (flags & TILE_LOCATOR)
+            objType = OBJ_LOCATOR;
+        else if (flags & TILE_ITEM)
+            objType = OBJ_QUEST_ITEM_SPOT;   // sic: dead store, objType is already 0
+        int nObjs = pZone->objects.GetSize();
+        int j = 0;
+        if (nObjs > 0)
+        {
+            do
+            {
+                if (((ZoneObj *)pZone->objects.GetAt(j))->type == objType)
+                {
+                    paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
+                    nPlaced = 1;
+                }
+                j++;
+            } while (nObjs > j);
+        }
+        if (nPlaced == 1)
+        {
+            int nAvail = paSpots.GetSize();
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
+                paSpots.GetAt(rand() % nAvail));
+            pObj->visible = itemId;
+            pObj->state = 1;
+            WorldgenAddZoneEntry(itemId, nOrder);
+            genCellItemCScratch = nTile;
+        }
+    }
+    else
+    {
+        int nObjs = pZone->objects.GetSize();
+        int j = 0;
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj->type == OBJ_DOOR_IN)
+                {
+                    int vis = pObj->visible;
+                    if (vis >= 0)
+                        nPlaced = WorldgenPlaceUsefulObjectMaybe(vis, itemId, nOrder);
+                    if (nPlaced == 1)
+                        break;
+                }
+                j++;
+            } while (nObjs > j);
+        }
+    }
+    if (nPlaced == 1)
+        WorldgenCollectZoneRefs(zoneId);
+    return nPlaced;
+}
+
+// FUNCTION: YODA 0x0041d480
+// [EFFECTIVE: align=12 -- EARLY-RETURN restructure was the crack (176->12): the first
+// `if (zoneId < 0) return 0;` emits the shared dtor+return-0 block as its FALL-THROUGH and
+// every later `return 0` cross-jumps back to it (write guards as separate early returns,
+// NOT nested ifs, in EH functions). Residual: bIn-zero placement + a reg double-swap in the
+// unk234 dedup block (decl-order probe made it worse -- reverted). Joint pass.]
+// Transit-zone item assignment (quest-path cases 2-7): pick a random not-yet-placed item from
+// the zone's cobArray4 (sel==0) or cobArray5, push it onto the worklist (priority 5 for
+// Zone.type==6, else nOrder) and register it; if the zone's IZAX lists exactly ONE required
+// item, that item is deduped through the one-shot list @0x234 — a repeat aborts with 0.
+int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
+{
+    CWordArray paItems;
+    if (zoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(zoneId);
+    if (pZone == NULL)
+        return 0;
+    int nCount;
+    if (sel != 0)
+        nCount = pZone->cobArray5.GetSize();
+    else
+        nCount = pZone->cobArray4.GetSize();
+    if (nCount == 0)
+        return 0;
+    if (CheckZoneItemsAvailable(zoneId) == 0)
+        return 0;
+    if (sel != 0)
+    {
+        if (nCount > 0)
+        {
+            int i = 0;
+            do
+            {
+                unsigned short v = pZone->cobArray5.GetAt(i);
+                if (IsItemPlaced(v) == 0)
+                    paItems.SetAtGrow(paItems.GetSize(), v);
+                i++;
+                nCount--;
+            } while (nCount != 0);
+        }
+    }
+    else
+    {
+        if (nCount > 0)
+        {
+            int i = 0;
+            do
+            {
+                unsigned short v = pZone->cobArray4.GetAt(i);
+                if (IsItemPlaced(v) == 0)
+                    paItems.SetAtGrow(paItems.GetSize(), v);
+                i++;
+                nCount--;
+            } while (nCount != 0);
+        }
+    }
+    if (paItems.GetSize() == 0)
+        return 0;
+    int nAvail = paItems.GetSize();
+    int item = paItems.GetAt(rand() % nAvail);
+    if (pZone->genCandidateA.GetSize() == 1)
+    {
+        unsigned short first = pZone->genCandidateA.GetAt(0);
+        int bIn = 0;
+        int nUsed = unk234.GetSize();
+        int k = nUsed;
+        if (k > 0)
+        {
+            int i = 0;
+            do
+            {
+                if (unk234.GetAt(i) == first)
+                    bIn = 1;
+                i++;
+                k--;
+            } while (k != 0);
+        }
+        if (bIn != 0)
+            return 0;
+        unk234.SetAtGrow(nUsed, first);
+    }
+    if (pZone->type == ZONE_TYPE_FROM_ANOTHER_MAP)
+        WorldgenPushZoneEntry(item, 5);
+    else
+        WorldgenPushZoneEntry(item, nOrder);
+    WorldgenAddZoneEntry(item, nOrder);
+    genCellItemAScratch = item;
+    WorldgenCollectZoneRefs(zoneId);
+    return 1;
 }
 
 // FUNCTION: YODA 0x0041d670
@@ -630,7 +1220,7 @@ int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
             for (; j < (int)n; j++)
             {
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
-                if (pObj->type == 9)
+                if (pObj->type == OBJ_DOOR_IN)
                 {
                     result = WorldgenPickItemFromZone(pObj->visible, a2, sel);
                     if (result >= 0)
@@ -1999,7 +2589,7 @@ void World::SetCurrentToIntroZone()
     for (int i = 0; i < nCount; i++)
     {
         Zone *pZone = (Zone *)zones.GetAt(i);
-        if (pZone->type == 9)
+        if (pZone->type == ZONE_TYPE_INTRO)
         {
             currentZone = pZone;
             RefreshZone();
@@ -2337,7 +2927,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
                     {
                         do
                         {
-                            if (((ZoneObj *)pZone->objects.GetAt(j))->type == 1)
+                            if (((ZoneObj *)pZone->objects.GetAt(j))->type == OBJ_SPAWN)
                                 spawns.SetAtGrow(spawns.GetSize(), (unsigned short)j);
                             j++;
                         } while (j < nObjs);
@@ -2345,7 +2935,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
                     if (spawns.GetSize() > 0)
                     {
                         ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(spawns.GetAt(rand() % spawns.GetSize()));
-                        if (pObj != NULL && pObj->type == 1)
+                        if (pObj != NULL && pObj->type == OBJ_SPAWN)
                         {
                             found = (short)v;
                             pObj->visible = v;

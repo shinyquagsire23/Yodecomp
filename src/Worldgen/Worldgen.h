@@ -171,14 +171,27 @@ public:
     int         unk33b8;             // +0x33b8
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
+    int  ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel); // 0x0041bfa0
+    int  ZoneRequiresItemMaybe(short zoneId, short itemId); // 0x0041c0b0
+    int  PickUnplacedItemMaybe(short zoneId);            // 0x0041c200
     int  ZoneProvidesItem(short zoneId, short itemId);   // 0x0041c3b0
     int  ZoneFindInIzxList(short zoneId, short itemId, int sel); // 0x0041c490
     int  WorldgenFillQuestItemSpot(short zoneId, short itemId); // 0x0041c580
     int  WorldgenFillSpawn(short zoneId, short itemId);  // 0x0041c730
+    int  WorldgenPopulateGoalZone(short zoneId, short iA, short iB,
+                                  short nOrder, int a5);  // 0x0041c8f0
+    int  WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx,
+                                           short nOrder, short sel); // 0x0041cbe0
     int  WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal,
                                  short itemId, int sel);  // 0x0041cdc0
     int  WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal,
                                          unsigned short itemId);  // 0x0041cf10
+    int  WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx,
+                                            int nOrder, short sel); // 0x0041d0c0
+    int  WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId,
+                                        short nOrder);       // 0x0041d260
+    int  WorldgenAssignTransitItemMaybe(short zoneId, short nOrder,
+                                        int sel);            // 0x0041d480
     int  IsItemPlaced(short itemId);                     // 0x0041d670
     void WorldgenPushZoneEntry(short zoneId, short val); // 0x0041d6b0
     void RemoveZoneEntry(short zoneId);                  // 0x0041d740

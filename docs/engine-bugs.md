@@ -100,6 +100,19 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
 - **Reproduced:** `src/Worldgen/Worldgen.cpp` WorldgenShuffleList, `// sic:` comment
   (`!= -1` kept verbatim; the other comparisons in the function use 0xffff and are fine).
 
+### 11. `World::WorldgenPlaceItemForLockChainMaybe` — failure path removes item1a twice, never item2
+- **Where:** 0x41d1df/0x41d1e7 (in 0x41d0c0): when `CheckZoneItemsAvailable` fails after both
+  `WorldgenAddZoneEntry(item1a, ...)` and `WorldgenAddZoneEntry(item2, ...)` registered their
+  items, the rollback calls `RemoveZoneEntry2` TWICE with `item1a` (both `PUSH EBX`) — `item2`
+  stays registered. Classic copy-paste slip; the second call should pass `item2`.
+- **Impact:** a stale `item2` entry survives in the worldgenRefZones dedup set, so that item is
+  treated as "already placed" for the rest of generation — it can suppress later placements of
+  the same item on this seed.
+- **Also here:** both `if (item1 >= 0)` / `if (next >= 0)` guards test a zero-extended WORD as
+  int, so they are ALWAYS true (same family as #10) — kept verbatim with `// sic:` comments.
+- **Reproduced:** `src/Worldgen/Worldgen.cpp` WorldgenPlaceItemForLockChainMaybe
+  (`RemoveZoneEntry2(item1a);` twice, `// sic:` comment).
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's

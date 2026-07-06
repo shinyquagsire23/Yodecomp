@@ -94,6 +94,70 @@ public:                              // +0x00 CObject vtable (0x44b178)
     virtual ~MapEntity();                                // 0x00404d50 (ScalarDtor 0x00404d30)
 };
 
+// Tile.flags bits (names from ~/workspace/DesktopAdventures src/include/tile.h).
+// Bits 16+ are subtype bits whose meaning depends on the category bit (WEAPON/ITEM/CHARACTER).
+enum TileFlags
+{
+    TILE_GAME_OBJECT                = 1 << 0,
+    TILE_UNDER_PLAYER_NONCOLLIDING  = 1 << 1,
+    TILE_MIDDLE_LAYER_COLLIDING     = 1 << 2,
+    TILE_PUSH_PULL_BLOCK            = 1 << 3,
+    TILE_ABOVE_PLAYER_NONCOLLIDING  = 1 << 4,
+    TILE_MINI_MAP_TILE              = 1 << 5,
+    TILE_WEAPON                     = 1 << 6,
+    TILE_ITEM                       = 1 << 7,
+    TILE_CHARACTER                  = 1 << 8,
+    // WEAPON subtypes                        // ITEM subtypes            // CHARACTER subtypes
+    TILE_LIGHT_BLASTER              = 1 << 16, // TILE_KEYCARD            // TILE_PLAYER
+    TILE_HEAVY_BLASTER              = 1 << 17, // TILE_PUZZLE_ITEM_1      // TILE_ENEMY
+    TILE_LIGHTSABER                 = 1 << 18, // TILE_PUZZLE_ITEM_2      // TILE_FRIENDLY
+    TILE_THE_FORCE                  = 1 << 19, // TILE_PUZZLE_ITEM_SEED_END
+    TILE_LOCATOR                    = 1 << 20, // (ITEM group)
+    TILE_HEALTH_PACK                = 1 << 22, // (ITEM group)
+};
+
+// ZoneObj.type (names = DesktopAdventures OBJ_TYPE, src/include/objectinfo.h).
+enum ZoneObjType
+{
+    OBJ_QUEST_ITEM_SPOT = 0,
+    OBJ_SPAWN           = 1,
+    OBJ_THE_FORCE       = 2,
+    OBJ_VEHICLE_TO      = 3,
+    OBJ_VEHICLE_FROM    = 4,
+    OBJ_LOCATOR         = 5,
+    OBJ_ITEM            = 6,
+    OBJ_PUZZLE_NPC      = 7,
+    OBJ_WEAPON          = 8,
+    OBJ_DOOR_IN         = 9,
+    OBJ_DOOR_OUT        = 10,
+    OBJ_UNKNOWN         = 11,
+    OBJ_LOCK            = 12,
+    OBJ_TELEPORTER      = 13,
+    OBJ_XWING_FROM      = 14,
+    OBJ_XWING_TO        = 15,
+};
+
+// Zone.type — the zone's worldgen role (DesktopAdventures "map_flags").
+enum ZoneType
+{
+    ZONE_TYPE_EMPTY             = 0,
+    ZONE_TYPE_ENEMY_TERRITORY   = 1,
+    ZONE_TYPE_FINAL_DESTINATION = 2,
+    ZONE_TYPE_ITEM_FOR_ITEM     = 3,
+    ZONE_TYPE_FIND_USEFUL_NPC   = 4,
+    ZONE_TYPE_ITEM_TO_PASS      = 5,
+    ZONE_TYPE_FROM_ANOTHER_MAP  = 6,
+    ZONE_TYPE_TO_ANOTHER_MAP    = 7,
+    ZONE_TYPE_INDOOR            = 8,
+    ZONE_TYPE_INTRO             = 9,
+    ZONE_TYPE_FINAL_ITEM        = 10,
+    ZONE_TYPE_MAP_START         = 11,
+    ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK = 15,
+    ZONE_TYPE_FIND_USEFUL_DROP  = 16,
+    ZONE_TYPE_FIND_USEFUL_BUILDING = 17,
+    ZONE_TYPE_FIND_THE_FORCE    = 18,
+};
+
 // TILE record (0x40c): 32x32 8-bit pixels + flags + name.
 class Tile : public CObject
 {
