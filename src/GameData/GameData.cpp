@@ -6,12 +6,189 @@
 // OnReplayStory, StartGame, RefreshZone, BuildQuestPath.
 #include "WorldStub.h"
 #include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Demo-limiting helper: the three permanently-grayed menu items (Save/Load/Replay) share an
 // inlined disable call — the EAX staging of the pointer arg is the inlining fingerprint.
 static __inline void DemoDisable(CCmdUI *p)
 {
     p->Enable(0);
+}
+
+// FUNCTION: YODA 0x00401ac0  [EFFECTIVE MATCH: DIFF(2) — the values-loop back-edge cmp operand
+//   order (cmp [count],eax vs cmp eax,[count]); both source directions + do-while emit ours.
+//   Lesson-#6 instruction selection. Cracks that got here: GetProfileString(...,"0") default,
+//   Find("_") > 0 arm inline-first, int v = atoi(left) - obfKey (int-width sub + temp-slot
+//   sharing), guarded do-while.]
+// Load the planet-1 story history from registry [GameData] Nevada0..N. Line format
+// "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
+// Reads until a missing key (default "0"); trims the list to <= 3 entries.
+void World::LoadStoryHistoryNevada()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString prefix("Nevada");
+    CString key;
+    int i = 0;
+    int done = 0;
+    do {
+        sprintf(buf, "%d", i);
+        i++;
+        key = prefix;
+        key += buf;
+        CString line = pApp->GetProfileString("GameData", key, "0");
+        if (*(const char *)line == '0') {
+            done = done + 1;
+        }
+        else {
+            CString left = line.Left(line.Find("_"));
+            CString tmp;
+            atol(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int obfKey = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int count = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            int j = 0;
+            if (count > 0) {
+                do {
+                    if (line.Find("_") > 0)
+                        left = line.Left(line.Find("_"));
+                    else
+                        left = line;
+                    int v = atoi(left) - obfKey;
+                    storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), (short)v);
+                    if (j < count - 1) {
+                        tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+                        line = tmp;
+                    }
+                    j++;
+                } while (count > j);
+            }
+        }
+    } while (done == 0);
+    if (storyHistoryNevada.GetSize() > 3)
+        storyHistoryNevada.RemoveAt(0, 1);
+}
+
+// FUNCTION: YODA 0x00401ea0
+// Load the planet-2 story history from registry [GameData] Alaska0..N. Line format
+// "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
+// Reads until a missing key (default "0"); trims the list to <= 3 entries.
+void World::LoadStoryHistoryAlaska()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString prefix("Alaska");
+    CString key;
+    int i = 0;
+    int done = 0;
+    do {
+        sprintf(buf, "%d", i);
+        i++;
+        key = prefix;
+        key += buf;
+        CString line = pApp->GetProfileString("GameData", key, "0");
+        if (*(const char *)line == '0') {
+            done = done + 1;
+        }
+        else {
+            CString left = line.Left(line.Find("_"));
+            CString tmp;
+            atol(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int obfKey = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int count = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            int j = 0;
+            if (count > 0) {
+                do {
+                    if (line.Find("_") > 0)
+                        left = line.Left(line.Find("_"));
+                    else
+                        left = line;
+                    int v = atoi(left) - obfKey;
+                    storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), (short)v);
+                    if (j < count - 1) {
+                        tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+                        line = tmp;
+                    }
+                    j++;
+                } while (count > j);
+            }
+        }
+    } while (done == 0);
+    if (storyHistoryAlaska.GetSize() > 3)
+        storyHistoryAlaska.RemoveAt(0, 1);
+}
+
+// FUNCTION: YODA 0x00402280
+// Load the planet-3 story history from registry [GameData] Oregon0..N. Line format
+// "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
+// Reads until a missing key (default "0"); trims the list to <= 3 entries.
+void World::LoadStoryHistoryOregon()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString prefix("Oregon");
+    CString key;
+    int i = 0;
+    int done = 0;
+    do {
+        sprintf(buf, "%d", i);
+        i++;
+        key = prefix;
+        key += buf;
+        CString line = pApp->GetProfileString("GameData", key, "0");
+        if (*(const char *)line == '0') {
+            done = done + 1;
+        }
+        else {
+            CString left = line.Left(line.Find("_"));
+            CString tmp;
+            atol(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int obfKey = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            left = line.Left(line.Find("_"));
+            int count = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+            line = tmp;
+            int j = 0;
+            if (count > 0) {
+                do {
+                    if (line.Find("_") > 0)
+                        left = line.Left(line.Find("_"));
+                    else
+                        left = line;
+                    int v = atoi(left) - obfKey;
+                    storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), (short)v);
+                    if (j < count - 1) {
+                        tmp = line.Right(line.GetLength() - line.Find("_") - 1);
+                        line = tmp;
+                    }
+                    j++;
+                } while (count > j);
+            }
+        }
+    } while (done == 0);
+    if (storyHistoryOregon.GetSize() > 3)
+        storyHistoryOregon.RemoveAt(0, 1);
 }
 
 // FUNCTION: YODA 0x00402660
