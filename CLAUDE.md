@@ -471,6 +471,14 @@ whole cleanly-separable small-MFC-class layer (Phase F) + fixed the measurement 
   m_lpCmdLine@0x70, App+0xc4 frame-delay -> World+0x74. GameView pWorld@0x44/bBusy@0x4c/
   nDragSlot@0x144/bDragActive@0x148/pMusicThread@0x2fc.
 
+**⭐ DOC TU FULLY DOCUMENTED (2026-07-06, 3-agent sweep) — Phase D is now transcription, not research.**
+The World/doc TU (0x41c340–0x429000) has ZERO undocumented FUN_* and all 38 worldgen/save-load `Maybe`
+functions are named + plate-commented in Ghidra (saved). Full algorithm + `.wld` chunk format in
+**docs/worldgen.md** (worldgen: Generate → CarveQuestPath ×3 → WorldgenPlaceQuestNode hub → per-type leaf
+placers; two zone-entry lists @0x25c/0x270; .wld = FourCC container, VERS==0x200). WorldDoc.h named the
+two zone-entry CObArrays. Decoder rings (ZoneObj.type=OBJ_TYPE, Zone.type=map_flags) from DesktopAdventures.
+Corrections: 0x41c340 = load/save helper ctor (NOT doc ctor); 0x41eab0 = WorldgenSelectPuzzle.
+
 **NEXT: the two monsters are all that's left of substance (~85% of remaining bytes).**
 The small-MFC layer is done; InvScrollBar + the option/slider dialogs are EMBEDDED in the
 GameView TU (0x40a560–0x418700), not separable. Options, in priority order:
