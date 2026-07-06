@@ -6,11 +6,13 @@
 //            (same TU!) and retire those files — full-TU context may fix Zone's 3 residuals.
 #include "Records.h"
 #include <string.h>
-#pragma intrinsic(memset, memcpy)
+#pragma intrinsic(memset, memcpy, strcmp)
 
 // ============================== Puzzle ==============================
 
-// FUNCTION: YODA 0x004042b0
+// FUNCTION: YODA 0x004042b0  [EFFECTIVE MATCH: DIFF(24) — clean ESI<->EDI bijection (orig: this=EDI,
+//   zero=ESI; ours swapped). Structure/stores identical. Fresh-TU first function, decl order inert,
+//   body order verified — allocator tie-break, not source-steerable. cf. Canvas residuals.]
 Puzzle::Puzzle()
 {
     unk14 = 0;
@@ -26,6 +28,59 @@ Puzzle::Puzzle()
 // FUNCTION: YODA 0x004043c0
 Puzzle::~Puzzle()
 {
+}
+
+// FUNCTION: YODA 0x00404480
+// Parses one IPUZ record: tag + size, 3 dwords + unk14, five length-prefixed texts
+// (shared 0x800 buffer, zeroed before each), then the two item ids.
+void Puzzle::Read(CFile *pFile)
+{
+    char  buf[0x800];
+    int   size = 0;
+    char  tag[5];
+    short len;
+
+    pFile->Read(tag, 4);
+    tag[4] = 0;
+    pFile->Read(&size, 4);
+    if (strcmp(tag, "IPUZ") == 0) {
+        pFile->Read(&nType, 4);
+        pFile->Read(&unk2, 4);
+        pFile->Read(&unk3, 4);
+        pFile->Read(&unk14, 2);
+        pFile->Read(&len, 2);
+        if (len > 0) {
+            memset(buf, 0, sizeof(buf));
+            pFile->Read(buf, len);
+            text1 = buf;
+        }
+        pFile->Read(&len, 2);
+        if (len > 0) {
+            memset(buf, 0, sizeof(buf));
+            pFile->Read(buf, len);
+            text2 = buf;
+        }
+        pFile->Read(&len, 2);
+        if (len > 0) {
+            memset(buf, 0, sizeof(buf));
+            pFile->Read(buf, len);
+            text3 = buf;
+        }
+        pFile->Read(&len, 2);
+        if (len > 0) {
+            memset(buf, 0, sizeof(buf));
+            pFile->Read(buf, len);
+            text4 = buf;
+        }
+        pFile->Read(&len, 2);
+        if (len > 0) {
+            memset(buf, 0, sizeof(buf));
+            pFile->Read(buf, len);
+            text5 = buf;
+        }
+        pFile->Read(&itemA, 2);
+        pFile->Read(&itemB, 2);
+    }
 }
 
 // ============================== Character ==============================
@@ -104,7 +159,159 @@ void *Character::GetFrameTile(int dx, int dy, CObArray *paTiles, int nAnimBank)
     return paTiles->GetAt(frames[idx]);        // reload: the currentFrame store may alias frames[]
 }
 
-// TODO v2: Character::Read (0x004047a0), Character::GetProjectileTile (0x00404910)
+// FUNCTION: YODA 0x004047a0
+// Parses one ICHA record body: 8B header, 16B name (discarded), 3 shorts + dword -> Init,
+// then the 24-short frame table.
+void Character::Read(CFile *pFile)
+{
+    short frameBuf[24];
+    char  name[16];
+    char  hdr[8];
+    int   dw;
+    short w1, w2, w3;
+
+    pFile->Read(hdr, 8);
+    pFile->Read(name, 0x10);
+    pFile->Read(&w1, 2);
+    pFile->Read(&w2, 2);
+    pFile->Read(&w3, 2);
+    pFile->Read(&dw, 4);
+    Init(w1, w2, w3, dw);
+    pFile->Read(frameBuf, 0x30);
+    memcpy(frames, frameBuf, 0x30);
+}
+
+// FUNCTION: YODA 0x00404910
+// Projectile sprite for a firing direction: rows 3/6/0/1 (left/right/up/down) in the mode-0
+// case, or the bank-1/bank-2 cells selected by (a, d) otherwise.
+void *Character::GetProjectileTile(int a, int dx, int dy, int d, CObArray *paTiles)
+{
+    if (dx == -1) {
+        if (d == 0) {
+            if (frames[3] < 0)
+                return 0;
+            return paTiles->GetAt(frames[3]);
+        }
+        if (d == 1) {
+            if (a == 1) {
+            if (frames[0xb] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xb]);
+            }
+            if (a == 2) {
+            if (frames[0x13] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x13]);
+            }
+        }
+        else if (d == 2) {
+            if (a == 1) {
+            if (frames[0xd] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xd]);
+            }
+            if (a == 2) {
+            if (frames[0x15] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x15]);
+            }
+        }
+    }
+    else if (dx == 1) {
+        if (d == 0) {
+            if (frames[6] < 0)
+                return 0;
+            return paTiles->GetAt(frames[6]);
+        }
+        if (d == 1) {
+            if (a == 1) {
+            if (frames[0xe] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xe]);
+            }
+            if (a == 2) {
+            if (frames[0x16] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x16]);
+            }
+        }
+        else if (d == 2) {
+            if (a == 1) {
+            if (frames[0xf] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xf]);
+            }
+            if (a == 2) {
+            if (frames[0x17] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x17]);
+            }
+        }
+    }
+    else if (dy == -1) {
+        if (d == 0) {
+            if (frames[0] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0]);
+        }
+        if (d == 1) {
+            if (a == 1) {
+            if (frames[8] < 0)
+                return 0;
+            return paTiles->GetAt(frames[8]);
+            }
+            if (a == 2) {
+            if (frames[0x10] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x10]);
+            }
+        }
+        else if (d == 2) {
+            if (a == 1) {
+            if (frames[0xa] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xa]);
+            }
+            if (a == 2) {
+            if (frames[0x12] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x12]);
+            }
+        }
+    }
+    else if (dy == 1) {
+        if (d == 0) {
+            if (frames[1] < 0)
+                return 0;
+            return paTiles->GetAt(frames[1]);
+        }
+        if (d == 1) {
+            if (a == 1) {
+            if (frames[9] < 0)
+                return 0;
+            return paTiles->GetAt(frames[9]);
+            }
+            if (a == 2) {
+            if (frames[0x11] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x11]);
+            }
+        }
+        else if (d == 2) {
+            if (a == 1) {
+            if (frames[0xc] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0xc]);
+            }
+            if (a == 2) {
+            if (frames[0x14] < 0)
+                return 0;
+            return paTiles->GetAt(frames[0x14]);
+            }
+        }
+    }
+    return 0;
+}
 
 // ============================== MapEntity ==============================
 
@@ -112,7 +319,8 @@ void *Character::GetFrameTile(int dx, int dy, CObArray *paTiles, int nAnimBank)
 //   this source order is the original's (zero/-1/one streams each match emission order exactly);
 //   only the SCHEDULE differs (vtable-store slotting) => TU-position state. Expect this to snap to
 //   MATCH once the functions between Puzzle::Ctor and here (Puzzle::Read, Character::Read,
-//   GetProjectileTile) are present. Same story as Puzzle::Ctor's ESI/EDI flip. Lesson #7.]
+//   GetProjectileTile) are present. v2 UPDATE: full preceding TU present, still DIFF(73) —
+//   scheduling tie-break like Puzzle::Ctor; parked as effective match.]
 MapEntity::MapEntity()
 {
     damageTaken = 0;
@@ -160,3 +368,159 @@ Tile::Tile()
 Tile::~Tile()
 {
 }
+
+// ============================== ZoneObj ==============================
+
+// FUNCTION: YODA 0x00404ed0
+ZoneObj::ZoneObj()
+{
+    y = 0;
+    x = 0;
+    state = 0;
+    type = 0;
+    visible = -1;
+}
+
+// FUNCTION: YODA 0x00404f40  (compiler-generated scalar-deleting destructor ??_GZoneObj)
+
+// FUNCTION: YODA 0x00404f60
+ZoneObj::ZoneObj(unsigned int t, unsigned short px, unsigned short py)
+{
+    type = t;
+    x = px;
+    y = py;
+    visible = -1;
+}
+
+// FUNCTION: YODA 0x00404fe0
+void ZoneObj::Read(CFile *pFile)
+{
+    unsigned short buf6[3];
+    unsigned short buf2;
+    pFile->Read(&type, 4);
+    pFile->Read(buf6, 6);
+    x = buf6[0];
+    y = buf6[1];
+    state = buf6[2];
+    switch (type) {
+    case 0: case 1: case 2: case 5:
+        pFile->Read(&buf2, 2); state = 0; visible = buf2; break;
+    case 3: case 4: case 9: case 12: case 14: case 15:
+        pFile->Read(&buf2, 2); state = 1; visible = buf2; break;
+    case 6: case 7: case 8:
+        pFile->Read(&buf2, 2); state = 1; visible = buf2; break;
+    default:
+        pFile->Read(&buf2, 2); visible = 0xffff; state = 1; break;
+    }
+}
+
+// FUNCTION: YODA 0x00405100
+ZoneObj::~ZoneObj()
+{
+}
+
+// ============================== Zone ==============================
+
+// FUNCTION: YODA 0x00405150
+Zone::Zone(short w, short h)
+{
+    activatedFlag = 0;
+    width = w;
+    height = h;
+    for (int i = 0; i < width; i++)
+        for (int j = 0; j < height; j++) {
+            tiles[(i * 18 + j) * 3 + 0] = -1;
+            tiles[(i * 18 + j) * 3 + 1] = -1;
+            tiles[(i * 18 + j) * 3 + 2] = -1;
+        }
+    type = 1;
+    tempVar = 0;
+    globalVar = -1;
+    randVar = -1;
+    zoneUnk846 = -1;
+}
+
+// FUNCTION: YODA 0x00405300  (compiler-generated scalar-deleting destructor ??_GZone -- MATCH, no source)
+
+// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13). PERMUTER-CONFIRMED (2026-07-05) as pure
+//   register allocation: asmscore drops to align=0 (instructions 1:1 identical), residual is a clean
+//   3-register rotation (ecx/edx/esi for walk-ptr/x/obj -- orig reuses the dead `this` in ECX for the
+//   walk, mine for the obj) + loop guard `test edi,edi` vs `cmp edi,eax` + counter-cmp operand order.
+//   No stmt/decl/cmp lever reaches it (one leading decl). Semantically identical.]
+ZoneObj *Zone::FindObjectAt(int x, int y)
+{
+    ZoneObj *result = 0;
+    for (int i = 0; i < objects.GetSize(); i++) {
+        ZoneObj *obj = (ZoneObj *)objects[i];
+        if (obj->x == x && obj->y == y && obj->state == 1) {
+            result = obj;
+            break;
+        }
+    }
+    return result;
+}
+
+// FUNCTION: YODA 0x00405380
+int Zone::GetEdgeCode(int x, int y)
+{
+    if (x >= 0 && x < width && y >= 0 && y < height) return 0;
+    if (type == 8) return 1;
+    if (x < 0 && y >= 0 && y < height) return 4;
+    if (x >= width && y >= 0 && y < height) return 5;
+    if (y < 0 && x >= 0 && x < width) return 2;
+    if (y >= height && x >= 0 && x < width) return 3;
+    return 99;
+}
+
+// FUNCTION: YODA 0x00405430
+unsigned short Zone::GetTile(int x, int y, int layer)
+{
+    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
+        return (unsigned short)tiles[(y * 18 + x) * 3 + layer];
+    return 0xffff;
+}
+
+// FUNCTION: YODA 0x00405480
+void Zone::SetTile(int x, int y, int layer, unsigned short val)
+{
+    if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
+        tiles[(y * 18 + x) * 3 + layer] = val;
+}
+
+// FUNCTION: YODA 0x004054d0  [EFFECTIVE MATCH: DIFF(12) on 506 bytes -- pure ESI<->EDI reg-alloc
+//   (count vs offset register) in the 3 element-deletion loops; the objects loop matches, iact/
+//   entities drew the opposite phase. Structurally identical.]
+// Destructor: delete the CObject* elements of objects/iactScripts/entities (virtual dtor via delete),
+// SetSize(0,-1) each, then SetSize the 4 CDWordArray scratch lists; members auto-destruct after.
+Zone::~Zone()
+{
+    int i, n;
+    n = objects.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = objects[i]; if (p) delete p; }
+    objects.SetSize(0, -1);
+    n = iactScripts.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = iactScripts[i]; if (p) delete p; }
+    iactScripts.SetSize(0, -1);
+    n = entities.GetSize();
+    for (i = 0; i < n; i++) { CObject *p = entities[i]; if (p) delete p; }
+    entities.SetSize(0, -1);
+    cobArray4.SetSize(0, -1);
+    cobArray5.SetSize(0, -1);
+    genCandidateA.SetSize(0, -1);
+    genCandidateB.SetSize(0, -1);
+}
+
+// FUNCTION: YODA 0x004056d0
+// Marks every "quest" object (ObjType 6..10 = item/npc/weapon/door-in/door-out) active (state=1).
+void Zone::FlagQuestObjects()
+{
+    int n = objects.GetSize();
+    for (int i = 0; i < n; i++) {
+        ZoneObj *obj = (ZoneObj *)objects[i];
+        if (obj->type >= 6 && obj->type <= 10)
+            obj->state = 1;
+    }
+}
+
+// TODO v3: Zone::DamageEntityAt (0x00405710), Zone::HitEntityAt (0x004059d0),
+//          the operator-delete thunk (0x00405320) if it belongs to this TU.
