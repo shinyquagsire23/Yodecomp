@@ -36,9 +36,16 @@ this_type X*`, Ghidra moves the func into namespace `X` automatically — so typ
 function *accesses/calls* (even a vague one) is more useful than an anonymous `FUN_*`, and it refines over
 time. When the behaviour is clear but the exact purpose isn't, append **`Maybe`**: e.g. `World::InitUiMaybe`,
 `GameView::DrawStatusMaybe`. This is the standing signal that the name is a hypothesis to confirm/sharpen
-later (grep `Maybe` to find them). Only leave `FUN_<addr>` when you genuinely can't tell what it touches.
+later (grep `Maybe` to find them). Only leave `FUN_<addr>` when you genuinely can't tell what it touches. 
 Still avoid *confidently wrong* names (the `BlitWeaponBox` miss) — read the body first; `Maybe` is for honest
 "looks like X" guesses, not unread ones.
+For struct fields, an **`Unk`** append like **`Unk0x44`** can be used as a placeholder for fields which have 
+not been seen as written or read to in a way that is clearly identifiable, but the size or type is known.
+A **`Related`** append may be used if a function touches several known subsystems, but its actual purpose is 
+unknown. This is an in-between identifier between **`Maybe`** and **`Unk`** in that it gives a signal for what 
+the function touches, without solidifying exactly what the function is/does. This may also be used for fields.
+For example, a function which accesses Palette related functions might be marked
+**`ThisType::FUN_123456_PaletteRelated`**.
 
 ## Decompiling
 
@@ -435,7 +442,80 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v6 — PHASE D: transcribe the World/doc TU; 10.01%, 101 funcs)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v7 — PHASE D underway: 41 doc-TU funcs transcribed; ~13.5%)
+**Progress ~13.4% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **41 functions,
+23-26 exact depending on the current dial** (the count breathes as functions are added — see
+"dial churn" below). Everything below the fold in v6 still applies; this block is the delta.
+
+**What is DONE in src/Worldgen (exact at least under one dial, all structurally proven):**
+leaves+list helpers (IsItemPlaced, Push/Remove/Add ZoneEntry, IsZoneUsed, AddPlacedZoneId,
+IsTileInGoalList, GetZoneGridOrder, IsModified/SetModifiedFlag), recursive queries
+(CheckZoneItemsAvailable, WorldgenCollectZoneRefs; ZoneProvidesItem/ZoneFindInIzxList are
+structurally converged, reg-tie-break parked), WorldgenPickItemFromZone (392B EXACT),
+Randomize (204B EXACT), grid copies Backup/RestoreZoneGrid (189B each EXACT),
+Backup/RestoreRecords (773B each EXACT — they copy the center 2x2 quest cells
+mapGrid[44,45,54,55] <-> mapScratch[0..3] with constant id tags 0x5e/0x5f/0x5d/0x60),
+SetupGrid, ReadZone (575B EXACT — demo zone-id whitelist switch), ReadStupCanvas,
+SetCurrentToIntroZone, GetZoneIndex (Ghidra name: EnterZone), UpdateCamera (EXACT — writes
+the 288x288 view window rect @0x32d4..e0; WorldDoc.h misnames these nHealthDial*, reconcile),
+the 4 audio toggles (OnToggle/OnUpdateToggle Sound/Music, all EXACT first compile),
+7 chunk parsers (ParseZone/Zaux/Zax3/Zax2/Tnam exact-or-rotating; ParseCaux/Chwp have a
+block-layout+reg residual the arm-order knob cannot steer), Populate (DIFF~13, one
+per-case store slot), PlaceZone (WIP: reg 2-cycle + EH-state placement residual),
+WorldgenShuffleList (structurally complete; reg cascade parked; **engine bug #10** — its
+`GetAt(k) != -1` guard never fires, WORD zero-extend vs -1).
+
+**⭐ NEW codegen cracks from this sprint (add to instincts):**
+- **Indexed one-array copy anchors the walker at the first-accessed FIELD** — the grid
+  copies only matched as `mapGrid[n].f = mapGrid[n+100].f; n++` inside the 10x10 loops
+  (two-pointer and single-pointer [100]-displacement forms put the anchor at struct base).
+- **Identical if/else arms are REAL dev code**: PickItemFromZone tests the dead a2 flag and
+  does the same SetAtGrow either way; the compiler cross-jumps the arms leaving a dead
+  `cmp [n],0` wedged between arg pushes and the call. Grep for flags-unused cmps.
+- **`x <<= s; x &= m;` as SEPARATE statements never combine** (Randomize matched only in
+  this form, keeping even the no-op `& 0xff000000` after `<< 0x18`); a single
+  `(x << s) & m` expression canonicalizes to mask-first `and 0xff; shl`.
+- **Switch, not if-ladder, for type dispatches**: all-compares-up-front + out-of-line arms
+  (CollectZoneRefs/CheckZoneItemsAvailable OBJ_TYPE ladders, ReadZone's 13-case demo zone
+  whitelist with range folding, Populate, Randomize).
+- **Per-case constant args cross-jump a shared call tail**: Populate ends each switch case
+  with `PlaceZoneObjectTiles(CONST);` — per-case `push CONST` + one shared call+jmp; the
+  switch default lands AFTER the call (was the tell).
+- **`return found;` vs `return 1;`** distinguishable: `mov eax,edi` vs `mov eax,1` at the
+  duplicated epilogue (ZoneProvidesItem).
+- **Early-return rotation trap**: a `for` with an early `return` does NOT rotate into
+  guard+do-while; write `if (n > 0) { do { ... } while (i < n); }` explicitly (IsItemPlaced,
+  all the list scans). `break`-form loops DO rotate.
+- MFC idioms compile exact for free: GetFirstViewPosition/GetNextView vcalls (+0x68/+0x6c),
+  CCmdUI::SetCheck (slot +4), CFile::Seek(x, CFile::current) (+0x30), the branchy
+  `n = (n == 0)` cmp/sbb/neg, and CFile-vcall CSE into a register across a loop.
+- `m_bModified` is CDocument+0x44 → 0x422f40/50 are IsModified/SetModifiedFlag overrides.
+
+**⚠ DIAL CHURN is the dominant residual now.** Every added function rotates reg-alloc
+tie-breaks TU-wide; matches flip in and out (IsItemPlaced, the RemoveZoneEntry pair, the
+Zaux/Zax2/Zax3 clone trio rotate phases like the GameData loader triplet). Do NOT grind a
+2-20 byte reg/cmp-direction residual mid-build — finish the TU first, then one JOINT pass
+(the standing rule). ZoneProvidesItem (found-var in EDI vs stack) and ShuffleList (the
+{bAnyEmpty,nMoved,k*2-offset} contest) are the two structured parks with notes in-source.
+
+**NEXT (in order):** (1) PlaceZone residual is close — one reg 2-cycle + the EH-state(-1)
+placement in the found path; look with fresh eyes or park. (2) ParseChar 0x421e70, then the
+EH-heavy parsers ParsePuz2 0x422fd0 / ParseSnds 0x4233f0 (splitpath) / ParseActn 0x423510 /
+ParseHtsp 0x4236b0. (3) LoadWorld 0x421fd0 + Load 0x422670 (the IFF dispatcher, big switch on
+FourCC tags — string cmps like Puzzle::Read). (4) PlacePuzzle 0x421620 + WorldgenPlacePuzzles
+0x421930, then the placer family 0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades
+0x41e350, SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120, and last Generate 0x41f960 (6.6KB)
++ the save/load monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile — CArchive+
+CATCH_ALL, use the WorldDoc OnOpenDocument recipe). (5) The GameView methods embedded in
+this TU (0x426c40-0x429150: OnInitialUpdate, DrawDirectionArrows, ShowTextDialog,
+DrawHealthDial/Needle, AddHealth, UseWeapon, DetonateAdjacentTiles, DrawWeaponBox/Icon,
+BlitViewportDither, PreCreateWindow, AddItemToInv) need the real GameView layout — do them
+after the World:: half, growing the GameView stub the same way.
+**Retire src/Dta/ when its 3 addresses (0x423110/190/210) are exact here** (double markers).
+**Ghidra renames pending (needs YodaDemo ACTIVE for writes):** EnterZone→GetZoneIndex
+(0x423dc0); the 0x32d4 quad nHealthDial*→view-window rect (also fix WorldDoc.h comments).
+
+### ⏮ PRIOR PICKUP (2026-07-06 v6 — superseded; kept for the Phase-D plan details)
 **Progress 10.01% byte-exact, 101/534 funcs.** The MFC scaffolding sprint (App/Frame/Dlg + tooling)
 is done and the World/doc TU is FULLY DOCUMENTED (see below). The next push is straight
 transcription of that TU — the single biggest remaining payoff (~52 KB). Everything is staged.

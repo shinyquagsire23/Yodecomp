@@ -88,6 +88,18 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
   pointers survive a re-init with stale values until the next CacheUiTilePtrs call.
 - **Reproduced:** `src/WorldDoc/WorldDoc.cpp` OnNewDocument, `// sic:` comment.
 
+### 10. `World::WorldgenShuffleList` — the "already moved?" guard never fires
+- **Where:** 0x41efc0-ish (phase 2 of the shuffle at 0x41ef90): the second pass tests
+  `pList->GetAt(k) != -1` — but `CWordArray::GetAt` returns a WORD that zero-extends
+  (`xor eax,eax; mov ax,[...]; cmp eax,-1`), so the comparison is ALWAYS true. Elements
+  already scattered in pass 1 (slots set to 0xffff) are "re-scattered": the retry loop
+  scans for a free temp slot and rand()-places the 0xffff sentinel itself.
+- **Impact:** wasted rand() calls and sentinel values written into random temp slots; the
+  shuffle still terminates because pass 3 copies the temp back wholesale. The list ends up
+  shuffled but with the sentinel handling doing extra no-op work each generation.
+- **Reproduced:** `src/Worldgen/Worldgen.cpp` WorldgenShuffleList, `// sic:` comment
+  (`!= -1` kept verbatim; the other comparisons in the function use 0xffff and are fine).
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's

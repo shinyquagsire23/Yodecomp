@@ -63,8 +63,12 @@ public:
 class GameView
 {
 public:
-    char _pad00[0xc4];               // +0x000
+    char _pad00[0x4c];               // +0x000
+    int  bBusy;                      // +0x04c
+    char _pad50[0x74];               // +0x050
     int  soundSession;               // +0x0c4  0 until SoundInit opens the WAVMIX session
+    char _padc8[0x4c];               // +0x0c8
+    int  nTargetZoneId;              // +0x114
     void SoundInit();                                     // 0x00411520 (GameView TU)
 };
 
@@ -73,7 +77,10 @@ public:
 class World : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
-    char        _pad50[0x30];        // +0x0050  doc scalars (totalZones@0x58, nFrameMode@0x5c, ...)
+    int         unk50;               // +0x0050
+    char        _pad54[8];           // +0x0054
+    int         nFrameMode;          // +0x005c
+    char        _pad60[0x20];        // +0x0060
     CObArray    tiles;               // +0x0080  Tile*
     CObArray    zones;               // +0x0094  Zone*
     CObArray    inventory;           // +0x00a8  InvItem*
@@ -100,9 +107,15 @@ public:
     MapZone     mapGrid[100];        // +0x04b0  active 10x10 grid
     MapZone     mapGridBackup[100];  // +0x1900  backup grid
     MapZone     mapScratch[4];       // +0x2d50
-    char        _pad2e20[0x1c];      // +0x2e20  (player fields — see WorldDoc.h)
+    int         playerX;             // +0x2e20
+    int         playerY;             // +0x2e24
+    char        _pad2e28[0xc];       // +0x2e28
+    int         unk2e34;             // +0x2e34
+    char        _pad2e38[4];         // +0x2e38
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
-    char        _pad2e40[0x42c];     // +0x2e40  (palette fields — see WorldDoc.h)
+    char        _pad2e40[0x10];      // +0x2e40
+    int         goalItemTileId;      // +0x2e50
+    char        _pad2e54[0x418];     // +0x2e54
     BYTE       *pSysColorTable;      // +0x326c
     Canvas     *pCanvas;             // +0x3270
     char        _pad3274[0x60];      // +0x3274  (viewport/inventory/weapon-box rects)
@@ -116,6 +129,17 @@ public:
     char        _pad3314[0x1c];      // +0x3314
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
+    char        _pad3338[0x48];      // +0x3338
+    int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
+    int         genCellQuestSlot5Scratch; // +0x3384
+    int         genCellItemAScratch;      // +0x3388
+    int         genCellItemBScratch;      // +0x338c
+    int         genCellQuestSlot6Scratch; // +0x3390
+    int         genCellQuestSlot0Scratch; // +0x3394
+    int         genCellQuestSlot1Scratch; // +0x3398
+    int         genZoneTypeScratch;       // +0x339c
+    char        _pad33a0[0x18];      // +0x33a0
+    int         unk33b8;             // +0x33b8
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
     int  ZoneProvidesItem(short zoneId, short itemId);   // 0x0041c3b0
@@ -155,6 +179,8 @@ public:
     afx_msg void OnToggleMusic();                        // 0x00424310
     afx_msg void OnUpdateToggleMusic(CCmdUI *pCmdUI);    // 0x00424360
     unsigned int Randomize();                            // 0x00424380
+    int  Populate();                                     // 0x00425e30
+    int  PlaceZone(short zoneId, unsigned short tileId); // 0x004260e0
     void RestoreRecords();                               // 0x00426380
     void BackupRecords();                                // 0x00426690
     void SetupGrid();                                    // 0x004269a0
@@ -164,6 +190,7 @@ public:
     // ---- cross-TU stubs (defined in other TUs; calls are masked relocs) ----
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
     void RefreshZone();                                  // 0x00403ae0 (GameData TU)
+    void PlaceZoneObjectTiles(short zoneId);             // 0x00403140 (GameData TU)
 };
 
 #endif

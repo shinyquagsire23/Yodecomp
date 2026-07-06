@@ -866,6 +866,216 @@ unsigned int World::Randomize()
     return b3 | b2 | b1 | b0;
 }
 
+// FUNCTION: YODA 0x00425e30
+// Lay the (demo-hardcoded) quest into the 10x10 grid: pick one of the shipped goal zones by
+// rand()%4 (or forced by the goal item), place its content, tag the center 2x2 cells.
+int World::Populate()
+{
+    GameView *pView = NULL;
+    POSITION pos = GetFirstViewPosition();
+    if (pos != NULL)
+        pView = (GameView *)GetNextView(pos);
+    pView->bBusy = 1;
+    BackupZoneGrid();
+    SetupGrid();
+    short r = (short)(rand() % 4);
+    if (goalItemTileId == 0x84)
+        r = 3;
+    if (goalItemTileId == 0xbd)
+        r = 4;
+    switch (r)
+    {
+    case 0:
+        PlaceZone(0x5e, 0x30c);
+        mapGrid[44].zoneType = 0x10;
+        mapGrid[44].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+        mapGrid[44].id = 0x5e;
+        mapGrid[44].flagA = 0;
+        mapGrid[44].flagSolved = 0;
+        mapGrid[44].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
+        PlaceZoneObjectTiles(0x5e);
+        break;
+    case 1:
+        PlaceZone(0x217, 0x30c);
+        mapGrid[45].zoneType = 0x10;
+        mapGrid[45].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+        mapGrid[45].id = 0x217;
+        mapGrid[45].flagA = 0;
+        mapGrid[45].flagSolved = 0;
+        mapGrid[45].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
+        PlaceZoneObjectTiles(0x217);
+        break;
+    case 2:
+        PlaceZone(0x60, 0x30c);
+        mapGrid[55].zoneType = 0x10;
+        mapGrid[55].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+        mapGrid[55].id = 0x60;
+        mapGrid[55].flagA = 0;
+        mapGrid[55].flagSolved = 0;
+        mapGrid[55].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
+        PlaceZoneObjectTiles(0x60);
+        break;
+    case 3:
+        PlaceZone(0x5d, 0x30c);
+        mapGrid[54].zoneType = 0x10;
+        mapGrid[54].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+        mapGrid[54].id = 0x5d;
+        mapGrid[54].flagA = 0;
+        mapGrid[54].flagSolved = 0;
+        mapGrid[54].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
+        PlaceZoneObjectTiles(0x5d);
+        break;
+    case 4:
+        PlaceZone(0x217, 0x7f2);
+        mapGrid[45].zoneType = 0x10;
+        mapGrid[45].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+        mapGrid[45].id = 0x217;
+        mapGrid[45].flagA = 0;
+        mapGrid[45].flagSolved = 0;
+        mapGrid[45].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
+        PlaceZoneObjectTiles(0x217);
+        break;
+    }
+    mapGrid[44].id = 0x5e;
+    mapGrid[45].id = 0x5f;
+    mapGrid[54].id = 0x5d;
+    mapGrid[55].id = 0x60;
+    mapGrid[54].flagSolved = 0;
+    pView->nTargetZoneId = 0;
+    unk2e34 = 0;
+    unk50 = 0;
+    cameraX = 0x140;
+    cameraY = 0x140;
+    playerX = 4;
+    playerY = 5;
+    nFrameMode = 0xb;
+    unk33b8 = 1;
+    BackupRecords();
+    pView->bBusy = 0;
+    return 1;
+}
+
+// FUNCTION: YODA 0x004260e0
+// Place a zone's quest content: find tileId in its IZX3 list and stamp it on a spawn object
+// (zone 0x217 hardcodes the object at (3,3)).
+int World::PlaceZone(short zoneId, unsigned short tileId)
+{
+    unsigned short v;
+    int found = -1;
+    CWordArray spawns;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return -1;
+    int nCand = pZone->genCandidateB.GetSize();
+    if (zoneId == 0x217)
+    {
+        if (tileId == 0x30c)
+        {
+            int i = 0;
+            if (nCand > 0)
+            {
+                do
+                {
+                    v = (unsigned short)pZone->genCandidateB.GetAt(i);
+                    if (v == tileId)
+                        break;
+                    i++;
+                } while (i < nCand);
+            }
+            int nObjs = pZone->objects.GetSize();
+            int j = 0;
+            if (nObjs > 0)
+            {
+                do
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                    if (pObj->x == 3 && pObj->y == 3)
+                    {
+                        pObj->visible = v;
+                        pObj->state = 1;
+                        genCellQuestSlot6Scratch = (short)v;
+                        return 1;
+                    }
+                    j++;
+                } while (j < nObjs);
+            }
+        }
+        else
+        if (tileId == 0x7f2)
+        {
+            int i = 0;
+            if (nCand > 0)
+            {
+                do
+                {
+                    v = (unsigned short)pZone->genCandidateB.GetAt(i);
+                    if (v == tileId)
+                        break;
+                    i++;
+                } while (i < nCand);
+            }
+            int nObjs = pZone->objects.GetSize();
+            int j = 0;
+            if (nObjs > 0)
+            {
+                do
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                    if (pObj->x == 3 && pObj->y == 3)
+                    {
+                        pObj->visible = v;
+                        pObj->state = 1;
+                        genCellQuestSlot6Scratch = (short)v;
+                        return 1;
+                    }
+                    j++;
+                } while (j < nObjs);
+            }
+        }
+    }
+    else
+    {
+        int i = 0;
+        if (nCand > 0)
+        {
+            do
+            {
+                v = (unsigned short)pZone->genCandidateB.GetAt(i);
+                if (tileId == v)
+                {
+                    int nObjs = pZone->objects.GetSize();
+                    int j = 0;
+                    spawns.SetSize(0, -1);
+                    if (nObjs > 0)
+                    {
+                        do
+                        {
+                            if (((ZoneObj *)pZone->objects.GetAt(j))->type == 1)
+                                spawns.SetAtGrow(spawns.GetSize(), (unsigned short)j);
+                            j++;
+                        } while (j < nObjs);
+                    }
+                    if (spawns.GetSize() > 0)
+                    {
+                        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(spawns.GetAt(rand() % spawns.GetSize()));
+                        if (pObj != NULL && pObj->type == 1)
+                        {
+                            found = (short)v;
+                            pObj->visible = v;
+                            pObj->state = 1;
+                            genCellQuestSlot6Scratch = found;
+                        }
+                    }
+                    if (found >= 0)
+                        break;
+                }
+                i++;
+            } while (i < nCand);
+        }
+    }
+    return 1;
+}
+
 // FUNCTION: YODA 0x00426380
 // Restore the center 2x2 quest cells (44,45,54,55) from mapScratch, re-tagging their ids.
 void World::RestoreRecords()
