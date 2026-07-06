@@ -49,7 +49,7 @@ public class MergeEhFunclets extends GhidraScript {
 
     private static final long SCAN_START = 0x401000L;
     private static final long SCAN_END   = 0x429000L;   // app region only
-    private static final boolean DRY_RUN = false;
+    private static final boolean DRY_RUN = true;
     private static final long MAX_FUNCLET_DIST = 0x400;
     private static final long SIZE_CAP = 0x200;          // funclets are tiny; backstop
     private static final boolean KEEP_LABEL = true;
@@ -57,7 +57,13 @@ public class MergeEhFunclets extends GhidraScript {
     // human-assigned descriptive name (PositionMaybe, OnLoadWorld, ...) means a
     // real function -> never merged. Set true to ALSO fold in auto-named
     // (FUN_*/case*/LAB_*) frameless funclets -- reported either way for review.
-    private static final boolean MERGE_UNNAMED_FUNCLETS = false;
+    private static final boolean MERGE_UNNAMED_FUNCLETS = true;
+
+    // Confirmed-real functions that pass the funclet heuristics but are NOT
+    // funclets (reviewed by hand): CC-padding-isolated own COMDATs and
+    // `mov eax,<class>; ret` MFC GetRuntimeClass-style accessors.
+    private static final java.util.Set<Long> EXCLUDE = new java.util.HashSet<>(java.util.Arrays.asList(
+        0x40d992L, 0x417f40L, 0x418220L, 0x418500L, 0x418fd0L, 0x419f50L));
 
     private FunctionManager fm;
     private ReferenceManager rm;
@@ -92,6 +98,7 @@ public class MergeEhFunclets extends GhidraScript {
         for (Function f : allFuncs) {
             Address fe = f.getEntryPoint();
             long fa = fe.getOffset();
+            if (EXCLUDE.contains(fa)) continue;   // hand-reviewed real functions
             String nm = f.getName();
             boolean ehNamed = nm.contains("_eh");
             boolean autoNamed = nm.startsWith("FUN_") || nm.startsWith("case") || nm.startsWith("LAB_");
@@ -122,8 +129,10 @@ public class MergeEhFunclets extends GhidraScript {
             if (parent != null && !parent.getName().contains("_eh")) {
                 how = "REF";
             } else {
-                parent = ehNamed ? nearestRealPreceding(fa) : null;
-                how = "NAME";
+                // no in-body ref (referenced from the .rdata EH tables): the
+                // funclet runs on the nearest preceding real function's frame.
+                parent = nearestRealPreceding(fa);
+                how = "ADJ";
                 if (parent == null) { nSkipNoParent++; continue; }
             }
             long pe = parent.getEntryPoint().getOffset();
@@ -148,6 +157,14 @@ public class MergeEhFunclets extends GhidraScript {
                 Address fe = toAddr(e.getKey());
                 Object[] v = e.getValue();
                 Function parent = (Function) v[0];
+                // resolve a nested funclet's parent (itself being merged) up to
+                // the ultimate real parent, so deleting it doesn't orphan children
+                java.util.HashSet<Long> seen = new java.util.HashSet<>();
+                long pk = parent.getEntryPoint().getOffset();
+                while (plan.containsKey(pk) && seen.add(pk)) {
+                    parent = (Function) plan.get(pk)[0];
+                    pk = parent.getEntryPoint().getOffset();
+                }
                 AddressSet body = (AddressSet) v[1];
                 String oldName = (String) v[3];
                 Function f = fm.getFunctionAt(fe);
@@ -208,11 +225,15 @@ public class MergeEhFunclets extends GhidraScript {
         return false;
     }
 
-    // State-unwind funclet shape: `mov eax,imm32; jmp <handler>`.
+    // State-unwind funclet shape: `mov eax,imm32; jmp <handler>`. The trailing
+    // unconditional JMP is required -- it distinguishes a real state funclet from
+    // a `mov eax,<class>; ret` MFC GetRuntimeClass-style accessor.
     private boolean isStateFunclet(Address entry) {
         Instruction i = listing.getInstructionAt(entry);
-        return i != null && i.getMnemonicString().equalsIgnoreCase("MOV")
-                && i.toString().toUpperCase().startsWith("MOV EAX,0X");
+        if (i == null || !i.getMnemonicString().equalsIgnoreCase("MOV")
+                || !i.toString().toUpperCase().startsWith("MOV EAX,0X")) return false;
+        Instruction j = i.getNext();
+        return j != null && j.getFlowType().isJump() && !j.getFlowType().isConditional();
     }
 
     // Unique function (other than self) that references addr from inside its body,
