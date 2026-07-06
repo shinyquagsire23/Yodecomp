@@ -44,14 +44,16 @@ Still avoid *confidently wrong* names (the `BlitWeaponBox` miss) — read the bo
 For struct fields, an **`Unk`** append like **`Unk0x44`** can be used as a placeholder for fields which have 
 not been seen as written or read to in a way that is clearly identifiable, but the size or type is known.
 For example, an unidentified state machine enum in a struct may start as an int **`Unk`**.
-A **`Related`** append may be used if a function touches several known subsystems, but its actual purpose is 
+A **`Related`** append may be used if a function touches several known subsystems, but its actual function is 
 unknown. This is an in-between identifier between **`Maybe`** and **`Unk`** in that it gives a signal for what 
 the function touches, without solidifying exactly what the function is/does. This may also be used for fields.
 For example, a function which accesses Palette related functions might be marked
 **`ThisType::FUN_123456_PaletteRelated`**.
 In summary: **`Unk`** (for class fields and structs) and **`FUN_`** (for subroutines) can be upgraded to
 **`Related`**, **`Related`** can be upgraded to **`Maybe`**, and **`Maybe`** can be upgraded to a certain
-identifier.
+identifier. Before bytematching a TU, all functions being decompiled (and referenced by the decompilation) should 
+be upgraded from **`Maybe`** with certain, idiomatic names, with documentation to back the naming. Dll referenced 
+struct members in the decompilation should also have a certain identifier.
 
 ## Decompiling
 
@@ -284,7 +286,51 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
+**Progress 13.85% byte-exact (was 13.52% at v7).** v8 delta on top of the v7 block below:
+- **ParseActn (402B) + ParseHtsp (407B) EXACT on first compile** — the ParseChar TRY/CATCH
+  recipe + an inner SetSize/SetAt loop. Mirror details that mattered: Actn tests `id == -1`
+  and looks the zone up BEFORE reading the count, SetAt-then-Read; Htsp tests `id < 0`,
+  count-read first, Read-then-SetAt, and calls FlagQuestObjects after the loop (also when
+  count<=0). Inner loops = explicit guard+do-while, `while (nCount > i)` backedge form.
+  Inlined `(Zone *)zones.GetAt(id)` = m_pData indexing via World+0x98 comes free.
+- **ParseSnds EFFECTIVE (5B)**: only residual = char-buffer frame-slot ORDER (orig is
+  size-ascending ext/fname/name/path; ours swaps name/fname). Probes ALL inert — decl order
+  x2, nested strcat(strcpy()), scope splits: array slot keys are compiler-internal. PARKED.
+- **LoadWorld (0x421fd0, 1690B) + Load (0x422670, 2245B) transcribed, EFFECTIVE-WIP ~95-97%
+  insn-identical** (in-source annotations carry the full residual autopsy). New cracks:
+  (a) **CRect built from two CPoints** — `CRect(CPoint(l,t), CPoint(r,b))` computes r,b
+  BEFORE l,t (right-to-left arg eval); the flat 4-arg ctor computes l,t first and CSEs the
+  sums differently — the CPoint form halved LoadWorld's align score. (b) `AfxGetApp()->
+  DoWaitCursor(1)` written directly (BeginWaitCursor() emits an out-of-line lib call).
+  (c) MFC inlines verified: AfxGetMainWnd = double AfxGetThread + vcall+0x7c; CProgressCtrl
+  SetRange/SetStep/StepIt = raw ::SendMessage PBM_*; CFileException ctor fully inline; and
+  a local `CFileException e` makes the TU emit ~CFileException as its FIRST function —
+  that's what 0x41c340 really is (docs called it "load/save helper ctor"; fix pending).
+  (d) `if (x == 0) x++;` ≠ `x = 1` (load/test/inc/store vs cmp-mem/store-imm).
+  (e) planet-pick logic: switch(currentPlanet) x2 (milestone completionCount 5/10/15 vs
+  normal), rand()%2 arms, then DEMO HARDCODE currentPlanet=2 overrides it all.
+  (f) .dta open failure: CFileException-cause switch → AfxMessageBox(5/6/0xe01e) →
+  **AfxAbort()**, then dead-but-emitted cleanup (engine-bugs #7 family).
+- **⚠ TWO OPEN codegen problems, both in the dispatchers** (park; joint/endgame or
+  decomp.me): (1) loop-exit-cleanup block placement — orig glues it after the FIRST parse
+  arm mid-ladder (both dispatchers!), ours after the loop tail; if(nDone==0)-nesting proven
+  IL-equivalent. (2) Load's m_cause switch: orig = DIRECT 13-entry table pointing at 3
+  MERGED arm blocks; sw*.cpp probe battery proved VC4.2 byte-maps any ≤5-arm switch and
+  never merges ≥6 written arms — combo unreachable from source shape alone.
+- New World fields: bStartingGameMaybe@0x2e40, completionCount@0x332c, bDtaLoaded@0x32f8,
+  zoneCountLoaded@0x54. Worldgen.h now includes afxcmn.h + ../App/App.h (CTheApp.m_str@0xc0
+  = the .dta path). Cross-TU decls added: ParseTilesMaybe/CacheUiTilePtrsMaybe (WorldDoc).
+- Dial churn this round: Randomize flipped OUT (30B), RemoveZoneEntry2 flipped IN, the
+  Zaux/Zax2/Zax3 trio rotated again. Standing rule unchanged: don't grind these.
+**NEXT:** pickup item (4) unchanged — PlacePuzzle 0x421620 + WorldgenPlacePuzzles 0x421930,
+placer family 0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades 0x41e350,
+SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120, Generate 0x41f960 (now DECLARED in
+Worldgen.h), save/load monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile),
+then (5) the GameView methods 0x426c40-0x429150. Ghidra renames pending (YodaDemo ACTIVE
+needed): EnterZone→GetZoneIndex, the 0x32d4 quad→view rect, 0x41c340→~CFileException.
+
+### ⏮ PRIOR (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
 **Progress 13.52% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **43 functions,
 ~26 exact depending on the current dial** (the count breathes as functions are added — see
 "dial churn" below). Everything below the fold in v6 still applies; this block is the delta.

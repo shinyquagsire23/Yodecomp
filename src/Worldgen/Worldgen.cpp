@@ -1,6 +1,7 @@
 // Worldgen TU (0x41c340–0x429000): worldgen + .wld save/load + .dta load (doc class source file).
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "Worldgen.h"
 
@@ -596,6 +597,391 @@ int World::ParseChar(CFile *pFile)
     return 1;
 }
 
+// FUNCTION: YODA 0x00421fd0
+// [EFFECTIVE-WIP: ~97% insn-identical. Residuals: (1) the loop-exit cleanup block (delete
+// pFile + dtors + return) sits mid-ladder after the ZONE arm in the orig, at the end here —
+// the OPEN block-layout family (WorldDoc GetLocatorIcon); nesting the ladder under
+// if(nDone==0) proven IL-equivalent (identical bytes). (2) a reg-pool cascade seeded by
+// nRet-init 1 landing in ESI (orig) vs EDI (ours): zero-pool xor, delete-loop countdown
+// (dec/jne) vs up-count+spill, few cmp forms. Dial/joint-pass territory. Structure proven:
+// CPoint-pair CRect ctor (r,b computed before l,t), x/y locals, DoWaitCursor(1) direct,
+// pApp spilled, delete-loop guard+do-while.]
+// New-game world loader (StartGame): re-pick the planet (demo then FORCES Hoth), free the old
+// zone list, open the .dta (theApp.m_str) and dispatch its FourCC chunk stream until ENDF.
+// VERS must be 0x200.
+int World::LoadWorld()
+{
+    CTheApp *pApp = (CTheApp *)AfxGetApp();
+    if (bStartingGameMaybe == 0)
+    {
+        currentPlanet = pApp->GetProfileInt("OPTIONS", "Terrain", 1);
+        if (completionCount == 5 || completionCount == 10 || completionCount == 15)
+        {
+            switch (currentPlanet)
+            {
+            case 1:
+                currentPlanet = 3;
+                break;
+            case 2:
+                if (rand() % 2 == 0)
+                    currentPlanet = 3;
+                else
+                    currentPlanet = 1;
+                break;
+            case 3:
+                currentPlanet = 1;
+                break;
+            }
+        }
+        else
+        {
+            switch (currentPlanet)
+            {
+            case 1:
+                if (rand() % 2 == 0)
+                    currentPlanet = 3;
+                else
+                    currentPlanet = 2;
+                break;
+            case 2:
+                if (rand() % 2 == 0)
+                    currentPlanet = 3;
+                else
+                    currentPlanet = 1;
+                break;
+            case 3:
+                if (rand() % 2)
+                    currentPlanet = 2;
+                else
+                    currentPlanet = 1;
+                break;
+            }
+        }
+    }
+    currentPlanet = 2;               // sic: demo hardcode — the whole pick above is overridden
+    if (pApp != NULL)
+        pApp->WriteProfileInt("OPTIONS", "Terrain", 2);
+
+    int nRet = 1;
+    CProgressCtrl progress;
+    int x = nViewLeft;
+    int y = nViewTop;
+    progress.Create(WS_CHILD | WS_VISIBLE,
+                    CRect(CPoint(x + 0x11, y + 0x110), CPoint(x + 0x11e, y + 0x11d)),
+                    AfxGetMainWnd(), 0x3e9);
+    progress.SetRange(0, 4);
+    progress.SetStep(1);
+
+    int nZones = zones.GetSize();
+    if (nZones > 0)
+    {
+        int i = 0;
+        do
+        {
+            Zone *pZone = (Zone *)zones.GetAt(i);
+            if (pZone != (Zone *)-1)
+                delete pZone;
+            i++;
+        } while (i < nZones);
+    }
+    zones.SetSize(0, -1);
+
+    CString strPath;
+    strPath = pApp->m_str;
+    CFile *pFile = new CFile;
+    if (!pFile->Open(strPath, CFile::modeRead | CFile::typeBinary, NULL))
+    {
+        if (pFile != NULL)
+            delete pFile;
+        nFrameMode = 12;
+        return 0;
+    }
+    AfxGetApp()->DoWaitCursor(1);
+    pFile->SeekToBegin();
+    int nDone = 0;
+    do
+    {
+        progress.StepIt();
+        char tag[5];
+        int nLen;
+        TRY {
+            pFile->Read(tag, 4);
+            tag[4] = 0;
+            if (strcmp(tag, "ZONE") != 0)
+                pFile->Read(&nLen, 4);
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+            _afxExceptionLink.m_pException = e;
+            nRet = 0;
+            nDone++;
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
+        if (nDone != 0)
+            break;
+        if (strcmp(tag, "VERS") == 0)
+        {
+            if (nLen != 0x200)
+            {
+                AfxMessageBox(0xe003, 0, (UINT)-1);
+                nDone++;
+            }
+        }
+        else if (strcmp(tag, "ZONE") == 0)
+        {
+            nRet = ParseZone(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAUX") == 0)
+        {
+            nRet = ParseZaux(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAX2") == 0)
+        {
+            nRet = ParseZax2(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAX3") == 0)
+        {
+            nRet = ParseZax3(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "HTSP") == 0)
+        {
+            nRet = ParseHtsp(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ACTN") == 0)
+        {
+            nRet = ParseActn(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ENDF") == 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            pFile->Seek(nLen, CFile::current);
+        }
+
+    } while (nDone == 0);
+    if (pFile != NULL)
+        delete pFile;
+    return nRet;
+}
+
+// FUNCTION: YODA 0x00422670
+// [EFFECTIVE-WIP: ~95% insn-identical. Residuals: (1) OPEN — the m_cause switch: orig emits a
+// DIRECT 13-entry jump table whose entries point at only 3 merged arm blocks; VC4.2 probes
+// (sw*.cpp battery 2026-07-06) show grouped 3-arm switches ALWAYS lower to the byte-map
+// two-level form, ≥6 written-out arms give a direct table but NEVER merge the arm blocks
+// (cdecl or stdcall callee, leaf or shared-continuation; 13-arm form measured WORSE in-tree).
+// The direct-table+3-merged-blocks combo is unreachable from every tried source shape —
+// possibly TU-context-dependent lowering. (2) the same loop-exit-block placement family as
+// LoadWorld (orig glues it after the FIRST parse arm (TILE); ours after the tail). (3) one
+// frame-slot shift (our EH/catch temp region one dword tighter) + the reg cascade.
+// Structure proven: bDtaLoadedMaybe++ (inc form), grouped switch with per-arm AfxMessageBox
+// calls, dead code after AfxAbort, success block (Generate loop) sunk to the end.]
+// The main .dta asset loader: open theApp.m_str (CFileException box + AfxAbort on failure),
+// dispatch the FourCC chunk stream (VERS/TILE/TNAM/ZONE/ZAUX/ZAX2/ZAX3/CHAR/CHWP/CAUX/HTSP/
+// SNDS/PUZ2/ACTN/ENDF), then drive worldgen: Randomize+Generate until success, Populate.
+// Declaring the local CFileException also emits this TU's ~CFileException COMDAT — the
+// original's copy is the TU-opening function at 0x41c340.
+int World::Load()
+{
+    int nRet = 1;
+    CFile *pFile = new CFile;
+    CString strPath;
+    strPath = ((CTheApp *)AfxGetApp())->m_str;
+    CFileException e;
+    if (!pFile->Open(strPath, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, &e))
+    {
+        switch (e.m_cause)
+        {
+        case CFileException::fileNotFound:
+        case CFileException::badPath:
+        case CFileException::tooManyOpenFiles:
+        case CFileException::invalidFile:
+        case CFileException::badSeek:
+        case CFileException::hardIO:
+        case CFileException::endOfFile:
+            AfxMessageBox(5, 0, (UINT)-1);
+            break;
+        case CFileException::accessDenied:
+        case CFileException::directoryFull:
+        case CFileException::sharingViolation:
+        case CFileException::lockViolation:
+        case CFileException::diskFull:
+            AfxMessageBox(6, 0, (UINT)-1);
+            break;
+        default:
+            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            break;
+        }
+        AfxAbort();
+        nFrameMode = 12;    // sic: unreachable after AfxAbort, still emitted (engine-bugs.md #7)
+        return 0;           // sic
+    }
+    if (bDtaLoadedMaybe == 0)
+        bDtaLoadedMaybe++;
+    CProgressCtrl progress;
+    int x = nViewLeft;
+    int y = nViewTop;
+    progress.Create(WS_CHILD | WS_VISIBLE,
+                    CRect(CPoint(x + 0x11, y + 0x110), CPoint(x + 0x11e, y + 0x11d)),
+                    AfxGetMainWnd(), 0x3e9);
+    progress.SetRange(0, 11);
+    progress.SetStep(1);
+    AfxGetApp()->DoWaitCursor(1);
+    pFile->SeekToBegin();
+    int nDone = 0;
+    do
+    {
+        progress.StepIt();
+        char tag[5];
+        int nLen;
+        TRY {
+            pFile->Read(tag, 4);
+            tag[4] = 0;
+            if (strcmp(tag, "ZONE") != 0)
+                pFile->Read(&nLen, 4);
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
+            _afxExceptionLink.m_pException = e2;
+            nDone++;
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
+        if (nDone != 0)
+            break;
+        if (strcmp(tag, "VERS") == 0)
+        {
+            if (nLen != 0x200)
+                nDone++;
+        }
+        else if (strcmp(tag, "TILE") == 0)
+        {
+            nRet = ParseTilesMaybe(pFile, nLen);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "TNAM") == 0)
+        {
+            nRet = ParseTnam(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZONE") == 0)
+        {
+            nRet = ParseZone(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAUX") == 0)
+        {
+            nRet = ParseZaux(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAX2") == 0)
+        {
+            nRet = ParseZax2(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ZAX3") == 0)
+        {
+            nRet = ParseZax3(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "CHAR") == 0)
+        {
+            nRet = ParseChar(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "CHWP") == 0)
+        {
+            nRet = ParseChwp(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "CAUX") == 0)
+        {
+            nRet = ParseCaux(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "HTSP") == 0)
+        {
+            nRet = ParseHtsp(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "SNDS") == 0)
+        {
+            nRet = ParseSnds(pFile);
+            if (nRet == 0)
+                break;
+            UpdateAllViews(NULL, 399, NULL);
+        }
+        else if (strcmp(tag, "PUZ2") == 0)
+        {
+            nRet = ParsePuz2(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ACTN") == 0)
+        {
+            nRet = ParseActn(pFile);
+            if (nRet == 0)
+                break;
+        }
+        else if (strcmp(tag, "ENDF") == 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            pFile->Seek(nLen, CFile::current);
+        }
+    } while (nDone == 0);
+    if (pFile != NULL)
+        delete pFile;
+    if (nRet == 0)
+    {
+        AfxGetApp()->DoWaitCursor(-1);
+        nFrameMode = 12;
+    }
+    else
+    {
+        int nGenerated = 0;
+        zoneCountLoadedMaybe = zones.GetSize();
+        CacheUiTilePtrsMaybe();
+        unsigned int nSeed = Randomize();
+        do
+        {
+            if (Generate(nSeed) != 0)
+                nGenerated++;
+            else
+                nSeed = Randomize();
+        } while (nGenerated == 0);
+        AfxGetApp()->DoWaitCursor(-1);
+        Populate();
+        return 1;
+    }
+    return nRet;
+}
+
 // FUNCTION: YODA 0x00422f40
 BOOL World::IsModified()
 {
@@ -789,6 +1175,140 @@ int World::ParseTnam(CFile *pFile)
         }
     } while (nDone == 0);
     return 1;
+}
+
+// FUNCTION: YODA 0x004233f0
+// [EFFECTIVE: 5B — frame-slot order of the char buffers: orig ascending {ext,fname,name,path}
+// (size-sorted), ours {ext,name,fname,path}. Probes ALL inert (layout byte-stable): decl order
+// x2, nested strcat(strcpy(),) vs sequential, if-scope vs loop-scope vs split scopes. The array
+// slot key is compiler-internal, not source-steerable from inside the function; insns/regs 100%
+// (align=0 reg_pen=0). Park for the joint TU pass.]
+// SNDS chunk: NEGATED sound count, then per-sound a length-prefixed source path; only the
+// bare "fname.ext" is kept in soundNames[i].
+int World::ParseSnds(CFile *pFile)
+{
+    short nCount;
+    pFile->Read(&nCount, 2);
+    nCount = -nCount;
+    for (int i = 0; i < nCount; i++)
+    {
+        short nLen;
+        pFile->Read(&nLen, 2);
+        if (nLen > 0)
+        {
+            char path[128];
+            char fname[12];
+            char ext[8];
+            char name[16];
+            pFile->Read(path, nLen);
+            _splitpath(path, NULL, NULL, fname, ext);
+            strcpy(name, fname);
+            strcat(name, ext);
+            soundNames[i] = name;
+        }
+    }
+    return 1;
+}
+
+// FUNCTION: YODA 0x00423510
+// ACTN chunk: records of (zone id, script count, scripts...); -1 zone id terminates.
+// Each zone's IACT scripts (conditions + commands) land in zone->iactScripts.
+int World::ParseActn(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id == -1)
+        {
+            nDone++;
+        }
+        else
+        {
+            Zone *pZone = (Zone *)zones.GetAt(id);
+            short nCount;
+            pFile->Read(&nCount, 2);
+            pZone->iactScripts.SetSize(nCount, -1);
+            int i = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    IactScript *pNew;
+                    TRY {
+                        pNew = new IactScript;
+                    }
+                    }              // closes the try block the TRY macro opened
+                    catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+                        _afxExceptionLink.m_pException = e;
+                        THROW_LAST();
+                        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                        AfxAbort();                            //      (docs/engine-bugs.md #7)
+                    }
+                    }              // closes the TRY macro's outer (link-scope) brace
+                    if (pNew == NULL)
+                        return 0;
+                    pZone->iactScripts.SetAt(i, pNew);
+                    pNew->Read(pFile);
+                    i++;
+                } while (nCount > i);
+            }
+        }
+        if (nDone != 0)
+            return 1;
+    } while (1);
+}
+
+// FUNCTION: YODA 0x004236b0
+// HTSP chunk: records of (zone id, hotspot count, hotspots...); negative zone id terminates.
+// Replaces each zone's object list, then re-derives its quest-object flags.
+int World::ParseHtsp(CFile *pFile)
+{
+    int nDone = 0;
+    do
+    {
+        short id;
+        pFile->Read(&id, 2);
+        if (id < 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            short nCount;
+            pFile->Read(&nCount, 2);
+            Zone *pZone = (Zone *)zones.GetAt(id);
+            pZone->objects.SetSize(nCount, -1);
+            int i = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    ZoneObj *pNew;
+                    TRY {
+                        pNew = new ZoneObj;
+                    }
+                    }              // closes the try block the TRY macro opened
+                    catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+                        _afxExceptionLink.m_pException = e;
+                        THROW_LAST();
+                        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                        AfxAbort();                            //      (docs/engine-bugs.md #7)
+                    }
+                    }              // closes the TRY macro's outer (link-scope) brace
+                    if (pNew == NULL)
+                        return 0;
+                    pNew->Read(pFile);
+                    pZone->objects.SetAt(i, pNew);
+                    i++;
+                } while (nCount > i);
+            }
+            pZone->FlagQuestObjects();
+        }
+        if (nDone != 0)
+            return 1;
+    } while (1);
 }
 
 // FUNCTION: YODA 0x00423d20

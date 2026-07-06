@@ -6,8 +6,10 @@
 #define WORLDGEN_H
 #include <afxwin.h>
 #include <afxcoll.h>
+#include <afxcmn.h>
 #include "../Records/RecordClasses.h"
 #include "../IactScript/IactScriptClasses.h"
+#include "../App/App.h"
 
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
@@ -78,7 +80,8 @@ class World : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
     int         unk50;               // +0x0050
-    char        _pad54[8];           // +0x0054
+    int         zoneCountLoadedMaybe; // +0x0054  Load: = zones.GetSize() after the .dta parse
+    int         totalZones;          // +0x0058  (CalcCompletionScore denominator)
     int         nFrameMode;          // +0x005c
     char        _pad60[0x20];        // +0x0060
     CObArray    tiles;               // +0x0080  Tile*
@@ -113,7 +116,8 @@ public:
     int         unk2e34;             // +0x2e34
     char        _pad2e38[4];         // +0x2e38
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
-    char        _pad2e40[0x10];      // +0x2e40
+    int         bStartingGameMaybe;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
+    char        _pad2e44[0xc];       // +0x2e44
     int         goalItemTileId;      // +0x2e50
     char        _pad2e54[0x418];     // +0x2e54
     BYTE       *pSysColorTable;      // +0x326c
@@ -123,10 +127,13 @@ public:
     int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
     int         nViewRight;          // +0x32dc
     int         nViewBottom;         // +0x32e0
-    char        _pad32e4[0x28];      // +0x32e4
+    char        _pad32e4[0x14];      // +0x32e4
+    int         bDtaLoadedMaybe;     // +0x32f8  set once by Load on first successful .dta open
+    char        _pad32fc[0x10];      // +0x32fc
     int         nSoundEnabled;       // +0x330c
     int         nMusicEnabled;       // +0x3310
-    char        _pad3314[0x1c];      // +0x3314
+    char        _pad3314[0x18];      // +0x3314
+    int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
     char        _pad3338[0x20];      // +0x3338
@@ -158,6 +165,7 @@ public:
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
     int  CheckZoneItemsAvailable(short zoneId);          // 0x0041f830
     void WorldgenCollectZoneRefs(short zoneId);          // 0x0041f8e0
+    int  Generate(unsigned int nSeed);                   // 0x0041f960 (this TU, later)
     void BackupZoneGrid();                               // 0x00421460
     void RestoreGridFromBackup();                        // 0x00421520
     int  IsTileInGoalList(unsigned int tileId);          // 0x004215e0
@@ -165,6 +173,8 @@ public:
     virtual BOOL IsModified();                           // 0x00422f40
     virtual void SetModifiedFlag(BOOL bModified = TRUE); // 0x00422f50
     int  ParseChar(CFile *pFile);                        // 0x00421e70
+    int  LoadWorld();                                    // 0x00421fd0
+    int  Load();                                         // 0x00422670  (.dta chunk dispatcher)
     int  ParseZone(CFile *pFile);                        // 0x00422f60
     int  ParsePuz2(CFile *pFile);                        // 0x00422fd0
     int  ParseZaux(CFile *pFile);                        // 0x00423110
@@ -173,6 +183,9 @@ public:
     int  ParseCaux(CFile *pFile);                        // 0x00423290
     int  ParseChwp(CFile *pFile);                        // 0x00423300
     int  ParseTnam(CFile *pFile);                        // 0x00423380
+    int  ParseSnds(CFile *pFile);                        // 0x004233f0
+    int  ParseActn(CFile *pFile);                        // 0x00423510
+    int  ParseHtsp(CFile *pFile);                        // 0x004236b0
     void LoadWorldStateFile();                           // 0x00423850
     virtual void Serialize(CArchive &ar);                // 0x00423b30
     void SetCurrentToIntroZone();                        // 0x00423d20
@@ -196,6 +209,8 @@ public:
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
     void RefreshZone();                                  // 0x00403ae0 (GameData TU)
     void PlaceZoneObjectTiles(short zoneId);             // 0x00403140 (GameData TU)
+    int  ParseTilesMaybe(CFile *pFile, unsigned int nBytes); // 0x0041a030 (WorldDoc TU)
+    void CacheUiTilePtrsMaybe();                         // 0x0041a5d0 (WorldDoc TU)
 };
 
 #endif
