@@ -6,20 +6,8 @@
 #define GAMEDATA_WORLDSTUB_H
 #include <afxwin.h>
 #include <afxcoll.h>
-
-class Zone;      // full defs live in src/Records/Records.h; opaque here except stubs below
-class Character;
-class Puzzle;
-class GameView;
-
-// TILE record stub (0x40c): pixels + flags is all this TU reads.
-class Tile
-{
-public:
-    void         *vftable;           // +0x000
-    unsigned char pixels[0x400];     // +0x004
-    unsigned int  flags;             // +0x404  TileFlags (bit 0 = TILE_GAME_OBJECT)
-};
+#include "../Records/RecordClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
+                                        // Tile/ZoneObj/Zone — never stub matched modules
 
 // Canvas stub: blit entry points (full class in src/Canvas/Canvas.h).
 class Canvas
@@ -46,36 +34,6 @@ public:
     void SoundFlush();                               // sound queue flush
     void PlayerMove(int n);                          // 0x00409060
     void DrawGameArea(CDC *pDC);                     // full redraw
-};
-
-// A placed object / hotspot stub (0x10 bytes).
-class ZoneObjStub
-{
-public:
-    void        *vftable;        // +0x00
-    unsigned int type;           // +0x04  ObjType (9 = OBJ_DOOR_IN, visible = child zone id)
-    short        state;          // +0x08
-    short        x;              // +0x0a
-    short        y;              // +0x0c
-    short        visible;        // +0x0e  tile id / child zone id
-};
-
-// Zone stub: fields/methods this TU touches (full class in src/Records/Records.h).
-class ZoneStub
-{
-public:
-    void       *vftable;         // +0x000
-    int         type;            // +0x004  ZoneType (1=Empty ... 8=Room ... 16=Find)
-    int         activatedFlag;   // +0x008
-    short       width;           // +0x00c  (18)
-    short       height;          // +0x00e  (18)
-    char        _pad10[0x798];   // +0x010
-    CObArray    objects;         // +0x7a8  ZoneObj* elements
-
-    unsigned short GetTile(int x, int y, int layer);            // 0x00405430
-    void           SetTile(int x, int y, int layer, short val); // 0x00405480
-    void           ReadSavedState(CFile *pFile, int bFull);     // 0x00405bd0
-    void           WriteSavedState(CFile *pFile, int bFull);    // 0x00405f30
 };
 
 // A 10x10 world-map grid cell (0x34 bytes).
@@ -120,7 +78,7 @@ public:
     Tile      **tileArray;               // +0x0084
     int         tileCount;               // +0x0088
     char        _pad8c[0xc];             // +0x008c
-    ZoneStub  **zoneObjects;             // +0x0098
+    Zone  **zoneObjects;             // +0x0098
     int         zoneCount;               // +0x009c
     char        _pada0[0x8];             // +0x00a0
     CObArray    inventory;               // +0x00a8  (vtbl@a8, m_pData@ac, m_nSize@b0)
@@ -142,7 +100,7 @@ public:
     CWordArray  storyHistoryNevada;      // +0x0284  planet 1 = Tatooine (Indy-engine key name)
     CWordArray  storyHistoryAlaska;      // +0x0298  planet 2 = Hoth (the demo planet)
     CWordArray  storyHistoryOregon;      // +0x02ac  planet 3 = Endor
-    ZoneStub   *currentZone;             // +0x02c0
+    Zone   *currentZone;             // +0x02c0
     char       *palette;                 // +0x02c4
     char        _pad2c8[4];              // +0x02c8
     int         worldSeed;               // +0x02cc
@@ -186,7 +144,7 @@ public:
     char        _pad32f8[8];             // +0x32f8
     int         nextCameraX;             // +0x3300
     int         nextCameraY;             // +0x3304
-    ZoneStub   *pendingZone;             // +0x3308
+    Zone   *pendingZone;             // +0x3308
     int         nSoundEnabled;           // +0x330c
     int         nMusicEnabled;           // +0x3310
     int         healthLo;                // +0x3314
@@ -246,7 +204,7 @@ public:
     void         FindSpecialZoneMaybe();                  //
     void         UpdateCamera();                          //
     Tile *GetTileData(int idx);                           // 0x00403a40
-    ZoneStub *GetZoneById(short id);                      // 0x00403a70
+    Zone *GetZoneById(short id);                      // 0x00403a70
     int  FindTile(void *pTile);                           // 0x00403aa0
 };
 

@@ -19,6 +19,10 @@ static __inline void DemoDisable(CCmdUI *p)
 }
 
 // FUNCTION: YODA 0x00401ac0  [EFFECTIVE MATCH: DIFF(2) — the values-loop back-edge cmp operand
+//   PROVEN PHASE DRIFT (2026-07-05): the ORIGINAL's three loaders oscillate jg/jl/jg at this
+//   site with identical source (orig Nevada+Oregon = cmp [count],eax;jg, Alaska = cmp eax,
+//   [count];jl); ours emits jl x3. Both while-forms + a 2^3 combo sweep canonicalize to jl —
+//   the choice is TU-phase, not source. Ours matches Alaska; N+O carry 2B each. Endgame item.
 //   order (cmp [count],eax vs cmp eax,[count]); both source directions + do-while emit ours.
 //   Lesson-#6 instruction selection. Cracks that got here: GetProfileString(...,"0") default,
 //   Find("_") > 0 arm inline-first, int v = atoi(left) - obfKey (int-width sub + temp-slot
@@ -198,7 +202,18 @@ void World::Nop1()
 {
 }
 
-// FUNCTION: YODA 0x00402670
+// FUNCTION: YODA 0x00402670  [EFFECTIVE MATCH x3 (this + Alaska + Oregon): main body 824B vs orig
+//   808B; head/tail/frame layout & instruction stream converged (buf@-0x54, fullLines@-0x34,
+//   obfKey@-0x18, key temp among named locals — the inner-scoped `CString key` block was the
+//   crack: a bare `prefix + buf` temp gets a frame-bottom slot, breaking the layout by 4B).
+//   Residual = ONE coupled allocator artifact: {lineNo,base,rem} int slots are a 3-cycle
+//   (-0x1c/-0x20/-0x24 rotated) which desymmetrizes the two sprintf arms (arm2 grabs EBX ->
+//   push ebx + failed cross-jump of the shared [lea buf; inc; push; call] tail = the 16B).
+//   Exhausted: decl order/position (4 variants), ternary-of-calls, arms swapped, k++ placement,
+//   v-temp homing, loader-form phase knobs (2^3 sweep — zero effect). Slot triple is IR temp
+//   numbering = full-TU/endgame territory (Records precedent). NOTE the orig loaders' own
+//   backedge cmp oscillates jg/jl/jg across identical source — MSVC 4.2 phase drift is REAL
+//   in the original binary too; don't chase per-function.]
 // Write storyHistoryNevada back to registry [GameData] Nevada0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
 void World::SaveStoryHistoryNevada()
@@ -233,23 +248,18 @@ void World::SaveStoryHistoryNevada()
                 k = 0;
                 line += buf;
                 do {
-                    unsigned short v;
-                    const char *fmt;
-                    if (k < 9) {
-                        v = storyHistoryNevada[base + k];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryNevada[base + k];
-                        fmt = "%d";
-                    }
+                    if (k < 9)
+                        sprintf(buf, "%d_", storyHistoryNevada[base + k] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryNevada[base + k] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < 10);
                 sprintf(buf, "%d", lineNo);
-                CString key = prefix + buf;
-                pApp->WriteProfileString("GameData", key, line);
+                {
+                    CString key = prefix + buf;
+                    pApp->WriteProfileString("GameData", key, line);
+                }
                 base += 10;
                 lineNo++;
             } while (lineNo < fullLines);
@@ -267,19 +277,12 @@ void World::SaveStoryHistoryNevada()
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    unsigned short v;
-                    const char *fmt;
                     int idx = k + lineNo * 10;
-                    if (k < last) {
-                        v = storyHistoryNevada[idx];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryNevada[idx];
-                        fmt = "%d";
-                    }
+                    if (k < last)
+                        sprintf(buf, "%d_", storyHistoryNevada[idx] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryNevada[idx] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < rem);
             }
@@ -323,23 +326,18 @@ void World::SaveStoryHistoryAlaska()
                 k = 0;
                 line += buf;
                 do {
-                    unsigned short v;
-                    const char *fmt;
-                    if (k < 9) {
-                        v = storyHistoryAlaska[base + k];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryAlaska[base + k];
-                        fmt = "%d";
-                    }
+                    if (k < 9)
+                        sprintf(buf, "%d_", storyHistoryAlaska[base + k] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryAlaska[base + k] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < 10);
                 sprintf(buf, "%d", lineNo);
-                CString key = prefix + buf;
-                pApp->WriteProfileString("GameData", key, line);
+                {
+                    CString key = prefix + buf;
+                    pApp->WriteProfileString("GameData", key, line);
+                }
                 base += 10;
                 lineNo++;
             } while (lineNo < fullLines);
@@ -357,19 +355,12 @@ void World::SaveStoryHistoryAlaska()
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    unsigned short v;
-                    const char *fmt;
                     int idx = k + lineNo * 10;
-                    if (k < last) {
-                        v = storyHistoryAlaska[idx];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryAlaska[idx];
-                        fmt = "%d";
-                    }
+                    if (k < last)
+                        sprintf(buf, "%d_", storyHistoryAlaska[idx] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryAlaska[idx] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < rem);
             }
@@ -413,23 +404,18 @@ void World::SaveStoryHistoryOregon()
                 k = 0;
                 line += buf;
                 do {
-                    unsigned short v;
-                    const char *fmt;
-                    if (k < 9) {
-                        v = storyHistoryOregon[base + k];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryOregon[base + k];
-                        fmt = "%d";
-                    }
+                    if (k < 9)
+                        sprintf(buf, "%d_", storyHistoryOregon[base + k] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryOregon[base + k] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < 10);
                 sprintf(buf, "%d", lineNo);
-                CString key = prefix + buf;
-                pApp->WriteProfileString("GameData", key, line);
+                {
+                    CString key = prefix + buf;
+                    pApp->WriteProfileString("GameData", key, line);
+                }
                 base += 10;
                 lineNo++;
             } while (lineNo < fullLines);
@@ -447,19 +433,12 @@ void World::SaveStoryHistoryOregon()
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    unsigned short v;
-                    const char *fmt;
                     int idx = k + lineNo * 10;
-                    if (k < last) {
-                        v = storyHistoryOregon[idx];
-                        fmt = "%d_";
-                    }
-                    else {
-                        v = storyHistoryOregon[idx];
-                        fmt = "%d";
-                    }
+                    if (k < last)
+                        sprintf(buf, "%d_", storyHistoryOregon[idx] + obfKey);
+                    else
+                        sprintf(buf, "%d", storyHistoryOregon[idx] + obfKey);
                     k++;
-                    sprintf(buf, fmt, v + obfKey);
                     line += buf;
                 } while (k < rem);
             }
@@ -497,11 +476,11 @@ void World::RemoveEmptyZonesFromPlacedList()
 void World::PlaceZoneObjectTiles(short zoneId)
 {
     if (zoneId >= 0) {
-        ZoneStub *z = zoneObjects[zoneId];
+        Zone *z = zoneObjects[zoneId];
         if (z != 0) {
             int n = z->objects.GetSize();
             for (int i = 0; i < n; i++) {
-                ZoneObjStub *o = (ZoneObjStub *)z->objects[i];
+                ZoneObj *o = (ZoneObj *)z->objects[i];
                 switch (o->type) {
                 case 0:
                 case 1:
@@ -579,14 +558,14 @@ unsigned char World::GetExitDirections()
 // .wld save: zone id + full flag + Zone::WriteSavedState, recursing into door-linked rooms.
 void World::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 {
-    ZoneStub *z = zoneObjects[zoneId];
+    Zone *z = zoneObjects[zoneId];
     f->Write(&zoneId, 2);
     int full = bFull;
     f->Write(&full, 4);
     z->WriteSavedState(f, full);
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
-        ZoneObjStub *o = (ZoneObjStub *)z->objects[i];
+        ZoneObj *o = (ZoneObj *)z->objects[i];
         if (o->type == 9 && o->visible >= 0)
             SaveZoneRecursive(f, o->visible, full);
     }
@@ -599,11 +578,11 @@ void World::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 {
     short savedId;
     int savedFull;
-    ZoneStub *z = zoneObjects[zoneId];
+    Zone *z = zoneObjects[zoneId];
     z->ReadSavedState(f, bFull);
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
-        ZoneObjStub *o = (ZoneObjStub *)z->objects[i];
+        ZoneObj *o = (ZoneObj *)z->objects[i];
         short child = o->visible;      // cached in a callee-saved reg across the Read calls
         if (o->type == 9 && child >= 0) {
             f->Read(&savedId, 2);
@@ -875,7 +854,7 @@ Tile *World::GetTileData(int idx)
 }
 
 // FUNCTION: YODA 0x00403a70
-ZoneStub *World::GetZoneById(short id)
+Zone *World::GetZoneById(short id)
 {
     if (id >= 0 && id < zoneCount)
         return zoneObjects[id];
@@ -923,10 +902,10 @@ void World::RefreshZone()
             if (currentZone->height > 0) {
                 short destX = 0;
                 do {
-                    int t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 0);
+                    int t = (short)((Zone *)currentZone)->GetTile(cx, cy, 0);
                     if (t >= 0)
                         pCanvas->BlitFast(tileArray[t]->pixels, 0x20, 0x20, 0x20, destX, destY);
-                    t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 1);
+                    t = (short)((Zone *)currentZone)->GetTile(cx, cy, 1);
                     if (t >= 0) {
                         Tile *pt = tileArray[t];
                         if ((pt->flags & 1) != 0)
@@ -934,7 +913,7 @@ void World::RefreshZone()
                         else
                             pCanvas->BlitFast(pt->pixels, 0x20, 0x20, 0x20, destX, destY);
                     }
-                    t = (short)((ZoneStub *)currentZone)->GetTile(cx, cy, 2);
+                    t = (short)((Zone *)currentZone)->GetTile(cx, cy, 2);
                     if (t >= 0) {
                         Tile *pt = tileArray[t];
                         if ((pt->flags & 1) != 0)
