@@ -1,0 +1,225 @@
+// WorldDoc — the REAL CDeskcppDoc (= World) class declaration, reconstructed from the
+// ctor/dtor pair at 0x41a870/0x41b2f0 (this TU, "the doc main source file",
+// 0x419ed0–0x41bee0). The ctor's EH-state chain is the DEFINITIVE member order:
+//
+//   base CDocument (0x00, sizeof 0x50)
+//   EH  0- 4  five CObArray      @0x80,0x94,0xa8,0xbc,0xd0   (tiles/zones/inventory/characters/puzzles)
+//   EH  5     CString[64]        @0xe4    soundNames (vector ctor 0x42b030)
+//   EH  6-11  six CWordArray     @0x1e4.. (all nine word-arrays call the SAME ctor 0x43806c;
+//   EH 12-13  two CObArray       @0x25c,0x270            CWordArray proven by the GameData loaders)
+//   EH 14-16  three CWordArray   @0x284.. story histories
+//   EH 17-19  MapZone[100]/[100]/[4] @0x4b0,0x1900,0x2d50 (ctor 0x4010b0 / dtor 0x401180 —
+//              grids START at 0x4b0, NOT the long-believed 0x4b4; MapZone has a vptr at +0)
+//   EH 20     CString            @0x33bc installPath
+//
+// Scalars between class members are plain fields (no EH states). sizeof == 0x33c0
+// (operator_new(0x33c0) in CreateObject 0x419ed0).
+//
+// NOTE: src/GameData/WorldStub.h still carries the old shifted view (zones[200]@0x4b4,
+// MapZone without vptr). Offsets agree byte-for-byte; consolidation is a deliberate
+// later step (dial re-verification required — see CLAUDE.md TU-phase dial).
+#ifndef WORLDDOC_H
+#define WORLDDOC_H
+#include <afxwin.h>
+#include <afxcoll.h>
+#include "../Records/RecordClasses.h"
+
+// Canvas stub (real module: src/Canvas/, byte-matched). Modeled here with the ctor/dtor
+// forms this TU's codegen needs: `new Canvas(w,h)` emits new+nullcheck+ctor — the ctor IS
+// src/Canvas's `Init` (0x407df0, a __thiscall returning this; identical codegen either way).
+class Canvas
+{
+public:
+    char _pad[0x43c];                // no vptr; sizeof == 0x43c (operator_new size)
+    Canvas(int w, int h);                                 // 0x00407df0 (= Canvas::Init)
+    ~Canvas();                                            // 0x00408010 (= Canvas::Free)
+    void Clear();                                         // 0x00408040
+    void SetPalette(int nStart, int nCount, RGBQUAD *pRgb); // (src/Canvas SetPalette)
+    void BlitFast(void *src, int flags, short height,
+                  unsigned short srcStride, short destX, short destY);     // 0x00408110
+    void BlitMasked(char *src, unsigned short srcStride, short height,
+                    short destX, short destY, char key);                   // 0x00408240
+};
+
+// A 10x10 world-map grid cell (0x34 bytes) — CObject-DERIVED (vftable 0x44b050;
+// ctor 0x4010b0 / dtor 0x401180 live in the first app TU, 0x401010–0x401450).
+// Field names carried over from the GameData work, shifted +4 for the vptr.
+class MapZone : public CObject
+{
+public:                              // +0x00 vftable (0x44b050)
+    short id;                        // +0x04  ctor: -1 (zone id; -1 = empty cell)
+    char  _pad06[2];                 // +0x06
+    int   zoneType;                  // +0x08  ctor: 0 (GetLocatorIcon switches on this)
+    short cellQuestSlot0;            // +0x0c  ctor: -1
+    short cellQuestSlot1;            // +0x0e
+    short cellItemA;                 // +0x10  ctor: -1
+    short cellItemB;                 // +0x12
+    short cellItemC;                 // +0x14  ctor: -1
+    short cellQuestSlot5;            // +0x16
+    short cellQuestSlot6;            // +0x18  ctor: -1
+    char  _pad1a[2];                 // +0x1a
+    int   flagSolved;                // +0x1c  ctor: 0
+    int   flagC;                     // +0x20
+    int   flagA;                     // +0x24  ctor: 0
+    int   flagB;                     // +0x28  ctor: 0
+    int   flagD;                     // +0x2c
+    short field30;                   // +0x30
+    char  _pad32[2];                 // +0x32
+                                     // sizeof 0x34
+    MapZone();                                           // 0x004010b0
+    virtual ~MapZone();                                  // 0x00401180
+};
+
+class World : public CDocument       // CDeskcppDoc; sizeof(CDocument) == 0x50 in MFC 4.2
+{
+public:
+    int         unk50;               // +0x0050
+    int         unk54;               // +0x0054
+    int         totalZones;          // +0x0058
+    int         nFrameMode;          // +0x005c
+    int         nMapChangeReason;    // +0x0060
+    int         abortFrame;          // +0x0064
+    int         gameState;           // +0x0068  -1=in progress, 1=won
+    int         nRequestedGoalItem;  // +0x006c
+    int         score;               // +0x0070
+    int         unk74;               // +0x0074  ctor: copied from CWinApp+0xc4
+    int         timeBase;            // +0x0078
+    int         timeOffset;          // +0x007c
+    CObArray    tiles;               // +0x0080  Tile*
+    CObArray    zones;               // +0x0094  Zone*
+    CObArray    inventory;           // +0x00a8  InvItem*
+    CObArray    characters;          // +0x00bc  Character*
+    CObArray    puzzles;             // +0x00d0  Puzzle*
+    CString     soundNames[64];      // +0x00e4  (0x100 bytes)
+    CWordArray  questItemsA;         // +0x01e4
+    CWordArray  questItemsB;         // +0x01f8
+    CWordArray  goalTileList;        // +0x020c
+    CWordArray  placedZoneIds;       // +0x0220
+    CWordArray  unk234;              // +0x0234
+    CWordArray  unk248;              // +0x0248
+    CObArray    unk25c;              // +0x025c
+    CObArray    unk270;              // +0x0270
+    CWordArray  storyHistoryNevada;  // +0x0284  planet 1 = Tatooine (Indy-engine key names)
+    CWordArray  storyHistoryAlaska;  // +0x0298  planet 2 = Hoth (the demo planet)
+    CWordArray  storyHistoryOregon;  // +0x02ac  planet 3 = Endor
+    Zone       *currentZone;         // +0x02c0
+    CPalette   *pPalette;            // +0x02c4  ctor: new CPalette
+    int         unk2c8;              // +0x02c8
+    int         worldSeed;           // +0x02cc
+    Zone       *apZoneGrid[100];     // +0x02d0  10x10 Zone* grid (OnNewDocument zeroes row-wise)
+    Tile       *apUiTiles[20];       // +0x0460  cached UI tile ptrs (CacheUiTilePtrs)
+    MapZone     mapGrid[100];        // +0x04b0  active 10x10 grid
+    MapZone     mapGridBackup[100];  // +0x1900  backup grid (RestoreGridFromBackup copies back)
+    MapZone     mapScratch[4];       // +0x2d50
+    int         playerX;             // +0x2e20
+    int         playerY;             // +0x2e24
+    int         unk2e28;             // +0x2e28
+    Character  *currentWeapon;       // +0x2e2c
+    int         unk2e30;             // +0x2e30
+    int         unk2e34;             // +0x2e34  ctor: -1
+    short       startItem;           // +0x2e38
+    short       startItem2;          // +0x2e3a
+    int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
+    int         bStartingGame;       // +0x2e40
+    int         unk2e44;             // +0x2e44
+    int         nWeaponHitX;         // +0x2e48
+    int         nWeaponHitY;         // +0x2e4c
+    int         goalItemTileId;      // +0x2e50
+    int         bHidePlayer;         // +0x2e54
+    int         unk2e58;             // +0x2e58  ctor: 0
+    int         unk2e5c;             // +0x2e5c  OnNewDocument: 1 (palette-device flag?)
+    int         unk2e60;             // +0x2e60  ctor: 0
+    int         unk2e64;             // +0x2e64
+    WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE
+    WORD        palNumEntries;       // +0x2e6a  ctor: 0x100   }
+    PALETTEENTRY sysPalette[256];    // +0x2e6c  } entries (GetSystemPaletteEntries target)
+    BYTE       *pSysColorTable;      // +0x326c  ctor: &DAT_00456230
+    Canvas     *pCanvas;             // +0x3270
+    RECT        rectViewport;        // +0x3274  ctor: (8,7)-(0x128,0x127) play area
+    RECT        rectInventory;       // +0x3284  ctor: (0x133,6)-(0x1e9,0xe6)
+    RECT        rectRightPane;       // +0x3294  ctor: (0x1f0,6)-(0x200,0xe6)
+    int         nWeaponBoxLeft;      // +0x32a4  ctor: 400
+    int         nWeaponBoxTop;       // +0x32a8  ctor: 0xfc
+    int         nWeaponBoxRight;     // +0x32ac  ctor: 0x1b0
+    int         nWeaponBoxBottom;    // +0x32b0  ctor: 0x11c
+    int         unk32b4;             // +0x32b4  ctor: 0x180
+    int         unk32b8;             // +0x32b8  ctor: 0xfc
+    int         unk32bc;             // +0x32bc  ctor: 0x189
+    int         unk32c0;             // +0x32c0  ctor: 0x11c
+    int         unk32c4;             // +0x32c4  ctor: 0x1c9
+    int         unk32c8;             // +0x32c8  ctor: 0xfb
+    int         unk32cc;             // +0x32cc  ctor: 0x1ea
+    int         unk32d0;             // +0x32d0  ctor: 0x11c
+    int         nHealthDialLeft;     // +0x32d4  ctor: 0
+    int         nHealthDialTop;      // +0x32d8  ctor: 0
+    int         nHealthDialRight;    // +0x32dc  ctor: 0x120
+    int         nHealthDialBottom;   // +0x32e0  ctor: 0x120
+    int         nArrowBoxLeft;       // +0x32e4  ctor: 0x141
+    int         nArrowBoxTop;        // +0x32e8  ctor: 0xf6
+    int         nArrowBoxRight;      // +0x32ec  ctor: 0x169
+    int         nArrowBoxBottom;     // +0x32f0  ctor: 0x11e
+    int         bWorldReady;         // +0x32f4
+    int         unk32f8;             // +0x32f8  ctor: 0
+    int         unk32fc;             // +0x32fc  ctor: 0
+    int         nextCameraX;         // +0x3300
+    int         nextCameraY;         // +0x3304
+    Zone       *pendingZone;         // +0x3308
+    int         nSoundEnabled;       // +0x330c
+    int         nMusicEnabled;       // +0x3310
+    int         healthLo;            // +0x3314  ctor: 1
+    int         healthHi;            // +0x3318  ctor: 1
+    int         difficulty;          // +0x331c  ctor: 0x32
+    int         counter;             // +0x3320  ctor: difficulty copy
+    int         gameSpeed;           // +0x3324  ctor: 0x8c, clamped [0x5f,0xb9]
+    int         worldSize;           // +0x3328  ctor default 2; demo forces 1
+    int         completionCount;     // +0x332c
+    int         cameraX;             // +0x3330  ctor: 0x100
+    int         cameraY;             // +0x3334  ctor: 0xc0
+    int         unk3338;             // +0x3338  ctor: 0
+    int         unk333c;             // +0x333c  ctor: 0
+    int         unk3340;             // +0x3340
+    int         unk3344;             // +0x3344
+    short       unk3348;             // +0x3348  ctor: 0
+    short       unk334a;             // +0x334a  ctor: 0
+    short       weaponState[4];      // +0x334c  ctor: 0,0,0,0
+    short       nCurrentAmmo;        // +0x3354  ctor: 0
+    char        _pad3356[2];         // +0x3356
+    Tile       *pPlayerFrameTile;    // +0x3358  ctor: 0
+    Character  *pPlayerChar;         // +0x335c  ctor: 0
+    int         unk3360;             // +0x3360  ctor: 0
+    int         unk3364;             // +0x3364  ctor: 0
+    int         unk3368;             // +0x3368  ctor: 0
+    int         unk336c;             // +0x336c  ctor: 0
+    int         unk3370;             // +0x3370
+    Tile       *pEquippedItem;       // +0x3374  ctor: 0
+    int         unk3378;             // +0x3378
+    int         bWorldInvalid;       // +0x337c  ctor: 0
+    int         genScratch[8];       // +0x3380  worldgen cell scratch (0x3380..0x33a0)
+    int         nCurrentGoalItem;    // +0x33a0
+    int         unk33a4;             // +0x33a4  ctor: -1
+    int         lastCount;           // +0x33a8
+    int         highScore;           // +0x33ac
+    int         lastScore;           // +0x33b0
+    int         unk33b4;             // +0x33b4  ctor: -1
+    int         unk33b8;             // +0x33b8
+    CString     installPath;         // +0x33bc  ctor: registry Install Path / drive scan
+                                     // sizeof 0x33c0
+
+    // ---- this TU's methods (markers in WorldDoc.cpp) ----
+    World();                                              // 0x0041a870
+    virtual ~World();                                     // 0x0041b2f0 (ScalarDtor 0x0041b2d0)
+    int  FindAdjacentGateDirMaybe(int x, int y, short *paGrid);   // 0x00419f60
+    int  ParseTilesMaybe(CFile *pFile, unsigned int nBytes);      // 0x0041a030 TILE chunk
+    unsigned int GetLocatorIconMaybe(int x, int y, int bAlt);     // 0x0041a1c0
+    void CacheUiTilePtrsMaybe();                          // 0x0041a5d0
+    void DrawPlayer();                                    // 0x0041a6d0
+    virtual BOOL OnNewDocument();                         // 0x0041bb10
+    virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);    // 0x0041b8a0
+    virtual void Serialize(CArchive& ar);                 // (doc TU; vcall slot +8)
+
+protected:
+    DECLARE_DYNCREATE(World)                              // CreateObject 0x00419ed0
+    DECLARE_MESSAGE_MAP()                                 // GetMessageMap 0x00419f50
+};
+
+#endif

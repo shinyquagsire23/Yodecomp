@@ -313,16 +313,16 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 ### App-region inventory (~128 KB, 534 funcs) and TU status
 | TU / module | range | ~size | state |
 |---|---|---|---|
-| World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | 4/6 exact; CalcTimeScore unstarted, CalcSolvedScore x87 park |
+| World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | ✅ 5/6 exact (07-06: CalcTimeScore matched); CalcSolvedScore x87 park proven permuter-immune |
 | **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE 07-06: 11/27 exact (src/GameData/), rest effective/PHASE-DISPLACED; BQP +9B |
 | **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
 | **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE 07-06: all 10 funcs transcribed, 88% insn-identical; 2 exact + 8 annotated tie-break residuals |
 | **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 8/11 + 3 eff. (parked) |
 | Small MFC classes (Frame/Dlg/InvScrollBar/TextDialog/…) | scattered | ~8 KB | RE'd; MFC-source-assisted |
-| Core utils | 0x408c60–0x40a560 | 6.5 KB | shared leaf helpers — high piecemeal match odds |
+| ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) — Phase E, not a warm-up |
 | **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial |
-| Logging | 0x419730–0x41b2f0 | 7 KB | named (`yodalog.txt`) |
-| Settings/registry | 0x41b2f0–0x41bee0 | 3 KB | named; string-anchored, easy |
+| App TU + Log trio | 0x419730–0x419ed0 | ~2 KB | App::Ctor/InitInstance/OnAppAbout + Log::Write ×3 (the old "Logging" label) |
+| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | ⭐ NEW 07-06 (src/WorldDoc/): 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; "Settings::Save" was World::~World! ctor/OnNew/OnOpen/GetLocatorIcon WIP |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41c340–0x429000 | ~52 KB | RE'd; World struct partial (~115/197 named) |
 
 The two monsters (GameView ~57 KB + World ~52 KB) are ~85 % of the remaining bytes. Everything before
@@ -433,7 +433,67 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v2 — Phase B DONE; next: asmscore funclet fix + Phase C)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v3 — asmscore fixed; WorldDoc TU landed; 9.37%)
+**Progress 9.37% byte-exact** (positional; was 7.32 at session start). Session commits: the
+asmscore funclet fix + the NEW src/WorldDoc TU (7/13 exact, 2036B).
+
+**⭐ HEADLINE: "Settings" was never a TU — Settings::Save was `World::~World` (now renamed in
+Ghidra), App::LoadSettings was `World::World`.** The 0x419ed0–0x41bee0 region is the doc class's
+MAIN source file: IMPLEMENT_DYNCREATE + message map + ctor/dtor + OnNewDocument/OnOpenDocument +
+ParseTiles(TILE chunk!)/GetLocatorIcon/CacheUiTilePtrs/DrawPlayer/FindAdjacentGateDir. The ctor's
+EH-state chain (21 members) yielded the REAL CDeskcppDoc member list → `src/WorldDoc/WorldDoc.h`
+now holds the definitive World class (all offsets compile-time-proven; the **1441-byte dtor
+byte-matched on the first compile**, proving the whole member order + types). Key layout finds:
+grids START at **0x4b0** (0x4b4 was off by one vptr — MapZone is CObject-DERIVED, ctor/dtor at
+0x4010b0/0x401180 in the first app TU); Zone* apZoneGrid[100]@0x2d0; Tile* apUiTiles[20]@0x460;
+inline LOGPALETTE @0x2e68 (palVersion/palNumEntries/sysPalette[256]); CString installPath@0x33bc;
+9 CWordArrays (all call the same NAFXCW ctor); 2 unknown CObArrays @0x25c/0x270; sound names are
+`CString soundNames[64]` @0xe4. WorldStub.h still carries the old shifted view — consolidation is
+a deliberate dial-verified step, DO IT LATER.
+
+**WorldDoc matching state (src/WorldDoc/WorldDoc.cpp):** MATCH: CreateObject+GetRuntimeClass
+(IMPLEMENT_DYNCREATE compiles byte-exact!), GetMessageMap (empty map — entry list TODO, data-only),
+FindAdjacentGateDir (two-store bool quartet), CacheUiTilePtrs, ??_G + **~World (1441B!)**.
+ParseTiles = DIFF(3) effective (loader-family jl/jg backedge). WIP: ctor DIFF(510) (see below),
+GetLocatorIcon (~90%, block-LAYOUT residual), OnOpenDocument DIFF(292), OnNewDocument DIFF(707)
+(both untouched this session beyond first transcription), DrawPlayer DIFF(50) = {this,camX,camY}
+3-cycle, permuter-immune (parked contest family).
+
+**New codegen finds (2026-07-06 v3):**
+- **MFC macros byte-match for free**: IMPLEMENT_DYNCREATE, BEGIN_MESSAGE_MAP, TRY/CATCH — write
+  the real macros, not expansions. `AFX_EXCEPTION_LINK _afxExceptionLink` is referencable by name
+  for hand-expanded CATCH_ALL bodies.
+- **Unreachable code after THROW_LAST() is EMITTED** (no DCE): ParseTiles' OOM message box is
+  dead code in the original (engine-bugs.md #7) — reproduce dead statements faithfully.
+- **imm-vs-reg STORE BATCHING (open problem, ctor's main residual):** in long assignment runs,
+  our compiles float `= reg(0)` stores above `= imm` stores (imm sinks to the end of the
+  reg-store run) while the ORIGINAL keeps imms interleaved at source positions. Repositioning
+  statements moves SOME imms (nMusicEnabled=1 placed FIRST lands at orig slot 5) but the
+  0x32-triple's landing is invariant under every order tried; braces are inert. Needs the
+  batching mechanism mapped (windows? pairing?) before the ctor/OnNewDocument store blocks close.
+- **Block layout (GetLocatorIcon residual):** the orig places early-return bodies at function
+  END (after all switch cases) — nested-if form moved ONE there; goto-label form got
+  tail-DUPLICATED back inline (+11 insns, worse). The "when does MSVC sink a return-body"
+  mechanism is unmapped. Also: its case-10 code is emitted among case bodies (write it as an
+  explicit case, not post-switch code) — untried.
+- verify.py LIB_OWNERS now filters CGdiObject/CPalette/CFileException/CFile/CDocument/CCmdTarget/
+  CWinApp inline-emitted COMDATs (they're NAFXCW's at link time).
+- asmscore: `--dump` prints the aligned diff (r=reg, S=structural, +/-=gaps); `--len N` supplies
+  the true original extent; ctor/dtor name matching fixed (`??0Class@@`); per-side raw decode
+  (the funclet fix — savers' phantom align=1368 was pre-decode masking corruption).
+
+**NEXT, in order:**
+1. **WorldDoc completion**: (a) OnOpenDocument — it's a modified MFC DOCCORE OnOpenDocument copy;
+   diff the TRY/CATCH shape + CFile ctor/open modes against MFC SRC. (b) OnNewDocument — palette
+   block; transcription was decompile-order, re-derive from disasm like the ctor rect cluster
+   (store order = source order). (c) ctor store-batching experiments (above). (d) GetLocatorIcon
+   case-10-as-case + layout mechanism.
+2. **App TU (0x419730–0x419ed0)**: small (App::Ctor 124B, InitInstance 992B MFC boilerplate,
+   OnAppAbout, Log::Write trio) — MFC-source-assisted, likely fast wins.
+3. Then Phase D prep: promote WorldStub.h → WorldDoc.h's real World (re-verify GameData/Iact
+   dial rotations), reconstruct the full method decl set.
+
+### ⏭ PREVIOUS PICKUP (2026-07-06 v2 — Phase B; facts still valid)
 **Progress ~7.3% byte-exact** (per-name; positional progress.py undercounts the Iact clones).
 **Phase B is COMPLETE**: src/Iact TU = all 10 functions transcribed; whole-TU instruction identity
 88% (2311/2626). Per-name: ReadIzon + ReadZax4 MATCH; the other 8 are structurally converged with

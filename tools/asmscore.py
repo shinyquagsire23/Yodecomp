@@ -392,12 +392,21 @@ def _cli():
     # pair by name (not global-min diff, which a tiny function would win).
     mk = re.search(r"//\s*FUNCTION:\s*YODA\s+0x0*%x\b" % addr, text, re.I)
     seg = text[mk.end():] if mk else text
-    dm = re.search(r"\b(?:[A-Za-z_]\w*[\s\*]+)+([A-Za-z_]\w*)::([A-Za-z_]\w*)\s*\(", seg)
+    dm = re.search(r"\b(?:[A-Za-z_]\w*[\s\*]+)*([A-Za-z_]\w*)::(~?[A-Za-z_]\w*)\s*\(", seg)
     want = dm.group(2) if dm else None
+    want_pats = None
+    if dm:
+        klass, meth = dm.group(1), dm.group(2)
+        if meth == klass:                      # constructor: ??0Class@@
+            want_pats = ["??0%s@@" % klass]
+        elif meth == "~" + klass:              # destructor: ??1Class@@
+            want_pats = ["??1%s@@" % klass]
+        else:
+            want_pats = ["?%s@" % meth]
     foff = (addr - match.TEXT_VA) + match.TEXT_RAW
     best = None
     for name, code, relocs in match.coff_functions(obj):
-        if want and ("?%s@" % want) not in name:
+        if want_pats and not any(p in name for p in want_pats):
             continue
         L = match.trim_pad(code)
         # --len gives the ORIGINAL's true extent (from Ghidra) — vital when the

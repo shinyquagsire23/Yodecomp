@@ -66,6 +66,28 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
 - **Impact:** NULL pView + a remove-current-item command = crash. Same never-happens-in-practice
   caveat as #5, same evidence of inconsistent guarding.
 
+### 7. `World::ParseTilesMaybe` — the out-of-memory message box is unreachable
+- **Where:** 0x41a030, catch handler at 0x41a164/0x41a178.
+- **What:** the TRY around `new Tile` has ONE catch (`CException*`, per the EH tables at
+  FuncInfo 0x452438) whose body is `m_pException = e; THROW_LAST();` followed by
+  `AfxMessageBox(0xe01e); AfxAbort();` — but THROW_LAST() rethrows, so the message box and
+  abort are dead code the compiler faithfully emitted (MSVC 4.2 does no DCE). On OOM the
+  user never sees the error dialog; the exception propagates raw.
+- **Reproduced:** `src/WorldDoc/WorldDoc.cpp` ParseTilesMaybe, `// sic:` at the catch body.
+
+### 8. `World::OnNewDocument` — unguarded `pCanvas->Clear()` after a guarded allocation
+- **Where:** 0x41bb10, tail (Canvas creation block).
+- **What:** the Canvas is created under TRY and only `SetPalette` is guarded by
+  `pCanvas != NULL`; the following `Clear()` call is unconditional. If the 0x43c-byte
+  allocation ever failed, this dereferences NULL.
+- **Reproduced:** `src/WorldDoc/WorldDoc.cpp` OnNewDocument, `// sic:` comment.
+
+### 9. `World::OnNewDocument` — only 16 of the 20 cached UI tile pointers are cleared
+- **Where:** 0x41bb10 tail: the zero loop over World+0x460 runs 0x10 iterations, but
+  `CacheUiTilePtrsMaybe` (0x41a5d0) fills 20 slots (+0x460..+0x4b0). The last 4 cached
+  pointers survive a re-init with stale values until the next CacheUiTilePtrs call.
+- **Reproduced:** `src/WorldDoc/WorldDoc.cpp` OnNewDocument, `// sic:` comment.
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's
