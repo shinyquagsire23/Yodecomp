@@ -165,6 +165,7 @@ public:                              // +0x00 = CObject vtable
     void           ReadZax2(CFile *pFile);                               // 0x00406410 (Iact .obj)
     void           ReadZax3(CFile *pFile);                               // 0x00406490 (Iact .obj)
     void           ReadZax4(CFile *pFile);                               // 0x00406510 (Iact .obj, this unused)
+    int            IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce); // 0x00406550 (Iact .obj)
 };
 
 #endif

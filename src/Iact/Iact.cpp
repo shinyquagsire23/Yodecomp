@@ -283,7 +283,87 @@ void Zone::ReadZax4(CFile *pFile)
     pFile->Read(&count, 2);
 }
 
+// FUNCTION: YODA 0x00406550  [WIP: +26B — found-vs-r EBP contest: orig found=EBP/r=stack,
+//   ours r=EBP/found=stack (memory-form found tests cost the bytes). Control flow verified
+//   line-by-line against the true disasm (take-order coord-then-flag, two-store sign forms,
+//   compiler inc-ebp for the 2nd-probe found=1). n merged per orig ESI reuse. Revisit once the
+//   TU is complete (IactRun/RunCommands) — ReadIzon's identical 2-cycle self-resolved then.]
+// Movement sidestep probe: target = (x+dx, y+dy). Returns -1 out-of-bounds, 1 target free,
+// 0 blocked, or a direction code (2=E 3=W 4=S 5=N) after sidestepping around the obstacle
+// (side picked pseudo-randomly via GetTickCount parity; bForce accepts occupied sidesteps).
+// a5 is unused (caller-pushed). Used by the entity AI in GameView::Tick.
+int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
+{
+    int   found = 0;
+    int   tx = x + dx;
+    int   ty = y + dy;
+    short savedX, savedY;
+    int   r, n;
+
+    if (tx < 0 || ty < 0 || tx >= width || ty >= height)
+        return -1;
+    r = (GetTickCount() & 1) == 0 ? 1 : -1;
+    savedX = (short)tx;
+    savedY = (short)ty;
+    if ((short)GetTile(tx, ty, 1) < 0)
+        return 1;
+    if (dx == 0 && dy != 0) {
+        n = tx - r;
+        if (n >= 0 && ((short)GetTile(n, ty, 1) < 0 || bForce != 0)) {
+            tx = n;
+            found = 1;
+        }
+        if (!found) {
+            n = r + tx;
+            if (n < width && ((short)GetTile(n, ty, 1) < 0 || bForce != 0)) {
+                tx = n;
+                found = 1;
+            }
+        }
+    } else if (dy == 0 && dx != 0) {
+        n = ty - r;
+        if (n >= 0 && ((short)GetTile(tx, n, 1) < 0 || bForce != 0)) {
+            ty = n;
+            found = 1;
+        }
+        if (!found) {
+            n = r + ty;
+            if (n < height && ((short)GetTile(tx, n, 1) < 0 || bForce != 0)) {
+                ty = n;
+                found = 1;
+            }
+        }
+    } else {
+        n = tx + 1;
+        if (dx >= 0)
+            n = tx - 1;
+        if ((short)GetTile(n, ty, 1) < 0 || bForce != 0) {
+            tx = n;
+            found = 1;
+        }
+        if (!found) {
+            n = ty + 1;
+            if (dy >= 0)
+                n = ty - 1;
+            if ((short)GetTile(tx, n, 1) < 0 || bForce != 0) {
+                ty = n;
+                found = 1;
+            }
+        }
+    }
+    if (!found)
+        return 0;
+    if (ty < savedY)
+        return 5;
+    if (ty > savedY)
+        return 4;
+    if (tx < savedX)
+        return 3;
+    if (tx > savedX)
+        return 2;
+    return 0;
+}
+
 // TODO (next increment, .text order continues):
-//   Zone::IactProbeMove   0x00406550 (557B)
 //   Zone::IactRun         0x00406780 (2255B — condition-opcode switch; scrdoc.txt)
 //   Zone::IactRunCommands 0x004070e0 (3039B — command-opcode switch + 7 EH funclets)
