@@ -318,10 +318,12 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
 | **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE 07-06: all 10 funcs transcribed, 88% insn-identical; 2 exact + 8 annotated tie-break residuals |
 | **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 8/11 + 3 eff. (parked) |
-| Small MFC classes (Frame/Dlg/InvScrollBar/TextDialog/…) | scattered | ~8 KB | RE'd; MFC-source-assisted |
+| **IactScript** (3 script record classes) | 0x418700–0x418dd0 | ~1.7 KB | ✅ 11/12 exact (src/IactScript/) |
+| **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
+| **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial |
-| App TU + Log trio | 0x419730–0x419ed0 | ~2 KB | App::Ctor/InitInstance/OnAppAbout + Log::Write ×3 (the old "Logging" label) |
+| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial. InvScrollBar/option-dialogs embedded here |
+| **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | ⭐ NEW 07-06 (src/WorldDoc/): 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; "Settings::Save" was World::~World! ctor/OnNew/OnOpen/GetLocatorIcon WIP |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41c340–0x429000 | ~52 KB | RE'd; World struct partial (~115/197 named) |
 
@@ -433,7 +435,56 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v4 — App TU COMPLETE; 9.55%+)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v5 — MFC scaffolding sprint DONE; 9.99%, 100 funcs)
+**Progress 9.99% byte-exact, 100/534 funcs** (honest name-based count). This sprint cleared the
+whole cleanly-separable small-MFC-class layer (Phase F) + fixed the measurement tooling.
+
+**Sprint deliverables (all committed):**
+- **Tooling name-based pairing** (1f4d227): `match.pair_by_name()` pairs each `// FUNCTION`
+  marker to its SAME-named COMDAT (best-fit mis-assigned reloc-masked-identical stubs AND
+  over-credited wrong pairings). Fixed progress.py `/D_MBCS` transitive-include detection.
+  This RE-BASELINED the honest number to 8.87% (earlier 9.39-9.55% were inflated). Explicit
+  mangled-fragment hints in marker comments (e.g. `(??_GClass ...)`) are the escape hatch for
+  compiler-generated COMDATs; stacked markers (ctor+??_G) supported. `$CLAUDE_JOB_DIR/tmp/
+  appcheck.py` was the per-name reference; now obsolete (verify.py/progress.py do it natively).
+- **App TU** (7afdfb8/7f9f871): CTheApp+CAboutDlg+Log_Write, 15/16 exact + InitInstance eff.
+- **Frame TU** (60ed33f): CMainFrame 14/18 exact + 4 eff.; owns g_strReplayPath.
+- **Dlg TU** (ff20e78): CTextDialog 5/5 EXACT.
+
+**⭐ NEW MFC-matching lessons (fold into instincts):**
+- **Implicit vs explicit dtor controls the ??_G shape.** An empty `virtual ~T(){}` forces a
+  separate ??1 + a THIN ??_G that calls it. The IMPLICIT dtor (declare none) makes MSVC INLINE
+  member destruction into ??_G. Match the original's inline-vs-call shape: CTextDialog needed
+  implicit (orig ??_G is 188B inlined); CMainFrame needed explicit (orig ??_G is 30B, calls ??1).
+- **Message maps/DYNCREATE/ON_WM_* compile byte-exact** — write the real macros; sizeof from the
+  CRuntimeClass struct; handler order = the map-entry order (dump `.rdata` map).
+- **Log_Write was __stdcall** (the RET 4); a bare free func can be stdcall.
+- **CPUID needs `_emit 0x0f, 0xa2`** (VC4.2 predates it, like the Canvas MMX blits).
+- **Version-byte compare widens only as `(int)(BYTE)(x>>8)`** (signed movzx) vs staying in AH.
+- **`CString s; s = p;` (default-ctor-then-assign) ≠ `CString s = p;` (copy-ctor)** — different shape.
+- **OnActivate/OnSysCommand: order branches so the original's fall-through is the primary path**
+  (deactivate fall-through; SC_CLOSE's ConfirmExit fall-through). Switch on message codes gives
+  the compiler's comparison-tree; write cases in the map order.
+- **The `sbb` boolean idiom vs push-1/push-0 branch** (bForceBackground = this!=pFocusWnd) is
+  instruction-selection MSVC picks internally — cmp-direction family, not source-steerable.
+- **CFrameWnd fields:** sizeof(CFrameWnd)=0xbc, sizeof(CDialog)=0x5c, CWinApp m_hPrevInstance@0x6c/
+  m_lpCmdLine@0x70, App+0xc4 frame-delay -> World+0x74. GameView pWorld@0x44/bBusy@0x4c/
+  nDragSlot@0x144/bDragActive@0x148/pMusicThread@0x2fc.
+
+**NEXT: the two monsters are all that's left of substance (~85% of remaining bytes).**
+The small-MFC layer is done; InvScrollBar + the option/slider dialogs are EMBEDDED in the
+GameView TU (0x40a560–0x418700), not separable. Options, in priority order:
+1. **World/doc TU (Phase D, 0x41c340–0x429000, ~52 KB)** — its struct is now largely filled
+   (WorldDoc.h gave the real World class; GameData filled the asset half). Transcribe in .text
+   order: Dta chunk dispatch + worldgen + serialize are doc sections, ONE TU. Biggest payoff.
+   Promote WorldStub.h → WorldDoc.h's real World first (re-verify GameData/Iact dial rotations).
+2. **GameView TU (Phase E, 0x40a560–0x418700, ~57 KB)** — needs GameView struct completion; the
+   Frame TU just pinned several fields (pWorld@0x44, bBusy@0x4c, drag/music fields). Contains
+   the 10.8 KB window-proc/Tick + InvScrollBar + option dialogs.
+3. **Warm-up leftovers:** the parked World scorer CalcSolvedScore (x87, permuter-immune),
+   Records/Iact/Canvas/WorldDoc effective-match JOINT residual passes (endgame).
+
+### ⏮ PRIOR PICKUP (2026-07-06 v4 — App TU COMPLETE)
 **Progress 9.55% by progress.py (undercount) — true ~9.9% (App TU per-name is 15/16 exact but
 best-fit only credits 4).** This continuation added the **App TU (src/App/, 0x419730–0x419ed0)
 COMPLETE**: 15/16 byte-exact + InitInstance effective. Commits 7afdfb8 (App 15/16), 7f9f871
