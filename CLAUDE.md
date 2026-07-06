@@ -176,7 +176,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial. InvScrollBar/option-dialogs embedded here |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | ⭐ NEW 07-06 (src/WorldDoc/): 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; "Settings::Save" was World::~World! ctor/OnNew/OnOpen/GetLocatorIcon WIP |
-| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41c340–0x429000 | ~52 KB | ⭐ PHASE D UNDERWAY: src/Worldgen 43 funcs, ~26 exact; docs complete, zero FUN_* |
+| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429000 | ~52 KB | ⭐ PHASE D UNDERWAY: src/Worldgen 63 markers (~26-29 exact, dial-breathing); TU start corrected v10 (0x41bee0, exception-COMDAT head); docs complete, zero FUN_* |
 
 The two monsters (GameView ~57 KB + World ~52 KB) are ~85 % of the remaining bytes. Everything before
 them is deliberately sequenced to FILL THEIR STRUCTS as a side effect, so the monsters become
@@ -286,7 +286,67 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v9 FINAL — Phase D: 54 funcs; 14.10% exact, 46.07% transcribed)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v10 — Phase D: 63 markers; 14.86% exact, 48.72% transcribed)
+**State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
+14.86% exact + 33.86% partial = 48.72% transcribed. Session commits: 8d8402b (gap + queries +
+5 placers + enums), then the World.h consolidation commit. Worldgen exact-count breathes with
+the dial (29->26 after the scorer decls landed in Worldgen.h — bytes UP 5267->5588); do not
+grind, the per-function EFFECTIVE annotations carry the autopsies.**
+
+**▶ START HERE — the hub is now mechanical:** WorldgenPlaceQuestNodeMaybe 0x41f120 (2KB) —
+its ENTIRE callee set is transcribed (SelectPuzzle excepted). Then SelectPuzzle 0x41eab0,
+CarveQuestPath 0x41d940, PlaceBlockades 0x41e350, Generate 0x41f960 (6.6KB), the save/load
+monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile — CArchive+CATCH_ALL, WorldDoc
+OnOpenDocument recipe), then the GameView methods 0x426c40-0x429150.
+
+**✅ GAP 0x41bee0-0x41c340 SOLVED (v10):** the Worldgen TU actually STARTS at 0x41bee0, not
+0x41c340. Contents: ??1CException 0x41bee0 + ??_GCException 0x41bf30 (vftable 0x44d064) and
+??_GCFileException 0x41c180 + ??1CFileException 0x41c340 (vftable 0x44d2b4; CString
+m_strFileName@+0x10 destroyed via ~CString 0x43d4e9, base ~CException) — the LINKED MFC
+COMDAT copies (lib code at 0x4294xx calls them too; verify.py LIB_OWNERS filters them, no
+source needed). Interleaved with them sit the TU's first 3 source functions, all transcribed:
+ZoneHasIzxItemMaybe 0x41bfa0 (bool twin of ZoneFindInIzxList, cobArray4/5 by sel),
+ZoneRequiresItemMaybe 0x41c0b0 (genCandidateA/IZAX), PickUnplacedItemMaybe 0x41c200 (random
+genCandidateB item not in the dedup set). All renamed + plate-commented in Ghidra.
+
+**v10 placer results:** PlaceUsefulDropChainMaybe 0x41cbe0 was byte-EXACT (then
+PHASE-DISPLACED by later decls — source proven); AssignTransitItem 0x41d480 align=12;
+LockChain 0x41d0c0 align=56; PlaceUsefulObject 0x41d260 align=80; PopulateGoalZone 0x41c8f0
+align=92 (annotated EFFECTIVE-WIP). **New cracks (add to instincts):**
+- **In EH functions, early-return guards SHARE ONE dtor+return-0 block** emitted as the FIRST
+  guard's fall-through; later `return 0`s cross-jump BACK to it. Write guards as separate
+  early returns, NOT nested ifs (AssignTransit 176->12). In non-EH functions each `return 0`
+  gets its own epilogue copy (PopulateGoalZone/LockChain) — EXCEPT when the original wrote one
+  `if (a || b || (p = ...) == NULL || ...) return 0;` ||-chain with embedded assignments =
+  ONE shared return-0 (PlaceUsefulObject 170->80; Ghidra's comma-expr rendering is literal).
+- **`if (sel != 0)`-first arm order** (A-arm fall-through) cracked DropChain to EXACT; but
+  LockChain needed `== 0`-first — mirror the JE/JNE from disasm per function, never assume.
+- **Params used at 2+ sites CSE-spill on their own** — do NOT invent `int nA = iA;` locals
+  (PopulateGoalZone 108->92 from deleting them). `int v = wordArray.GetAt(i)` (int, not
+  ushort) is what hoists the xor zero-extend out of a loop.
+- Engine bug #11 (docs/engine-bugs.md): LockChain's failure path removes item1a TWICE, never
+  item2. Plus two always-true `>= 0` guards on zero-extended WORDs (bug-#10 family).
+
+**⭐ ENUMS (new standing rule, user directive — see memory/prefer-enums-over-comments):**
+magic field values get NAMED ENUMS, not comments. ZoneType (map_flags roles), ZoneObjType
+(OBJ_TYPE), TileFlags now live in src/Records/RecordClasses.h AND the Ghidra DB (fields
+Zone.type/ZoneObj.type/Tile.flags typed with them; decompiles now print OBJ_DOOR_IN etc.).
+GOTCHA: modify_struct_field_type clobbers the field NAME — restore with modify_struct_field
+using field_name="offset:0xN". HTTP writes need JSON bodies (form-POST returns "address is
+required"); key is "function_address" for renames, "address" for plate comments.
+
+**World.h consolidation (user directive, v10):** src/World/World.h DELETED — the scorers TU
+(src/World/World.cpp) now includes ../Worldgen/Worldgen.h (shared World facade; score/
+timeBase/timeOffset/gameState/etc. fields filled in from WorldDoc.h's ctor-proven names, six
+scorer method decls added as cross-TU section). The old local "Zone" 0x34 struct was really
+MapZone shifted by 4 (exists==id, field18==flagSolved, field20==flagA, field24==flagB).
+Scorers stay 4/6 exact: the indexed `mapGrid[n].field` form keeps the lea anchor at
+this+0x4b4 (grid-copy recipe) — CalcCompletionScore is now PHASE-DISPLACED (pure 3-reg
+rotation, walker-temp rank not source-steerable), CalcTimeScore matches. Long-term: Worldgen.h
+IS the emerging real CDeskcppDoc header — keep growing it with real decls only; GameData/Iact
+still use their own stubs (consolidating those = endgame dial re-verification).
+
+### ⏮ PRIOR (2026-07-06 v9 FINAL — condensed; recipes still in force)
 **State: src/Worldgen = 54 markers, 27 exact; global 14.10% exact + 31.97% partial = 46.07%
 transcribed (progress.py now prints both tiers; PARTIAL = has marker+COMDAT but not byte-exact).
 Session commits: 7961680 (3 parsers + dispatchers), ac69ef0 (PlacePuzzle WIP + LogWrite id),

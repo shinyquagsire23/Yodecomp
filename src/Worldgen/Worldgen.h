@@ -83,7 +83,14 @@ public:
     int         zoneCountLoadedMaybe; // +0x0054  Load: = zones.GetSize() after the .dta parse
     int         totalZones;          // +0x0058  (CalcCompletionScore denominator)
     int         nFrameMode;          // +0x005c
-    char        _pad60[0x20];        // +0x0060
+    int         nMapChangeReason;    // +0x0060  (names: WorldDoc.h ctor-proven layout)
+    int         abortFrame;          // +0x0064
+    int         gameState;           // +0x0068  -1=in progress, 1=won
+    int         nRequestedGoalItem;  // +0x006c
+    int         score;               // +0x0070
+    int         unk74;               // +0x0074  ctor: copied from CWinApp+0xc4 (frame delay)
+    int         timeBase;            // +0x0078
+    int         timeOffset;          // +0x007c
     CObArray    tiles;               // +0x0080  Tile*
     CObArray    zones;               // +0x0094  Zone*
     CObArray    inventory;           // +0x00a8  InvItem*
@@ -248,6 +255,12 @@ public:
     Zone *ReadZone(CFile *pFile, int idx);               // 0x00426a00 (this TU, later)
 
     // ---- cross-TU stubs (defined in other TUs; calls are masked relocs) ----
+    void           UpdateScore();                        // 0x00401450 (scorers TU, src/World/)
+    int            CalcCompletionScore();                // 0x00401490 (scorers TU)
+    int            CalcScoreFromCounter();               // 0x004016d0 (scorers TU)
+    int            CalcSolvedScore();                    // 0x00401780 (scorers TU)
+    int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
+    unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
     void RefreshZone();                                  // 0x00403ae0 (GameData TU)
     void PlaceZoneObjectTiles(short zoneId);             // 0x00403140 (GameData TU)
