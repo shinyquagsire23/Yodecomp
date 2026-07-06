@@ -1,10 +1,17 @@
 // Iact — the Iact .obj (0x405ae0–0x407cf4): Zone's second source file — .dta chunk readers
 // (IZON/IZAX/IZX2/IZX3/IZX4), the .wld saved-state pair, and the IACT interpreter
-// (IactProbeMove/IactRun/IactRunCommands — TODO, next increment).
+// (IactProbeMove/IactRun/IactRunCommands). TU COMPLETE 2026-07-06: all 10 functions transcribed;
+// 88% of original instructions byte-identical; ReadIzon+ReadZax4 exact under the current dial.
+// Residuals are annotated per-function — all tie-break class (reg/cmp/schedule/slot), judged
+// jointly at endgame per the TU-phase doctrine.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS  (static MFC).
 #include "../Records/RecordClasses.h"
 #include "../IactScript/IactScriptClasses.h"
+#include "../GameData/WorldStub.h"
 #include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <time.h>
 #pragma intrinsic(strcmp)
 
 // FUNCTION: YODA 0x00405ae0
@@ -364,6 +371,717 @@ int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
     return 0;
 }
 
-// TODO (next increment, .text order continues):
-//   Zone::IactRun         0x00406780 (2255B — condition-opcode switch; scrdoc.txt)
-//   Zone::IactRunCommands 0x004070e0 (3039B — command-opcode switch + 7 EH funclets)
+// FUNCTION: YODA 0x00406780  [STRUCTURALLY COMPLETE: 569/569 insns, 512 identical (90%).
+//   Residual = pure tie-breaks, no length drift: reg-rename 2/3-cycles (AllEnemiesDead loop,
+//   index-temp eax/ecx/edx), cmp operand directions (TempVarEq/Ne, loop backedges jl<->jg),
+//   BumpTile's first compare add-vs-sub form, je/jne polarity (DragWrongItem 0x12), QuestSpot
+//   xor placement + zero-reg reuse, CheckCellItems itemA/itemB emit order. All rotate with TU
+//   phase (proven: probes inert or mirrored) — joint endgame. KEY CRACKS: the two-return tail
+//   (duplicated epilogue) also fixed the {result,itemB,nScripts} slot 3-cycle (slot order is
+//   usage-driven, NOT decl-driven); (ty = y + dy) in-condition assignment forces the add-form
+//   compare + index CSE.]
+// The IACT condition interpreter: for each of the zone's scripts whose trigger conditions all
+// pass for this frame event (1=walk-step 2=BumpTile 3=DragItem 4=enter-zone 5=enter-vehicle),
+// run its commands. Runs with nFrameMode forced to 1 (script-busy); restores the caller's mode
+// unless a command warped/spawned (result & 0x808). Opcode semantics: scrdoc.txt in
+// ~/workspace/DesktopAdventures. NOTE the original's COND_CheckCellItems reuses the SCRIPT loop
+// variable (idx) for its second inventory scan — a real bug (script iteration restarts from
+// nInv+1 after that condition); reproduced faithfully.
+int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, World *pWorld,
+                  GameView *pView)
+{
+    int          found;      // per-case scratch: HasItem found-flag / QuestSpot counter /
+    int          count;      //   CheckCellItems found pair (function-level, C-style decls)
+    int          idx;        // script index (clobbered by CheckCellItems — see NOTE above)
+    IactScript  *pScript;
+    int          nScripts;
+    int          result;
+    int          itemB;
+    int          i;          // condition index
+    int          nConds;
+    Tile        *pNeeded;
+    Tile        *pTileA;
+    Tile        *pTileB;
+    int          savedMode;
+    int          cellX;
+    int          cellY;
+    int          matched;
+
+    result = 0;
+    nScripts = iactScripts.GetSize();
+    if (nScripts == 0)
+        return 0;
+    idx = 0;
+    savedMode = pWorld->nFrameMode;
+    pWorld->nFrameMode = 1;
+    for (; idx < nScripts; idx++) {
+        if (pWorld != NULL && pWorld->abortFrame != 0)
+            break;
+        pScript = (IactScript *)iactScripts[idx];
+        if (pScript->doneFlag != 1) {
+            matched = 1;
+            nConds = pScript->conditions.GetSize();
+            for (i = 0; i < nConds; i++) {
+                if (!matched)
+                    break;
+                IactCondition *pCond = (IactCondition *)pScript->conditions[i];
+                switch (pCond->opcode) {
+                case COND_FirstEnter:
+                    if (event == 4 && activatedFlag == 0 && pWorld != NULL) {
+                        if (pWorld->FindZoneCellById((short)pWorld->EnterZone(this),
+                                                     &cellX, &cellY) != 0
+                            && pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagSolved == 1)
+                            matched = 0;
+                    } else {
+                        matched = 0;
+                    }
+                    break;
+                case COND_Enter:
+                    if (event != 4)
+                        matched = 0;
+                    break;
+                case COND_BumpTile: {
+                    int ty;
+                    if (event != 2 || dx + x != pCond->args[0] || pCond->args[1] != (ty = y + dy)
+                        || tiles[(ty * 18 + dx + x) * 3 + 1] != pCond->args[2])
+                        matched = 0;
+                    break; }
+                case COND_DragItem:
+                    if (event == 3 && pCond->args[0] == x && pCond->args[1] == y) {
+                        int t;
+                        int n;
+                        t = pCond->args[3];
+                        if (t == -1)
+                            n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+                        else
+                            n = tiles[(y * 18 + x) * 3 + pCond->args[2]];
+                        if (n == t || t == -1) {
+                            n = pCond->args[4];
+                            if (n == -1)
+                                n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
+                            if (n >= 0 && pWorld->tileArray[n] == pWorld->pEquippedItem) {
+                                if (n == 0x1ff)
+                                    pView->DrawTileAt((short)pWorld->nWeaponHitXMaybe,
+                                                      (short)pWorld->nWeaponHitYMaybe, -1);
+                                break;
+                            }
+                        }
+                    }
+                    matched = 0;
+                    break;
+                case COND_Walk:
+                    if (event != 1 || pCond->args[0] != x || pCond->args[1] != y
+                        || tiles[(y * 18 + x) * 3] != pCond->args[2])
+                        matched = 0;
+                    break;
+                case COND_TempVarEq:
+                    if (tempVar != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_RandVarEq:
+                    if (pCond->args[0] != randVar)
+                        matched = 0;
+                    break;
+                case COND_RandVarGt:
+                    if (pCond->args[0] >= randVar)
+                        matched = 0;
+                    break;
+                case COND_RandVarLs:
+                    if (pCond->args[0] <= randVar)
+                        matched = 0;
+                    break;
+                case COND_EnterVehicle:
+                    if (event != 5)
+                        matched = 0;
+                    break;
+                case COND_CheckMapTile:
+                case COND_CheckMapTileVar:
+                    if (tiles[(pCond->args[2] * 18 + pCond->args[1]) * 3 + pCond->args[3]]
+                        != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_EnemyDead:
+                    if (entities.GetSize() < pCond->args[0]
+                        || ((MapEntity *)entities[pCond->args[0]])->charId != -1)
+                        matched = 0;
+                    break;
+                case COND_AllEnemiesDead: {
+                    int n = entities.GetSize();
+                    int alive = 0;
+                    for (int j = 0; j < n; j++) {
+                        if (((MapEntity *)entities[j])->charId >= 0)
+                            alive++;
+                    }
+                    if (alive != 0)
+                        matched = 0;
+                    break; }
+                case COND_HasItem:
+                    if (pWorld != NULL) {
+                        int n;
+                        int nInv;
+                        n = pCond->args[0];
+                        if (n == -1)
+                            n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+                        if (n >= 0)
+                            pNeeded = pWorld->tileArray[n];
+                        nInv = pWorld->inventory.GetSize();
+                        found = 0;
+                        if (n >= 0 && nInv > 0) {
+                            for (int j = 0; j < nInv; j++) {
+                                if (((InvItem *)pWorld->inventory[j])->pTile == pNeeded)
+                                    found = 1;
+                            }
+                        }
+                        if (found != 0)
+                            break;
+                    }
+                    matched = 0;
+                    break;
+                case COND_CheckEndItem: {
+                    if (pWorld == NULL) {
+                        matched = 0;
+                        break;
+                    }
+                    int cell = pWorld->playerY * 10 + pWorld->playerX;
+                    short b = pWorld->zones[cell].cellItemB;
+                    if (pWorld->zones[cell].cellItemA == pCond->args[0])
+                        matched = 1;
+                    else
+                        matched = (b == pCond->args[0]);
+                    break; }
+                case COND_CheckStartItem:
+                    if (pWorld == NULL || pWorld->startItem != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_ZoneSolved:
+                    if (pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagB == 0)
+                        matched = 0;
+                    break;
+                case COND_GameInProgress:
+                    if (pWorld->gameState != -1)
+                        matched = 0;
+                    break;
+                case COND_GameCompleted:
+                    if (pWorld->gameState != 1)
+                        matched = 0;
+                    break;
+                case COND_HealthLs:
+                    if (pWorld->healthHi * -100 - pWorld->healthLo + 0x191 >= pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_HealthGt:
+                    if (pWorld->healthHi * -100 - pWorld->healthLo + 0x191 <= pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_CheckCellItem:
+                    if (pWorld == NULL
+                        || pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC
+                           != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_DragWrongItem:
+                    if (event == 3 && pCond->args[0] == x && pCond->args[1] == y) {
+                        int t;
+                        int n;
+                        t = tiles[(y * 18 + x) * 3 + pCond->args[2]];
+                        if (pCond->args[3] == t || t == -1) {
+                            n = pCond->args[4];
+                            if (n == -1)
+                                n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
+                            if (n >= 0 && pWorld->tileArray[n] != pWorld->pEquippedItem
+                                && pView->bSuppressWalkSound == 0) {
+                                int id = pWorld->FindTile(pWorld->pEquippedItem);
+                                if (id <= 0x202) {
+                                    if (id >= 0x1fe || id == 0x12)
+                                        matched = 0;
+                                } else if (id >= 0x204 && (id <= 0x205 || id == 0x31a))
+                                    matched = 0;
+                                break;
+                            }
+                        }
+                    }
+                    matched = 0;
+                    break;
+                case COND_PlayerAtPos:
+                    if (pWorld->cameraX / 0x20 != pCond->args[0]
+                        || pWorld->cameraY / 0x20 != pCond->args[1])
+                        matched = 0;
+                    break;
+                case COND_GlobalVarEq:
+                    if (globalVar != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_GlobalVarLs:
+                    if (globalVar >= pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_GlobalVarGt:
+                    if (globalVar <= pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_ExperienceEq:
+                    if (pWorld->completionCount != pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_QuestSpotPresent:
+                    found = 0;
+                    count = objects.GetSize();
+                    if (count > 0) {
+                        matched = 0;
+                        do {
+                            ZoneObj *obj = (ZoneObj *)objects[found];
+                            if (obj->x == pCond->args[0] && obj->y == pCond->args[1]
+                                && obj->type == 0 && obj->state == 1) {
+                                matched = 1;
+                                break;
+                            }
+                            found++;
+                        } while (found < count);
+                    }
+                    break;
+                case COND_CheckCellItems: {
+                    if (pWorld == NULL) {
+                        matched = 0;
+                        break;
+                    }
+                    int cell = pWorld->playerY * 10 + pWorld->playerX;
+                    int itemA = pWorld->zones[cell].cellItemA;
+                    itemB = pWorld->zones[cell].cellItemB;
+                    if (itemA >= 0)
+                        pTileA = pWorld->tileArray[itemA];
+                    if (itemB >= 0)
+                        pTileB = pWorld->tileArray[itemB];
+                    int nInv = pWorld->inventory.GetSize();
+                    found = 0;
+                    count = 0;
+                    if (itemA >= 0 && nInv > 0) {
+                        for (int j = 0; j < nInv; j++) {
+                            if (((InvItem *)pWorld->inventory[j])->pTile == pTileA)
+                                found = 1;
+                        }
+                    }
+                    if (itemB >= 0) {
+                        // sic: the original reuses the SCRIPT index for this scan (see NOTE)
+                        for (idx = 0; idx < nInv; idx++) {
+                            if (((InvItem *)pWorld->inventory[idx])->pTile == pTileB)
+                                count = 1;
+                        }
+                    }
+                    if (found)
+                        matched = 1;
+                    else
+                        matched = (count != 0);
+                    break; }
+                case COND_TempVarNe:
+                    if (tempVar == pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_RandVarNe:
+                    if (pCond->args[0] == randVar)
+                        matched = 0;
+                    break;
+                case COND_GlobalVarNe:
+                    if (globalVar == pCond->args[0])
+                        matched = 0;
+                    break;
+                case COND_ExperienceGt:
+                    if (pWorld->completionCount <= pCond->args[0])
+                        matched = 0;
+                    break;
+                }
+            }
+            if (matched && pScript->doneFlag == 0)
+                result |= IactRunCommands(idx, pDC, pWorld, pView);
+        }
+    }
+    if ((result & 0x808) == 0) {
+        pWorld->nFrameMode = savedMode;
+        return result;
+    }
+    return result;
+}
+
+// FUNCTION: YODA 0x004070e0  [STRUCTURALLY COMPLETE: 849 main-body insns, 740 identical (87%).
+//   Residual tie-breaks: dispX/dispY slot placement (orig -0x28/-0x2c amid the CString cluster,
+//   ours -0x58/-0x5c — decl order proven inert, optimizer-internal), MoveCamera cx/cy reg-vs-
+//   memory contest (orig cx=EDI/cy=-0x1c home; ours mirrored, +2-insn store-reload — same class
+//   as IactProbeMove's EBP contest), ShowAll/HideAllEntities reg 3-cycles, AddItemToInv/
+//   RemoveItemFromInv &&-chain load/test interleave, case-0 OR-schedule slot, init-store order.
+//   KEY CRACKS: toupper(c) NOT _toupper (ctype.h macro = sub 0x20; orig CALLS the CRT function);
+//   (short)(expr<<5) casts materialize 16-bit shl — route short args through int temps; ShowObject
+//   needs a GetSize() temp; SayText scope order msg/name/head + Left/Right retbuf temps drive the
+//   EH funclet layout (matched).]
+// The IACT command executor: runs every command of iactScripts[scriptIdx] and returns the
+// dirty-flags mask (0x1=sound 0x2=text 0x4=camera 0x8=spawn 0x10=objects 0x20=tiles 0x40=entities
+// 0x80=full-redraw 0x100=player 0x200=game-over 0x400=inventory 0x800=zone-warp). SayText/ShowText
+// substitute the current quest items' tile names for the \xa2/\xa5 placeholders, fixing the
+// "a"->"an" article when the name starts with a vowel.
+unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld, GameView *pView)
+{
+    unsigned int result;
+    int          dispX;      // MoveCamera: cell to redraw behind the camera step
+    int          dispY;
+    int          n;          // SetPlayerPos scan target / MoveCamera camera-cell y
+    IactScript  *pScript;
+    int          targetX;    // MoveCamera destination
+    int          targetY;
+    int          camCellY;   // camera cell at entry (ReleaseCamera/LockCamera redraw)
+    int          camCellX;
+    int          doneOnce;   // set by CMD_FlagOnce -> doneFlag at exit
+    int          nCmds;
+    int          i;
+    int          arrived;
+    int          bCameraFree;
+    int          textX;      // SayText/ShowText dialog position
+    int          textY;
+
+    result = 0;
+    camCellX = pWorld->cameraX / 0x20;
+    bCameraFree = 1;
+    doneOnce = 0;
+    camCellY = pWorld->cameraY / 0x20;
+    pScript = (IactScript *)iactScripts[scriptIdx];
+    nCmds = pScript->commands.GetSize();
+    for (i = 0; i < nCmds; i++) {
+        IactCommand *pCmd = (IactCommand *)pScript->commands[i];
+        int op = pCmd->opcode;
+        switch (op) {
+        case CMD_SetMapTile:
+        case CMD_SetMapTileVar:
+            result |= 0x20;
+            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = (short)pCmd->args[3];
+            break;
+        case CMD_ClearTile:
+            result |= 0x20;
+            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
+            break;
+        case CMD_MoveMapTile: {
+            short t = tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]];
+            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
+            result |= 0x20;
+            tiles[(pCmd->args[4] * 18 + pCmd->args[3]) * 3 + pCmd->args[2]] = t;
+            break; }
+        case CMD_DrawOverlayTile:
+            if (pWorld->tileArray[pCmd->args[2]] != NULL) {
+                int x = pCmd->args[0] << 5;
+                int y = pCmd->args[1] << 5;
+                pWorld->pCanvas->BlitMasked((char *)pWorld->tileArray[pCmd->args[2]]->pixels,
+                                            0x20, 0x20, (short)x, (short)y, 0);
+                result |= 0x20;
+            }
+            break;
+        case CMD_SayText:
+        case CMD_ShowText:
+            if (pWorld->abortFrame == 0) {
+                if (op == CMD_SayText) {
+                    textX = pWorld->cameraX + 0x10;
+                    textY = pWorld->cameraY + 0x10;
+                } else if (op == CMD_ShowText) {
+                    textX = pCmd->args[0] * 0x20 + 0x10;
+                    textY = pCmd->args[1] * 0x20 + 0x10;
+                }
+                CString msg;
+                msg = pCmd->text;
+                int pos = msg.FindOneOf("\xa2");
+                if (pos >= 0) {
+                    short item = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
+                    if (item >= 0) {
+                        CString name(pWorld->tileArray[item]->name);
+                        CString head = msg.Left(pos);
+                        char c = name[0];
+                        if (c >= 'A')
+                            c = (char)toupper(c);
+                        if ((c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
+                            && (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
+                            head.SetAt(pos - 1, 'n');
+                            head += " ";
+                        }
+                        head += name;
+                        head += msg.Right(msg.GetLength() - pos - 1);
+                        msg = head;
+                    }
+                }
+                pos = msg.FindOneOf("\xa5");
+                if (pos >= 0) {
+                    short item = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+                    if (item >= 0) {
+                        CString name(pWorld->tileArray[item]->name);
+                        CString head = msg.Left(pos);
+                        char c = name[0];
+                        if (c >= 'A')
+                            c = (char)toupper(c);
+                        if ((c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
+                            && (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
+                            head.SetAt(pos - 1, 'n');
+                            head += " ";
+                        }
+                        head += name;
+                        head += msg.Right(msg.GetLength() - pos - 1);
+                        msg = head;
+                    }
+                }
+                pView->ShowTextDialog(&msg, textX, textY, 0);
+                result |= 2;
+            }
+            break;
+        case CMD_RedrawTile:
+            pView->DrawZoneCell((short)pCmd->args[0], (short)pCmd->args[1]);
+            pWorld->DrawPlayer();
+            break;
+        case CMD_RedrawTiles:
+            pView->DrawZoneCellRect(pCmd->args[0], pCmd->args[1], pCmd->args[2], pCmd->args[3]);
+            pWorld->DrawPlayer();
+            break;
+        case CMD_RenderChanges:
+            pView->DrawGameArea(pDC);
+            result |= 0x80;
+            break;
+        case CMD_WaitTicks: {
+            long t = clock();
+            long end = pCmd->args[0] * 100 + t;
+            while (end > t)
+                t = clock();
+            break; }
+        case CMD_PlaySound:
+            if (pView != NULL) {
+                pView->PlaySound(pCmd->args[0]);
+                result |= 1;
+            }
+            break;
+        case CMD_TransitionIn:
+            result |= 1;
+            break;
+        case CMD_Random:
+            randVar = rand() % pCmd->args[0] + 1;
+            break;
+        case CMD_SetTempVar:
+            tempVar = pCmd->args[0];
+            break;
+        case CMD_AddTempVar:
+            tempVar += pCmd->args[0];
+            break;
+        case CMD_ReleaseCamera:
+            pWorld->bHidePlayer = 1;
+            pView->RedrawPlayerCellMaybe();
+            pView->DrawZoneCell((short)camCellX, (short)camCellY);
+            result |= 0x100;
+            break;
+        case CMD_LockCamera:
+            pWorld->bHidePlayer = 0;
+            pView->RedrawPlayerCellMaybe();
+            pView->DrawZoneCell((short)camCellX, (short)camCellY);
+            pWorld->DrawPlayer();
+            result |= 0x100;
+            break;
+        case CMD_SetPlayerPos:
+            pView->DrawZoneCell((short)(pWorld->cameraX / 0x20), (short)(pWorld->cameraY / 0x20));
+            pWorld->cameraX = pCmd->args[0] << 5;
+            pWorld->cameraY = pCmd->args[1] << 5;
+            camCellX = pCmd->args[0];
+            camCellY = pCmd->args[1];
+            if (pView->bIactZoneEntryMaybe == 0)
+                pWorld->DrawPlayer();
+            if (pWorld->bHidePlayer != 0) {
+                int j = 0;
+                int nObjs = objects.GetSize();
+                if (nObjs > 0) {
+                    n = pCmd->args[0];
+                    do {
+                        ZoneObj *obj = (ZoneObj *)objects[j];
+                        if (obj->x == n && obj->y == pCmd->args[1]) {
+                            bCameraFree = 0;
+                            break;
+                        }
+                        j++;
+                    } while (j < nObjs);
+                }
+            }
+            if (bCameraFree != 0)
+                pWorld->UpdateCamera();
+            result |= 4;
+            if (pView->bIactZoneEntryMaybe != 0)
+                return result;
+            break;
+        case CMD_MoveCamera: {
+            targetX = pCmd->args[2];
+            targetY = pCmd->args[3];
+            arrived = 0;
+            int cx = pCmd->args[0];
+            if (cx == -1)
+                cx = pWorld->cameraX / 0x20;
+            dispX = cx;
+            n = pCmd->args[1];
+            if (n == -1)
+                n = pWorld->cameraY / 0x20;
+            dispY = n;
+            do {
+                if (targetX == cx && targetY == n) {
+                    arrived++;
+                } else {
+                    if (targetY != n) {
+                        int step = -1;
+                        if (targetY - n >= 0)
+                            step = 1;
+                        dispY = n;
+                        n += step;
+                        pWorld->cameraY = n * 0x20;
+                    }
+                    if (targetX != cx) {
+                        int step = -1;
+                        if (targetX - cx >= 0)
+                            step = 1;
+                        dispX = cx;
+                        cx += step;
+                        pWorld->cameraX = cx * 0x20;
+                    }
+                    pView->DrawZoneCell((short)dispX, (short)dispY);
+                    pWorld->UpdateCamera();
+                    pWorld->DrawPlayer();
+                    pView->DrawGameArea(pDC);
+                    long t = clock();
+                    long end = pCmd->args[4] * 100 + t;
+                    while (end > t)
+                        t = clock();
+                }
+                result |= 4;
+            } while (arrived == 0);
+            pView->DrawGameArea(pDC);
+            break; }
+        case CMD_FlagOnce:
+            doneOnce = 1;
+            break;
+        case CMD_ShowObject: {
+            int t = pCmd->args[0];
+            int nObjs = objects.GetSize();
+            if (t >= 0 && nObjs > t)
+                ((ZoneObj *)objects[t])->state = 1;
+            result |= 0x10;
+            break; }
+        case CMD_HideObject: {
+            int t = pCmd->args[0];
+            int nObjs = objects.GetSize();
+            if (t >= 0 && nObjs > t) {
+                result |= 0x10;
+                ((ZoneObj *)objects[t])->state = 0;
+            }
+            break; }
+        case CMD_ShowEntity: {
+            MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
+            if (p != NULL) {
+                p->active = 1;
+                result |= 0x40;
+            }
+            break; }
+        case CMD_HideEntity: {
+            MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
+            if (p != NULL) {
+                p->active = 0;
+                result |= 0x40;
+            }
+            break; }
+        case CMD_ShowAllEntities: {
+            int nEnts = entities.GetSize();
+            for (int j = 0; j < nEnts; j++) {
+                MapEntity *p = (MapEntity *)entities[j];
+                if (p != NULL) {
+                    result |= 0x40;
+                    p->active = 1;
+                }
+            }
+            break; }
+        case CMD_HideAllEntities: {
+            int nEnts = entities.GetSize();
+            for (int j = 0; j < nEnts; j++) {
+                MapEntity *p = (MapEntity *)entities[j];
+                if (p != NULL)
+                    p->active = 0;
+            }
+            result |= 0x40;
+            break; }
+        case CMD_SpawnItem:
+            if (pWorld != NULL && pView != NULL) {
+                pView->nPickupX = pCmd->args[1];
+                pView->nPickupY = pCmd->args[2];
+                if (pCmd->args[0] < 0) {
+                    int t = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+                    pView->nPickupTileId = t;
+                    if (t < 0)
+                        break;
+                } else {
+                    pView->nPickupTileId = pCmd->args[0];
+                }
+                result |= 8;
+                pView->pPickupObj = NULL;
+                pView->nTransitionStep = 0;
+                pView->bBlinkState = 0;
+                pWorld->nFrameMode = 9;
+            }
+            break;
+        case CMD_AddItemToInv:
+            if (pWorld != NULL && pCmd->args[0] >= 0 && pView != NULL) {
+                pView->AddItemToInv(pWorld->tileArray[pCmd->args[0]]);
+                result |= 0x400;
+            }
+            break;
+        case CMD_RemoveItemFromInv:
+            if (pWorld != NULL) {
+                if (pCmd->args[0] >= 0) {
+                    if (pView != NULL) {
+                        pView->RemoveItem(pWorld->tileArray[pCmd->args[0]]);
+                        result |= 0x400;
+                    }
+                } else {
+                    short item = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
+                    if (item >= 0 && pWorld->tileArray[item] != NULL) {
+                        pView->RemoveItem(pWorld->tileArray[item]);
+                        result |= 0x400;
+                    }
+                }
+            }
+            break;
+        case CMD_MarkZoneSolved:
+            pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagA = 1;
+            pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagB = 1;
+            pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagC = 1;
+            pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagD = 1;
+            break;
+        case CMD_WinGame:
+            if (pWorld != NULL) {
+                result |= 0x200;
+                pWorld->abortFrame = 1;
+            }
+            break;
+        case CMD_LoseGame:
+            if (pView != NULL) {
+                pView->AddHealth(-300);
+                if (pWorld != NULL) {
+                    result |= 0x200;
+                    pWorld->abortFrame = -1;
+                }
+            }
+            break;
+        case CMD_WarpToMap:
+            pWorld->cameraX = pCmd->args[1] << 5;
+            pWorld->cameraY = pCmd->args[2] << 5;
+            pView->nTargetZoneId = pCmd->args[0];
+            pView->TransitionZoneScript(pCmd->args[3], pCmd->args[0]);
+            result |= 0x800;
+            break;
+        case CMD_SetGlobalVar:
+            globalVar = (short)pCmd->args[0];
+            break;
+        case CMD_AddGlobalVar:
+            globalVar += (short)pCmd->args[0];
+            break;
+        case CMD_SetRandVar:
+            randVar = pCmd->args[0];
+            break;
+        case CMD_AddHealth:
+            pView->AddHealth(pCmd->args[0]);
+            break;
+        }
+    }
+    if (doneOnce == 1)
+        pScript->doneFlag = 1;
+    return result;
+}

@@ -754,7 +754,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
     nFrameMode = 7;
     nCurrentAmmo = 0;
     POSITION pos = GetFirstViewPosition();
-    GameViewStub *v = (GameViewStub *)GetNextView(pos);
+    GameView *v = (GameView *)GetNextView(pos);
     if (v != 0) {
         for (int i = 0; i < 5; i++) {
             v->OnWalk(0x5d, (short)i);
@@ -763,7 +763,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
                 ;
         }
         nFrameMode = 0;
-        v->unk118 = 0;
+        v->nTransitionStep = 0;
         v->SoundFlush();
         v->PlayerMove(0x3a);
     }

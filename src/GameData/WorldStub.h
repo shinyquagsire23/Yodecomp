@@ -20,20 +20,49 @@ public:
                     short destX, short destY, char key);                   // 0x00408240
 };
 
-// GameView stub: fields/methods StartGame touches.
-class GameViewStub
+// Inventory entry (World.inventory CObArray element): CObject wrapper holding the item's Tile.
+class InvItem : public CObject
+{
+public:
+    Tile *pTile;                     // +0x04
+};
+
+// GameView stub: fields/methods the doc-side TUs (GameData, Iact) touch. sizeof == 0x310.
+class GameView
 {
 public:
     char _pad00[0x4c];               // +0x000
     int  bBusy;                      // +0x04c
-    char _pad50[0xc4];               // +0x050
+    char _pad50[0x30];               // +0x050
+    int  bIactZoneEntryMaybe;        // +0x080  set during scripted zone entry
+    char _pad84[0x10];               // +0x084
+    int  bBlinkState;                // +0x094
+    char _pad98[0x6c];               // +0x098
+    int  nPickupX;                   // +0x104
+    int  nPickupY;                   // +0x108
+    int  nPickupTileId;              // +0x10c
+    ZoneObj *pPickupObj;             // +0x110
     int  nTargetZoneId;              // +0x114
-    int  unk118;                     // +0x118
+    int  nTransitionStep;            // +0x118
+    char _pad11c[0x1d8];             // +0x11c
+    int  bSuppressWalkSound;         // +0x2f4
+    char _pad2f8[0x18];              // +0x2f8
 
     void OnWalk(int cmd, short n);                   // 0x00409510-ish (walk-in anim step)
     void SoundFlush();                               // sound queue flush
     void PlayerMove(int n);                          // 0x00409060
-    void DrawGameArea(CDC *pDC);                     // full redraw
+    void DrawGameArea(CDC *pDC);                     // 0x0040a200 full redraw
+    // Iact interpreter callees:
+    int  DrawTileAt(short x, short y, short frame);  // 0x0040a3a0
+    void DrawZoneCell(short x, short y);             // 0x00409460
+    void DrawZoneCellRect(int x0, int y0, int x1, int y1); // 0x004095d0
+    void RedrawPlayerCellMaybe();                    // 0x00413dd0
+    int  ShowTextDialog(CString *pText, int x, int y, int a4); // 0x00427310
+    void PlaySound(int nSound);                      // 0x00409060
+    void AddItemToInv(Tile *pTile);                  // 0x00428f50
+    void RemoveItem(Tile *pTile);                    // 0x00429150
+    void AddHealth(int n);                           // 0x00427690
+    int  TransitionZoneScript(int a1, int nZoneId);  // 0x0040e750
 };
 
 // A 10x10 world-map grid cell (0x34 bytes).
@@ -119,7 +148,9 @@ public:
     short       startItem2;              // +0x2e3a
     int         currentPlanet;           // +0x2e3c
     int         bStartingGame;           // +0x2e40
-    char        _pad2e44[0xc];           // +0x2e44
+    int         unk2e44;                 // +0x2e44
+    int         nWeaponHitXMaybe;        // +0x2e48  last weapon-hit cell (written by
+    int         nWeaponHitYMaybe;        // +0x2e4c  GameView::FireWeaponStep; blinked by IactRun)
     int         goalItemTileId;          // +0x2e50
     int         bHidePlayer;             // +0x2e54
     char        _pad2e58[8];             // +0x2e58
@@ -163,7 +194,7 @@ public:
     Tile       *pPlayerFrameTile;        // +0x3358
     Character  *pPlayerChar;             // +0x335c
     char        _pad3360[0x14];          // +0x3360
-    int         equippedItem;            // +0x3374
+    Tile       *pEquippedItem;           // +0x3374
     int         unk3378;                 // +0x3378
     int         bWorldInvalid;           // +0x337c
     char        _pad3380[0x20];          // +0x3380  worldgen cell scratch
@@ -222,6 +253,9 @@ public:
     Tile *GetTileData(int idx);                           // 0x00403a40
     Zone *GetZoneById(short id);                      // 0x00403a70
     int  FindTile(void *pTile);                           // 0x00403aa0
+    // Iact interpreter callees (doc TU):
+    int  EnterZone(Zone *pZone);                          // 0x00423dc0  returns zone id
+    void DrawPlayer();                                    // 0x0041a6d0
 };
 
 

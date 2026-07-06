@@ -166,6 +166,10 @@ public:                              // +0x00 = CObject vtable
     void           ReadZax3(CFile *pFile);                               // 0x00406490 (Iact .obj)
     void           ReadZax4(CFile *pFile);                               // 0x00406510 (Iact .obj, this unused)
     int            IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce); // 0x00406550 (Iact .obj)
+    int            IactRun(int event, int x, int y, int dx, int dy, int a5,
+                           CDC *pDC, World *pWorld, GameView *pView);              // 0x00406780 (Iact .obj)
+    unsigned int   IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld,
+                                   GameView *pView);                               // 0x004070e0 (Iact .obj)
 };
 
 #endif

@@ -316,7 +316,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | 4/6 exact; CalcTimeScore unstarted, CalcSolvedScore x87 park |
 | **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE 07-06: 11/27 exact (src/GameData/), rest effective/PHASE-DISPLACED; BQP +9B |
 | **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
-| Iact (`.obj`: Zone readers + IACT) | 0x405ae0–0x407de0 | ~9 KB | named, IactScript struct modeled; RunCommands = 3 KB switch |
+| **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE 07-06: all 10 funcs transcribed, 88% insn-identical; 2 exact + 8 annotated tie-break residuals |
 | **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 8/11 + 3 eff. (parked) |
 | Small MFC classes (Frame/Dlg/InvScrollBar/TextDialog/…) | scattered | ~8 KB | RE'd; MFC-source-assisted |
 | Core utils | 0x408c60–0x40a560 | 6.5 KB | shared leaf helpers — high piecemeal match odds |
@@ -429,42 +429,54 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 late — Phase B ~60% done; finish the Iact interpreters)
-**Progress 7.84%** (per-name; ea95e8c). This session: Phase A closed (84fa8f4) → **src/IactScript
-TU 11/12 exact** (6177ad1, incl. IactScript::Read 572B w/ funclets) → **src/Iact TU: 7 mechanical
-readers structurally converged** (b11137e: ReadZax4 + ReadIzon-at-times exact; saved-state pair
-DIFF(12)/DIFF(20); ReadZaux -6B, Zax2/3 -3B) → IactProbeMove transcribed, control flow proven
-(ea95e8c, +26B allocator contest). Ghidra: IactScript funclets named, Iact_szCmdTextBuf@0x459558
-labeled, World::FindAdjacentGateDirMaybe/GetGridOrderMaybe backported (SAVED).
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v2 — Phase B DONE; next: asmscore funclet fix + Phase C)
+**Progress ~7.3% byte-exact** (per-name; positional progress.py undercounts the Iact clones).
+**Phase B is COMPLETE**: src/Iact TU = all 10 functions transcribed; whole-TU instruction identity
+88% (2311/2626). Per-name: ReadIzon + ReadZax4 MATCH; the other 8 are structurally converged with
+annotated tie-break residuals (see each function's header comment in src/Iact/Iact.cpp). The two
+interpreters (IactRun 569/569 insns 90% identical; IactRunCommands 849 main-body insns 87%) carry
+ONLY reg-rename/cmp-direction/schedule/slot tie-breaks — no length drift, no structural gaps.
 
-**NEXT: transcribe the last two Iact functions (fresh context recommended — big switches):**
-1. **Zone::IactRun (0x406780, 2255B)** — condition-opcode evaluator; and **Zone::IactRunCommands
-   (0x4070e0, 3039B + 7 named eh funclets)** — command executor. `scrdoc.txt` in
-   ~/workspace/DesktopAdventures = the opcode bible; IactScriptClasses.h has the record types.
-   They likely need World/GameView stub decls (check their decompiles for cross-TU calls first).
-   Append to src/Iact/Iact.cpp in .text order. The Iact .obj ends at 0x407cf4 (FUN_00407d90/dc0
-   are combobox helpers of the NEXT dialog TU — not ours).
-2. **Then re-verify the whole Iact TU**: today's evidence says the parked residuals rotate with
-   TU growth — ReadIzon's DIFF(7) 2-cycle flipped to MATCH when IactProbeMove was added (and back
-   out when its header decl landed — pure dial). Open item: the **mov-ax/movsx count-load form**
-   (+3B/site in ReadZaux/Zax2/Zax3) — all source probes copy-prop to direct movsx; suspected
-   phase/instruction-selection, re-test at TU completion. IactProbeMove's +26B found-vs-r EBP
-   contest likewise.
-3. **asmscore/permute funclet fix** before any further permuter run: split candidate + original at
-   funclet boundaries (first ret), mask relocs per-instruction per-side (offsets diverge once
-   lengths shift).
-4. Then Phase C warm-up sweep (Core utils/Settings/Logging + parked World scorers) per the roadmap.
+**Interpreter-session cracks (fold into your matching instincts):**
+- **Duplicated epilogue = two `return` statements in source.** IactRun's tail `if ((result &
+  0x808) == 0) { pWorld->nFrameMode = saved; return result; } return result;` — and adding the
+  second return ALSO fixed a {result,itemB,nScripts} slot 3-cycle: **frame-slot order is
+  usage-count-driven, NOT decl-order-driven** (decl permutations proven inert twice; changing a
+  var's use count re-ranks its slot). The permuter's decl mode cannot crack slot cycles.
+- **`toupper(c)` vs `_toupper(c)`:** ctype.h's `_toupper` is the blind `- 0x20` MACRO (inlines);
+  the original CALLS the CRT `toupper` function (COFF `_toupper` = Ghidra's name). Trap cost 5
+  insns/site in SayText.
+- **Never cast an EXPRESSION to short at a short-param call site** — `(short)(x << 5)` emits a
+  16-bit `shl ax` (66-prefix); the original routes through int temps (`int x = args[0] << 5;`)
+  and pushes the dword (no truncation op). Casting a plain int LVALUE is harmless.
+- **In-condition assignment forces CSE:** BumpTile's `pCond->args[1] != (ty = y + dy)` forces the
+  add-form compare AND reuses ty in the tile index (matching orig); the bare sum gets canonicalized
+  to sub-form `(args-dy) != y`, killing the CSE (+2 insns).
+- **Original engine bug reproduced:** COND_CheckCellItems' second inventory scan reuses the SCRIPT
+  loop index (`for (idx = 0; idx < nInv; idx++)`) — visible as init-store + **final-value
+  replacement** (`mov [idx],nInv` before a countdown loop). After that condition, script iteration
+  restarts from nInv+1. Faithfully transcribed; the loop-variable-reuse + final-value-store pattern
+  is a fingerprint worth recognizing elsewhere.
+- IACT semantics: event codes 1=walk-step 2=BumpTile 3=DragItem 4=enter-zone 5=enter-vehicle;
+  RunCommands returns dirty-flag mask (0x20=tiles 0x800=warp ...); 0x456104="\xa5"/0x45610c=
+  "\xa2" are the item-name placeholders; World+0x2e48/4c = nWeaponHit{X,Y}Maybe (FireWeaponStep
+  writes; backported to Ghidra+WorldStub). IactCondOp/IactCmdOp enums now in IactScriptClasses.h.
+- WorldStub.h grew the full GameView stub (renamed from GameViewStub; fields to 0x2f4) + InvItem
+  (CObject + Tile* @4) + World::EnterZone/DrawPlayer + pEquippedItem (was int equippedItem).
+  Zone gained IactRun/IactRunCommands decls in RecordClasses.h. **Dial rotations from these header
+  changes:** Records 26/33 (was 25 at session start), GameData 11/27 per-name (stable), IactScript
+  11/12 (stable), Iact's ReadIzon flipped back to MATCH, IactProbeMove's EBP contest spread
+  (52% identity — same parked class, structure proven).
 
-**Session lessons already folded into permanent sections; quick pointers:** the MFC allocation-
-guard idiom `TRY { p = new X; } CATCH (CMemoryException, e) { AfxMessageBox(0xe01e); AfxAbort(); }
-END_CATCH` is what makes new-loop funclets + ~AFX_EXCEPTION_LINK inlining match (bare END_TRY
-emits an out-of-line ??1AFX_EXCEPTION_LINK COMDAT — verify.py now filters it as lib code); tile
-rows are INDEXED (`&tiles[i*54]` — a source pointer-walk hoists the walker above the loop entry
-test, indexed form lands it in the preheader); no `if (n>0)` wrapper around for-loops whose entry
-test IS the guard (cmp n vs zeroed counter reg); guarded do-while for the word-list loops;
-genCandidateA/B are CWordArray (ReadZax2/3 proof — Phase-D question ANSWERED); Zone._pad83c is
-really zoneUnk83c/zoneUnk840 ints. Every RecordClasses.h decl addition rotates GameData/Records
-matches (dial) — do NOT chase, judge at TU completion.
+**NEXT, in order:**
+1. **asmscore/permute funclet fix** (blocks all permuter runs on EH functions): split candidate +
+   original at funclet boundaries (first ret), mask relocs per-instruction per-side.
+2. **Phase C warm-up sweep** (roadmap): Core utils (0x408c60–0x40a560) + Settings + Logging +
+   the two parked World scorers (CalcTimeScore needs time/__ftol externs). Small, string-anchored,
+   high exact-rate.
+3. Optional cheap win first: a fresh-context TU-phase pass over src/Iact — the residual families
+   (mov-ax/movsx form, EBP contests, cmp directions) may share one phase knob; try function-order/
+   header-decl-order perturbations JOINTLY across the TU before grinding Phase C.
 
 ### ⏭ PREVIOUS PICKUP (2026-07-05, late-night — still-valid facts below)
 **GameData CU effectively DONE except BuildQuestPath** (decomp cached at $CLAUDE_JOB_DIR/tmp/questpath.c
