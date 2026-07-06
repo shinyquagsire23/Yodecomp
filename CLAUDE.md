@@ -270,6 +270,31 @@ The two monsters (GameView ~57 KB + World ~52 KB) are ~85 % of the remaining byt
 them is deliberately sequenced to FILL THEIR STRUCTS as a side effect, so the monsters become
 transcription rather than research.
 
+### Struct status board (audited 2026-07-05 — regen with the run_script_inline coverage dump)
+Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…Maybe.
+
+| struct | size | cover | unk | state / phase to finish |
+|---|---|---|---|---|
+| Zone / ZoneObj / Tile / Canvas | 0x848/0x10/0x40c/0x43c | 100 % | 0 | ✅ done (byte-match-proven) |
+| MapEntity | 0x64 | 96 % | 5 | ✅ good; unk10/18/20/2c/60 have no readers found (runtime-only scratch?) |
+| Puzzle | 0x2c | 95 % | 3 | ✅ good; unk2/unk3/unk14 parse-only (unknown in DA too) |
+| Character | 0x4c | 94 % | 3 | ✅ good; unk40/unk44 parse-only, unk48 tail pad |
+| CObArray family / CDWordArray / BITMAPINFO256 | 0x14/0x428 | 100 % | 0 | ✅ modeling helpers |
+| **World** | **0x33c0** | **42 %** | 12 | ⚠ the big one — asset half being filled by the Phase-A GameData sweep NOW; script/frame-mode fields in Phase B; worldgen/save fields in Phase D. Strategy: never grind it in the abstract — each TU match pulls its fields in. |
+| **GameView** | **0x310** | **31 %** | 19 | ⚠ second big one — cursor/paint fields mapped this week; the rest is Phase-E prep (entity-loop, inventory, dialog fields). 19 Maybe-fields to confirm. |
+| MapZone (10×10 grid cell) | 0x34 | 73 % | 5 | Phase D (worldgen semantics decide the 5 unks) |
+| IactScript | 0x30 | 41 % | 0 | Phase B blocker — model before Iact TU matching |
+| IactCondition / IactCommand | 0x1c/0x20 | 85–87 % | 0 | Phase B — near done, verify against scrdoc.txt opcode table |
+| InvScrollBar | 0x44 | 17 % | 0 | Phase E/F (MFC CScrollBar-derived — model like Records did with CObject) |
+| TextDialog | 0xc8 | 4 % | 0 | Phase E/F (MFC CDialog-derived) |
+| CFile (stub) | 0x40 | 6 % | 0 | intentional — DB stub only pins Read@vtbl+0x3c; real MFC used at compile time |
+
+**Classes with methods but NO struct yet (void\* this)** — modeling TODOs: `Frame` (CFrameWnd-derived,
+21 funcs), `App` (CWinApp-derived, 57), `Dlg` (dialogs), `InvScrollBar`/`TextDialog` bodies beyond the
+thin structs, plus the module namespaces that may be free-function TUs (`Settings`, `Log`, `Render`,
+`Iact`, `GameData` — Phase-A agent is settling whether GameData is a class or World methods + free funcs).
+MFC-derived modeling recipe proven in src/Records: real base class + real members ⇒ ctor/dtor codegen free.
+
 ### Phase plan
 - **A — GameData CU (NOW).** The `.dta` chunk handlers + asset accessors write `World` fields directly
   (tile/zone/character/sound/puzzle arrays @ +0x80..+0xc0 region, name lists, counts). Matching it
