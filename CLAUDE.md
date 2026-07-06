@@ -429,29 +429,42 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 — GameData CLOSED, start Phase B)
-**Phase A (GameData CU) is COMMITTED & CLOSED** (commit after d5925d8 = this session's wrap-up).
-State: 11/27 exact per-NAME (verify.py prints 14 — its positional pairing over-credits the clone
-families); progress.py **7.02%**. Residuals all annotated in-source (EFFECTIVE MATCH or
-PHASE-DISPLACED); BuildQuestPath +9B/8 loci, cracks documented at its marker in GameData.cpp.
-Ghidra backport done: `World::FindAdjacentGateDirMaybe` (0x419f60) + `World::GetGridOrderMaybe`
-(0x421e50) both __thiscall/this=World* (members with UNUSED this — the ORIGINAL reloads ECX at
-every call site, which is how the member-call form was proven); `BuildQuestPathMaybe(short*
-paGrid, short* paOrder)`. The TU-phase dial + verification traps are folded into "Standing rules".
-Current dial in WorldStub.h = 4 real decls (UpdateScore/GetZoneCell/CalcTimeScore/
-RestoreGridFromBackup) + note.
+### ⏭ NEXT SESSION PICKUP (2026-07-06 late — Phase B ~60% done; finish the Iact interpreters)
+**Progress 7.84%** (per-name; ea95e8c). This session: Phase A closed (84fa8f4) → **src/IactScript
+TU 11/12 exact** (6177ad1, incl. IactScript::Read 572B w/ funclets) → **src/Iact TU: 7 mechanical
+readers structurally converged** (b11137e: ReadZax4 + ReadIzon-at-times exact; saved-state pair
+DIFF(12)/DIFF(20); ReadZaux -6B, Zax2/3 -3B) → IactProbeMove transcribed, control flow proven
+(ea95e8c, +26B allocator contest). Ghidra: IactScript funclets named, Iact_szCmdTextBuf@0x459558
+labeled, World::FindAdjacentGateDirMaybe/GetGridOrderMaybe backported (SAVED).
 
-**NEXT (in order):**
-1. **Phase B — Iact TU** (0x405ae0–0x407de0, ~9 KB): Zone deserializers (Iact::ReadZaux/Zax2/3/4)
-   + the RunCommands interpreter (3 KB mechanical switch; `scrdoc.txt` in
-   ~/workspace/DesktopAdventures = opcode bible). Quick-win warm-up inside the phase: the
-   Iact-script record TU (0x418700–0x418dd0) is a Records-clone (IactScript/IactCondition/
-   IactCommand, structs 100% modeled) — likely near-free match with the src/Records recipe.
-   Remember lesson #7: ParseZaux-family needs the FULL TU present.
-2. **asmscore/permute funclet fix** before any further permuter run: split candidate + original at
+**NEXT: transcribe the last two Iact functions (fresh context recommended — big switches):**
+1. **Zone::IactRun (0x406780, 2255B)** — condition-opcode evaluator; and **Zone::IactRunCommands
+   (0x4070e0, 3039B + 7 named eh funclets)** — command executor. `scrdoc.txt` in
+   ~/workspace/DesktopAdventures = the opcode bible; IactScriptClasses.h has the record types.
+   They likely need World/GameView stub decls (check their decompiles for cross-TU calls first).
+   Append to src/Iact/Iact.cpp in .text order. The Iact .obj ends at 0x407cf4 (FUN_00407d90/dc0
+   are combobox helpers of the NEXT dialog TU — not ours).
+2. **Then re-verify the whole Iact TU**: today's evidence says the parked residuals rotate with
+   TU growth — ReadIzon's DIFF(7) 2-cycle flipped to MATCH when IactProbeMove was added (and back
+   out when its header decl landed — pure dial). Open item: the **mov-ax/movsx count-load form**
+   (+3B/site in ReadZaux/Zax2/Zax3) — all source probes copy-prop to direct movsx; suspected
+   phase/instruction-selection, re-test at TU completion. IactProbeMove's +26B found-vs-r EBP
+   contest likewise.
+3. **asmscore/permute funclet fix** before any further permuter run: split candidate + original at
    funclet boundaries (first ret), mask relocs per-instruction per-side (offsets diverge once
    lengths shift).
-3. Phase C warm-up sweep (Core utils/Settings/Logging + parked World scorers) per the roadmap.
+4. Then Phase C warm-up sweep (Core utils/Settings/Logging + parked World scorers) per the roadmap.
+
+**Session lessons already folded into permanent sections; quick pointers:** the MFC allocation-
+guard idiom `TRY { p = new X; } CATCH (CMemoryException, e) { AfxMessageBox(0xe01e); AfxAbort(); }
+END_CATCH` is what makes new-loop funclets + ~AFX_EXCEPTION_LINK inlining match (bare END_TRY
+emits an out-of-line ??1AFX_EXCEPTION_LINK COMDAT — verify.py now filters it as lib code); tile
+rows are INDEXED (`&tiles[i*54]` — a source pointer-walk hoists the walker above the loop entry
+test, indexed form lands it in the preheader); no `if (n>0)` wrapper around for-loops whose entry
+test IS the guard (cmp n vs zeroed counter reg); guarded do-while for the word-list loops;
+genCandidateA/B are CWordArray (ReadZax2/3 proof — Phase-D question ANSWERED); Zone._pad83c is
+really zoneUnk83c/zoneUnk840 ints. Every RecordClasses.h decl addition rotates GameData/Records
+matches (dial) — do NOT chase, judge at TU completion.
 
 ### ⏭ PREVIOUS PICKUP (2026-07-05, late-night — still-valid facts below)
 **GameData CU effectively DONE except BuildQuestPath** (decomp cached at $CLAUDE_JOB_DIR/tmp/questpath.c
