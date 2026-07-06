@@ -304,11 +304,23 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   block-sinking family (accept copies + retry sunk past the switch) + slot rotation.
 - New fields: worldSize@0x3328 (teleporter min-distance tier), genSkipTeleCheckMaybe@0x2e64.
   New decls: PlaceQuestNode (7-arg, 0x41f120), WorldgenPlacePuzzles, PlacePuzzle.
-**NEXT:** placer family 0x41c580-0x41d660 (leaves — likely high exact yield), CarveQuestPath
-0x41d940, PlaceBlockades 0x41e350, SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120 (the 2KB
-hub — signature already declared), Generate 0x41f960, save/load monsters, then the GameView
-methods. Ghidra renames pending (YodaDemo ACTIVE): EnterZone→GetZoneIndex, 0x32d4 quad→view
-rect, 0x41c340→~CFileException, Log_Write→CTheApp::LogWrite, 0x421930 field names.
+**Placer family progress (v9 late): 4/9 transcribed, all EFFECTIVE ~20-90B**
+(FillQuestItemSpot 0x41c580, FillSpawn 0x41c730 — clone pair; FillQuestItemSpot2Maybe
+0x41cf10; PlaceItemOnLock 0x41cdc0). Family recipes: local CWordArray spot-list + rand-pick
+`objects.GetAt(paSpots.GetAt(rand() % n))`; DOOR_IN (type 9) recursion tail-loops; guard+
+do-while up-count loops (NOT countdowns — calls inside); `if (zoneId < 0) return 0;` early
+form. ⭐ **PlaceItemOnLock crack: `int nResult = 0` lives in EAX END-TO-END** — entry
+xor eax,eax, `nResult = 1` in the lock arm, `(nResult = recurse(...)) == 1` in-condition,
+final `return nResult` costs ZERO bytes. VC4.2 hard-errors C2561/C2202 on missing returns —
+a "void-looking" original with a tested result ALWAYS has an EAX-resident result var.
+Its sel!=0 arm (cobArray5) is the fall-through.
+**NEXT:** remaining 5 placers — PopulateGoalZone 0x41c8f0 (752B), PlaceUsefulDropChainMaybe
+0x41cbe0, PlaceItemForLockChainMaybe 0x41d0c0, PlaceUsefulObjectMaybe 0x41d260,
+AssignTransitItemMaybe 0x41d480; then CarveQuestPath 0x41d940, PlaceBlockades 0x41e350,
+SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120 (2KB hub, signature declared), Generate
+0x41f960, save/load monsters, then the GameView methods. Ghidra renames pending (YodaDemo
+ACTIVE): EnterZone→GetZoneIndex, 0x32d4 quad→view rect, 0x41c340→~CFileException,
+Log_Write→CTheApp::LogWrite, 0x421930 field names.
 
 ### ⏮ PRIOR (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
 **Progress 13.85% byte-exact (was 13.52% at v7).** v8 delta on top of the v7 block below:

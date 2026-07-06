@@ -131,6 +131,319 @@ int World::ZoneFindInIzxList(short zoneId, short itemId, int sel)
     return result;
 }
 
+// FUNCTION: YODA 0x0041c580
+// [EFFECTIVE: 20B — j/count reg-role swap (EBX/EDI) in the spots loop + three backedge
+// cmp-operand mirrors + one layout jmp; insns 129/128. Tie-break family, joint pass.]
+// Place a required item into a random OBJ_QUEST_ITEM_SPOT (type 0) of the zone whose
+// genCandidateA (IZAX) list names itemId; marks the spot visible=itemId/state=1. Falls back
+// to recursing into DOOR_IN-linked child zones. Returns the placed item id or -1.
+int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
+{
+    int nResult = -1;
+    CWordArray paSpots;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return -1;
+    int i = 0;
+    int nCount = pZone->genCandidateA.GetSize();
+    if (nCount > 0)
+    {
+        do
+        {
+            short v = (short)pZone->genCandidateA.GetAt(i);
+            if (itemId == v)
+            {
+                int nObjs = pZone->objects.GetSize();
+                int j = 0;
+                paSpots.SetSize(0, -1);
+                if (nObjs > 0)
+                {
+                    do
+                    {
+                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == 0)
+                            paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
+                        j++;
+                    } while (j < nObjs);
+                }
+                if (paSpots.GetSize() > 0)
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
+                        paSpots.GetAt(rand() % paSpots.GetSize()));
+                    if (pObj != NULL && pObj->type == 0)
+                    {
+                        nResult = v;
+                        pObj->visible = v;
+                        pObj->state = 1;
+                    }
+                }
+                if (nResult >= 0)
+                    break;
+            }
+            i++;
+        } while (i < nCount);
+    }
+    if (nResult == -1)
+    {
+        int nObjs = pZone->objects.GetSize();
+        int j = 0;
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj != NULL && pObj->type == 9)
+                {
+                    if (pObj->visible >= 0)
+                        nResult = WorldgenFillQuestItemSpot(pObj->visible, itemId);
+                    if (nResult >= 0)
+                        break;
+                }
+                j++;
+            } while (j < nObjs);
+        }
+    }
+    return nResult;
+}
+
+// FUNCTION: YODA 0x0041c730
+// Clone of WorldgenFillQuestItemSpot for OBJ_SPAWN (type 1) via genCandidateB (IZX3);
+// also records the placed id in genCellQuestSlot6Scratch.
+int World::WorldgenFillSpawn(short zoneId, short itemId)
+{
+    int nResult = -1;
+    CWordArray paSpots;
+    Zone *pZone = GetZoneById(zoneId);
+    if (pZone == NULL)
+        return -1;
+    int i = 0;
+    int nCount = pZone->genCandidateB.GetSize();
+    if (nCount > 0)
+    {
+        do
+        {
+            short v = (short)pZone->genCandidateB.GetAt(i);
+            if (itemId == v)
+            {
+                int nObjs = pZone->objects.GetSize();
+                int j = 0;
+                paSpots.SetSize(0, -1);
+                if (nObjs > 0)
+                {
+                    do
+                    {
+                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == 1)
+                            paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
+                        j++;
+                    } while (j < nObjs);
+                }
+                if (paSpots.GetSize() > 0)
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
+                        paSpots.GetAt(rand() % paSpots.GetSize()));
+                    if (pObj != NULL && pObj->type == 1)
+                    {
+                        nResult = v;
+                        pObj->visible = v;
+                        pObj->state = 1;
+                        genCellQuestSlot6Scratch = nResult;
+                    }
+                }
+                if (nResult >= 0)
+                    break;
+            }
+            i++;
+        } while (i < nCount);
+    }
+    if (nResult == -1)
+    {
+        int nObjs = pZone->objects.GetSize();
+        int j = 0;
+        if (nObjs > 0)
+        {
+            do
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                if (pObj != NULL && pObj->type == 9)
+                {
+                    if (pObj->visible >= 0)
+                        nResult = WorldgenFillSpawn(pObj->visible, itemId);
+                    if (nResult >= 0)
+                        break;
+                }
+                j++;
+            } while (j < nObjs);
+        }
+    }
+    return nResult;
+}
+
+// FUNCTION: YODA 0x0041cdc0
+// Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's cobArray4 (sel==0)
+// or cobArray5 lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
+// DOOR_IN children. nResult lives in EAX end-to-end (0 / 1 / last recursion result).
+int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
+{
+    int nResult = 0;
+    int bFound = 0;
+    if (zoneId >= 0)
+    {
+        Zone *pZone = (Zone *)zones.GetAt(zoneId);
+        if (sel != 0)
+        {
+            int nCount = pZone->cobArray5.GetSize();
+            int i = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    if ((short)pZone->cobArray5.GetAt(i) == itemId)
+                    {
+                        bFound = 1;
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+        }
+        else
+        {
+            int nCount = pZone->cobArray4.GetSize();
+            int i = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    if ((short)pZone->cobArray4.GetAt(i) == itemId)
+                    {
+                        bFound = 1;
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+        }
+        if (bFound)
+        {
+            int nObjs = pZone->objects.GetSize();
+            int i = 0;
+            if (nObjs > 0)
+            {
+                do
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+                    if (pObj->type == 0xc)
+                    {
+                        WorldgenAddZoneEntry(itemId, (short)nVal);
+                        if (sel == 0)
+                            genCellItemAScratch = itemId;
+                        else
+                            genCellItemBScratch = itemId;
+                        pObj->visible = itemId;
+                        nResult = 1;
+                        pObj->state = 1;
+                        break;
+                    }
+                    i++;
+                } while (i < nObjs);
+            }
+        }
+        if (nResult == 0)
+        {
+            int nObjs = pZone->objects.GetSize();
+            int j = 0;
+            if (nObjs > 0)
+            {
+                do
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                    if (pObj->type == 9 &&
+                        (nResult = WorldgenPlaceItemOnLock(pObj->visible, a2, nVal, itemId, sel)) == 1)
+                        break;
+                    j++;
+                } while (j < nObjs);
+            }
+        }
+    }
+    return nResult;
+}
+
+// FUNCTION: YODA 0x0041cf10
+// Variant of FillQuestItemSpot: place itemId into a random OBJ_QUEST_ITEM_SPOT (type 0) of
+// zoneId if its genCandidateA lists it; registers the item via WorldgenAddZoneEntry and
+// genCellItemCScratch. Recurses into DOOR_IN children (no null/negative-id guard — sic).
+// Returns 1 on success.
+int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, unsigned short itemId)
+{
+    int bFound = 0;
+    int bSpot = 0;
+    int nResult = 0;
+    if (zoneId < 0)
+        return 0;
+    {
+        Zone *pZone = (Zone *)zones.GetAt(zoneId);
+        int i = 0;
+        int nCount = pZone->genCandidateA.GetSize();
+        if (nCount > 0)
+        {
+            do
+            {
+                if (pZone->genCandidateA.GetAt(i) == itemId)
+                {
+                    bFound = 1;
+                    break;
+                }
+                i++;
+            } while (i < nCount);
+        }
+        if (bFound)
+        {
+            int nObjs = pZone->objects.GetSize();
+            CWordArray paSpots;
+            int j = 0;
+            paSpots.SetSize(0, -1);
+            if (nObjs > 0)
+            {
+                do
+                {
+                    if (((ZoneObj *)pZone->objects.GetAt(j))->type == 0)
+                    {
+                        bSpot = 1;
+                        paSpots.SetAtGrow(paSpots.GetSize(), (unsigned short)j);
+                    }
+                    j++;
+                } while (j < nObjs);
+            }
+            if (bSpot)
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
+                    paSpots.GetAt(rand() % paSpots.GetSize()));
+                WorldgenAddZoneEntry(itemId, nVal);
+                genCellItemCScratch = (short)itemId;
+                pObj->visible = itemId;
+                pObj->state = 1;
+                nResult = 1;
+            }
+        }
+        if (nResult == 0)
+        {
+            int j = 0;
+            int nObjs = pZone->objects.GetSize();
+            if (nObjs > 0)
+            {
+                do
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
+                    if (pObj->type == 9 &&
+                        (nResult = WorldgenFillQuestItemSpot2Maybe(pObj->visible, a2, nVal, itemId)) == 1)
+                        break;
+                    j++;
+                } while (j < nObjs);
+            }
+        }
+    }
+    return nResult;
+}
+
 // FUNCTION: YODA 0x0041d670
 // Global item de-dup: is itemId already recorded in the worldgen ref-zone list?
 int World::IsItemPlaced(short itemId)

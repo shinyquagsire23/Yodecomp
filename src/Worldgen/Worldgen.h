@@ -157,6 +157,12 @@ public:
     // ---- this TU's methods (grow one decl at a time as functions land) ----
     int  ZoneProvidesItem(short zoneId, short itemId);   // 0x0041c3b0
     int  ZoneFindInIzxList(short zoneId, short itemId, int sel); // 0x0041c490
+    int  WorldgenFillQuestItemSpot(short zoneId, short itemId); // 0x0041c580
+    int  WorldgenFillSpawn(short zoneId, short itemId);  // 0x0041c730
+    int  WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal,
+                                 short itemId, int sel);  // 0x0041cdc0
+    int  WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal,
+                                         unsigned short itemId);  // 0x0041cf10
     int  IsItemPlaced(short itemId);                     // 0x0041d670
     void WorldgenPushZoneEntry(short zoneId, short val); // 0x0041d6b0
     void RemoveZoneEntry(short zoneId);                  // 0x0041d740
