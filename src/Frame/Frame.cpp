@@ -28,6 +28,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419090
+// FUNCTION: YODA 0x00419100  (??_GCMainFrame scalar-deleting dtor — compiler-generated, calls ~)
 CMainFrame::CMainFrame()
 {
     m_nSavedFrameMode = -1;
