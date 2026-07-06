@@ -287,6 +287,20 @@ gradient AND diagnoses whether a residual is scheduling/instr-selection (`align>
 (`align=0, reg_pen>0`). Verified on Canvas/World/Zone/Dta (int, x87, MMX). See the Permuter TODO list for the
 full write-up + the parked-function movability results (GetEdgeCode cmp knob proven inert; FindObjectAt needs
 mid-body decl hoisting; ParseZaux needs full TU).
+**⭐ RECORDS TU DONE THIS SESSION (2026-07-05 v3, src/Records/): the six-class record `.obj`
+(0x4042b0–0x405ae0: Puzzle/Character/MapEntity/Tile/ZoneObj/Zone) — 25/33 byte-exact (~3.7KB), every
+function structurally recovered.** First-compile matches: Puzzle::Read (486B, `tag[4]=0`+intrinsic-strcmp
++ one memset'd 0x800 text buffer), Character::Read (144B), GetProjectileTile (869B). Cracks worth reusing:
+`unk38=-1` placed AFTER an arg-consuming store → forced immediate (Init); nested `int id = e->charId`
+local → single movsx serving two range tests (both entity funcs); `int` vs `short`/`ushort` of a local
+decides zero-reg reuse vs imm compares (`drop`); SetTile val param is `short` (=> 2-byte `push -1` at
+call sites); tail-merged `return 1` = nest the whole drop logic under `if (numItems != 0)`. TU-context
+effects PROVEN live: adding later functions/decls flipped GetFrameTile DIFF2→MATCH and FindObjectAt
+13→7→2, but ALSO Tile::Ctor MATCH→22 — **the TU is one coupled allocator system; the 8 residuals
+(Puzzle/MapEntity/Tile ctors, FindObjectAt(2), GetEdgeCode(6), Zone::Dtor(12), DamageEntityAt, HitEntityAt
+— all annotated in-source) are allocator/scheduling tie-breaks to resolve JOINTLY at endgame, not
+piecemeal (whack-a-mole proven).** 0x405320 identified: `Zone::EhDeleteHelper` (shared new-cleanup EH
+funclet target). asmscore.py got the /D_MBCS include-scan fix (was mis-scoring MFC TUs).
 **Best next moves, in priority order:**
 1. ⭐ **Match a new CU — the Dta/Zone parsers are ripe** (structs already modeled in docs/structs.md &
    dta-format.md): `Dta_Load` (0x422670) + its 12 named handlers, and the `Zone` class (`Zone_Ctor`/
