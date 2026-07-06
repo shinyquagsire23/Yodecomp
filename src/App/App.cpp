@@ -5,6 +5,17 @@
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
 #include "App.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+extern "C" int App_bCpuHasMMX;           // 0x00459e28  (set by the InitInstance CPUID probe)
+int      g_bReplayMode;                  // 0x00459e2c
+CString  g_strReplayPath;                // 0x00459e20
+CWnd    *g_pExistingInstance;            // 0x00459e24
+BYTE     g_bInstanceChecked;             // 0x00459e30  bit0: FindWindow done once
+
+// Stand-ins for the doc-template CRuntimeClasses (CDeskcppDoc / CMainFrame / CDeskcppView).
+// Their addresses are masked relocations at the CSingleDocTemplate call site.
+extern CRuntimeClass rtcDeskcppDoc, rtcMainFrame, rtcDeskcppView;
 
 // FUNCTION: YODA 0x00419cb0
 // Debug logger — append one line to c:\yodalog.txt (fopen "at" + fputs + fflush + fclose per
@@ -42,6 +53,133 @@ BOOL CTheApp::OnIdle(LONG lCount)
 BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
     ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
 END_MESSAGE_MAP()
+
+// FUNCTION: YODA 0x004198c0  [EFFECTIVE MATCH: main body structurally identical (asmscore
+//   align=16 = one cmp operand-order on the g_pExistingInstance null test — the inert
+//   mirror/cmp family — plus a boundary artifact where OnIdle bleeds past the extent). The
+//   329 positional byte diffs are pure EH-funclet LAYOUT: our COMDAT is 6B longer and orders
+//   the cleanup funclets differently (endgame/joint-TU territory, like the WorldDoc dtor).
+//   Cracks landed: (BYTE)dwVer major==3 stays AL but (int)(BYTE)(dwVer>>8) widens to the
+//   signed movzx compare; short nBpp keeps the 16-bit DI store; default-ctor-THEN-assign for
+//   strCmd (copy-ctor form emitted the wrong CString shape); CPUID via _emit 0F A2 (VC4.2
+//   predates the mnemonic, same trick as the Canvas MMX blits).]
+// App startup: single-instance guard (activate an existing window instead of a 2nd copy),
+// CPUID/MMX probe, Win3.1 MIDI workaround + frame-delay pick, build the YODADEMO.DTA path,
+// require an 8bpp display, register the doc template, then parse the command line.
+BOOL CTheApp::InitInstance()
+{
+    if (m_hPrevInstance != NULL)
+        return FALSE;
+
+    g_bReplayMode = 0;
+    g_strReplayPath = "";
+    CString strTitle;
+    strTitle.LoadString(0xe000);
+    if ((g_bInstanceChecked & 1) == 0) {
+        g_bInstanceChecked |= 1;
+        g_pExistingInstance = CWnd::FromHandle(::FindWindow(NULL, strTitle));
+    }
+    if (NULL != g_pExistingInstance) {
+        // another instance is running — surface it and bail
+        CWnd *pPopup = CWnd::FromHandle(::GetLastActivePopup(g_pExistingInstance->m_hWnd));
+        ::BringWindowToTop(g_pExistingInstance->m_hWnd);
+        if (::IsIconic(g_pExistingInstance->m_hWnd))
+            g_pExistingInstance->ShowWindow(SW_RESTORE);
+        if (pPopup != g_pExistingInstance)
+            ::BringWindowToTop(pPopup->m_hWnd);
+        return FALSE;
+    }
+
+    // CPUID feature probe -> App_bCpuHasMMX (VC4.2 predates the CPUID mnemonic; emit 0F A2).
+    App_bCpuHasMMX = 0;
+    __asm {
+        pushad
+        pushfd
+        pop  eax
+        mov  ecx, eax
+        xor  eax, 0x200000
+        push eax
+        popfd
+        pushfd
+        pop  eax
+        xor  eax, ecx
+        jz   no_cpuid
+        mov  eax, 1
+        _emit 0x0f
+        _emit 0xa2                       // cpuid
+        test edx, 0x800000               // MMX feature bit
+        jnz  has_mmx
+    no_cpuid:
+        mov  eax, 0
+        mov  App_bCpuHasMMX, eax
+        jmp  cpu_done
+    has_mmx:
+        mov  eax, 1
+        mov  App_bCpuHasMMX, eax
+    cpu_done:
+        popad
+    }
+
+    // Win3.1 (Win32s major 3, minor < 0x14): slower frame delay + one-time MIDI-disable nag.
+    DWORD dwVer = ::GetVersion();
+    int nMajor = (BYTE)dwVer;
+    int nMinor = (BYTE)(dwVer >> 8);
+    if (nMajor == 3 && nMinor < 0x14) {
+        m_nFrameDelay = 0x1e;
+        UINT bMusic = GetProfileInt("OPTIONS", "PlayMusic", -1);
+        UINT bMidiLoad = GetProfileInt("OPTIONS", "MIDILoad", -1);
+        if (bMusic == 1 && bMidiLoad == (UINT)-1) {
+            AfxMessageBox(4, 0, (UINT)-1);
+            WriteProfileInt("OPTIONS", "PlayMusic", 0);
+        }
+        else if (bMidiLoad == 1) {
+            WriteProfileInt("OPTIONS", "MIDILoad", -1);
+        }
+    }
+    else {
+        m_nFrameDelay = 0x28;
+    }
+
+    // asset directory = the exe's folder + YODADEMO.DTA
+    char szPath[300];
+    char szDrive[300];
+    char szDir[300];
+    ::GetModuleFileName(NULL, szPath, 300);
+    _splitpath(szPath, szDrive, szDir, NULL, NULL);
+    _makepath(szPath, szDrive, szDir, NULL, NULL);
+    m_str = szPath;
+    if (m_str[m_str.GetLength() - 1] != '\\')
+        m_str += "\\";
+    m_str += "YODADEMO.DTA";
+
+    // needs a palettized (>=8bpp) display
+    HDC hdc = ::GetDC(NULL);
+    short nBpp = (short)::GetDeviceCaps(hdc, BITSPIXEL);
+    ::ReleaseDC(NULL, hdc);
+    if (nBpp < 8) {
+        AfxMessageBox(0xe00a, 0, (UINT)-1);
+        return FALSE;
+    }
+
+    CSingleDocTemplate *pDocTemplate = new CSingleDocTemplate(
+        2, &rtcDeskcppDoc, &rtcMainFrame, &rtcDeskcppView);
+    AddDocTemplate(pDocTemplate);
+    OnFileNew();
+
+    // command line: "[OPEN ]<path>[.WLD]" — a .WLD path switches on replay mode
+    if (m_lpCmdLine[0] != '\0') {
+        CString strCmd;
+        strCmd = m_lpCmdLine;
+        strCmd.MakeUpper();
+        if (strCmd.Find("OPEN ") >= 0)
+            strCmd = strCmd.Right(strCmd.GetLength() - 5);
+        if (strCmd.Find(".WLD") > 0) {
+            g_bReplayMode = 1;
+            g_strReplayPath = strCmd;
+        }
+    }
+    return TRUE;
+}
 
 // FUNCTION: YODA 0x00419df0
 // File>About: modal CAboutDlg parented to the main window.
