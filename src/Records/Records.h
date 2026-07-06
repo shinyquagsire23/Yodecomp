@@ -10,6 +10,26 @@
 #include <afxwin.h>
 #include <afxcoll.h>
 
+class Character;
+
+// Cross-TU stubs: layout only where offsets are touched; called methods are extern relocs.
+class GameView
+{
+public:
+    void PlayerMove(int n);                     // 0x00409060 (sound/feedback tick)
+    void PlayerCheckWalkable(short x, short y); // 0x00409460
+};
+
+class World
+{
+public:
+    char        _pad0[0x80];         // +0x000
+    CObArray    tiles;               // +0x080  Tile* array (GetProjectileTile's paTiles)
+    char        _pad94[0x2c];        // +0x094
+    Character **characters;          // +0x0c0
+    int FindTile(void *pTile);                  // 0x00403aa0
+};
+
 // PUZ2 record (0x2c). 5 CStrings + item ids.
 class Puzzle : public CObject
 {
@@ -76,8 +96,7 @@ public:                              // +0x00 CObject vtable (0x44b178)
     int      unk20;                  // +0x20  ctor: 0
     short    timer;                  // +0x24  ctor: 0
     unsigned short item;             // +0x26
-    unsigned short numItems;         // +0x28
-    short    unk2a;                  // +0x2a  IZAX unk3
+    int      numItems;               // +0x28  dword (DamageEntityAt tests ==0 as int; IZAX numItems+unk3)
     int      unk2c;                  // +0x2c  ctor: 0
     short    wanderDir;              // +0x30  ctor: 1 (-1..2 dir code)
     char     _pad32[2];              // +0x32
@@ -148,10 +167,14 @@ public:                              // +0x00 = CObject vtable
     Zone(short w = 18, short h = 18);                       // 0x00405150
     virtual ~Zone();                                        // 0x004054d0
     unsigned short GetTile(int x, int y, int layer);        // 0x00405430  MATCH
-    void           SetTile(int x, int y, int layer, unsigned short val); // 0x00405480  MATCH
+    void           SetTile(int x, int y, int layer, short val); // 0x00405480  MATCH
     int            GetEdgeCode(int x, int y);               // 0x00405380
     ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330
     void           FlagQuestObjects();                      // 0x004056d0
+    int            DamageEntityAt(int x, int y, CObArray *paChars, short damage,
+                                  World *pWorld, GameView *pView);       // 0x00405710
+    int            HitEntityAt(int x, int y, CObArray *paChars, int timerVal,
+                               World *pWorld, GameView *pView);          // 0x004059d0
 };
 
 #endif

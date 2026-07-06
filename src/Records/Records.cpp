@@ -481,7 +481,7 @@ unsigned short Zone::GetTile(int x, int y, int layer)
 }
 
 // FUNCTION: YODA 0x00405480
-void Zone::SetTile(int x, int y, int layer, unsigned short val)
+void Zone::SetTile(int x, int y, int layer, short val)
 {
     if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
         tiles[(y * 18 + x) * 3 + layer] = val;
@@ -522,5 +522,97 @@ void Zone::FlagQuestObjects()
     }
 }
 
-// TODO v3: Zone::DamageEntityAt (0x00405710), Zone::HitEntityAt (0x004059d0),
-//          the operator-delete thunk (0x00405320) if it belongs to this TU.
+// FUNCTION: YODA 0x00405710
+// Apply weapon damage to the entity at (x,y). On kill: clear the projectile tile, then drop
+// the carried item (or the zone's quest item) as a new type-6 ZoneObj on layer 1.
+int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *pWorld, GameView *pView)
+{
+    int n = entities.GetSize();
+    int nChars = paChars->GetSize();
+    for (int i = 0; i < n; i++) {
+        MapEntity *e = (MapEntity *)entities[i];
+        if (e && e->active != 0 && e->x == x && e->y == y) {
+            int id = e->charId;
+            if (nChars > id && id >= 0) {
+            Character *ch = (Character *)paChars->GetAt(id);
+            if (ch->health != -1) {
+                e->damageTaken = e->damageTaken + damage;
+                if (ch->health <= e->damageTaken) {
+                    pView->PlayerMove(5);
+                    short w = pWorld->characters[e->charId]->weaponCharId;
+                    if (w >= 0) {
+                        void *t = pWorld->characters[w]->GetProjectileTile(0, e->bulletDX, e->bulletDY, 0, &pWorld->tiles);
+                        int ti = pWorld->FindTile(t);
+                        if ((short)GetTile(e->bulletX, e->bulletY, 1) == ti) {
+                            SetTile(e->bulletX, e->bulletY, 1, -1);
+                            pView->PlayerCheckWalkable(e->bulletX, e->bulletY);
+                        }
+                    }
+                    e->charId = -1;
+                    int drop = 0;
+                    if (e->numItems == 0)
+                        return 1;
+                    if (e->item == 0) {
+                        int m = objects.GetSize();
+                        for (int j = 0; j < m; j++) {
+                            ZoneObj *o = (ZoneObj *)objects[j];
+                            if (o->type == 0 && (short)o->visible > 0) {
+                                drop = o->visible;   // movsx: short -> int
+                                break;
+                            }
+                        }
+                        if (drop > 0) {
+                            ZoneObj *no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
+                            no->visible = drop;
+                            no->state = 1;
+                            objects.SetAtGrow(objects.GetSize(), no);
+                            SetTile(x, y, 1, drop);
+                            pView->PlayerCheckWalkable((short)x, (short)y);
+                        }
+                        return 1;
+                    }
+                    ZoneObj *no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
+                    no->visible = e->item - 1;
+                    no->state = 1;
+                    objects.SetAtGrow(objects.GetSize(), no);
+                    SetTile(x, y, 1, e->item - 1);
+                    pView->PlayerCheckWalkable((short)x, (short)y);
+                    return 1;
+                }
+            }
+            break;
+            }
+        }
+    }
+    return 0;
+}
+
+// FUNCTION: YODA 0x004059d0
+// Non-lethal hit: stun the entity at (x,y) (timer), and clear its in-flight projectile tile.
+int Zone::HitEntityAt(int x, int y, CObArray *paChars, int timerVal, World *pWorld, GameView *pView)
+{
+    int n = entities.GetSize();
+    int nChars = paChars->GetSize();
+    for (int i = 0; i < n; i++) {
+        MapEntity *e = (MapEntity *)entities[i];
+        if (e && e->active != 0 && e->x == x && e->y == y) {
+            int id = e->charId;
+            if (nChars > id && id >= 0) {
+            e->timer = (short)timerVal;
+            pView->PlayerMove(5);
+            short w = pWorld->characters[e->charId]->weaponCharId;
+            if (w >= 0) {
+                void *t = pWorld->characters[w]->GetProjectileTile(0, e->bulletDX, e->bulletDY, 0, &pWorld->tiles);
+                int ti = pWorld->FindTile(t);
+                if ((short)GetTile(e->bulletX, e->bulletY, 1) == ti) {
+                    SetTile(e->bulletX, e->bulletY, 1, -1);
+                    pView->PlayerCheckWalkable(e->bulletX, e->bulletY);
+                }
+                return 1;
+            }
+            return 0;
+            }
+        }
+    }
+    return 0;
+}
