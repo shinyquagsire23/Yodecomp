@@ -283,8 +283,8 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 | **World** | **0x33c0** | **42 %** | 12 | ⚠ the big one — asset half being filled by the Phase-A GameData sweep NOW; script/frame-mode fields in Phase B; worldgen/save fields in Phase D. Strategy: never grind it in the abstract — each TU match pulls its fields in. |
 | **GameView** | **0x310** | **31 %** | 19 | ⚠ second big one — cursor/paint fields mapped this week; the rest is Phase-E prep (entity-loop, inventory, dialog fields). 19 Maybe-fields to confirm. |
 | MapZone (10×10 grid cell) | 0x34 | 73 % | 5 | Phase D (worldgen semantics decide the 5 unks) |
-| IactScript | 0x30 | 41 % | 0 | Phase B blocker — model before Iact TU matching |
-| IactCondition / IactCommand | 0x1c/0x20 | 85–87 % | 0 | Phase B — near done, verify against scrdoc.txt opcode table |
+| IactScript | 0x30 | 100 % | 0 | ✅ solved 2026-07-05: vtbl@0 (0x44bc68) + 2 inline CObArray (conditions@4, commands@0x18) + doneFlag@0x2c — Zone-pattern. Whole Iact-script TU (0x418700–0x418dd0) renamed Records-style: IactScript/IactCondition/IactCommand ::Ctor/ScalarDtor/Dtor/Read |
+| IactCondition / IactCommand | 0x1c/0x20 | 100 % | 0 | ✅ vftable@0 added (0x44bc80/98); opcode@4 + args[5]@8 (+text@0x1c for commands) |
 | InvScrollBar | 0x44 | 17 % | 0 | Phase E/F (MFC CScrollBar-derived — model like Records did with CObject) |
 | TextDialog | 0xc8 | 4 % | 0 | Phase E/F (MFC CDialog-derived) |
 | CFile (stub) | 0x40 | 6 % | 0 | intentional — DB stub only pins Read@vtbl+0x3c; real MFC used at compile time |
@@ -294,6 +294,12 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 thin structs, plus the module namespaces that may be free-function TUs (`Settings`, `Log`, `Render`,
 `Iact`, `GameData` — Phase-A agent is settling whether GameData is a class or World methods + free funcs).
 MFC-derived modeling recipe proven in src/Records: real base class + real members ⇒ ctor/dtor codegen free.
+**Type-identity findings (2026-07-05, backported to Ghidra + Records.h): Zone.cobArray4/5 are `CWordArray`
+(NOT CDWordArray — ReadZaux calls CWordArray::SetAtGrow; identical 0x14 layout so Zone::Ctor still
+byte-matches, but the ctor reloc + element width differ — check genCandidateA/B in Phase D). CFile vtable:
+Seek = slot +0x30 (ReadIzon seeks past mismatched records), Read = +0x3c. The Iact-script record TU at
+0x418700–0x418dd0 is a Records-clone (3 CObject classes, ctor/??_G/dtor/Read each) — likely quick match
+in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle::Read.**
 
 ### Phase plan
 - **A — GameData CU (NOW).** The `.dta` chunk handlers + asset accessors write `World` fields directly

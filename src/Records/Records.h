@@ -154,8 +154,8 @@ public:                              // +0x00 = CObject vtable
     CObArray       objects;          // +0x7a8
     CObArray       iactScripts;      // +0x7bc
     CObArray       entities;         // +0x7d0
-    CDWordArray    cobArray4;        // +0x7e4
-    CDWordArray    cobArray5;        // +0x7f8
+    CWordArray     cobArray4;        // +0x7e4  PROVEN CWordArray (ReadZaux: CWordArray::SetAtGrow(ushort))
+    CWordArray     cobArray5;        // +0x7f8  same — element type WORD, layout identical to CDWordArray
     CDWordArray    genCandidateA;    // +0x80c  worldgen candidate-spot scratch
     CDWordArray    genCandidateB;    // +0x820
     int            tempVar;          // +0x834
