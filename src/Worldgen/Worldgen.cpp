@@ -6551,3 +6551,192 @@ int GameView::ShowTextDialog(CString &strText, int a, int b, int c)
 
 // FUNCTION: YODA 0x00427440  (compiler-generated implicit destructor ??1TextDialog — destroys
 // only strText; emitted into this TU by ShowTextDialog's stack TextDialog)
+
+// FUNCTION: YODA 0x00427490
+// [EFFECTIVE-WIP: insns 167/165; residual = the this=ESI-vs-spill rotation (Generate
+// family) — orig keeps this in ESI and the four coord ints in frame slots, ours spills
+// this and registers the coords; everything else aligns. Not source-steerable piecemeal;
+// joint pass.]
+// Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
+// 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
+// means our own window DC under the world palette.
+void GameView::DrawHealthDial(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    CPalette *pOldPal;
+    if (pDC == NULL)
+    {
+        pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        if (pDC == NULL)
+            return;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
+    }
+    CPen penShadow(PS_SOLID, 1, GetSysColor(COLOR_BTNSHADOW));
+    CPen penHilite(PS_SOLID, 1, GetSysColor(COLOR_BTNHIGHLIGHT));
+    CBrush brShadow(GetSysColor(COLOR_BTNSHADOW));
+    CBrush brHilite(GetSysColor(COLOR_BTNHIGHLIGHT));
+    int x1 = pWorld->rectHealthDial.left - 2;
+    int x2 = pWorld->rectHealthDial.right + 2;
+    int y1 = pWorld->rectHealthDial.top - 2;
+    int y2 = pWorld->rectHealthDial.bottom + 2;
+    CPen *pOldPen = pDC->SelectObject(&penHilite);
+    CBrush *pOldBrush = pDC->SelectObject(&brHilite);
+    ::Chord(pDC->m_hDC, x1, y1, x2, y2, x1, y2, x2, y1);
+    pDC->SelectObject(&penShadow);
+    pDC->SelectObject(&brShadow);
+    ::Chord(pDC->m_hDC, x1, y1, x2, y2, x2, y1, x1, y2);
+    pDC->SelectObject(pOldPen);
+    pDC->SelectObject(pOldBrush);
+    if (bReleaseDC != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+}
+
+// FUNCTION: YODA 0x00427690
+// [EFFECTIVE: insns 158/158; residual = one consistent nLo/nHi ESI<->EBP bijection + the
+// pTile-vs-m_nSize load order in the death tail + a cross-jumped-vs-duplicated epilogue.
+// Cracks: heal tiers are FLAT >=300/>=200/>=100/else arms with the 1/1 clamp DUPLICATED
+// per tier (compiler cross-jumps them back together — Ghidra re-merges and fakes a goto);
+// damage clamp is `> -1`; death threshold mixes forms (`> 99 && >= 3`); the life-force
+// tail is if/else-if (single exit).]
+// Apply a health change (IACT AddHealth; negative = damage, scaled by 100/difficulty).
+// healthLo (0..100) and healthHi (0..3 dial segments) ACCUMULATE damage; 100/3 = dead.
+// Damage tiers -300/-200/-100 bump whole segments; heals reverse them. At the death
+// threshold: consume the life-force item (tile 0x598) if carried and survive at 1/1, else
+// (game not won) request the game-over frame via abortFrame = -1.
+void GameView::AddHealth(int nDelta)
+{
+    int nLo = pWorld->healthLo;
+    int nHi = pWorld->healthHi;
+    if (bInvincibleCheat != 0)
+        return;
+    if (nDelta < 0)
+    {
+        int nScaled = nDelta / (100 / pWorld->difficulty);
+        if (nScaled > -1)
+            nScaled = -1;
+        if (nScaled <= -300)
+        {
+            nHi += 3;
+            nLo = nScaled / -3 - 1 + nLo;
+            if (nHi > 3)
+            {
+                nHi = 3;
+                nLo = 100;
+            }
+        }
+        else if (nScaled <= -200)
+        {
+            nHi += 2;
+            nLo = nScaled / -3 - 1 + nLo;
+            if (nHi > 3)
+            {
+                nHi = 3;
+                nLo = 100;
+            }
+        }
+        else if (nScaled <= -100)
+        {
+            nHi += 1;
+            nLo = nScaled / -3 - 1 + nLo;
+            if (nHi > 3)
+            {
+                nHi = 3;
+                nLo = 100;
+            }
+        }
+        else
+        {
+            nLo -= nScaled;
+            if (nLo > 100)
+            {
+                nLo -= 100;
+                nHi += 1;
+                if (nHi > 3)
+                {
+                    nHi = 3;
+                    nLo = 100;
+                }
+            }
+        }
+    }
+    else
+    {
+        if (nDelta < 1)
+            nDelta = 1;
+        if (nDelta >= 300)
+        {
+            nLo = 1;
+            nHi = 1;
+        }
+        else if (nDelta >= 200)
+        {
+            nHi -= 2;
+            nLo = nDelta / -3 + 1 + nLo;
+            if (nHi < 1)
+            {
+                nHi = 1;
+                nLo = 1;
+            }
+        }
+        else if (nDelta >= 100)
+        {
+            nHi -= 1;
+            if (nHi < 1)
+            {
+                nHi = 1;
+                nLo = 1;
+            }
+        }
+        else
+        {
+            nLo -= nDelta;
+            if (nLo < 1)
+            {
+                nLo += 100;
+                nHi -= 1;
+                if (nHi < 1)
+                {
+                    nHi = 1;
+                    nLo = 1;
+                }
+            }
+        }
+    }
+    pWorld->healthLo = nLo;
+    pWorld->healthHi = nHi;
+    DrawHealthNeedle(NULL);
+    if (nLo > 99 && nHi >= 3)
+    {
+        World *pW = pWorld;
+        int bFound = 0;
+        int i = 0;
+        Tile *pTile = (Tile *)pW->tiles.GetAt(0x598);
+        if (pW->inventory.GetSize() > 0)
+        {
+            InvItem **pp = (InvItem **)pW->inventory.GetData();
+            do
+            {
+                if ((*pp)->pTile == pTile)
+                {
+                    bFound = 1;
+                    break;
+                }
+                pp++;
+                i++;
+            } while (i < pW->inventory.GetSize());
+        }
+        if (bFound != 0)
+        {
+            pW->healthLo = 1;
+            pW->healthHi = 1;
+            PlaySound(0x3a);
+            RemoveItem(pTile);
+        }
+        else if (pW->gameState != 1)
+            pW->abortFrame = -1;
+    }
+}

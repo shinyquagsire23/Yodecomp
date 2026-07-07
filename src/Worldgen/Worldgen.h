@@ -241,8 +241,13 @@ public:
     virtual void OnInitialUpdate();                       // 0x00426c40 (CView override)
     void DrawDirectionArrows(CDC *pDC);                   // 0x004270f0
     int  ShowTextDialog(CString &strText, int a, int b, int c); // 0x00427310
+    void DrawHealthDial(CDC *pDC);                        // 0x00427490
+    void AddHealth(int nDelta);                           // 0x00427690
+    void DrawHealthNeedle(CDC *pDC);                      // 0x004278a0
     // ---- cross-TU (GameView TU / its own little TUs) ----
+    void PlaySound(int nSound);                           // 0x00409060 (GameView TU head)
     void SoundInit();                                     // 0x00411520 (GameView TU)
+    void RemoveItem(Tile *pTile);                         // 0x00429150 (past this TU's end)
 };
 
 // TextDialog (sizeof 0xc8): the modal in-game text/dialogue box. NOT MFC-derived (its dtor
@@ -334,7 +339,8 @@ public:
     RECT        rectUnk3274;         // +0x3274  locator-map blit origin (left/top used)
     RECT        rectUnk3284;         // +0x3284
     RECT        rectInvScrollMaybe;  // +0x3294  passed to the InvScrollBar ctor
-    char        _pad32a4[0x30];      // +0x32a4
+    char        _pad32a4[0x20];      // +0x32a4
+    RECT        rectHealthDial;      // +0x32c4  (the 0x32d4 quad in WorldDoc.h was misnamed)
     int         nViewLeft;           // +0x32d4  visible 288x288 window (UpdateCamera writes;
     int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
     int         nViewRight;          // +0x32dc
