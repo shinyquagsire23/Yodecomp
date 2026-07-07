@@ -1659,6 +1659,39 @@ short GameView::FindEntityAt(int x, int y)
 // sic: a moveType outside 1..12 (and 5) reaches the shared tail with nDX/nDY
 // UNINITIALIZED from the previous entity (engine-bugs.md family); the
 // pChar == NULL tail check is dead (the loop returned earlier).
+//
+// EFFECTIVE-WIP (v20: 2504/2336 insns — ~154 of ours are the 12 switch jump
+// tables at the COMDAT end disassembling as zeros, so real code is ~2350 —
+// align 2202 from ~3588 at first compile). STRUCTURE PROVEN; the residual is
+// dominated by TWO GLOBAL FAMILIES plus one parked block:
+// (1) cmp-DIRECTION mirror: EVERY entity-vs-player compare emits
+//     cmp [slot],reg + inverted jcc in ours vs cmp reg,[slot] in the orig
+//     (~40 sites, + it forces RE-CMP in flag-reuse sign chains where the orig
+//     reuses flags). Identical source operand order compiles both ways —
+//     lesson #6 family, correlates with the frame-slot layout being +4-shifted
+//     (our pEnt slot 0x1c vs orig 0x18; px/py 0x20/0x24 vs 0x1c/0x20). One
+//     global tie-break, NOT per-site steerable — G1.
+// (2) register-ROLE rotation in the bullet/erase blocks and the tail
+//     (pBY/pBX/pBDY/pBDX = EBX/EDI/EBP/ESI in orig, rotated in ours;
+//     pChar slot-homed 0x30 in orig, reg-homed here).
+// (3) PARKED: the FIRE/SHOOT block (bAimed=1 + GetProjectileTile + goto STEP,
+//     ~17 insns) sits INLINE at the first rand-site in the orig (0x1fa, jne
+//     over it) but cl defers it to after the horizontal arm in all SEVEN
+//     source shapes probed (nested-if, if-goto both senses, fall-through with
+//     explicit gotos, full per-arm duplication — the copies do NOT cross-jump).
+//     Rule learned: cl 4.2 defers any block ENDING in an unconditional
+//     transfer, preferring fall-through continuity (same mechanism sank
+//     WorldDoc GetLocatorIcon's early-return bodies). The orig's inline copy
+//     must come from a construct not yet found — decomp.me/G1.
+// Layout mechanisms that DID land (reusable): the dead-entity cleanup is the
+// deferred fall-through of `if (*pActive != 0) goto ALIVE_ENT;` (cl inlines
+// the not-yet-emitted goto target and defers the source fall-through); case
+// 11's random-step block is the labeled THEN-arm of an `||` if/else (falls
+// through into the probe loop — arms that FALL THROUGH stay inline); the
+// case-1 walkable zeros stay inline (fall to the retreat counter) while cases
+// 2/3/6/7/8/9/10's zeros+break cross-jump into ONE shared block (case 12's
+// body); the probe-result switches keep their comparison TREE only when
+// case -1/0 and default have SEPARATE (duplicated) bodies.
 void GameView::Tick()
 {
     Zone *pZone = pWorld->currentZone;
@@ -2069,6 +2102,11 @@ void GameView::Tick()
                                     break;
                                 case -1:
                                 case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 3);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
                                 default:
                                     nDY = 0;
                                     nDX = 0;
@@ -2390,6 +2428,11 @@ void GameView::Tick()
                                     break;
                                 case -1:
                                 case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 8);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
                                 default:
                                     nDY = 0;
                                     nDX = 0;
@@ -2504,6 +2547,11 @@ void GameView::Tick()
                                     break;
                                 case -1:
                                 case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 10);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
                                 default:
                                     nDY = 0;
                                     nDX = 0;
@@ -2574,6 +2622,11 @@ void GameView::Tick()
                                 break;
                             case -1:
                             case 0:
+                                nDY = 0;
+                                nDX = 0;
+                                pEnt->timer = (short)(rand() % 3);
+                                pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                break;
                             default:
                                 nDY = 0;
                                 nDX = 0;
@@ -2629,14 +2682,14 @@ void GameView::Tick()
                             short *pX = &pEnt->x;
                             if (nTX == pEnt->x)
                                 nDX = 0;
-                            else if (pEnt->x < nTX)
+                            else if (pEnt->x <= nTX)
                                 nDX = 1;
                             else
                                 nDX = -1;
                             short *pY = &pEnt->y;
                             if (nTY == pEnt->y)
                                 nDY = 0;
-                            else if (pEnt->y < nTY)
+                            else if (pEnt->y <= nTY)
                                 nDY = 1;
                             else
                                 nDY = -1;
@@ -2679,29 +2732,30 @@ void GameView::Tick()
                         {
                             short *pY;
                             short *pX;
-                            int nY;
                             short t;
-                            int nX = pEnt->x;
-                            if (abs(nX - nPlayerX) > 5)
-                                goto RANDOM11;
-                            nY = pEnt->y;
-                            if (abs(nY - nPlayerY) > 5)
-                                goto RANDOM11;
-                            if (nX > nPlayerX)
-                                nDX = 1;
+                            if (abs(pEnt->x - nPlayerX) >= 6 || abs(pEnt->y - nPlayerY) >= 6)
+                            {
+                            RANDOM11:
+                                nDX = rand() % 3 - 1;
+                                nDY = rand() % 3 - 1;
+                            }
                             else
                             {
-                                nDX = -1;
-                                if (nX >= nPlayerX)
-                                    nDX = 0;
+                                if (pEnt->x > nPlayerX)
+                                    nDX = 1;
+                                else
+                                {
+                                    nDX = -1;
+                                    if (pEnt->x >= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y > nPlayerY)
+                                    nDY = 1;
+                                else if (pEnt->y < nPlayerY)
+                                    nDY = -1;
+                                else
+                                    nDY = 0;
                             }
-                            if (nY > nPlayerY)
-                                nDY = 1;
-                            else if (nY < nPlayerY)
-                                nDY = -1;
-                            else
-                                nDY = 0;
-                            while (1)
                             {
                                 pY = &pEnt->y;
                                 pX = &pEnt->x;
@@ -2739,11 +2793,8 @@ void GameView::Tick()
                                 t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
                                 if (t < 0)
                                     goto MOVE11;
-                                if ((pWorld->GetTileData(t)->flags & 0x10000) == 0)
-                                    break;
-                            RANDOM11:
-                                nDX = rand() % 3 - 1;
-                                nDY = rand() % 3 - 1;
+                                if (pWorld->GetTileData(t)->flags & 0x10000)
+                                    goto RANDOM11;
                             }
                             bMoved = 1;
                         MOVE11:

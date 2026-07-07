@@ -353,6 +353,9 @@ Written to be followable without prior context: each phase lists concrete steps 
   DrawZoneCellRect/DrawWholeZone eff. (11/18 GameView markers) (2026-07-07 v18)**;
   **82.07 % transcribed / 16.71 % exact — Phase E step 4: ZoneTransitionStep→FireWeaponStep
   block done, 19/31 GameView markers (2026-07-07 v19)**;
+  **89.09 % transcribed / 16.84 % exact — Phase E step 4: DrawEntities EXACT +
+  FindEntityAt eff. + the 10.8KB Tick transcribed (align 3588→2202), 22/34 markers
+  (2026-07-07 v20)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -390,65 +393,76 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v19 — Phase E step 4: 0x409650–0x40b160 block done; 16.71% exact / 82.07% transcribed)
-**v19 session results (committed; Ghidra SAVED — 6 COMDAT renames). src/GameView/GameView.cpp
-= 19 exact + 6 effective + 6 COMDAT matches / 31 markers, contiguous 0x4084f0–0x40b160.**
-- **ZoneTransitionStep 0x409650 EFFECTIVE (441/441 insns, align=48)** — TRY/CATCH_ALL `new Tile`
-  (the Worldgen hand-expanded recipe, catch = AfxMessageBox(0xe01e)+AfxAbort), 4-blit black-ring
-  loop, step-5 zone switch, duplicated cleanup+return arms. Cracks (in-source autopsy):
-  (a) NO `x` local for `sx + i` — the original slot is the compiler's OWN CSE temp; declaring it
-  register-promoted it and cascaded sy→slot which LICM-hoisted the invariant `span + sy` OUT of
-  the loop (align 188→48 from deleting one decl). (b) `span` IS a real local summed at sites.
-  (c) `pWeapon`-style locals: pPixels local only when blits reuse it (ZTS yes, WES no).
-- **WorldEntryStepMaybe 0x409c10 EFFECTIVE (349/349, align=8)** — twin of ZTS; ALL 13 diff rows
-  are one register PARITY CROSSING: the ORIGINAL uses shape A here / shape B in ZTS, ours emits
-  exactly the swap (both shapes reproduce, wrong functions — loader-triplet family, G1 dial).
-  ZTS's parked head quirks (GetDC via `mov ebx,[imp]; call ebx`, nStep→BX) are VINDICATED: WES's
-  original calls GetDC direct + nStep→DI = exactly our compile of both.
-- **Engine bug #13 (engine-bugs.md):** BOTH step-10 arms read the IactRun result mask
-  UNINITIALIZED when the run is skipped (WES even emits `mov di,[never-written slot]`).
-- **DrawGameArea 0x40a200 EXACT** first compile (GetPixel probe = separate `COLORREF pixel` +
-  `DWORD clr` locals, NOT short-circuit; the mode-5/map-open || chain has a redundant last term
-  — real dev code). **IsUsableTileMaybe 0x40a620 EXACT**: a 66-case range-folded SWITCH (the
-  ReadZone comparison-tree pattern). **BlitTile/DrawTileAt EFFECTIVE** (pure reg-role + cmp
-  mirror; BlitTile sig byte-proven `(short y, short x, int nUnused, Tile*)` — sx/sy MUST be
-  hoisted locals or the shls re-emit per arm). **FireWeaponStep 0x40a710 EFFECTIVE (820/828)**:
-  cracks = `int nWeaponTile` local while conditions re-mention pWeapon->frames[7] (16-bit cmps);
-  `nStep == 0` DUPLICATED into both head conditions (binary jump-threads them); t != -1 arms
-  first; `int bBlocked` flag local; refill switch = jump table with both if/else arms assigning
-  unk48; `unk48 <= 0` zero-reg cmp. ⚠ NEW OPEN AXIS (parked, 4 sites): orig tests tile flags as
-  `mov eax,[pT+0x404]; test eax,0x60000` where EVERY spelling we probed (direct/local/outer-
-  scope/cast/chained) byte-narrows to `test byte [pT+0x406],6` — yet Detonate's original USES
-  the narrow form. Some source shape unfound; do not re-grind without a new theory.
-- **6 MFC GDI COMDATs byte-MATCH marker-only**: ??0/??_G/??1 CGdiObject (0x40a0c0/120/1a0) +
-  CBitmap (0x40a4e0/560/5d0) — emitted by our TU from CBitmap member usage. **verify.py now
-  honors explicit mangled hints over LIB_OWNERS** (`// FUNCTION: YODA 0xADDR (??0CGdiObject@@
-  ...)`) — the COMDAT fold-vs-survive geography is per-TU (these survive HERE); Worldgen
-  regression-checked (35/90 holds). Ghidra: the 6 renamed into CGdiObject/CBitmap namespaces
-  ("CBitmap_CtorMaybe" 0x40a0c0 was really CGdiObject::Ctor).
-- **Worldgen.h: World+0x2e44 named bWeaponHitPendingMaybe** (FireWeaponStep zeroes per shot) —
-  dial-NEUTRAL (35/90 held).
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v20 — Phase E step 4: Tick transcribed; 16.84% exact / 89.09% transcribed)
+**v20 session results (committed). src/GameView/GameView.cpp = 20 exact + 8 effective +
+6 COMDAT / 34 markers, contiguous 0x4084f0–0x40d470(excl).**
+- **DrawEntities 0x40b160 EXACT** — countdown recipe (`int i=0; int n=nCount; do{...i++;n--;}
+  while(n!=0)` under `if (nCount>=1)` + inner `if (n>0)` DOUBLE guard); the SetTile val arg
+  needed `int nFrame = pChar->currentFrame;` between the calls (movsx-before-y/x-loads) with
+  `(short)nFrame` at the site. **FindEntityAt 0x40b210 EFFECTIVE** (35/35, align=0, 6B): decl
+  order pZone/nCharId/n/i load-bearing (12 perms probed, 3 tie at align=0); result var is a
+  16-bit AX-resident `short nCharId = -1` (mov ax,0xffff at head); residual = one 2-reg
+  walker/pEnt cycle (removing the pEnt local is WORSE — real local).
+- **Tick 0x40b270 (10.8KB) TRANSCRIBED, EFFECTIVE-WIP** (align 3588→2202; ~2350 real insns vs
+  2336 — +154 phantom rows are our 12 inner-switch jump tables at the COMDAT end disassembling
+  as zeros). Full autopsy in-source. ⭐ NEW LAYOUT MECHANISMS (the session's big find):
+  (a) **cl 4.2 defers any block ENDING in an unconditional transfer and prefers fall-through
+  continuity**: `if (c) goto L;` with L unemitted ⇒ cl INLINES L's block as the fall-through
+  and defers the source fall-through to after the current chain (the dead-entity cleanup =
+  deferred fall-through of `if (*pActive != 0) goto ALIVE_ENT;` — reproduces the orig exactly;
+  same mechanism as WorldDoc GetLocatorIcon's sunk early-return bodies).
+  (b) **An arm that FALLS THROUGH stays inline**: case 11's random-step block is the labeled
+  THEN-arm of an `||` if/else falling into the probe loop (backward `goto RANDOM11` from the
+  walkable test re-enters it) — align dropped 180+ from this one restructure.
+  (c) **Switch comparison-trees survive only with duplicated bodies**: `case -1: case 0:` and
+  `default:` need SEPARATE (textually duplicated) reset bodies or cl folds the tree to one
+  `cmp 1;jne` (4 probe-result switches; the duplicates then partially cross-jump like the orig).
+  (d) Walkable-check geography: case 1's `t != -1 ⇒ zeros` stays INLINE (falls to the retreat
+  counter); cases 2/3/6/7/8/9/10 spell `if (t != -1) { nDX=0; nDY=0; break; }` and cross-jump
+  into ONE shared block (= case 12's body). (e) **GetTile is SIGNED here**: `short t = GetTile(...)`
+  temps give the orig's `cmp ax,0xffff` (the ushort decl in RecordClasses.h made `== -1`
+  dead code — cast/temp at every site; v18 DrawZoneCell lesson generalizes).
+- **⚠ TWO GLOBAL RESIDUAL FAMILIES (park, G1):** (1) cmp-DIRECTION mirror on ~40
+  entity-vs-player compares (`cmp [slot],reg`+inverted jcc vs orig `cmp reg,[slot]`; forces
+  re-cmp where the orig reuses flags in sign chains) — correlates with our frame layout being
+  +4-shifted (pEnt slot 0x1c vs orig 0x18); one global tie-break. (2) reg-role rotation in the
+  bullet/erase blocks (pBY/pBX/pBDY/pBDX = EBX/EDI/EBP/ESI in orig). PLUS the parked FIRE/SHOOT
+  block placement (7 source shapes probed incl. full duplication — see the in-source autopsy;
+  do not re-grind without a new theory).
+- Literal-constant finds: `>= 6` (case-11 abs), `>= 14` (case-1 counter), `<=` in case-10's
+  3-arm signs, `pEnt->timer <= 0` (weapon gate) — always mirror cmp-constant+jcc from disasm.
 
-**▶ START HERE (v20): continue GameView.cpp in .text order from 0x40b160.**
-1. **DrawEntities 0x40b160** (small), **FindEntityAt 0x40b210**, then the monster: **Tick
-   0x40b270 (10.8KB frame loop)** — docs/game-logic.md has the full frame-mode switch (1..8) +
-   enemy-AI switch (Character+0x36) semantics; transcription, not research. Budget multiple
-   sessions for Tick; consider transcribing it switch-arm by switch-arm with asmscore runs
-   between arms.
-2. Then OnTimer 0x40d470, StepDetonatorEffect 0x40e400, ApplyHotspotCamera 0x40e500,
-   TransitionZoneScript 0x40e750 (byte-prove its "(sig?)" unused arg1), TransitionZoneXWing
-   0x40e7c0, TransitionZoneDoor 0x40e9d0, ReenableHotspotObjects 0x40ebe0, DrawObjects 0x40ec30.
-3. **Open items:** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0) PARKED (dtor modeling,
-   Phase F/G). Options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in this
-   .cpp. World.unk50 rename candidate: set to the entering zone id by both step functions +
-   zeroed on new/load — nCurrentZoneIdMaybe (rename Worldgen.h+WorldDoc.h+Ghidra together, then
-   re-verify Worldgen/WorldDoc/World/GameView). Ghidra BlitTile prototype still __fastcall-
-   confused (queue: void __thiscall (GameView*, short, short, int, Tile*)).
-4. **G1 dial axes now include:** the ZTS↔WES parity crossing; DrawZoneCellRect/DrawWholeZone
-   rotations; FireWeaponStep's flags-test axis + erase-block imul-mem/js shape; plain-helper
-   param widths; AFX_MSG map-order question. JOINT pass AFTER E — do not grind piecemeal.
-5. **Re-verify Worldgen after ANY GameView.h/Worldgen.h edit** (v19 edits were both neutral;
-   the check is one compile + verify.py).
+**▶ START HERE (v21): more Tick polish is G1 fodder — move ON. Next in .text order:**
+1. **OnTimer/UpdateFrameMaybe 0x40d470** (the actual per-frame driver: Tick×5 + CyclePalette×6
+   + DrawGameArea×4 + win/lose via abortFrame; docs/game-logic.md has the frame-mode table),
+   then StepDetonatorEffect 0x40e400, ApplyHotspotCamera 0x40e500, TransitionZoneScript
+   0x40e750 (byte-prove its "(sig?)" unused arg1), TransitionZoneXWing 0x40e7c0,
+   TransitionZoneDoor 0x40e9d0, ReenableHotspotObjects 0x40ebe0, DrawObjects 0x40ec30.
+2. Tick leftovers for G1 (not now): fire-block placement, cmp-direction family, case-10 3-arm
+   jump-to-then (je vs jne), tail SetTile arg scheduling, loop-increment order, bTurned slot.
+3. **Open items (carried):** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0) PARKED;
+   options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in this .cpp;
+   World.unk50 → nCurrentZoneIdMaybe rename (Worldgen.h+WorldDoc.h+Ghidra together + 4-TU
+   re-verify); Ghidra BlitTile prototype still __fastcall-confused (queue: void __thiscall
+   (GameView*, short, short, int, Tile*)); FireWeaponStep's flags-test axis (v19, 4 sites).
+4. **G1 dial axes:** ZTS↔WES parity crossing; DrawZoneCellRect/DrawWholeZone rotations;
+   FireWeaponStep flags-test + erase-block shapes; Tick's cmp-direction + fire-block + reg
+   roles; plain-helper param widths; AFX_MSG map-order. JOINT pass AFTER E.
+5. **Re-verify Worldgen after ANY GameView.h/Worldgen.h edit** (one compile + verify.py).
+
+### ⏮ PRIOR (2026-07-07 v19 — ZTS/WES/FireWeaponStep block, condensed)
+ZTS 0x409650 eff. (441/441, align=48; no-`x`-local CSE-temp lesson; span IS a local); WES
+0x409c10 eff. (349/349, align=8, pure parity crossing vs ZTS — loader-triplet family, G1;
+ZTS's GetDC-via-reg + nStep→BX head VINDICATED by WES). Engine bug #13: both step-10 arms
+read the IactRun mask uninitialized when skipped. DrawGameArea 0x40a200 EXACT (separate
+COLORREF/DWORD locals; redundant ||-term = dev code). IsUsableTileMaybe 0x40a620 EXACT
+(66-case range-folded switch). BlitTile/DrawTileAt eff. (reg-role; BlitTile sig byte-proven
+`(short y, short x, int nUnused, Tile*)`; sx/sy hoisted locals mandatory). FireWeaponStep
+0x40a710 eff. (820/828): int nWeaponTile local + conditions re-mention frames[7]; nStep==0
+duplicated into both head conditions; ⚠ flags-test axis PARKED (every spelling narrows
+`test eax,0x60000` to `test byte [pT+0x406],6`; orig uses the WIDE form here, narrow in
+Detonate). 6 GDI COMDATs (CGdiObject/CBitmap trios) byte-match marker-only; verify.py now
+honors explicit mangled hints over LIB_OWNERS. World+0x2e44 = bWeaponHitPendingMaybe.
 
 **Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
 `{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
