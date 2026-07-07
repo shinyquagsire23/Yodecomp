@@ -5521,3 +5521,395 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
     }
     }
 }
+
+// FUNCTION: YODA 0x00412250
+// GameView::OnLButtonUp — WM_LBUTTONUP by frame mode. Entry always clears the
+// bump latch, closes a shown text dialog, releases capture and samples MK_SHIFT.
+// Mode 2: unlock back to mode 3. Mode 3: scrollbar = plain return (sic: the only
+// exit that skips Default()); inventory click = start dragging the slot's tile
+// (the locator instead opens the world map: DrawLocatorMap, mode 7 reason 4) —
+// dragging the detonator beeps 0x21, Artoo randomly beeps 0x2a/0x2b; a viewport
+// click just re-arms mode 3; otherwise cancel a stale drag. Mode 4 (drop):
+// weapon box = equip (the OnDragItem weapon-loop clone; drop-on-detonator
+// buzzes), health dial = use health pack (+100/50/25) / harmful item (-50!) /
+// note Artoo, arrow box / outside = flag it, viewport = repaint player cell;
+// then fire OnDragItem at the translated coords. Mode 9: click the queued
+// pickup = AddItemToInv, stamp flagB when it is the cell's reward, clear the
+// spot object + tile, redraw, mode 3.
+// EFFECTIVE MATCH (align 274, 705/701 insns; verify DIFF includes table noise).
+// Cracks that landed: every skip path is a plain `break` to ONE trailing
+// Default() — the per-case `bMouseCaptured = 0;` copies cross-jump into the
+// single store before it (my Default();return; copies were +63 insns); the
+// non-weapon buzz arm is the ELSE of `if (flags & TILE_WEAPON)` (deferred past
+// the equip block, ends in ret); `int nOff = point.y - top;` computed BEFORE
+// the scrollPos clamp. Parked: the heal ladder emits two 0x32 arms + jg-to-0
+// polarity where the orig shares one 0x32 with jle-to-50 (same
+// canonicalization residual as OnDragItem's ladder — lesson #6 family, G1);
+// 0x12/0x1fe arms load/TEST/store drift; the MK_SHIFT store sink; case-9/
+// arrow-box reg roles; cmp-direction on the loop backedge (both spellings
+// canonicalize).
+void GameView::OnLButtonUp(UINT nFlags, CPoint point)
+{
+    bBlockBumpUntilClick = 0;
+    if (bTextDialogShown != 0)
+    {
+        bTextDialogShown = 0;
+        bInputLocked = 0;
+    }
+    bMouseCaptured = 0;
+    ReleaseCapture();
+    bShiftHeld = 1;
+    if ((nFlags & 4) == 0)
+        bShiftHeld = 0;
+    switch (pWorld->nFrameMode)
+    {
+    case 2:
+        if (bInputLocked == 0)
+            pWorld->nFrameMode = 3;
+        bMouseCaptured = 0;
+        break;
+    case 3:
+    {
+        RECT rc;
+        rc.left = pWorld->rectUnk3274.left - 12;
+        rc.right = pWorld->rectUnk3274.right + 12;
+        rc.top = pWorld->rectUnk3274.top - 12;
+        rc.bottom = pWorld->rectUnk3274.bottom + 12;
+        if (PtInRect(&pWorld->rectInvScrollMaybe, point) != 0)
+            return;     // sic: the one exit that skips Default()
+        if (PtInRect(&pWorld->rectUnk3284, point) != 0)
+        {
+            if (bInvClickPending == 0)
+                break;
+            int nOff = point.y - pWorld->rectUnk3284.top;
+            int nPos = pInvScrollBar->scrollPos;
+            if (nPos < 0)
+                nPos = 0;
+            int nSlot = nPos + nOff / 32;
+            if (pWorld->inventory.GetSize() <= nSlot || bBusy != 0)
+                break;
+            Tile *pTile = ((InvItem *)pWorld->inventory.GetAt(nSlot))->pTile;
+            if (pTile->flags == (TILE_GAME_OBJECT | TILE_ITEM | TILE_LOCATOR))
+            {
+                if (bDragActive == 1)
+                {
+                    bDragActive = 0;
+                    UpdateDragCursor(1);
+                }
+                PlaySound(0x22);
+                bMapTeleportEnabled = 0;
+                CDC *pDC = GetDC();
+                CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+                pMapReturnZone = pWorld->currentZone;
+                bMapViewOpen = 1;
+                pWorld->DrawLocatorMap(pDC, bBlinkState, bMapTeleportEnabled);
+                pDC->SelectPalette(pOldPal, 0);
+                ReleaseDC(pDC);
+                pWorld->nFrameMode = 7;
+                pWorld->nMapChangeReason = 4;
+                nSavedCameraX = pWorld->cameraX;
+                nSavedCameraY = pWorld->cameraY;
+                bMapAtCanvasOriginMaybe = 1;
+                bMouseCaptured = 0;
+                strCheatBuffer = "";
+                return;
+            }
+            SetCursor(0);
+            nDragSlot = (short)nSlot;
+            bDragActive = 1;
+            draggedTile = pTile;
+            memcpy(pDragTileCanvas->GetData(), draggedTile->pixels, 0x400);
+            if ((Tile *)pWorld->tiles.GetAt(0x202) == draggedTile)
+                PlaySound(0x21);
+            if ((Tile *)pWorld->tiles.GetAt(0x31a) == draggedTile)
+            {
+                if (rand() % 2 == 0)
+                    PlaySound(0x2a);
+                else
+                    PlaySound(0x2b);
+            }
+            pWorld->nFrameMode = 4;
+            DrawText(0);
+            bMouseCaptured = 0;
+            break;
+        }
+        if (PtInRect(&rc, point) != 0)
+        {
+            if (bInputLocked == 0)
+                pWorld->nFrameMode = 3;
+            bMouseCaptured = 0;
+            break;
+        }
+        if (bDragActive == 1)
+        {
+            bDragActive = 0;
+            UpdateDragCursor(1);
+            nDragLastScreenY = -1;
+            nDragLastScreenX = -1;
+            pWorld->nFrameMode = 3;
+            nDragSlot = -1;
+        }
+        break;
+    }
+    case 4:
+    {
+        if (bDragActive != 1)
+            break;
+        int dx = pWorld->nViewLeft - pWorld->rectUnk3274.left + point.x;
+        int dy = pWorld->nViewTop - pWorld->rectUnk3274.top + point.y;
+        bDragActive = 0;
+        UpdateDragCursor(1);
+        nDragSlot = -1;
+        nDragLastScreenY = -1;
+        nDragLastScreenX = -1;
+        pWorld->nFrameMode = 3;
+        if (PtInRect(&pWorld->rectWeaponBox, point) != 0)
+        {
+            if (draggedTile->flags & TILE_WEAPON)
+            {
+            int bFound = 0;
+            int nCount = pWorld->characters.GetSize();
+            if (nCount > 0)
+            {
+                Character **paChars = (Character **)pWorld->characters.GetData();
+                int i = 0;
+                do
+                {
+                    Character *pChar = *paChars;
+                    int nCharTile;
+                    if (pChar != 0 && (nCharTile = pChar->frames[7]) >= 0
+                        && (Tile *)pWorld->tiles.GetAt(nCharTile) == draggedTile)
+                    {
+                        if (pChar == pWorld->currentWeapon)
+                        {
+                            pChar->unk48 = pWorld->currentWeapon->unk48;
+                        }
+                        else switch (nCharTile)
+                        {
+                        case 0x12:
+                            if ((pChar->unk48 = pWorld->ammoLightsaberMaybe) == 0)
+                                pChar->unk48 = 30;
+                            PlaySound(0x1f);
+                            break;
+                        case 0x1fe:
+                            if ((pChar->unk48 = pWorld->ammoTheForceMaybe) == 0)
+                                pChar->unk48 = 30;
+                            PlaySound(0x1f);
+                            break;
+                        case 0x1ff:
+                        {
+                            short *p = &pWorld->weaponState[0];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 15;
+                                a = pWorld->weaponState[0];
+                            }
+                            pChar->unk48 = a;
+                            PlaySound(0x34);
+                            break;
+                        }
+                        case 0x200:
+                        {
+                            short *p = &pWorld->weaponState[1];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 30;
+                                a = pWorld->weaponState[1];
+                            }
+                            pChar->unk48 = a;
+                            PlaySound(0x20);
+                            break;
+                        }
+                        case 0x201:
+                        {
+                            short *p = &pWorld->weaponState[2];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 10;
+                                a = pWorld->weaponState[2];
+                            }
+                            pChar->unk48 = a;
+                            PlaySound(0x20);
+                            break;
+                        }
+                        case 0x204:
+                        {
+                            short *p = &pWorld->weaponState[3];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 15;
+                                a = pWorld->weaponState[3];
+                            }
+                            pChar->unk48 = a;
+                            break;
+                        }
+                        case 0x205:
+                        {
+                            short *p = &pWorld->nCurrentAmmoMaybe;
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 15;
+                                a = pWorld->nCurrentAmmoMaybe;
+                            }
+                            pChar->unk48 = a;
+                            break;
+                        }
+                        }
+                        if (nCharTile == 0x202)
+                        {
+                            PlaySound(6);
+                            draggedTile = 0;
+                            bMouseCaptured = 0;
+                            DrawText(0);
+                            return;
+                        }
+                        bFound = 1;
+                        pWorld->currentWeapon = pChar;
+                        pWorld->unk2e30 = i + 8;
+                        draggedTile = 0;
+                        bMouseCaptured = 0;
+                        DrawText(0);
+                        break;
+                    }
+                    paChars++;
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound == 0)
+            {
+                PlaySound(6);
+                draggedTile = 0;
+                bMouseCaptured = 0;
+                DrawText(0);
+                pWorld->currentWeapon = 0;
+            }
+            DrawWeaponBox(0);
+            DrawWeaponIcon(0);
+            return;
+            }
+            else
+            {
+                PlaySound(6);
+                draggedTile = 0;
+                bMouseCaptured = 0;
+                DrawText(0);
+                bArtooBeepPending0Maybe = 0;
+                return;
+            }
+        }
+        if (PtInRect(&pWorld->rectHealthDial, point) != 0)
+        {
+            Tile *pTile = draggedTile;
+            if (pTile->flags & TILE_HEALTH_PACK)
+            {
+                if (pWorld->healthLo == 1 && pWorld->healthHi == 1)
+                {
+                    PlaySound(6);
+                    bMouseCaptured = 0;
+                    draggedTile = 0;
+                    DrawText(0);
+                    return;
+                }
+                int nHeal = pWorld->FindTile(pTile);
+                if (nHeal <= 0x1fa)
+                {
+                    if (nHeal < 0x1f9)
+                    {
+                        if (nHeal == 0x1e0 || nHeal == 0x1e2)
+                            nHeal = 50;
+                        else
+                            nHeal = 0;
+                    }
+                    else
+                    {
+                        nHeal = 100;
+                    }
+                }
+                else if (nHeal != 0x1fb)
+                {
+                    if (nHeal < 0x4ac || nHeal > 0x4ae)
+                        nHeal = 0;
+                    else
+                        nHeal = 50;
+                }
+                else
+                {
+                    nHeal = 25;
+                }
+                AddHealth(nHeal);
+                PlaySound(0);
+                RemoveItem(draggedTile);
+                bMouseCaptured = 0;
+                draggedTile = 0;
+                DrawText(0);
+                return;
+            }
+            if (pTile->flags & TILE_ITEM_HARMFUL_MAYBE)
+            {
+                AddHealth(-50);
+                PlaySound(4);
+                RemoveItem(draggedTile);
+                bMouseCaptured = 0;
+                return;
+            }
+            if (pWorld->FindTile(pTile) == 0x31a)
+                bDropOnArtooMaybe = 1;
+            else
+                bDropOnArtooMaybe = 0;
+        }
+        else if (PtInRect(&pWorld->rectArrowBox, point) != 0)
+        {
+            if (pWorld->FindTile(draggedTile) == 0x31a)
+                bDraggedArtooBlockedMaybe = 1;
+            else
+                bDraggedArtooBlockedMaybe = 0;
+        }
+        else if (PtInRect(&pWorld->rectUnk3274, point) == 0)
+        {
+            bDropOutsideViewMaybe = 1;
+        }
+        else
+        {
+            DrawZoneCell(pWorld->cameraX / 32, pWorld->cameraY / 32);
+            DrawGameArea(0);
+            bMouseCaptured = 0;
+            bDropOutsideViewMaybe = 0;
+        }
+        OnDragItem(dx, dy, draggedTile);
+        draggedTile = 0;
+        DrawText(0);
+        bMouseCaptured = 0;
+        break;
+    }
+    case 9:
+    {
+        if (bPickupClickPendingMaybe == 0 || bBusy != 0)
+            break;
+        bPickupClickPendingMaybe = 0;
+        int cx = (pWorld->nViewLeft - pWorld->rectUnk3274.left + point.x) / 32;
+        int cy = (pWorld->nViewTop - pWorld->rectUnk3274.top + point.y) / 32;
+        if (nPickupX != cx || nPickupY != cy || nPickupTileId < 0)
+            break;
+        AddItemToInv((Tile *)pWorld->tiles.GetAt(nPickupTileId));
+        short w = pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+        if (w >= 0 && (int)w == nPickupTileId)
+            pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].flagB = 1;
+        if (pPickupObj != 0)
+        {
+            pPickupObj->state = 0;
+            pWorld->currentZone->SetTile(nPickupX, nPickupY, 1, -1);
+        }
+        DrawTileAt((short)cx, (short)cy, -1);
+        DrawGameArea(0);
+        pWorld->nFrameMode = 3;
+        bMouseCaptured = 0;
+        break;
+    }
+    }
+    Default();
+}
