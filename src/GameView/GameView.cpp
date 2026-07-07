@@ -1577,3 +1577,1278 @@ cleanup:
     }
     bBusy = 0;
 }
+
+// FUNCTION: YODA 0x0040b160
+// GameView::DrawEntities — stamp every active monster's current walk frame into
+// layer 1 of the current zone and redraw its cell. Entities with charId < 0
+// (empty slot) or active != 1 (dead/hidden) are skipped. GetWalkFrameTile
+// refreshes pChar->currentFrame from the facing dir before the SetTile.
+void GameView::DrawEntities()
+{
+    Zone *pZone = pWorld->currentZone;
+    int nCount = pZone->entities.GetSize();
+    if (nCount >= 1)
+    {
+        int i = 0;
+        int n = nCount;
+        if (n > 0)
+        {
+            do
+            {
+                MapEntity *pEnt = (MapEntity *)pZone->entities.GetAt(i);
+                if (pEnt->charId >= 0 && pEnt->active == 1)
+                {
+                    Character *pChar = (Character *)pWorld->characters.GetAt(pEnt->charId);
+                    pChar->GetWalkFrameTile(0, 0, &pWorld->tiles);
+                    int nFrame = pChar->currentFrame;
+                    pZone->SetTile(pEnt->x, pEnt->y, 1, (short)nFrame);
+                    DrawTileAt(pEnt->x, pEnt->y, -1);
+                }
+                i++;
+                n--;
+            } while (n != 0);
+        }
+    }
+}
+
+// FUNCTION: YODA 0x0040b210
+// GameView::FindEntityAt — scan the current zone's entities for one at cell
+// (x, y); returns its charId, or -1 if the cell is empty. Called on bumps to
+// decide monster interaction.
+// EFFECTIVE MATCH (35/35 insns, align=0, 6 byte diff): single 2-register cycle —
+// the m_pData walker is EDX and pEnt ECX in the original, mirrored in ours.
+// Decl order pZone/nCharId/n/i is load-bearing (probed all 12 permutations:
+// three tie at align=0, the rest align 20-34). Removing the pEnt local (CSE-temp
+// theory) is WORSE (align 42) — pEnt is a real local. Allocator tie-break; G1.
+short GameView::FindEntityAt(int x, int y)
+{
+    Zone *pZone = pWorld->currentZone;
+    short nCharId = -1;
+    int n = pZone->entities.GetSize();
+    int i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            MapEntity *pEnt = (MapEntity *)pZone->entities.GetAt(i);
+            if (pEnt->x == x && pEnt->y == y)
+            {
+                nCharId = pEnt->charId;
+                break;
+            }
+            i++;
+        } while (i < n);
+    }
+    return nCharId;
+}
+
+// FUNCTION: YODA 0x0040b270
+// GameView::Tick — the per-entity update / enemy-AI step (10.8KB), called ~5x
+// per frame by OnTimer/UpdateFrame. Walks pWorld->currentZone->entities; for
+// each live MapEntity looks up its Character def and (a) if it has a weapon
+// char, aims/steps a projectile toward the player (bullet* fields, damage via
+// AddHealth on impact), then (b) picks a movement step via the enemy-AI switch
+// on Character.moveType (1 wander/melee+retreat, 2 erratic wander, 3
+// wander-or-home, 4 direct chase, 6 mod-3 pattern chase/flee, 7/8/9 wander
+// variants, 10 waypoint patrol, 11 flee-with-retry, 12 sit-and-animate), tests
+// it with Zone::IactProbeMove, melee-attacks when the step reaches the player
+// (PlaySound(4) + AddHealth(-damage)), moves if the target cell is empty and
+// its floor tile lacks TILE flag 0x10000, and finally re-stamps the walk frame
+// into layer 1 + DrawZoneCell. The player cell is the camera cell
+// (cameraX/32, cameraY/32).
+// sic: a moveType outside 1..12 (and 5) reaches the shared tail with nDX/nDY
+// UNINITIALIZED from the previous entity (engine-bugs.md family); the
+// pChar == NULL tail check is dead (the loop returned earlier).
+void GameView::Tick()
+{
+    Zone *pZone = pWorld->currentZone;
+    frameCounter++;
+    int nCount = pZone->entities.GetSize();
+    if (nCount >= 1)
+    {
+        int nPlayerX = pWorld->cameraX / 32;
+        int bTurned = 0;
+        int i = 0;
+        int nPlayerY = pWorld->cameraY / 32;
+        bBusy = 1;
+        if (nCount > 0)
+        {
+            do
+            {
+                MapEntity *pEnt = (MapEntity *)pZone->entities.GetAt(i);
+                short nCharId = pEnt->charId;
+                int *pActive;
+                if (nCharId < 0)
+                    goto NEXT_ENT;
+                pActive = &pEnt->active;
+                if (*pActive != 0)
+                    goto ALIVE_ENT;
+                if (nCharId >= 0)
+                {
+                Character *pC = (Character *)pWorld->characters.GetAt(nCharId);
+                if (pC->weaponCharId >= 0)
+                {
+                    short *pBDY = &pEnt->bulletDY;
+                    short *pBDX = &pEnt->bulletDX;
+                    Tile *pProj = (Tile *)((Character *)pWorld->characters.GetAt(pC->weaponCharId))->GetProjectileTile(0, *pBDX, *pBDY, 0, &pWorld->tiles);
+                    int t = pWorld->FindTile(pProj);
+                    short *pBY = &pEnt->bulletY;
+                    short *pBX = &pEnt->bulletX;
+                    if ((short)pZone->GetTile(*pBX, *pBY, 1) == t
+                        && (*pBX != nPlayerX || *pBY != nPlayerY || pEnt->active != 0))
+                    {
+                        pZone->SetTile(*pBX, *pBY, 1, -1);
+                        DrawZoneCell(*pBX, *pBY);
+                    }
+                    pEnt->bulletStep = 0;
+                    *pBX = pEnt->x;
+                    *pBY = pEnt->y;
+                    *pBDX = 0;
+                    *pBDY = 0;
+                }
+                }
+                goto NEXT_ENT;
+            ALIVE_ENT:
+                {
+                Character *pChar = (Character *)pWorld->characters.GetAt(nCharId);
+                Character *pWeapon;
+                int nDX, nDY;
+                int nRet;
+                Tile *pProjTile;
+                if (pChar->weaponCharId < 0)
+                    pWeapon = NULL;
+                else
+                    pWeapon = (Character *)pWorld->characters.GetAt(pChar->weaponCharId);
+                if (pChar == NULL)
+                {
+                    bBusy = 0;
+                    return;
+                }
+                int bMoved = 0;
+                int bAimed = 0;
+                if (pWeapon != NULL)
+                {
+                    short *pBDY;
+                    short *pBDX;
+                    short *pBulletStep = &pEnt->bulletStep;
+                    if (*pBulletStep == 0 && pEnt->timer <= 0)
+                    {
+                        short *pX = &pEnt->x;
+                        short sx = *pX;
+                        if (abs(sx - nPlayerX) < 4)
+                        {
+                            short *pY = &pEnt->y;
+                            if (abs(*pY - nPlayerY) < 4 && *pActive != 0)
+                            {
+                                pEnt->bulletX = sx;
+                                pEnt->bulletY = *pY;
+                                if (*pX == nPlayerX)
+                                {
+                                    if (*pY > nPlayerY)
+                                        pEnt->bulletDY = -1;
+                                    else if (*pY < nPlayerY)
+                                        pEnt->bulletDY = 1;
+                                    pEnt->bulletDX = 0;
+                                    if (pChar->moveType == 4)
+                                    {
+                                        if (rand() % 7 != 3)
+                                            goto NOSHOT_V;
+                                    FIRE:
+                                        bAimed = 1;
+                                    SHOOT:
+                                        pBDY = &pEnt->bulletDY;
+                                        pBDX = &pEnt->bulletDX;
+                                        pProjTile = (Tile *)pWeapon->GetProjectileTile(0, *pBDX, *pBDY, 0, &pWorld->tiles);
+                                        goto BULLET_STEP;
+                                    NOSHOT_V:
+                                        pEnt->bulletDY = 0;
+                                    }
+                                    else
+                                    {
+                                        if (rand() % 7 == 3)
+                                            goto FIRE;
+                                        pEnt->bulletDY = 0;
+                                    }
+                                }
+                                else
+                                {
+                                    if (*pY != nPlayerY)
+                                        goto SHOOT;
+                                    if (*pX > nPlayerX)
+                                        pEnt->bulletDX = -1;
+                                    else if (*pX < nPlayerX)
+                                        pEnt->bulletDX = 1;
+                                    pEnt->bulletDY = 0;
+                                    if (pChar->moveType == 4)
+                                    {
+                                        if (rand() % 7 == 3)
+                                            goto FIRE;
+                                        pEnt->bulletDX = 0;
+                                    }
+                                    else
+                                    {
+                                        if (rand() % 7 == 3)
+                                            goto FIRE;
+                                        pEnt->bulletDX = 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pBDY = &pEnt->bulletDY;
+                        pBDX = &pEnt->bulletDX;
+                        pProjTile = (Tile *)pWeapon->GetProjectileTile(0, *pBDX, *pBDY, 0, &pWorld->tiles);
+                        bAimed = 0;
+                    BULLET_STEP:
+                        {
+                            (*pBulletStep)++;
+                            short *pBY = &pEnt->bulletY;
+                            short *pBX = &pEnt->bulletX;
+                            nRet = pZone->IactProbeMove(*pBX, *pBY, *pBDX, *pBDY, (int)&pWorld->tiles, 0);
+                            if (nRet != 1)
+                            {
+                                bMoved = 0;
+                                *pBDX = 0;
+                                *pBDY = 0;
+                            }
+                            else
+                            {
+                                short sdx = *pBDX;
+                                short sbx = *pBX;
+                                if (sdx + sbx == nPlayerX && *pBY + *pBDY == nPlayerY)
+                                {
+                                    *pBDX = 0;
+                                    *pBDY = 0;
+                                    AddHealth(-pChar->damage);
+                                    bMoved = 0;
+                                    PlaySound(4);
+                                }
+                                else
+                                {
+                                    bMoved = 1;
+                                    *pBX = sbx + sdx;
+                                    *pBY = *pBY + *pBDY;
+                                    if (*pBulletStep == 1 && bAimed)
+                                        PlaySound(pWeapon->weaponCharId);
+                                }
+                            }
+                            if (bMoved && *pBulletStep < 4)
+                            {
+                                pZone->SetTile(*pBX - *pBDX, *pBY - *pBDY, 1, -1);
+                                DrawZoneCell(*pBX - *pBDX, *pBY - *pBDY);
+                                int t = pWorld->FindTile(pProjTile);
+                                pZone->SetTile(*pBX, *pBY, 1, (short)t);
+                                DrawZoneCell(*pBX, *pBY);
+                            }
+                            else
+                            {
+                                int t = pWorld->FindTile(pProjTile);
+                                if ((short)pZone->GetTile(*pBX - *pBDX, *pBY - *pBDY, 1) == t)
+                                {
+                                    pZone->SetTile(*pBX - *pBDX, *pBY - *pBDY, 1, -1);
+                                    DrawZoneCell(*pBX - *pBDX, *pBY - *pBDY);
+                                }
+                                *pBulletStep = 0;
+                                *pBX = pEnt->x;
+                                *pBY = pEnt->y;
+                                *pBDX = 0;
+                                *pBDY = 0;
+                            }
+                        }
+                    }
+                }
+                if (*pActive != 0)
+                {
+                    switch (pChar->moveType)
+                    {
+                    case 1:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                        }
+                        else if (rand() % 2 == 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                        }
+                        else
+                        {
+                            int *pRetreat = &pEnt->bRetreating;
+                            if (*pRetreat != 0)
+                            {
+                                if (rand() % 2 == 0)
+                                {
+                                    if (pEnt->x > nPlayerX)
+                                        nDX = 1;
+                                    else
+                                    {
+                                        nDX = -1;
+                                        if (pEnt->x >= nPlayerX)
+                                            nDX = 0;
+                                    }
+                                    if (pEnt->y > nPlayerY)
+                                        nDY = 1;
+                                    else if (pEnt->y < nPlayerY)
+                                        nDY = -1;
+                                    else
+                                        nDY = 0;
+                                }
+                                else
+                                {
+                                    nDX = rand() % 3 - 1;
+                                    nDY = rand() % 3 - 1;
+                                }
+                                short nStep = pEnt->aiStepCounter + 1;
+                                pEnt->aiStepCounter = nStep;
+                                if (nStep > 3)
+                                {
+                                    *pRetreat = 0;
+                                    pEnt->aiStepCounter = 0;
+                                }
+                            }
+                            else
+                            {
+                                if (pEnt->x > nPlayerX)
+                                    nDX = -1;
+                                else
+                                {
+                                    nDX = 1;
+                                    if (pEnt->x >= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y > nPlayerY)
+                                    nDY = -1;
+                                else
+                                {
+                                    nDY = 1;
+                                    if (pEnt->y >= nPlayerY)
+                                        nDY = 0;
+                                }
+                            }
+                            short *pY = &pEnt->y;
+                            short *pX = &pEnt->x;
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            switch (nRet)
+                            {
+                            case 2: nDX++; break;
+                            case 3: nDX--; break;
+                            case 4: nDY++; break;
+                            case 5: nDY--; break;
+                            case -1:
+                            case 0:
+                                nDY = 0;
+                                nDX = 0;
+                                break;
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                                short nStep = pEnt->aiStepCounter + 1;
+                                pEnt->aiStepCounter = nStep;
+                                if (nStep > 1)
+                                {
+                                    *pRetreat = 1;
+                                    pEnt->aiStepCounter = 0;
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDY = 0;
+                                nDX = 0;
+                            }
+                            else
+                            {
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                            }
+                            if (*pRetreat == 0)
+                            {
+                                short nStep = pEnt->aiStepCounter + 1;
+                                pEnt->aiStepCounter = nStep;
+                                if (nStep >= 14)
+                                {
+                                    *pRetreat = 1;
+                                    pEnt->aiStepCounter = 0;
+                                }
+                            }
+                        }
+                        break;
+                    case 2:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        if (rand() % 2 == 0)
+                        {
+                            nDX = 0;
+                            nDY = 0;
+                            break;
+                        }
+                        {
+                            short *pX = &pEnt->x;
+                            if (abs(*pX - nPlayerX) < 2 && abs(pEnt->y - nPlayerY) < 2)
+                            {
+                                if (rand() % 2 == 0)
+                                {
+                                    nDX = rand() % 3 - 1;
+                                    nDY = rand() % 3 - 1;
+                                }
+                                else
+                                {
+                                    bTurned = 1;
+                                    if (*pX > nPlayerX)
+                                        nDX = -1;
+                                    else
+                                    {
+                                        nDX = 1;
+                                        if (*pX >= nPlayerX)
+                                            nDX = 0;
+                                    }
+                                    if (pEnt->y > nPlayerY)
+                                        nDY = -1;
+                                    else if (pEnt->y < nPlayerY)
+                                        nDY = 1;
+                                    else
+                                        nDY = 0;
+                                }
+                            }
+                            else
+                            {
+                                bTurned = 0;
+                                switch (pEnt->wanderDir)
+                                {
+                                case 0: nDX = 0; nDY = 1; break;
+                                case 1: nDX = 1; nDY = 0; break;
+                                case 2: nDX = -1; nDY = 0; break;
+                                case -1: nDX = 0; nDY = -1; break;
+                                }
+                            }
+                            short *pY = &pEnt->y;
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            if (bTurned)
+                            {
+                                switch (nRet)
+                                {
+                                case 2: nDX++; break;
+                                case 3: nDX--; break;
+                                case 4: nDY++; break;
+                                case 5: nDY--; break;
+                                case -1:
+                                case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                switch (nRet)
+                                {
+                                case 1:
+                                    break;
+                                case -1:
+                                case 0:
+                                default:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 3);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
+                                }
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 3:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        if (rand() % 2 == 0)
+                        {
+                            nDX = 0;
+                            nDY = 0;
+                            break;
+                        }
+                        {
+                            short *pX = &pEnt->x;
+                            if (abs(*pX - nPlayerX) < 2 && abs(pEnt->y - nPlayerY) < 2)
+                            {
+                                if (rand() % 2 == 0)
+                                    goto RANDOM3;
+                                if (*pX > nPlayerX)
+                                    nDX = -1;
+                                else
+                                {
+                                    nDX = 1;
+                                    if (*pX >= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y > nPlayerY)
+                                    nDY = -1;
+                                else if (pEnt->y < nPlayerY)
+                                    nDY = 1;
+                                else
+                                    nDY = 0;
+                            }
+                            else
+                            {
+                            RANDOM3:
+                                nDX = rand() % 3 - 1;
+                                nDY = rand() % 3 - 1;
+                            }
+                            short *pY = &pEnt->y;
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            switch (nRet)
+                            {
+                            case 2: nDX++; break;
+                            case 3: nDX--; break;
+                            case 4: nDY++; break;
+                            case 5: nDY--; break;
+                            case -1:
+                            case 0:
+                                nDY = 0;
+                                nDX = 0;
+                                break;
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pWeapon == NULL && pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 4:
+                        if (pEnt->x > nPlayerX)
+                            nDX = -1;
+                        else
+                        {
+                            nDX = 1;
+                            if (pEnt->x >= nPlayerX)
+                                nDX = 0;
+                        }
+                        if (pEnt->y > nPlayerY)
+                            nDY = -1;
+                        else
+                        {
+                            nDY = 1;
+                            if (pEnt->y >= nPlayerY)
+                                nDY = 0;
+                        }
+                        bMoved = 0;
+                        break;
+                    case 6:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        {
+                            short nFrame = frameCounter;
+                            if (nFrame % 3 != 0)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                            short *pMode = &pEnt->unk10;
+                            if (*pMode == 0)
+                            {
+                                *pMode = 1;
+                                if (nFrame % 10 != 0)
+                                    *pMode = 0;
+                                if (*pMode != 0)
+                                    goto CHASE6;
+                                if (pEnt->x < nPlayerX)
+                                    nDX = -1;
+                                else
+                                {
+                                    nDX = 1;
+                                    if (pEnt->x <= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y < nPlayerY)
+                                    nDY = -1;
+                                else
+                                {
+                                    nDY = 1;
+                                    if (pEnt->y <= nPlayerY)
+                                        nDY = 0;
+                                }
+                            }
+                            else
+                            {
+                            CHASE6:
+                                if (pEnt->x > nPlayerX)
+                                    nDX = -1;
+                                else
+                                {
+                                    nDX = 1;
+                                    if (pEnt->x >= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y > nPlayerY)
+                                    nDY = -1;
+                                else if (pEnt->y < nPlayerY)
+                                    nDY = 1;
+                                else
+                                    nDY = 0;
+                            }
+                            short *pX = &pEnt->x;
+                            short *pY = &pEnt->y;
+                            if (abs(*pX - nPlayerX) < 6 && abs(*pY - nPlayerY) < 6)
+                            {
+                                nDX = rand() % 3 - 1;
+                                nDY = rand() % 3 - 1;
+                            }
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            switch (nRet)
+                            {
+                            case 2: nDX++; break;
+                            case 3: nDX--; break;
+                            case 4: nDY++; break;
+                            case 5: nDY--; break;
+                            case -1:
+                            case 0:
+                                nDY = 0;
+                                nDX = 0;
+                                break;
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pWeapon == NULL && pChar->damage >= 0)
+                                {
+                                    if (frameCounter % 3 == 0)
+                                        PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                                short nStep = *pMode + 1;
+                                *pMode = nStep;
+                                if (nStep > 4)
+                                    *pMode = 0;
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 7:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        if (rand() % 2 == 0)
+                        {
+                            nDX = 0;
+                            nDY = 0;
+                            break;
+                        }
+                        {
+                            int nX = pEnt->x;
+                            short *pX = &pEnt->x;
+                            if (abs(nX - nPlayerX) < 2 && abs(pEnt->y - nPlayerY) < 2)
+                            {
+                                bTurned = 1;
+                                if (nX > nPlayerX)
+                                    nDX = -1;
+                                else
+                                {
+                                    nDX = 1;
+                                    if (nX >= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y > nPlayerY)
+                                    nDY = -1;
+                                else if (pEnt->y < nPlayerY)
+                                    nDY = 1;
+                                else
+                                    nDY = 0;
+                            }
+                            else
+                            {
+                                bTurned = 0;
+                                switch (pEnt->wanderDir)
+                                {
+                                case 0: nDX = 0; nDY = 1; break;
+                                case 1: nDX = 1; nDY = 0; break;
+                                case 2: nDX = -1; nDY = 0; break;
+                                case -1: nDX = 0; nDY = -1; break;
+                                }
+                            }
+                            short *pY = &pEnt->y;
+                            nRet = pZone->IactProbeMove(nX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            if (bTurned)
+                            {
+                                switch (nRet)
+                                {
+                                case 2: nDX++; break;
+                                case 3: nDX--; break;
+                                case 4: nDY++; break;
+                                case 5: nDY--; break;
+                                case -1:
+                                case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                switch (nRet)
+                                {
+                                case 1:
+                                    break;
+                                case -1:
+                                case 0:
+                                default:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 8);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
+                                }
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 8:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        {
+                            short *pX = &pEnt->x;
+                            if (abs(*pX - nPlayerX) < 2 && abs(pEnt->y - nPlayerY) < 2)
+                            {
+                                bTurned = 1;
+                                if (rand() % 2 == 0)
+                                {
+                                    nDX = rand() % 3 - 1;
+                                    nDY = rand() % 3 - 1;
+                                }
+                                else
+                                {
+                                    if (*pX > nPlayerX)
+                                        nDX = -1;
+                                    else
+                                    {
+                                        nDX = 1;
+                                        if (*pX >= nPlayerX)
+                                            nDX = 0;
+                                    }
+                                    if (pEnt->y > nPlayerY)
+                                        nDY = -1;
+                                    else if (pEnt->y < nPlayerY)
+                                        nDY = 1;
+                                    else
+                                        nDY = 0;
+                                }
+                            }
+                            else if (rand() % 3 == 0)
+                            {
+                                nDX = rand() % 3 - 1;
+                                bTurned = 1;
+                                nDY = rand() % 3 - 1;
+                            }
+                            else
+                            {
+                                bTurned = 0;
+                                switch (pEnt->wanderDir)
+                                {
+                                case 0: nDX = 0; nDY = 1; break;
+                                case 1: nDX = 1; nDY = 0; break;
+                                case 2: nDX = -1; nDY = 0; break;
+                                case -1: nDX = 0; nDY = -1; break;
+                                }
+                            }
+                            short *pY = &pEnt->y;
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            if (bTurned)
+                            {
+                                switch (nRet)
+                                {
+                                case 2: nDX++; break;
+                                case 3: nDX--; break;
+                                case 4: nDY++; break;
+                                case 5: nDY--; break;
+                                case -1:
+                                case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                switch (nRet)
+                                {
+                                case 1:
+                                    break;
+                                case -1:
+                                case 0:
+                                default:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    pEnt->timer = (short)(rand() % 10);
+                                    pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                    break;
+                                }
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pWeapon == NULL && pChar->damage >= 0)
+                                {
+                                    if (rand() % 2 == 0)
+                                    {
+                                        PlaySound(4);
+                                        AddHealth(-pChar->damage);
+                                    }
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 9:
+                        if (pEnt->timer != 0)
+                        {
+                            nDY = 0;
+                            nDX = 0;
+                            pEnt->timer--;
+                            break;
+                        }
+                        if (frameCounter % 2 == 0)
+                        {
+                            nDX = 0;
+                            nDY = 0;
+                            break;
+                        }
+                        {
+                            switch (pEnt->wanderDir)
+                            {
+                            case 0: nDX = 0; nDY = 1; break;
+                            case 1: nDX = 1; nDY = 0; break;
+                            case 2: nDX = -1; nDY = 0; break;
+                            case -1: nDX = 0; nDY = -1; break;
+                            }
+                            short *pY = &pEnt->y;
+                            short *pX = &pEnt->x;
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            switch (nRet)
+                            {
+                            case 1:
+                                break;
+                            case -1:
+                            case 0:
+                            default:
+                                nDY = 0;
+                                nDX = 0;
+                                pEnt->timer = (short)(rand() % 3);
+                                pEnt->wanderDir = (short)(rand() % 4) - 1;
+                                break;
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pWeapon == NULL && pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 10:
+                        {
+                            int nTX = pEnt->waypoints[pEnt->seqIdx * 2 + 2];
+                            int nTY = pEnt->waypoints[pEnt->seqIdx * 2 + 3];
+                            if (pEnt->timer != 0)
+                            {
+                                nDY = 0;
+                                nDX = 0;
+                                pEnt->timer--;
+                                break;
+                            }
+                            if (frameCounter % 2 == 0)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                            short *pX = &pEnt->x;
+                            if (nTX == pEnt->x)
+                                nDX = 0;
+                            else if (pEnt->x < nTX)
+                                nDX = 1;
+                            else
+                                nDX = -1;
+                            short *pY = &pEnt->y;
+                            if (nTY == pEnt->y)
+                                nDY = 0;
+                            else if (pEnt->y < nTY)
+                                nDY = 1;
+                            else
+                                nDY = -1;
+                            if (nDX == 0 && nDY == 0)
+                            {
+                                short nStep = pEnt->seqIdx + 1;
+                                pEnt->seqIdx = nStep;
+                                if (nStep > 2)
+                                    pEnt->seqIdx = -1;
+                            }
+                            if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                if (pChar->damage >= 0)
+                                {
+                                    PlaySound(4);
+                                    AddHealth(-pChar->damage);
+                                }
+                            }
+                            short t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                            if (t != -1)
+                            {
+                                nDX = 0;
+                                nDY = 0;
+                                break;
+                            }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t >= 0 && (pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    bMoved = 1;
+                                if (bMoved)
+                                {
+                                    *pX += (short)nDX;
+                                    *pY += (short)nDY;
+                                }
+                        }
+                        break;
+                    case 11:
+                        {
+                            short *pY;
+                            short *pX;
+                            int nY;
+                            short t;
+                            int nX = pEnt->x;
+                            if (abs(nX - nPlayerX) > 5)
+                                goto RANDOM11;
+                            nY = pEnt->y;
+                            if (abs(nY - nPlayerY) > 5)
+                                goto RANDOM11;
+                            if (nX > nPlayerX)
+                                nDX = 1;
+                            else
+                            {
+                                nDX = -1;
+                                if (nX >= nPlayerX)
+                                    nDX = 0;
+                            }
+                            if (nY > nPlayerY)
+                                nDY = 1;
+                            else if (nY < nPlayerY)
+                                nDY = -1;
+                            else
+                                nDY = 0;
+                            while (1)
+                            {
+                                pY = &pEnt->y;
+                                pX = &pEnt->x;
+                                nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                                switch (nRet)
+                                {
+                                case 2: nDX++; break;
+                                case 3: nDX--; break;
+                                case 4: nDY++; break;
+                                case 5: nDY--; break;
+                                case -1:
+                                case 0:
+                                    nDY = 0;
+                                    nDX = 0;
+                                    break;
+                                }
+                                if (*pX + nDX == nPlayerX && *pY + nDY == nPlayerY)
+                                {
+                                    nDX = 0;
+                                    nDY = 0;
+                                    if (pChar->damage >= 0)
+                                    {
+                                        PlaySound(4);
+                                        AddHealth(-pChar->damage);
+                                    }
+                                }
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 1);
+                                if (t != -1)
+                                {
+                                    nDX = 0;
+                                    nDY = 0;
+                                    goto TICK_TAIL;
+                                }
+                                bMoved = 0;
+                                t = pZone->GetTile(*pX + nDX, *pY + nDY, 0);
+                                if (t < 0)
+                                    goto MOVE11;
+                                if ((pWorld->GetTileData(t)->flags & 0x10000) == 0)
+                                    break;
+                            RANDOM11:
+                                nDX = rand() % 3 - 1;
+                                nDY = rand() % 3 - 1;
+                            }
+                            bMoved = 1;
+                        MOVE11:
+                            if (bMoved)
+                            {
+                                pEnt->x += (short)nDX;
+                                pEnt->y += (short)nDY;
+                            }
+                        }
+                        break;
+                    case 12:
+                        nDX = 0;
+                        nDY = 0;
+                        break;
+                    }
+                TICK_TAIL:
+                    if (pChar != NULL)
+                    {
+                        if (pChar->moveType == 3)
+                        {
+                            if (nDX == 0 && nDY == 0)
+                            {
+                                if (pEnt->x < nPlayerX)
+                                    nDX = 1;
+                                else
+                                {
+                                    nDX = -1;
+                                    if (pEnt->x <= nPlayerX)
+                                        nDX = 0;
+                                }
+                                if (pEnt->y < nPlayerY)
+                                    nDY = 1;
+                                else if (pEnt->y > nPlayerY)
+                                    nDY = -1;
+                                else
+                                    nDY = 0;
+                            }
+                            else if (bMoved)
+                            {
+                                pZone->SetTile(pEnt->x - nDX, pEnt->y - nDY, 1, -1);
+                                DrawZoneCell(pEnt->x - nDX, pEnt->y - nDY);
+                            }
+                            pChar->GetWalkFrameTile(nDX, nDY, &pWorld->tiles);
+                        }
+                        else
+                        {
+                            if (nDX == 0 && nDY == 0)
+                            {
+                                if (pEnt->x == nPlayerX || pEnt->y == nPlayerY)
+                                {
+                                    if (pEnt->x < nPlayerX)
+                                        nDX = 1;
+                                    else
+                                    {
+                                        nDX = -1;
+                                        if (pEnt->x <= nPlayerX)
+                                            nDX = 0;
+                                    }
+                                    if (pEnt->y < nPlayerY)
+                                        nDY = 1;
+                                    else
+                                    {
+                                        nDY = -1;
+                                        if (pEnt->y <= nPlayerY)
+                                            nDY = 0;
+                                    }
+                                    pChar->GetWalkFrameTile(nDX, nDY, &pWorld->tiles);
+                                }
+                            }
+                            else if (bMoved)
+                            {
+                                pZone->SetTile(pEnt->x - nDX, pEnt->y - nDY, 1, -1);
+                                DrawZoneCell(pEnt->x - nDX, pEnt->y - nDY);
+                                pChar->GetWalkFrameTile(nDX, nDY, &pWorld->tiles);
+                            }
+                            else if (pEnt->bRefreshFrame != 0 || pChar->moveType == 4)
+                            {
+                                pChar->GetWalkFrameTile(nDX, nDY, &pWorld->tiles);
+                                pEnt->bRefreshFrame = 0;
+                            }
+                            if (pEnt->bRefreshFrame != 0)
+                            {
+                                pChar->GetWalkFrameTile(nDX, nDY, &pWorld->tiles);
+                                pEnt->bRefreshFrame = 0;
+                            }
+                        }
+                        pZone->SetTile(pEnt->x, pEnt->y, 1, pChar->currentFrame);
+                        if (pChar->moveType == 12)
+                        {
+                            short f = pChar->frames[pEnt->seqIdx];
+                            pChar->currentFrame = f;
+                            pZone->SetTile(pEnt->x, pEnt->y, 1, f);
+                            short nStep = pEnt->seqIdx + 1;
+                            pEnt->seqIdx = nStep;
+                            if (nStep > 5)
+                                pEnt->seqIdx = 0;
+                        }
+                    }
+                    DrawZoneCell(pEnt->x, pEnt->y);
+                }
+                }
+            NEXT_ENT:
+                i++;
+            } while (nCount > i);
+        }
+        bBusy = 0;
+    }
+}
