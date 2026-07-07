@@ -287,69 +287,69 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v13 — Phase D: 76 markers; 13.70% exact + 52.64% partial = 66.33% transcribed; World-half of the TU COMPLETE)
-**State: src/Worldgen = 76 markers (75 verify-scored + the 0x425e10 ??_G). The ENTIRE World::
-half of the doc TU (0x41bee0–0x426c40) is transcribed — save/load monsters included. Session
-commits: LoadWorldStateFile+Serialize (EFFECTIVE DIFF-2 each), DrawLocatorMap+DrawRect
-(EFFECTIVE), OnNewWorld (EXACT), OnSaveWorld (EFFECTIVE-WIP), OnLoadWorld (EFFECTIVE-WIP),
-??_GCProgressCtrl 0x425e10 (MATCH — our TU already emitted it; marker with the ??_G hint).
-Exact-count breathes 27-30 as always; per-function annotations carry all autopsies.**
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers; 15.14% exact + 58.43% partial = 73.57% transcribed; THE ENTIRE WORLDGEN TU IS TRANSCRIBED)
+**State: src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc
+TU including the whole GameView tail block. v13+v14 sessions added: LoadWorldStateFile/
+Serialize/DrawLocatorMap/DrawRect/OnNewWorld(EXACT)/OnSaveWorld/OnLoadWorld/??_GCProgressCtrl
+(World half), then the GameView block: OnInitialUpdate, DrawDirectionArrows, ShowTextDialog
+(EXACT), ??1TextDialog (MATCH), DrawHealthDial/Needle, AddHealth, UseWeapon(WIP),
+DetonateAdjacentTiles (align=0), OnCmdMinimize (EXACT), DrawWeaponBox/Icon,
+BlitViewportDither, PreCreateWindow (EXACT), AddItemToInv. GameView (0x310) + TextDialog
+(0xc8, NOT MFC-derived) + InvScrollBar (0x44, scrollMax@0x3c) + InvItem (0xc, 2 ctors
+0x4011d0/0x401270) fully modeled in Worldgen.h; World gained rectWeaponBox/rectAmmoBar/
+rectHealthDial/rectArrowBox/rectUnk3284/rectInvScrollMaybe (the whole rect block 0x3274-
+0x32d4 is RECTs), equippedItem@0x3374 (holds a Tile*), lpszSaveDirMaybe@0x33bc, unk2e58,
+unk3378; Zone gained DamageEntityAt/HitEntityAt decls (RecordClasses.h — Records TU
+re-verified 25/33 ✓; Iact breathed 2->1 exact, its 8 annotated tie-breaks unaffected).**
 
-**▶ START HERE — Phase-E prep, the GameView block 0x426c40–0x429150 (last of the TU):**
-OnInitialUpdate, DrawDirectionArrows, ShowTextDialog, DrawHealthDial/Needle, AddHealth,
-UseWeapon, DetonateAdjacentTiles, OnCmdMinimize, DrawWeaponBox/Icon, BlitViewportDither,
-PreCreateWindow, AddItemToInv — grow the GameView stub in Worldgen.h one REAL field at a
-time (unk118@0x118 added this session). ⚠ 0x41e8b0 is a thin ??_G for an UNMODELED APP
-class (vftable 0x44c4f0, explicit ??1 at 0x40a1a0 in the GameView-TU head, ctor inside a
-WorldDoc-TU function at ~0x41af9a — CBitmap-ish per Ghidra guess): model that class during
-the GameView block, then our TU should emit its ??_G for free (Dlg explicit-dtor lesson).
-0x424fb0 is a bare `jmp OnLoadWorld` thunk called by GameView::OnTimer — NOT producible
-from source (ILT remnant?); it's a Phase-G whole-image item (note in Worldgen.cpp). After
-the GameView block: ONE joint residual pass over the TU, retire src/Dta, consider
-WorldStub.h→Worldgen.h consolidation (dial re-verification across GameData/Iact).
+**▶ START HERE:** (1) UseWeapon 0x427d20 needs its dedicated pass (in-source WIP notes:
+saber direction-pick shapes vs threaded && chains; per-arm IactRun cross-jump landed,
+align ~1100 left). (2) The reg/slot-rotation family pervades the GameView block (orig
+keeps this/pDC in ESI + temps in slots; ours inverts — DrawHealthDial/Needle, WeaponBox/
+Icon, AddItemToInv annotations) — candidates for the JOINT TU residual pass, which is NOW
+UNBLOCKED (TU fully transcribed): run full-TU permuter/joint passes over the parked
+EFFECTIVE annotations. (3) The 0x41e8b0 thin ??_G needs its app class modeled (vftable
+0x44c4f0, ??1 at 0x40a1a0 in the GameView-TU head, ctor used inside a WorldDoc-TU fn at
+~0x41af9a). (4) 0x424fb0 bare jmp thunk = Phase-G item. (5) Then retire src/Dta, consider
+WorldStub.h->Worldgen.h consolidation, and Phase E proper (GameView TU 0x408c60-0x418700
+— the struct is now COMPLETE in Worldgen.h, promote it to a shared header).
 
-**Ghidra sync PENDING (needs YodaDemo ACTIVE in the GUI for writes):** World vtable base is
-**0x44c438** (NOT 0x44c440 — GetFirstViewPosition=+0x68 anchor; fix Serialize's plate);
-slot +0x84 = OnCloseDocument (OnNewWorld's "mystery" 0-arg vcall — NO bug; the GetFile
-theory was wrong, retracted); World fields: lpszSaveDirMaybe@0x33bc (save/open dialogs'
-m_ofn.lpstrInitialDir), unk2e58 (nonzero skips OnNewWorld's confirm), unk3378 (zeroed on
-STUP world-view entry); InvItem struct 0xc {vptr, Tile* pTile@4, CString name@8}, ctor
-0x4011d0 (rename Mfc::FUN_004011d0→InvItem::InvItem); LoadZoneRecursive is 3-arg
-(CFile*, short, int); GameView.unk118@0x118; 0x425e10→??_GCProgressCtrl.
+**Ghidra sync PENDING (writes need YodaDemo ACTIVE):** all of v13's list (vtable base
+0x44c438, slot +0x84 = OnCloseDocument — no bug; InvItem struct + ctor renames;
+LoadZoneRecursive 3-arg; GameView.unk118→nTransitionStep is WRONG name — it IS
+nTransitionStep ✓ already; 0x425e10→??_GCProgressCtrl) PLUS v14: World rect block =
+6 RECTs (0x3274/84/94/32a4/b4/c4 — the "nHealthDial*" quad at 0x32d4 is the VIEW rect,
+the real dial rect is 0x32c4); GameView.0x2f4→bWeaponIactActiveMaybe; TextDialog struct
+(0xc8: unk10/unk14/unk54/strText@0xb8/soundSession@0xc4, ctor 0x416b90→TextDialog::Ctor,
+0x416c40→Run, 0x427440→??1TextDialog); InvScrollBar.scrollMax@0x3c; 0x4085c0→
+InvScrollBar::ctor; Character.frames[7] = the weapon icon tile id (DrawWeaponBox/UseWeapon).
 
-**v13 net-new cracks (fold into instincts):**
-- **The .wld save format** (docs-worthy): "YODASAV44" magic; seed/planet/unk33b8; quest-item
-  word lists (last element re-seeds nCurrentGoalItem/startItem from Puzzle.itemA/B on load);
-  center-2x2 quest cells from mapScratch or mapGrid[44..] per unk33b8 (0 = swapped out);
-  full 10x10 (mapGrid vs mapGridBackup per unk33b8) with 15-field cell dumps; -1,-1
-  sentinel-terminated SaveZoneRecursive/LoadZoneRecursive record streams; inventory as tile
-  ids (re-NEWed as InvItems on load); player/weapon/camera/health/difftime-elapsed tail;
-  unk248 saved as count+SUM, rebuilt as count×average.
-- **&field pointer locals are REAL source** (int *pHealth = &healthLo — the lea+spill+deref
-  pattern; OnSave/OnLoad are full of them: gameState/nFrameMode/bStartingGame/etc. caches).
-- **Read(&i,4) on a loop counter memory-homes it TU-wide** — the original uses SEPARATE
-  x/y locals for sentinel reads; never take the address of a counter you want in a reg.
-- **Early-return guard chains in EH functions**: first guard's fall-through IS the shared
-  dtor+epilogue; write `if (...) return;` sequences, not nested-if wraps (v10 lesson,
-  reconfirmed on OnLoadWorld — align 1222→718 from that one restructure).
-- **DoModal success arm = fall-through** (`== 1` if-body, cancel in else); **unk33b8
-  selectors are `!= 0` grid-arm-first** at all four OnSaveWorld sites; recursive-save
-  blocks materialize `MapZone *pCell` (base-folded [reg+4] id reads).
-- **Story-history planet dispatch is a SWITCH** (compares up front, out-of-line arms, arms
-  ending in per-arm vGoal/pArr temp assigns + ONE cross-jumped SetAtGrow tail) — but
-  SelectPuzzle's is a ladder: READ THE DISASM, both exist in this binary.
-- **CFileDialog**: needs <afxdlgs.h> (afxwin only fwd-declares); m_ofn.lpstrInitialDir
-  stored BEFORE the pDlg null check in both dialogs (sic, #8 family — kept verbatim);
-  Flags &= ~0x10 (OFN_SHOWHELP) on the open dialog; save=0x80006, open=0x1006.
-- **inc-vs-add-with-CSE'd-reg** is a new 2-byte instruction-selection tie-break family
-  (LoadWorldStateFile/Serialize STUP arms: orig `add [nDone],ecx` reusing ECX=1; ++/+=1/
-  n=n+1 all inert).
-- **DrawRect edge loops**: per-use strength-reduced IVs (`top+i` twice = TWO lockstep regs)
-  = copy-variable named locals in source; y1-declared-LAST aligned the pRect reload (edge
-  4); free __stdcall function like Log_Write.
-- **asmscore best-fit traps**: free functions (no Class::) fall back to global best-fit and
-  can mispair — score by explicit COMDAT name via match.coff_functions; OnToggleSound
-  stole DrawRect's slot silently.
+**v14 net-new cracks (fold into instincts):**
+- **Duplicated-call arms are EVERYWHERE in this dev's code**: LoadIcon per arrow arm,
+  IactRun + flag set/clear per UseWeapon arm, GetSysColor+GetNearest+Fill per weapon-box
+  arm — write the FULL call in each arm; the compiler cross-jumps the common tail leaving
+  per-arm constant/coordinate pushes. Value-ternaries on adjacent constants go BRANCHLESS
+  (sbb/add) even via pointer-typed locals or if/else — when the orig has branchy push-imm
+  arms, the CALL is in the arms, period.
+- **VC4.2 jumps TO the then-arm in value-assign if/else** (DrawDirectionArrows needed
+  `== 0` disabled-icon-first) but in statement-arm if/else around calls the layout is NOT
+  source-steerable (weapon boxes, AddItemToInv scrollbar — both spellings identical).
+- **BOOL fall-off = C2561 hard error**: PreCreateWindow matched via `BOOL bRet = base();
+  cs.style |= ...; return bRet;` — the result rides EAX across mem-ops for free
+  (PlaceItemOnLock family).
+- **`AfxGetInstanceHandle();` as a bare statement** = the recurring dead
+  AfxGetModuleState call (result load dropped, call kept) — OnInitialUpdate/DrawDirection-
+  Arrows both.
+- **evaluate-callee-first locals**: `CFrameWnd *pFrame = GetParentFrame();` before
+  PostMessage (call-before-pushes = a local, not an inline arg).
+- **A guarded `new Canvas(w,h)` shape proves ctor-hood** — Canvas TU's "Init" 0x407df0 is
+  really Canvas::Canvas(int,int) (stub decl added; Canvas TU rename pending).
+- **Struct-copy RECTs**: `rc = pWorld->rectArrowBox; rc.left -= 4;` (4-dword copy + edits).
+- **movsx-immediately int for GetTile results** (Detonate hit align=0 with it) and NEVER
+  cast to short at DrawZoneCell call sites — but UseWeapon's DrawZoneCell args ARE
+  short-arithmetic ((short)x + sdx*2 with short sdx/sdy locals): read each site.
+- **The early-return dtor block lesson holds in the view code too** (DrawHealthNeedle's
+  `if (nLo == 0) return;`).
 
 ### ⏮ PRIOR (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
 **State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global

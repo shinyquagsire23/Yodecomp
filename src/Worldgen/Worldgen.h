@@ -233,7 +233,7 @@ public:
     int          unk2e8_always1;     // +0x2e8
     int          artooAnyhowHelpIdx; // +0x2ec
     int          bSuppressWalkSound; // +0x2f0
-    char         _pad2f4[4];         // +0x2f4
+    int          bWeaponIactActiveMaybe; // +0x2f4  set around UseWeapon's hit + IactRun
     int          bShowEmptyDialogOnceMaybe; // +0x2f8
     void        *pMusicThread;       // +0x2fc
     int          bArtooBeepPending0Maybe; // +0x300
@@ -255,6 +255,7 @@ public:
     void BlitViewportDither();                            // 0x00428e30
     virtual BOOL PreCreateWindow(CREATESTRUCT &cs);       // 0x00428f30 (CWnd override)
     void AddItemToInv(Tile *pTile);                       // 0x00428f50
+    void UseWeapon(int x, int y, int dx, int dy, int nStep); // 0x00427d20
     void DetonateAdjacentTiles(int x, int y);             // 0x00428680
     int  DrawZoneCell(short x, short y);                  // 0x00409460 (GameView TU head)
     // ---- cross-TU (GameView TU / its own little TUs) ----
@@ -383,7 +384,8 @@ public:
     char        _pad3356[2];         // +0x3356
     Tile       *pPlayerFrameTile;    // +0x3358
     Character  *pPlayerChar;         // +0x335c
-    char        _pad3360[0x18];      // +0x3360
+    char        _pad3360[0x14];      // +0x3360
+    int         equippedItem;        // +0x3374  (holds a Tile*; UseWeapon saves/overrides it)
     int         unk3378;             // +0x3378  zeroed when STUP world-view state is entered
     int         bWorldInvalidMaybe;  // +0x337c  (Ghidra name; OnLoadWorld sets 1)
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
