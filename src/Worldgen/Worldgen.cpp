@@ -4616,6 +4616,144 @@ int World::ParseHtsp(CFile *pFile)
     } while (1);
 }
 
+// FUNCTION: YODA 0x00423850
+// [EFFECTIVE MATCH: DIFF(2), insns 230/230. Sole residual: the STUP arm's nDone++ — orig
+// emits add [nDone],ecx reusing the CSE'd ECX=1; ours emits inc. ++/+=1/n=n+1 all inert
+// (probed 2026-07-06) — inc-vs-add-reg is instruction selection, same family as the
+// cmp-direction tie-breaks. Serialize (0x423b30) carries the identical residual.]
+// Standalone .wld-state reader (invoked from OnDraw): open the doc path read/binary, read the
+// chunk stream VERS(==0x200)/STUP(->ReadStupCanvas)/ENDF, then enter the world-view state
+// (bWorldReady/bHidePlayer/nMapChangeReason=1/nFrameMode=7) and UpdateAllViews.
+void World::LoadWorldStateFile()
+{
+    CFile *pFile = new CFile;
+    CString strPath;
+    strPath = ((CTheApp *)AfxGetApp())->m_str;
+    CFileException e;
+    pFile->Open(strPath, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, &e);
+    int nDone = 0;
+    do
+    {
+        char tag[5];
+        int nLen;
+        TRY {
+            pFile->Read(tag, 4);
+            tag[4] = 0;
+            pFile->Read(&nLen, 4);
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
+            _afxExceptionLink.m_pException = e2;
+            nFrameMode = 12;
+            nDone++;
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
+        if (nDone != 0)
+            break;
+        if (strcmp(tag, "VERS") == 0)
+        {
+            if (nLen != 0x200)
+            {
+                AfxMessageBox(5, 0, (UINT)-1);
+                nDone++;
+            }
+        }
+        else if (strcmp(tag, "STUP") == 0)
+        {
+            if (bDtaLoadedMaybe == 0)
+            {
+                ReadStupCanvas(pFile);
+                nDone++;
+                unk50 = 0;
+                bHidePlayerMaybe = 1;
+                bWorldReadyMaybe = 1;
+                unk3378 = 0;
+                nMapChangeReason = 1;
+                nFrameMode = 7;
+            }
+            else
+                nDone++;
+        }
+        else if (strcmp(tag, "ENDF") == 0)
+        {
+            nDone++;
+        }
+        else
+        {
+            pFile->Seek(nLen, CFile::current);
+        }
+    } while (nDone == 0);
+    UpdateAllViews(NULL);
+    pFile->Close();
+    delete pFile;
+}
+
+// FUNCTION: YODA 0x00423b30
+// [EFFECTIVE MATCH: DIFF(2) — same single inc-vs-add tie-break as LoadWorldStateFile.]
+// CDocument::Serialize override: on load, the same VERS/STUP/ENDF chunk loop as
+// LoadWorldStateFile over ar.m_pFile (copy-paste source). Store path: empty (demo save
+// disabled).
+void World::Serialize(CArchive &ar)
+{
+    if (ar.IsLoading())
+    {
+        int nDone = 0;
+        CFile *pFile = ar.GetFile();
+        do
+        {
+            char tag[5];
+            int nLen;
+            TRY {
+                pFile->Read(tag, 4);
+                tag[4] = 0;
+                pFile->Read(&nLen, 4);
+            }
+            }              // closes the try block the TRY macro opened
+            catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
+                _afxExceptionLink.m_pException = e2;
+                nFrameMode = 12;
+                nDone++;
+            }
+            }              // closes the TRY macro's outer (link-scope) brace
+            if (nDone != 0)
+                break;
+            if (strcmp(tag, "VERS") == 0)
+            {
+                if (nLen != 0x200)
+                {
+                    AfxMessageBox(5, 0, (UINT)-1);
+                    nDone++;
+                }
+            }
+            else if (strcmp(tag, "STUP") == 0)
+            {
+                if (bDtaLoadedMaybe == 0)
+                {
+                    ReadStupCanvas(pFile);
+                    nDone++;
+                    unk50 = 0;
+                    bHidePlayerMaybe = 1;
+                    bWorldReadyMaybe = 1;
+                    unk3378 = 0;
+                    nMapChangeReason = 1;
+                    nFrameMode = 7;
+                }
+                else
+                    nDone++;
+            }
+            else if (strcmp(tag, "ENDF") == 0)
+            {
+                nDone++;
+            }
+            else
+            {
+                pFile->Seek(nLen, CFile::current);
+            }
+        } while (nDone == 0);
+        UpdateAllViews(NULL);
+    }
+}
+
 // FUNCTION: YODA 0x00423d20
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
 void World::SetCurrentToIntroZone()

@@ -189,7 +189,9 @@ public:
     char        _pad3338[0x20];      // +0x3338
     Tile       *pPlayerFrameTile;    // +0x3358
     Character  *pPlayerChar;         // +0x335c
-    char        _pad3360[0x20];      // +0x3360
+    char        _pad3360[0x18];      // +0x3360
+    int         unk3378;             // +0x3378  zeroed when STUP world-view state is entered
+    char        _pad337c[4];         // +0x337c
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
     int         genCellQuestSlot5Scratch; // +0x3384
     int         genCellItemAScratch;      // +0x3388
