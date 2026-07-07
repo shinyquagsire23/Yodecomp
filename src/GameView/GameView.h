@@ -195,7 +195,7 @@ public:
     static UINT MusicThreadProcMaybe(void *pParam);       // 0x00408590 (AfxBeginThread proc)
     void PlaySound(int nSoundId);                          // 0x00409060
     // (0x00409340 is InvScrollBar::OnHScroll, not a GameView method — see that class above)
-    int  DrawZoneCell(short x, short y);                   // 0x00409460
+    void DrawZoneCell(short x, short y);                   // 0x00409460 (bare-return guards ⇒ void)
     void DrawZoneCellRect(int x1, int y1, int x2, int y2); // 0x004095d0
     void DrawWholeZone();                                  // 0x00409610
     int  ZoneTransitionStep(short nZoneId, short nStep);   // 0x00409650

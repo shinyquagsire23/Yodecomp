@@ -543,3 +543,101 @@ skip:
             pView->DrawText(0);
     }
 }
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409460
+// GameView::DrawZoneCell — composite one map cell (zone coords x,y) into the back-
+// buffer canvas. Layer 0 is the opaque ground (always BlitFast); layers 1 & 2 are
+// the overlay tiles (masked blit when the tile's transparency flag @+0x404 bit0 is
+// set, otherwise opaque). Bounds-guarded against the current zone's extent — note
+// the asymmetry the 1997 code has: valid x is [0,width) but valid y is [0,height].
+// void return: every guard is a bare `return;` and no epilogue sets EAX (Ghidra's
+// "int"/longlong return + phantom param_2 were __thiscall ABI-confusion artifacts).
+//
+// Register/CSE notes for matching: the guard caches pWorld->currentZone (ECX) and the
+// LAYER-0 GetTile reuses that cached pointer, while layers 1 & 2 reload
+// pWorld->currentZone fresh — hence pZone-> for layer 0 vs pWorld->currentZone-> for
+// 1 & 2. x<<5 / y<<5 (the destination pixel coords, 16-bit because destX/destY are
+// short) are hoisted once into ESI/EBX and shared across all three layers' blits.
+void GameView::DrawZoneCell(short x, short y)
+{
+    Tile *pTile;
+    short sx, sy;
+
+    // currentZone is evaluated lazily inside the guard (after x<0) and CSE'd across the
+    // width/height tests AND layer 0's GetTile — one load held in a register; layers 1 & 2
+    // reload it because the intervening blit calls clobber the caller-saved register.
+    if (x < 0 || pWorld->currentZone->width <= x ||
+        y < 0 || pWorld->currentZone->height < y)
+        return;
+    sx = x << 5;                     // destination pixel coords, held persistently
+    sy = y << 5;
+    // layer 0 — opaque ground (tile id is a signed short: -1 = empty ⇒ movsx)
+    pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 0));
+    if (pTile != 0)
+        pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+    // layer 1 — overlay
+    pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 1));
+    if (pTile != 0)
+    {
+        if (pTile->flags & 1)
+            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+        else
+            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+    }
+    // layer 2 — overlay
+    pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 2));
+    if (pTile != 0)
+    {
+        if (pTile->flags & 1)
+            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+        else
+            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x004095d0
+// GameView::DrawZoneCellRect — repaint the rectangular block of cells [x1..x2] ×
+// [y1..y2] (inclusive), y-outer / x-inner. int args pass straight to DrawZoneCell's
+// short params (the compiler pushes the full dword; the callee reads the low word).
+// EFFECTIVE (align=22, 27/27 insns, control flow identical): the residual is a pure
+//   register-role ROTATION — the original assigns this→EBP (least-used ⇒ last-choice
+//   reg), y→EDI, x2→EBX, x→ESI; ours rotates them differently, which reschedules the
+//   4 callee-saved pushes and the incoming-arg loads (hence the [esp+0x18] vs [esp+
+//   0x10] offset drift). Plus the compiler-emitted inner-loop entry guard picks
+//   `cmp x,x2; jg` (orig) vs our `cmp x2,x; jl` — the canonicalized cmp-direction knob
+//   MSVC selects internally (lesson #6, proven not source-steerable). No source shape
+//   flips `this` out of the last-choice register here; a G1 permuter/dial pass resolves
+//   it. Decl order x,y↔y,x only trades reg_pen (both stay align=22).
+void GameView::DrawZoneCellRect(int x1, int y1, int x2, int y2)
+{
+    int y, x;
+
+    for (y = y1; y <= y2; y++)
+        for (x = x1; x <= x2; x++)
+            DrawZoneCell(x, y);
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409610
+// GameView::DrawWholeZone — repaint every cell of the current zone, back-to-front
+// (both loops count down from width-1). Uses the zone WIDTH for both axes; zones are
+// square (18×18) so this covers the whole grid. width-1 is hoisted into EBP and
+// copied into the outer (y) counter + reset into the inner (x) counter each row.
+// EFFECTIVE (align=0, reg_pen=4, 27/27 insns): structure is byte-exact; the sole
+//   residual is the outer(y)/inner(x) counters landing in swapped registers (orig
+//   y→EBX x→ESI, ours the reverse). This function was BYTE-EXACT under the prior dial
+//   (before DrawZoneCell's currentZone-CSE form landed) — it is now PHASE-DISPLACED by
+//   the very edit that made DrawZoneCell exact (they can't both be exact under one
+//   global dial; the 361-byte DrawZoneCell wins). Decl-order permutations (x,y / y,x /
+//   m-first) only trade reg_pen; none re-flip it. G1 joint pass resolves it.
+void GameView::DrawWholeZone()
+{
+    int x, y;
+    int m = pWorld->currentZone->width - 1;
+
+    for (y = m; y >= 0; y--)
+        for (x = m; x >= 0; x--)
+            DrawZoneCell(x, y);
+}
