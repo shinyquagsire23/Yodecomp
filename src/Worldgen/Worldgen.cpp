@@ -6740,3 +6740,350 @@ void GameView::AddHealth(int nDelta)
             pW->abortFrame = -1;
     }
 }
+
+// FUNCTION: YODA 0x004278a0
+// [EFFECTIVE-WIP: insns 342/346, structure converged (early-return guard, range-pair
+// else-if quadrant chain with jump threading, shared table). Residual = the pDC/this
+// reg-vs-param-slot rotation (orig homes pDC in ESI, xe/ye in slots; ours the inverse —
+// same family as DrawHealthDial; local-copy probe inert) + default-ctor zero-reg choice.]
+// Draw the health-dial needle + pie fill. Colors by healthHi segment (1 yellow/green,
+// 2 red/yellow, 3 black/red; 0 = default pens). The full disc is drawn in color A, then
+// the remaining-health slice from 12 o'clock to the needle in color B; the needle end
+// comes from the shared quarter-circle table, one quadrant per 25 points of healthLo.
+// NULL pDC = own window DC under the world palette (leaked when healthLo == 0 — sic).
+void GameView::DrawHealthNeedle(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    CPalette *pOldPal;
+    if (pDC == NULL)
+    {
+        pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        if (pDC == NULL)
+            return;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
+    }
+    CPen penA;
+    CBrush brA;
+    CPen penB;
+    CBrush brB;
+    int cx = pWorld->rectHealthDial.left + 0x10;
+    int cy = pWorld->rectHealthDial.top - 1;
+    if (pWorld->healthHi == 1)
+    {
+        penA.Attach(::CreatePen(PS_SOLID, 1, 0xffff));
+        penB.Attach(::CreatePen(PS_SOLID, 1, 0xff00));
+        brA.Attach(::CreateSolidBrush(0xffff));
+        brB.Attach(::CreateSolidBrush(0xff00));
+    }
+    else if (pWorld->healthHi == 2)
+    {
+        penA.Attach(::CreatePen(PS_SOLID, 1, 0xff));
+        penB.Attach(::CreatePen(PS_SOLID, 1, 0xffff));
+        brA.Attach(::CreateSolidBrush(0xff));
+        brB.Attach(::CreateSolidBrush(0xffff));
+    }
+    else if (pWorld->healthHi == 3)
+    {
+        penA.Attach(::CreatePen(PS_SOLID, 1, 0));
+        penB.Attach(::CreatePen(PS_SOLID, 1, 0xff));
+        brA.Attach(::CreateSolidBrush(0));
+        brB.Attach(::CreateSolidBrush(0xff));
+    }
+    int nLo = pWorld->healthLo;
+    int cx2 = pWorld->rectHealthDial.left + 0x10;
+    int t = pWorld->rectHealthDial.top;
+    int cy2 = t + 0x10;
+    int l = pWorld->rectHealthDial.left;
+    int r = pWorld->rectHealthDial.right;
+    int b = pWorld->rectHealthDial.bottom;
+    if (nLo == 0)
+        return;
+    {
+        int xe, ye;
+        if (nLo == 100)
+        {
+            xe = cx;
+            ye = cy;
+        }
+        else if (nLo > 0 && nLo < 0x19)
+        {
+            xe = cx2 + gNeedleTable[nLo];
+            ye = cy2 - gNeedleTable[25 - nLo];
+        }
+        else if (nLo >= 0x19 && nLo < 0x32)
+        {
+            ye = cy2 + gNeedleTable[nLo - 25];
+            xe = cx2 + gNeedleTable[50 - nLo];
+        }
+        else if (nLo >= 0x32 && nLo < 0x4b)
+        {
+            xe = cx2 - gNeedleTable[nLo - 50];
+            ye = cy2 + gNeedleTable[75 - nLo];
+        }
+        else if (nLo >= 0x4b && nLo < 0x64)
+        {
+            xe = cx2 - gNeedleTable[100 - nLo];
+            ye = cy2 - gNeedleTable[nLo - 75];
+        }
+        CPen *pOldPen = pDC->SelectObject(&penA);
+        CBrush *pOldBrush = pDC->SelectObject(&brA);
+        ::Pie(pDC->m_hDC, l, t, r, b, cx, cy, cx, cy);
+        if (nLo != 100)
+        {
+            pDC->SelectObject(&penB);
+            pDC->SelectObject(&brB);
+            ::Pie(pDC->m_hDC, l, t, r, b, cx, cy, xe, ye);
+        }
+        pDC->SelectObject(pOldPen);
+        pDC->SelectObject(pOldBrush);
+        if (bReleaseDC != 0)
+        {
+            pDC->SelectPalette(pOldPal, 0);
+            ::ReleaseDC(m_hWnd, pDC->m_hDC);
+        }
+    }
+}
+
+// FUNCTION: YODA 0x00428aa0
+// WM_COMMAND 0x8001: minimize the main frame.
+void GameView::OnCmdMinimize()
+{
+    CFrameWnd *pFrame = GetParentFrame();
+    ::PostMessage(pFrame->m_hWnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
+}
+
+// FUNCTION: YODA 0x00428e30
+// [EFFECTIVE: insns 80/78; residual = IV zero-init placement + a reg rotation in the
+// BitBlt arg block (pWorld-reload color). Offset-form outer loop (while nOff < 0x51000)
+// is decompile-literal; the x*y%2 signed-mod dance comes from the prod-accumulator.]
+// Dim the 576x576 canvas with a multiplicative checkerboard (zero where x*y is even), blit
+// the visible 288x288 window to the screen at (8,7), then restore the palette.
+void GameView::BlitViewportDither()
+{
+    CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+    if (pDC != NULL)
+    {
+        CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        unsigned char *pData = (unsigned char *)pWorld->pCanvas->GetData();
+        int nOff = 0;
+        int y = 0;
+        do
+        {
+            int x = 0;
+            int prod = 0;
+            do
+            {
+                if (prod % 2 == 0)
+                    pData[nOff + x] = 0;
+                prod += y;
+                x++;
+            } while (x < 0x240);
+            nOff += 0x240;
+            y++;
+        } while (nOff < 0x51000);
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, pWorld->nViewLeft, pWorld->nViewTop);
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+}
+
+// FUNCTION: YODA 0x00428f30
+// CWnd::PreCreateWindow override: run the base without WS_BORDER, then force it on.
+BOOL GameView::PreCreateWindow(CREATESTRUCT &cs)
+{
+    cs.style &= ~WS_BORDER;
+    BOOL bRet = CView::PreCreateWindow(cs);
+    cs.style |= WS_BORDER;
+    return bRet;                     // rides EAX across the |= for free
+}
+
+// FUNCTION: YODA 0x00428ac0
+// [EFFECTIVE-WIP: insns 123/120; residual = arm LAYOUT (orig falls through into the
+// armed arm, JE to the out-of-line unarmed fill; ours inverts — both if-spellings compile
+// identically here, so the placement is compiler-internal: open family) + bReleaseDC
+// slot-vs-EBX + the GetNearestPaletteIndex import-cache reg.]
+// Draw the current-weapon box: sunken 2px bevel around rectWeaponBox inflated by 2, the
+// weapon's icon tile (frames[7]) masked onto the drag canvas over a COLOR_3DFACE fill
+// (plain fill when unarmed), blitted at +3,+3, then a raised 1px bevel on the tight rect.
+void GameView::DrawWeaponBox(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    CPalette *pOldPal;
+    if (pDC == NULL)
+    {
+        pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        if (pDC == NULL)
+            return;
+        bReleaseDC = 1;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    }
+    RECT rc;
+    rc.left = pWorld->rectWeaponBox.left - 2;
+    rc.right = pWorld->rectWeaponBox.right + 2;
+    rc.top = pWorld->rectWeaponBox.top - 2;
+    rc.bottom = pWorld->rectWeaponBox.bottom + 2;
+    DrawRect(pDC, &rc, 0, 2);
+    if (pWorld->currentWeapon != NULL)
+    {
+        Tile *pTile = (Tile *)pWorld->tiles.GetAt(pWorld->currentWeapon->frames[7]);
+        pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
+            (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
+        pDragTileCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, 0, 0, 0);
+    }
+    else
+    {
+        pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
+            (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
+    }
+    pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 0x1e, 0x1e, 1, 1);
+    DrawRect(pDC, (RECT *)&pWorld->rectWeaponBox, 1, 1);
+    if (bReleaseDC != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+}
+
+// FUNCTION: YODA 0x00428c40
+// [EFFECTIVE-WIP: same arm-layout + reg families as DrawWeaponBox; armed-arm-first form
+// kept (dropped DIFF 400->213). The per-shot-height dispatch is a sparse switch.]
+// Draw the ammo bar: sunken bevel around rectAmmoBar inflated by 2; when armed, a 0x91
+// (green) full-height column then black covering the spent part (0x1e - ammo * per-shot
+// height from the weapon's icon tile id: blaster family 1, rifle 2, thermal 3), else a
+// COLOR_3DFACE fill; raised 1px bevel on the tight rect.
+void GameView::DrawWeaponIcon(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    CPalette *pOldPal;
+    if (pDC == NULL)
+    {
+        pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        if (pDC == NULL)
+            return;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
+    }
+    int nAmmo, nMult;
+    if (pWorld->currentWeapon != NULL)
+    {
+        nAmmo = pWorld->currentWeapon->unk48;
+        switch (pWorld->currentWeapon->frames[7])
+        {
+        case 0x12:
+        case 0x1fe:
+            nMult = 1;
+            break;
+        case 0x1ff:
+            nMult = 2;
+            break;
+        case 0x200:
+            nMult = 1;
+            break;
+        case 0x201:
+            nMult = 3;
+            break;
+        default:
+            nMult = 0;
+            break;
+        }
+    }
+    RECT rc;
+    rc.left = pWorld->rectAmmoBar.left - 2;
+    rc.right = pWorld->rectAmmoBar.right + 2;
+    rc.top = pWorld->rectAmmoBar.top - 2;
+    rc.bottom = pWorld->rectAmmoBar.bottom + 2;
+    DrawRect(pDC, &rc, 0, 2);
+    int nHeight;
+    if (pWorld->currentWeapon != NULL)
+    {
+        pDragTileCanvas->Fill(0x91);
+        pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 7, 0x1e, 1, 1);
+        pDragTileCanvas->Fill(0);
+        nHeight = 0x1e - nAmmo * nMult;
+    }
+    else
+    {
+        pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
+            (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
+        nHeight = 0x1e;
+    }
+    pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 7, nHeight, 1, 1);
+    DrawRect(pDC, (RECT *)&pWorld->rectAmmoBar, 1, 1);
+    if (bReleaseDC != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+}
+
+// FUNCTION: YODA 0x00428f50
+// [EFFECTIVE-WIP: insns 160/162; residual = the same arm-LAYOUT normalization as the
+// weapon-box pair (orig falls into the >7 scrollbar arm / jle out-of-line; ours inverts
+// under both spellings) + the &pWorld lea-vs-reload and scan-backedge cmp direction.]
+// Add a tile to the inventory unless it is a duplicate of a unique (flags & 0x100000)
+// item: new InvItem named after the tile, the locator (flags == 0x100081) inserts at the
+// front, others at slot 2 (or append while fewer than 2 items); then rescale the inventory
+// scrollbar (visible rows: 7) and repaint via OnUpdate(NULL, 1, NULL).
+void GameView::AddItemToInv(Tile *pTile)
+{
+    int bFound = 0;
+    if (pTile != NULL)
+    {
+        int i = 0;
+        int nInv = pWorld->inventory.GetSize();
+        if (nInv > 0)
+        {
+            InvItem **pp = (InvItem **)pWorld->inventory.GetData();
+            do
+            {
+                if ((*pp)->pTile == pTile)
+                {
+                    bFound = 1;
+                    break;
+                }
+                pp++;
+                i++;
+            } while (i < nInv);
+        }
+        if (bFound == 0 || (pTile->flags & 0x100000) == 0)
+        {
+            InvItem *pNew;
+            TRY {
+                pNew = new InvItem(pTile, "");
+            }
+            }              // closes the try block the TRY macro opened
+            catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+                _afxExceptionLink.m_pException = e;
+                AfxMessageBox(0xe01e, 0, (UINT)-1);
+                AfxAbort();
+            }
+            }              // closes the TRY macro's outer (link-scope) brace
+            PlaySound(3);
+            pNew->name = pTile->name;
+            if (pTile->flags == 0x100081)
+            {
+                pWorld->inventory.InsertAt(0, pNew, 1);
+            }
+            else
+            {
+                if (pWorld->inventory.GetSize() <= 1)
+                    pWorld->inventory.SetAtGrow(pWorld->inventory.GetSize(), pNew);
+                else
+                    pWorld->inventory.InsertAt(2, pNew, 1);
+            }
+            if (pWorld->inventory.GetSize() > 7)
+            {
+                int n = pWorld->inventory.GetSize() - 7;
+                ::SetScrollRange(pInvScrollBar->m_hWnd, SB_CTL, 0, n, 1);
+                pInvScrollBar->scrollMax = n;
+            }
+            else
+            {
+                ::SetScrollRange(pInvScrollBar->m_hWnd, SB_CTL, 0, 1, 1);
+                pInvScrollBar->scrollMax = 0;
+            }
+            OnUpdate(NULL, 1, NULL);
+        }
+    }
+}

@@ -16,6 +16,9 @@
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
 
+// Quarter-circle needle-offset table (radius 16), shared by all four dial quadrants.
+extern int gNeedleTable[26];         // 0x00456938
+
 // Free __stdcall bevel-border helper (0x00424010; Ghidra: Render::DrawRect), lives in this TU.
 void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness);
 
@@ -93,6 +96,7 @@ public:
     Tile   *pTile;                   // +0x04
     CString name;                    // +0x08  copied from pTile->name
     InvItem();                                            // 0x004011d0 (first app TU)
+    InvItem(Tile *pTile, const char *pszName);            // 0x00401270 (first app TU)
 };
 
 // Canvas stub: only what this TU touches (real module: src/Canvas/, byte-matched).
@@ -123,7 +127,8 @@ class TextDialog;                    // defined after GameView (needs the fwd de
 class InvScrollBar : public CScrollBar
 {
 public:
-    char _pad3c[8];                  // +0x3c
+    int  scrollMax;                  // +0x3c
+    char _pad40[4];                  // +0x40
     InvScrollBar(GameView *pView, RECT *pRect);           // 0x004085c0 (Ghidra: CtorCreateMaybe)
 };
 
@@ -244,6 +249,12 @@ public:
     void DrawHealthDial(CDC *pDC);                        // 0x00427490
     void AddHealth(int nDelta);                           // 0x00427690
     void DrawHealthNeedle(CDC *pDC);                      // 0x004278a0
+    afx_msg void OnCmdMinimize();                         // 0x00428aa0
+    void DrawWeaponBox(CDC *pDC);                         // 0x00428ac0
+    void DrawWeaponIcon(CDC *pDC);                        // 0x00428c40
+    void BlitViewportDither();                            // 0x00428e30
+    virtual BOOL PreCreateWindow(CREATESTRUCT &cs);       // 0x00428f30 (CWnd override)
+    void AddItemToInv(Tile *pTile);                       // 0x00428f50
     // ---- cross-TU (GameView TU / its own little TUs) ----
     void PlaySound(int nSound);                           // 0x00409060 (GameView TU head)
     void SoundInit();                                     // 0x00411520 (GameView TU)
@@ -339,7 +350,8 @@ public:
     RECT        rectUnk3274;         // +0x3274  locator-map blit origin (left/top used)
     RECT        rectUnk3284;         // +0x3284
     RECT        rectInvScrollMaybe;  // +0x3294  passed to the InvScrollBar ctor
-    char        _pad32a4[0x20];      // +0x32a4
+    RECT        rectWeaponBox;       // +0x32a4  current-weapon icon box
+    RECT        rectAmmoBar;         // +0x32b4  ammo bar box
     RECT        rectHealthDial;      // +0x32c4  (the 0x32d4 quad in WorldDoc.h was misnamed)
     int         nViewLeft;           // +0x32d4  visible 288x288 window (UpdateCamera writes;
     int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
