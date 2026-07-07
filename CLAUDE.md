@@ -286,7 +286,64 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v11 — Phase D: 66 markers; 54.16% transcribed; the quest-path layer is DONE)
+**State: src/Worldgen = 66 markers; 14.12% exact + 40.04% partial = 54.16% transcribed (the
+exact-count breathes with the dial — 24-29 range this session; per-function EFFECTIVE
+annotations carry the autopsies). Session commits: 6be5438 (PlaceQuestNode), 786f695
+(SelectPuzzle + PuzzleType enum), 0d6f9f1 (CarveQuestPath + PlanToken enum), 7ce3492
+(PlaceBlockades). Ghidra fully synced (renames dropped the Maybe on all four; Zone.zoneUnk846
+→ planet; PuzzleType/PlanToken enums in the DB; Puzzle.nType typed; plate comments).**
+
+**▶ START HERE — Generate 0x41f960 (6.6KB, the worldgen driver): its ENTIRE callee layer is
+now transcribed** (CarveQuestPath ×3, PlaceQuestNode, PlaceBlockades, SelectPuzzle,
+Shuffle/queries/placers, PlacePuzzles, Populate, grid copies). It consumes the PlanToken grid
+— use it to CONFIRM the PLAN_FORK_W/E/N/S direction names (marked "confirm vs Generate" in
+Worldgen.h) and the PLAN_START=0xc9 Maybe. Then the save/load monsters (OnSaveWorld/
+OnLoadWorld/Serialize/LoadWorldStateFile — CArchive+CATCH_ALL, WorldDoc OnOpenDocument
+recipe), then the GameView methods 0x426c40-0x429150 (need GameView layout — Phase-E prep).
+
+**v11 net-new (4 functions, ~6.3KB transcribed, all quest-path layout):**
+- **PlaceQuestNode 0x41f120** (EFFECTIVE-WIP ~97%): true sig ALL-SHORT 7 params (a2/a3
+  proven by movsx-word reads; header decl fixed). Residual = this/i callee-saved 2-cycle,
+  proven source-SENSITIVE but dial-coupled. **Engine bug #12**: case-1's teleporter scan
+  discards its result — only object-FREE ENEMY_TERRITORY zones are accepted when
+  genSkipTeleCheck is on.
+- **WorldgenSelectPuzzle 0x41eab0** (EFFECTIVE-WIP): zone-type→PuzzleType mapping
+  (10→GOAL_PRIZE 15→TRADE 16→TRANSACTION 9999→WORLD_MISSION); 9999 screens per-planet
+  storyHistory + hardcoded demo goal-id whitelists. nItem2/bFirst params exist but are
+  never read. Residual = i-vs-nPlanet homing (switch(nPlanet) probe spills `this` — worse).
+- **WorldgenCarveQuestPath 0x41d940** (structurally 100%): residual = one reg rotation whose
+  AX→CX scratch pick costs 1 byte and alignment-shifts the jump tables.
+- **WorldgenPlaceBlockades 0x41e350** (structurally converged, all 4 REP-STOS fills
+  reproduced): south/east arms require run>=4, leaving their 3-run corner logic DEAD
+  (copy-paste, kept sic).
+
+**⭐ NEW CODEGEN CRACKS (v11 — add to instincts):**
+- **Callee param widths are caller-visible**: an `int` param decl on a method whose caller
+  pushes a cached short register forces a movsx the original lacks — PopulateGoalZone.a5 and
+  PlaceItemForLockChain.nOrder were int in our decls, SHORT in truth (both unread in their
+  bodies; the caller's un-widened push is the evidence). Audit decls against caller pushes.
+- **REP-STOS wall fills**: VC4.2 rep-izes ONLY indexed for-loops over a FRESH variable
+  (`for (j = a; j < b; j++) p[j] = C;`); a reused/live counter or an explicit-count
+  do-while defeats the idiom. Expression-style bounds (`nWid + nStart - 1`) let the trip
+  count FOLD to a constant; a materialized `i = nWid + nStart - 1` variable keeps it
+  runtime. And `bPlaced = 1` must sit INSIDE each success arm — placed after the if/else,
+  the compiler cross-jumps the two identical rep tails into one block (the original has
+  both inline).
+- **Ternary vs two-statement conditional assign**: `x = rand() % 2 != 0 ? base : opp;`
+  emits load/cond-overwrite/single-store; `x = base; if (...) x = opp;` on a memory-homed
+  var emits store-store. Ternary polarity controls which arm loads first (write `!= 0 ?
+  base : opp` for the JNE/base-first shape).
+- **`nBudget <= 0` (test/jg) vs `< 1` (cmp 1/jge)** — literal emission, mirror the disasm.
+- **Switch-vs-ladder is READABLE from layout**: compares-up-front with JE→out-of-line arms
+  = switch; inline arms with JNE-next = if/else-if ladder (SelectPuzzle's planet dispatch is
+  a LADDER; CarveQuestPath's tier dispatch is a SWITCH). Both this session.
+- **A `default:` that only bumps a counter still materializes the JA target** — PlaceBlockades'
+  `default: nTries++;` (without it the JA would target the switch join).
+- MFC note: CWordArray::m_pData is protected — use GetData()/SetAt()/GetAt() (inline to the
+  same bytes).
+
+### ⏮ PRIOR (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
 **State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
 14.86% exact + 33.86% partial = 48.72% transcribed. Session commits: 8d8402b (gap + queries +
 5 placers + enums), then the World.h consolidation commit. Worldgen exact-count breathes with
