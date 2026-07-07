@@ -255,6 +255,8 @@ public:
     void BlitViewportDither();                            // 0x00428e30
     virtual BOOL PreCreateWindow(CREATESTRUCT &cs);       // 0x00428f30 (CWnd override)
     void AddItemToInv(Tile *pTile);                       // 0x00428f50
+    void DetonateAdjacentTiles(int x, int y);             // 0x00428680
+    int  DrawZoneCell(short x, short y);                  // 0x00409460 (GameView TU head)
     // ---- cross-TU (GameView TU / its own little TUs) ----
     void PlaySound(int nSound);                           // 0x00409060 (GameView TU head)
     void SoundInit();                                     // 0x00411520 (GameView TU)

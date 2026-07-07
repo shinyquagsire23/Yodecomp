@@ -7087,3 +7087,158 @@ void GameView::AddItemToInv(Tile *pTile)
         }
     }
 }
+
+// FUNCTION: YODA 0x00428680
+// [EFFECTIVE: align=0, insns 377/377 — pure reg bijection (60 identity bytes). Cracks:
+// nTile is the movsx-IMMEDIATELY int form; DrawZoneCell args are plain int expressions
+// (no short casts/locals at the call sites).]
+// Bomb blast: nine copy-pasted blocks, one per 3x3 cell around (x,y). Each reads the
+// layer-1 tile; if its data is destructible (flags & 0x20000), DamageEntityAt (6 corners,
+// 8 edges, 10 center) and on a hit clear the tile and redraw the cell.
+void GameView::DetonateAdjacentTiles(int x, int y)
+{
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x - 1, y - 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x - 1, y - 1, &pW->characters, 6, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x - 1, y - 1, 1, (short)0xffff);
+                    DrawZoneCell(x - 1, y - 1);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x, y - 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x, y - 1, &pW->characters, 8, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x, y - 1, 1, (short)0xffff);
+                    DrawZoneCell(x, y - 1);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x + 1, y - 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x + 1, y - 1, &pW->characters, 6, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x + 1, y - 1, 1, (short)0xffff);
+                    DrawZoneCell(x + 1, y - 1);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x - 1, y, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x - 1, y, &pW->characters, 8, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x - 1, y, 1, (short)0xffff);
+                    DrawZoneCell(x - 1, y);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x, y, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x, y, &pW->characters, 10, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x, y, 1, (short)0xffff);
+                    DrawZoneCell(x, y);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x + 1, y, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x + 1, y, &pW->characters, 8, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x + 1, y, 1, (short)0xffff);
+                    DrawZoneCell(x + 1, y);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x - 1, y + 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x - 1, y + 1, &pW->characters, 6, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x - 1, y + 1, 1, (short)0xffff);
+                    DrawZoneCell(x - 1, y + 1);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x, y + 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x, y + 1, &pW->characters, 8, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x, y + 1, 1, (short)0xffff);
+                    DrawZoneCell(x, y + 1);
+                }
+            }
+        }
+    }
+    {
+        int nTile = (short)pWorld->currentZone->GetTile(x + 1, y + 1, 1);
+        if (nTile >= 0)
+        {
+            Tile *pT = pWorld->GetTileData(nTile);
+            if (pT->flags & 0x20000)
+            {
+                World *pW = pWorld;
+                if (pW->currentZone->DamageEntityAt(x + 1, y + 1, &pW->characters, 6, pW, this) != 0)
+                {
+                    pWorld->currentZone->SetTile(x + 1, y + 1, 1, (short)0xffff);
+                    DrawZoneCell(x + 1, y + 1);
+                }
+            }
+        }
+    }
+}
