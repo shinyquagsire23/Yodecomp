@@ -28,6 +28,7 @@ public:
     Canvas(int width, int height);                        // 0x00407df0 (Canvas TU's "Init" —
                                                           //  the guarded new-expr shape in
                                                           //  OnInitialUpdate proves ctor-hood)
+    ~Canvas();                                            // 0x00408400 (Canvas TU; non-virtual)
     void *GetData();                                      // 0x00407f50 (Canvas TU)
     UINT  SetPalette(UINT start, UINT count, RGBQUAD *colors); // 0x00407fd0 (Canvas TU)
     int   BitBlt(CDC *dest, int destX, int destY,         // 0x00408000 (Canvas TU)
@@ -146,12 +147,12 @@ public:
     int          nSavedCameraX;      // +0x170
     int          nSavedCameraY;      // +0x174
     int          unk178;             // +0x178
-    void        *strCheatBuffer;     // +0x17c
+    CString      strCheatBuffer;     // +0x17c  (constructed in ctor: CString::CString)
     int          bInvincibleCheat;   // +0x180
-    CBitmapButton btnDialogClose;    // +0x184  id 0x1389, CLOSE* bitmaps
+    CBitmapButton btnDialogClose;    // +0x184  id 0x1389, CLOSE* bitmaps (CButton+4 CBitmap=0x5c)
     CBitmapButton btnDialogDown;     // +0x1e0  id 0x138a, DNA* bitmaps
     CBitmapButton btnDialogUp;       // +0x23c  id 0x138b, UPA* bitmaps
-    CEdit        wndDialogText;      // +0x298  id 0x138c, MS Sans Serif 8
+    CEdit        wndDialogText;      // +0x298  id 0x138c, MS Sans Serif 8 (vft 0x44dcd4)
     int          unk2d4;             // +0x2d4
     int          unk2d8;             // +0x2d8
     int          bDialogCloseClicked; // +0x2dc

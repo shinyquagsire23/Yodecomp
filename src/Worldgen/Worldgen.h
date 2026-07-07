@@ -175,7 +175,7 @@ public:
     RECT        rectArrowBox;        // +0x32e4  (DrawDirectionArrows struct-copies it whole)
     int         bWorldReadyMaybe;    // +0x32f4
     int         bDtaLoadedMaybe;     // +0x32f8  set once by Load on first successful .dta open
-    char        _pad32fc[4];         // +0x32fc
+    int         bStateFileLoadedMaybe; // +0x32fc  gates World::LoadWorldStateFile (OnDraw)
     int         nextCameraXMaybe;    // +0x3300  (Ghidra names)
     int         nextCameraYMaybe;    // +0x3304
     Zone       *pPendingZone;        // +0x3308

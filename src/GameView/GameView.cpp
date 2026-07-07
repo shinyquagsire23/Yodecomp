@@ -12,10 +12,20 @@
 #include <time.h>
 #include "../Worldgen/Worldgen.h"
 
-// --- WAVMIX32 / kernel globals used by the music pump thread ------------------
-extern "C" UINT WINAPI WaveMixPump(void);
+// --- WAVMIX32 imports (all __stdcall) -----------------------------------------
+extern "C" {
+    UINT WINAPI WaveMixPump(void);
+    int  WINAPI WaveMixActivate(int hMixSession, BOOL fActivate);
+    int  WINAPI WaveMixFreeWave(int hMixSession, int lpMixWave);
+    int  WINAPI WaveMixCloseChannel(int hMixSession, int iChannel, DWORD dwFlags);
+    int  WINAPI WaveMixCloseSession(int hMixSession);
+    int  WINAPI WaveMixPlay(void *lpMixPlayParams);
+}
+// --- module globals -----------------------------------------------------------
 int    g_bStopMusicThread;   // 0x00456134  set nonzero to end the pump loop
 HANDLE g_hWaveMixEvent;      // 0x00459454  pump-tick event
+int    g_dat459450;          // 0x00459450  cleared by the GameView ctor (music/sound related)
+int    g_waveHandles[64];    // 0x00459458..0x00459558  loaded-wave handle table (SoundInit fills)
 
 // =============================================================================
 // DYNCREATE + message maps (macro-generated: CreateObject 0x4084f0,
@@ -95,6 +105,134 @@ InvScrollBar::InvScrollBar(GameView *pView, RECT *pRect)
     ::ShowScrollBar(m_hWnd, SB_CTL, TRUE);
     scrollMax = 0;
     scrollPos = 0;
+}
+// Compiler-generated InvScrollBar dtors (0x408690 ??_G / 0x4086b0 ??1) are emitted from
+// the class's implicit virtual dtor; their ??_G/??1 split shape needs dtor-modeling work
+// (Phase F/G). Left unmarked for now — the ctor (above) and ??_GGameView both match.
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00408710
+// GameView::GameView — DYNCREATE default ctor. The CString (strCheatBuffer), three
+// CBitmapButton (btnDialog*) and CEdit (wndDialogText) members are constructed
+// implicitly by the compiler-generated member-init prologue; the body zero/inits the
+// plain scalar fields in source order (NOT sorted — matched literally).
+// EFFECTIVE (align~94, ~89% identical / 265 vs 264 insns): field-init order is faithful
+//   to the decompile. Two known-open residuals, both G1 fodder (NOT source misses):
+//   (a) imm/reg STORE-SCHEDULING — MSVC reschedules the run of `= 0`(edi) / `= -1`(ebx)
+//       stores and materializes `mov ebx,-1` at a different point than the original; the
+//       identical open mechanism parked in the WorldDoc World ctor (DIFF~510). Source
+//       order matches; the compiler batches by value/register anyway.
+//   (b) member-ctor INLINE-vs-OUT-OF-LINE: one CBitmapButton's embedded CBitmap (@+0x22c)
+//       is constructed inline in the original but the compiler chose differently here — a
+//       TU-context inlining-threshold artifact (lesson #7/#8), expected to settle as the
+//       rest of the TU lands.
+GameView::GameView()
+{
+    unk178 = 0;
+    bInvincibleCheat = 0;
+    bOneShotStubMaybe = 0;
+    bKeyboardMoveActive = 0;
+    bIactZoneEntryMaybe = 0;
+    bMouseCaptured = 0;
+    bMidiProfileInitMaybe = 0;
+    bPickupClickPendingMaybe = 0;
+    bInvClickPending = 0;
+    nTransitionStep = -1;
+    nSavedFrameMode = 3;
+    pWorld = 0;
+    pInvScrollBar = 0;
+    bInitialized = 0;
+    nPaletteClock = 0;
+    frameCounter = 0;
+    bDebugFlagMaybe = 0;
+    bShiftHeld = 0;
+    nDragLastScreenY = -1;
+    nDragLastScreenX = -1;
+    nMovePending = 0;
+    nDragSlot = -1;
+    nMoveCommand = -1;
+    unkB8_always1 = 1;
+    bBusy = 1;
+    soundSession = 0;
+    g_dat459450 = 0;
+    bMapTeleportEnabled = 0;
+    bViewActive = 0;
+    nGameSpeed = AfxGetApp()->GetProfileInt("OPTIONS", "GameSpeed", 0x8c);
+    nDetonatorPhase = 0;
+    bPauseOverlayDrawn = 0;
+    bDialogCloseClicked = 0;
+    unk2e0 = 0;
+    bTextDialogShown = 0;
+    bDialogClickDismissMaybe = 0;
+    bBlockBumpUntilClick = 0;
+    pMusicThread = 0;
+    unk2d4 = 0;
+    unk2d8 = 0;
+    artooAnyhowHelpIdx = 0;
+    bArtooBeepPending0Maybe = 0;
+    bDropOnArtooMaybe = 0;
+    bDraggedArtooBlockedMaybe = 0;
+    bDropOutsideViewMaybe = 0;
+    bLocatorKeyLatchMaybe = 0;
+    unk2e8_always1 = 1;
+    bShowEmptyDialogOnceMaybe = 1;
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00408c60
+// GameView::~GameView — stop the music pump, tear down the WAVMIX32 session and all
+// loaded waves, free the drag save-bit buffers + drag-tile canvas. The CString /
+// CBitmapButton x3 / CEdit members are destroyed by the compiler-generated epilogue.
+GameView::~GameView()
+{
+    g_bStopMusicThread = 1;
+    if (soundSession != 0)
+    {
+        WaveMixActivate(soundSession, FALSE);
+        int *p = g_waveHandles;
+        do
+        {
+            if (*p != 0)
+                WaveMixFreeWave(soundSession, *p);
+            p++;
+        } while (p < g_waveHandles + 64);
+        WaveMixCloseChannel(soundSession, 8, 1);
+        WaveMixCloseSession(soundSession);
+        soundSession = 0;
+    }
+    if (paDragSaveBits != 0)
+        delete paDragSaveBits;
+    if (paDragSaveBits2 != 0)
+        delete paDragSaveBits2;
+    if (pDragTileCanvas != 0)
+        delete pDragTileCanvas;
+}
+// Compiler-generated (GameView vtable @0x44b638 slot 1):
+// FUNCTION: YODA 0x00408c40 (??_GGameView scalar-deleting dtor)
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00408df0
+// GameView::OnActivateView — on deactivate, cancel any in-progress inventory drag
+// (only while in play mode, nFrameMode==4); track the active flag; chain to base.
+void GameView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeactiveView)
+{
+    switch (bActivate)
+    {
+    case 0:
+        if (pWorld->nFrameMode == 4 && draggedTile != 0)
+        {
+            bDragActive = 0;
+            UpdateDragCursor(1);
+            DrawText(0);
+            pWorld->nFrameMode = 3;
+        }
+        bViewActive = 0;
+        break;
+    case 1:
+        bViewActive = 1;
+        break;
+    }
+    CView::OnActivateView(bActivate, pActivateView, pDeactiveView);
 }
 
 // -----------------------------------------------------------------------------
