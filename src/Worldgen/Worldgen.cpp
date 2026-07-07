@@ -2362,6 +2362,1057 @@ void World::WorldgenCollectZoneRefs(short zoneId)
     }
 }
 
+// FUNCTION: YODA 0x0041f960
+// [TRANSCRIBED-WIP ~90% row-aligned (2018/2032 insns): semantically complete, all phases
+// mirrored from the CFG. Confirmed source shapes: ALL planet dispatches are switch()es
+// (compares-up-front); worldSize params via switch with per-arm store order; budget exprs are
+// `rand() % (hi - lo + 1) + lo` (rand first); the stray-pass pick keeps TWO flags
+// (bHoriz fall-arm on rand()%2!=0, bVert on else) with branchless ?9:0 edge ternaries; grid
+// cells are addressed by the FULL `x + y * 10` expression inlined per use (CSE pre-doubles
+// the offset — a named nCell or pointer defeats it, idxprobe-proven); the vehicle-pass unwind
+// is the else-arm of if(bFound). Residuals: global this=EBX(orig)/EBP(ours) rotation and the
+// dx/dy homing (orig EDI/ESI regs), the completionCount arm-placement flip, mapGrid walker
+// anchored at .id (orig hoists &mapGrid[0].id), A/B-loop scratch-store interleave, and the
+// CarveQuestPath arg-push scheduling. The A-retry do-while (nRetry < 0xc9) and the B-chain
+// goal arm (nStepsB == nStepB, never true) are dead-ish original structures kept verbatim;
+// the !bFoundStep fallbacks read the STALE stray-pass `x` (function-scoped on purpose).]
+// The worldgen driver. Seeds the RNG, resets all quest state, carves the three difficulty
+// rings of the quest path onto a local plan grid (budgets scaled by worldSize), attaches a
+// few stray border rooms, stamps the blockades, numbers the path (BuildQuestPath), then walks
+// the two quest chains backwards placing a zone per step (goal node first, then alternating
+// TRADE/DROP nodes), converts the goal cells to vehicle pairs, consumes the remaining plan
+// tokens (START->MAP_START, forks->transit types 2..5, else ENEMY_TERRITORY), and finishes
+// with the puzzle pass. Any placement failure resets everything and returns 0.
+int World::Generate(unsigned int nSeed)
+{
+    short aOrder[100];
+    short aPlan[100];
+    int x, y;
+    POSITION pos = GetFirstViewPosition();
+    GameView *pView = NULL;
+    if (pos != NULL)
+        pView = (GameView *)GetNextView(pos);
+    pView->bBusy = 1;
+    worldSeed = nSeed;
+    gameState = 0;
+    unk248.SetSize(0, -1);
+    short bFirst = 1;
+    totalZones = 0;
+    worldSeed = nSeed;
+    srand(abs((int)nSeed));
+    int maxGoals = rand() % 3;
+    int maxSplits = rand() % 4;
+    rand();
+    int nGoals = 0;
+    int nSplits = 0;
+    int nPlaced = 0;
+    int nSeedX = rand() % 2 + 4;
+    int nSeedY = rand() % 2 + 4;
+    for (y = 0; y < 10; y++)
+    {
+        memset(&aOrder[y * 10], 0xff, 20);
+        memset(&aPlan[y * 10], 0, 20);
+        for (x = 0; x < 10; x++)
+        {
+            mapGrid[y * 10 + x].id = -1;
+            mapGrid[y * 10 + x].cellQuestSlot0 = -1;
+            mapGrid[y * 10 + x].cellItemC = -1;
+            mapGrid[y * 10 + x].cellItemA = -1;
+            mapGrid[y * 10 + x].cellQuestSlot1 = -1;
+            mapGrid[y * 10 + x].cellQuestSlot5 = -1;
+            mapGrid[y * 10 + x].cellItemB = -1;
+            mapGrid[y * 10 + x].cellQuestSlot6 = -1;
+            mapGrid[y * 10 + x].flagSolved = 0;
+            mapGrid[y * 10 + x].flagA = 0;
+            mapGrid[y * 10 + x].flagB = 0;
+            mapGrid[y * 10 + x].flagC = 0;
+            mapGrid[y * 10 + x].flagD = 0;
+            mapGrid[y * 10 + x].field30 = -1;
+        }
+    }
+    questItemsA.SetSize(0, -1);
+    questItemsB.SetSize(0, -1);
+    uniqueRequiredItemsMaybe.SetSize(0, -1);
+    storyHistoryNevada.SetSize(0, -1);
+    storyHistoryAlaska.SetSize(0, -1);
+    storyHistoryOregon.SetSize(0, -1);
+    int n = worldgenPendingZones.GetSize();
+    int i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenPendingZones.SetSize(0, -1);
+    n = worldgenRefZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenRefZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenRefZones.SetSize(0, -1);
+    goalTileList.SetSize(0, -1);
+    placedZoneIds.SetSize(0, -1);
+    if (nRequestedGoalItem < 0)
+    {
+        Nop1();
+        switch (currentPlanet)
+        {
+        case 1:
+            LoadStoryHistoryNevada();
+            break;
+        case 2:
+            LoadStoryHistoryAlaska();
+            break;
+        case 3:
+            LoadStoryHistoryOregon();
+            break;
+        }
+    }
+    int nOldPlaced = placedZoneIds.GetSize();
+    switch (currentPlanet)
+    {
+    case 1:
+        if (storyHistoryNevada.GetSize() > 3)
+            storyHistoryNevada.RemoveAt(0, 1);
+        break;
+    case 2:
+        if (storyHistoryAlaska.GetSize() > 3)
+            storyHistoryAlaska.RemoveAt(0, 1);
+        break;
+    case 3:
+        if (storyHistoryOregon.GetSize() > 3)
+            storyHistoryOregon.RemoveAt(0, 1);
+        break;
+    }
+    aPlan[44] = PLAN_PATH;
+    aPlan[45] = PLAN_PATH;
+    aPlan[54] = PLAN_PATH;
+    aPlan[55] = PLAN_PATH;
+    int nT2Hi, nT2Lo, nT3Hi, nT3Lo, nT4Hi, nT4Lo, nXtraHi, nXtraLo;
+    switch (worldSize)
+    {
+    case 1:
+        nT2Hi = 8;
+        nT2Lo = 5;
+        nT3Hi = 6;
+        nT3Lo = 4;
+        nT4Hi = 1;
+        nT4Lo = 1;
+        nXtraHi = 1;
+        nXtraLo = 1;
+        break;
+    case 3:
+    {
+        nT2Hi = 0xc;
+        nT2Lo = 6;
+        nT4Hi = 0xb;
+        nT3Hi = 0xc;
+        nT3Lo = 6;
+        nT4Lo = 6;
+        nXtraLo = 4;
+        nXtraHi = 0xb;
+        break;
+    }
+    default:
+        nT2Hi = 9;
+        nT2Lo = 5;
+        nT4Hi = 8;
+        nT3Hi = 9;
+        nT3Lo = 5;
+        nXtraHi = 8;
+        nT4Lo = 4;
+        nXtraLo = 3;
+    }
+    nPlaced = 4;
+    aPlan[nSeedX + nSeedY * 10] = PLAN_START;
+    int nBudget = rand() % (nT2Hi - nT2Lo + 1) + nT2Lo + maxSplits + maxGoals;
+    if (nBudget > 0xc)
+        nBudget = 0xc;
+    WorldgenCarveQuestPath(2, nBudget, aPlan, maxGoals, &nGoals, maxSplits, &nSplits, &nPlaced);
+    WorldgenCarveQuestPath(3, rand() % (nT3Hi - nT3Lo + 1) + nT3Lo, aPlan, maxGoals, &nGoals,
+                           maxSplits, &nSplits, &nPlaced);
+    WorldgenCarveQuestPath(4, rand() % (nT4Hi - nT4Lo + 1) + nT4Lo, aPlan, maxGoals, &nGoals,
+                           maxSplits, &nSplits, &nPlaced);
+    int nXtra = nXtraLo + rand() % (nXtraHi - nXtraLo + 1);
+    int bDone = 0;
+    int nTries = 0;
+    do
+    {
+        int dy = 0;
+        int dx = 0;
+        int bHoriz = 0;
+        int bVert = 0;
+        if (rand() % 2 != 0)
+        {
+            bHoriz = 1;
+            x = rand() % 2 == 0 ? 9 : 0;
+            y = rand() % 10;
+        }
+        else
+        {
+            bVert = 1;
+            y = rand() % 2 == 0 ? 9 : 0;
+            x = rand() % 10;
+        }
+        nTries++;
+        if (aPlan[x + y * 10] == 0)
+        {
+            if (bHoriz != 0)
+            {
+                if (x == 0)
+                {
+                    if (aPlan[x + y * 10 + 1] != 0 && aPlan[x + y * 10 + 1] != PLAN_BLOCKED)
+                    {
+                        dx = -1;
+                        dy = 0;
+                    }
+                }
+                else if (x == 9 && aPlan[x + y * 10 - 1] != 0 && aPlan[x + y * 10 - 1] != PLAN_BLOCKED)
+                {
+                    dx = 1;
+                    dy = 0;
+                }
+            }
+            else if (bVert != 0)
+            {
+                if (y == 0)
+                {
+                    if (aPlan[x + y * 10 + 10] != 0 && aPlan[x + y * 10 + 10] != PLAN_BLOCKED)
+                    {
+                        dx = 0;
+                        dy = -1;
+                    }
+                }
+                else if (y == 9 && aPlan[x + y * 10 - 10] != 0 && aPlan[x + y * 10 - 10] != PLAN_BLOCKED)
+                {
+                    dx = 0;
+                    dy = 1;
+                }
+            }
+            if (dx != 0 || dy != 0)
+            {
+                int v = aPlan[(y - dy) * 10 + (x - dx)];
+                switch (v)
+                {
+                case PLAN_PATH:
+                case PLAN_GOAL:
+                case PLAN_START:
+                case PLAN_ORDERED:
+                    aPlan[x + y * 10] = PLAN_PATH;
+                    nPlaced++;
+                    nXtra--;
+                    break;
+                case PLAN_CORRIDOR:
+                    aPlan[x + y * 10] = PLAN_CORRIDOR;
+                    if (dx == 0)
+                    {
+                        if (x > 0)
+                            aPlan[x + y * 10 - 1] = PLAN_BLOCKED;
+                        if (x < 9)
+                            aPlan[x + y * 10 + 1] = PLAN_BLOCKED;
+                    }
+                    else if (dy == 0)
+                    {
+                        if (y > 0)
+                            aPlan[x + y * 10 - 10] = PLAN_BLOCKED;
+                        if (y < 9)
+                            aPlan[x + y * 10 + 10] = PLAN_BLOCKED;
+                    }
+                    break;
+                case PLAN_FORK_W:
+                    if (dx == -1 &&
+                        (y == 0 || aPlan[x + y * 10 - 10] == 0 || aPlan[x + y * 10 - 10] > PLAN_FORK_N) &&
+                        (y == 9 || aPlan[x + y * 10 + 10] == 0 || aPlan[x + y * 10 + 10] > PLAN_FORK_N))
+                    {
+                        aPlan[x + y * 10] = PLAN_CORRIDOR;
+                        if (y > 0)
+                            aPlan[x + y * 10 - 10] = PLAN_BLOCKED;
+                        if (y < 9)
+                            aPlan[x + y * 10 + 10] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nXtra--;
+                    }
+                    break;
+                case PLAN_FORK_E:
+                    if (dx == 1 &&
+                        (y == 0 || aPlan[x + y * 10 - 10] == 0 || aPlan[x + y * 10 - 10] > PLAN_FORK_N) &&
+                        (y == 9 || aPlan[x + y * 10 + 10] == 0 || aPlan[x + y * 10 + 10] > PLAN_FORK_N))
+                    {
+                        aPlan[x + y * 10] = PLAN_CORRIDOR;
+                        if (y > 0)
+                            aPlan[x + y * 10 - 10] = PLAN_BLOCKED;
+                        if (y < 9)
+                            aPlan[x + y * 10 + 10] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nXtra--;
+                    }
+                    break;
+                case PLAN_FORK_N:
+                    if (dy == -1 &&
+                        (x == 0 || aPlan[x + y * 10 - 1] == 0 || aPlan[x + y * 10 - 1] > PLAN_FORK_N) &&
+                        (x == 9 || aPlan[x + y * 10 + 1] == 0 || aPlan[x + y * 10 + 1] > PLAN_FORK_N))
+                    {
+                        aPlan[x + y * 10] = PLAN_CORRIDOR;
+                        if (x > 0)
+                            aPlan[x + y * 10 - 1] = PLAN_BLOCKED;
+                        if (x < 9)
+                            aPlan[x + y * 10 + 1] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nXtra--;
+                    }
+                    break;
+                case PLAN_FORK_S:
+                    if (dy == 1 &&
+                        (x == 0 || aPlan[x + y * 10 - 1] == 0 || aPlan[x + y * 10 - 1] > PLAN_FORK_N) &&
+                        (x == 9 || aPlan[x + y * 10 + 1] == 0 || aPlan[x + y * 10 + 1] > PLAN_FORK_N))
+                    {
+                        aPlan[x + y * 10] = PLAN_CORRIDOR;
+                        if (x > 0)
+                            aPlan[x + y * 10 - 1] = PLAN_BLOCKED;
+                        if (x < 9)
+                            aPlan[x + y * 10 + 1] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nXtra--;
+                    }
+                    break;
+                }
+            }
+        }
+        if (nXtra <= 0)
+            bDone++;
+        if (nTries > 400)
+            bDone++;
+    } while (bDone == 0);
+    WorldgenPlaceBlockades(nGoals, aPlan);
+    n = zones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            Zone *pZone = (Zone *)zones.GetAt(i);
+            if (pZone != (Zone *)-1)
+                pZone->activatedFlag = 0;
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    int nTotalOrder = BuildQuestPathMaybe(aPlan, aOrder);
+    if (questItemsA.GetSize() > 0)
+        questItemsA.SetSize(0, -1);
+    if (questItemsB.GetSize() > 0)
+        questItemsB.SetSize(0, -1);
+    int nStepsA, nStepsB;
+    if (nTotalOrder % 2 == 0)
+    {
+        nStepsB = nTotalOrder / 2;
+        nStepsA = nStepsB + 1;
+    }
+    else
+    {
+        nStepsA = (nTotalOrder + 1) / 2;
+        nStepsB = nStepsA;
+    }
+    questItemsA.SetSize(nStepsA + 1, -1);
+    questItemsB.SetSize(nStepsB + 1, -1);
+    if (completionCount < 1)
+    {
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xbd);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+    }
+    else if (completionCount < 10)
+    {
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+    }
+    questItemsA.SetAt(nStepsA, 0x6c);
+    questItemsB.SetAt(nStepsB, 0x6c);
+    goalItemTileId = 0x6c;
+    Puzzle *pPuz = (Puzzle *)puzzles.GetAt(0x6c);
+    startItem = pPuz->itemA;
+    startItem2Maybe = pPuz->itemB;
+    goalTileList.SetAtGrow(goalTileList.GetSize(), 0x6c);
+    nCurrentGoalItem = 0x6c;
+    switch (currentPlanet)
+    {
+    case 1:
+        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), 0x6c);
+        break;
+    case 2:
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0x6c);
+        break;
+    case 3:
+        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), 0x6c);
+        break;
+    }
+    int j;
+    for (i = 0; i < 10; i++)
+        for (j = 0; j < 10; j++)
+            apZoneGrid[i * 10 + j] = NULL;
+    // vehicle pass: turn each unclaimed GOAL cell into a FROM/TO_ANOTHER_MAP pair, the TO
+    // side landing on a border LOCK cell
+    {
+        int vy, vx;
+        for (vy = 0; vy < 10; vy++)
+        {
+            for (vx = 0; vx < 10; vx++)
+            {
+                genCellQuestSlot6Scratch = -1;
+                genCellItemAScratch = -1;
+                genCellItemCScratch = -1;
+                if (aPlan[vy * 10 + vx] == PLAN_GOAL && apZoneGrid[vy * 10 + vx] == NULL)
+                {
+                    int nZone = (short)PlaceQuestNode(6, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(vx, vy), 1);
+                    int nDest = -1;
+                    if (nZone >= 0)
+                    {
+                        mapGrid[vy * 10 + vx].id = (unsigned short)nZone;
+                        mapGrid[vy * 10 + vx].zoneType = ZONE_TYPE_FROM_ANOTHER_MAP;
+                        mapGrid[vy * 10 + vx].cellItemA = (short)genCellItemAScratch;
+                        Zone *pZone = (Zone *)zones.GetAt((short)nZone);
+                        int k = 0;
+                        int nObjs = pZone->objects.GetSize();
+                        if (nObjs > 0)
+                        {
+                            do
+                            {
+                                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(k);
+                                if (pObj->type == OBJ_VEHICLE_TO)
+                                {
+                                    nDest = (short)pObj->visible;
+                                    break;
+                                }
+                                k++;
+                            } while (k < nObjs);
+                        }
+                        int bFound = 0;
+                        if (nDest >= 0)
+                        {
+                            int xLock = 0;
+                            int yLock = 0;
+                            Zone **pp = apZoneGrid;
+                            short *p = aPlan;
+                            k = 0;
+                            do
+                            {
+                                if (*p == PLAN_LOCK && *pp == NULL)
+                                {
+                                    bFound = 1;
+                                    yLock = k;
+                                    break;
+                                }
+                                pp += 10;
+                                p += 10;
+                                k++;
+                            } while (p < &aPlan[100]);
+                            if (!bFound)
+                            {
+                                pp = apZoneGrid + yLock * 10;
+                                p = aPlan + yLock * 10;
+                                k = 0;
+                                do
+                                {
+                                    if (*p == PLAN_LOCK && *pp == NULL)
+                                    {
+                                        bFound = 1;
+                                        xLock = k;
+                                        break;
+                                    }
+                                    pp++;
+                                    p++;
+                                    k++;
+                                } while (k < 10);
+                                if (!bFound)
+                                {
+                                    pp = apZoneGrid + 9;
+                                    p = &aPlan[9];
+                                    xLock = 9;
+                                    k = 0;
+                                    do
+                                    {
+                                        if (*p == PLAN_LOCK && *pp == NULL)
+                                        {
+                                            bFound = 1;
+                                            yLock = k;
+                                            break;
+                                        }
+                                        pp += 10;
+                                        p += 10;
+                                        k++;
+                                    } while (p < &aPlan[109]);
+                                }
+                            }
+                            if (!bFound)
+                            {
+                                pp = apZoneGrid + 90;
+                                p = &aPlan[90];
+                                yLock = 9;
+                                xLock = 0;
+                                k = 0;
+                                do
+                                {
+                                    if (*p == PLAN_LOCK && *pp == NULL)
+                                    {
+                                        bFound = 1;
+                                        xLock = k;
+                                        break;
+                                    }
+                                    pp++;
+                                    p++;
+                                    k++;
+                                } while (p < &aPlan[100]);
+                            }
+                            if (bFound)
+                            {
+                                if (IsZoneUsed((short)nDest) == 0)
+                                {
+                                    int nCell2 = xLock + yLock * 10;
+                                    apZoneGrid[nCell2] = (Zone *)zones.GetAt(nDest);
+                                    mapGrid[nCell2].id = (short)nDest;
+                                    mapGrid[nCell2].zoneType = ZONE_TYPE_TO_ANOTHER_MAP;
+                                    mapGrid[nCell2].cellItemA = (short)genCellItemAScratch;
+                                    apZoneGrid[vy * 10 + vx] = pZone;
+                                    AddPlacedZoneId(nZone);
+                                    AddPlacedZoneId((short)nDest);
+                                }
+                            }
+                            else
+                            {
+                                RemoveZoneEntry((short)genCellItemAScratch);
+                                aPlan[vy * 10 + vx] = PLAN_PATH;
+                                apZoneGrid[vy * 10 + vx] = NULL;
+                                mapGrid[vy * 10 + vx].id = -1;
+                                mapGrid[vy * 10 + vx].zoneType = -1;
+                                mapGrid[vy * 10 + vx].cellItemA = -1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // quest chain A (bFirst = 1): steps nStepsA..1, walking the order grid backwards
+    int nStepA = nStepsA;
+    int nStepB = nStepsB;
+    int nOrderVal = nTotalOrder;
+    int bFoundStep = 0;
+    while (nStepA > 0)
+    {
+        genZoneTypeScratch = -1;
+        genCellItemCScratch = -1;
+        genCellQuestSlot5Scratch = -1;
+        genCellItemAScratch = -1;
+        genCellItemBScratch = -1;
+        genCellQuestSlot6Scratch = -1;
+        genCellQuestSlot0Scratch = -1;
+        genCellQuestSlot1Scratch = -1;
+        int nItemIdx = questItemsA.GetAt(nStepA);
+        bFoundStep = 0;
+        int i2 = 0, j2 = 0;
+        int nFound = 0;
+        short *pRow = aOrder;
+        do
+        {
+            i2 = 0;
+            short *p2 = pRow;
+            do
+            {
+                if (*p2 - nOrderVal == -1)
+                {
+                    nFound++;
+                    break;
+                }
+                p2++;
+                i2++;
+            } while (i2 < 10);
+            if (nFound != 0)
+                break;
+            pRow += 10;
+            j2++;
+        } while (pRow < &aOrder[100]);
+        if (nFound != 0)
+        {
+            int nZone = -1;
+            int nRetry = 0;
+            Puzzle *pP = (Puzzle *)puzzles.GetAt(nItemIdx);
+            short nItemA = pP->itemA;
+            short nItemB = pP->itemB;
+            do
+            {
+                if (nZone >= 0)
+                    break;
+                if (nOrderVal == nTotalOrder)
+                {
+                    nZone = (short)PlaceQuestNode(10, nStepA - 1, nStepB - 1, nItemA, nItemB,
+                                                  (short)GetZoneGridOrder(i2, j2), 1);
+                    if (nZone < 0)
+                        goto fail_a;
+                    genZoneTypeScratch = 10;
+                    genCellQuestSlot0Scratch = nStepA - 1;
+                    genCellQuestSlot1Scratch = nStepB - 1;
+                }
+                else
+                {
+                    int nType = rand() % 2 == 0 ? 0x10 : 0xf;
+                    short nStep16 = (short)(nStepA - 1);
+                    nZone = (short)PlaceQuestNode((short)nType, nStep16, -1, nItemA, -1,
+                                                  (short)GetZoneGridOrder(i2, j2), 1);
+                    if (nZone >= 0)
+                    {
+                        genZoneTypeScratch = nType;
+                        genCellQuestSlot0Scratch = nStepA - 1;
+                    }
+                    else if (nType == 0x10)
+                    {
+                        nZone = (short)PlaceQuestNode(0xf, nStep16, -1, nItemA, -1,
+                                                      (short)GetZoneGridOrder(i2, j2), 1);
+                        if (nZone < 0)
+                            goto fail_a;
+                        genZoneTypeScratch = 0xf;
+                        genCellQuestSlot0Scratch = nStepA - 1;
+                    }
+                    else
+                    {
+                        nZone = (short)PlaceQuestNode(0x10, nStep16, -1, nItemA, -1,
+                                                      (short)GetZoneGridOrder(i2, j2), 1);
+                        if (nZone < 0)
+                            goto fail_a;
+                        genZoneTypeScratch = 0x10;
+                        genCellQuestSlot0Scratch = nStepA - 1;
+                    }
+                }
+                AddPlacedZoneId(nZone);
+                if (nZone < 0)
+                    goto fail_a;
+                int nCell = i2 + j2 * 10;
+                bFoundStep = 1;
+                mapGrid[nCell].zoneType = genZoneTypeScratch;
+                mapGrid[nCell].cellItemC = (short)genCellItemCScratch;
+                mapGrid[nCell].cellQuestSlot5 = (short)genCellQuestSlot5Scratch;
+                mapGrid[nCell].cellItemA = (short)genCellItemAScratch;
+                mapGrid[nCell].cellItemB = (short)genCellItemBScratch;
+                mapGrid[nCell].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+                mapGrid[nCell].cellQuestSlot0 = (short)genCellQuestSlot0Scratch;
+                mapGrid[nCell].cellQuestSlot1 = (short)genCellQuestSlot1Scratch;
+                mapGrid[nCell].field30 = 1;
+                apZoneGrid[nCell] = (Zone *)zones.GetAt(nZone);
+                mapGrid[nCell].id = (unsigned short)nZone;
+                if (nStepA == 1)
+                    WorldgenPushZoneEntry((short)genCellItemAScratch,
+                                          (short)GetZoneGridOrder(i2, j2));
+                nRetry++;
+            } while (nRetry < 0xc9);
+        }
+        if (bFoundStep == 0)
+        {
+            short nZ = PlaceQuestNode(1, -1, -1, -1, -1,
+                                      (short)GetZoneGridOrder(x, nOrderVal), 1);
+            if (nZ >= 0)
+            {
+                int nCell = i2 + j2 * 10;
+                mapGrid[nCell].zoneType = genZoneTypeScratch;
+                apZoneGrid[nCell] = (Zone *)zones.GetAt(nZ);
+                mapGrid[nCell].id = nZ;
+                AddPlacedZoneId(nZ);
+            }
+        }
+        nOrderVal--;
+        nStepB--;
+        nStepA--;
+    }
+    // quest chain B (bFirst = 0): steps nStepsB-1..1
+    nStepB = nStepsB - 1;
+    if (nStepB > 0)
+    {
+        bFirst = 0;
+        do
+        {
+            genZoneTypeScratch = -1;
+            genCellItemCScratch = -1;
+            genCellQuestSlot5Scratch = -1;
+            genCellItemAScratch = -1;
+            genCellItemBScratch = -1;
+            genCellQuestSlot6Scratch = -1;
+            genCellQuestSlot0Scratch = -1;
+            genCellQuestSlot1Scratch = -1;
+            int nItemIdx = questItemsB.GetAt(nStepB);
+            bFoundStep = 0;
+            int i2 = 0, j2 = 0;
+            int nFound = 0;
+            short *pRow = aOrder;
+            do
+            {
+                i2 = 0;
+                short *p2 = pRow;
+                do
+                {
+                    if (*p2 - nOrderVal == -1)
+                    {
+                        nFound++;
+                        break;
+                    }
+                    p2++;
+                    i2++;
+                } while (i2 < 10);
+                if (nFound != 0)
+                    break;
+                pRow += 10;
+                j2++;
+            } while (pRow < &aOrder[100]);
+            if (nFound != 0)
+            {
+                int nZone = -1;
+                int nRetry = 0;
+                short nItemA = ((Puzzle *)puzzles.GetAt(nItemIdx))->itemA;
+                do
+                {
+                    if (nZone >= 0)
+                        break;
+                    if (nStepsB == nStepB)
+                    {
+                        nZone = (short)PlaceQuestNode(10, nOrderVal - 1, -1, nItemA, -1,
+                                                      (short)GetZoneGridOrder(i2, j2), 0);
+                        if (nZone < 0)
+                            goto fail_b;
+                        genZoneTypeScratch = 10;
+                        genCellQuestSlot0Scratch = nOrderVal - 1;
+                    }
+                    else
+                    {
+                        int nType = rand() % 2 == 0 ? 0xf : 0x10;
+                        short nStep16 = (short)(nStepB - 1);
+                        nZone = (short)PlaceQuestNode((short)nType, nStep16, -1, nItemA, -1,
+                                                      (short)GetZoneGridOrder(i2, j2), 0);
+                        if (nZone >= 0)
+                        {
+                            genZoneTypeScratch = nType;
+                            genCellQuestSlot0Scratch = nStepB - 1;
+                        }
+                        else if (nType == 0x10)
+                        {
+                            nZone = (short)PlaceQuestNode(0xf, nStep16, -1, nItemA, -1,
+                                                          (short)GetZoneGridOrder(i2, j2), 0);
+                            if (nZone < 0)
+                                goto fail_b;
+                            genZoneTypeScratch = 0xf;
+                            genCellQuestSlot0Scratch = nStepB - 1;
+                        }
+                        else
+                        {
+                            nZone = (short)PlaceQuestNode(0x10, nStep16, -1, nItemA, -1,
+                                                          (short)GetZoneGridOrder(i2, j2), 0);
+                            if (nZone < 0)
+                                goto fail_b;
+                            genZoneTypeScratch = 0x10;
+                            genCellQuestSlot0Scratch = nStepB - 1;
+                        }
+                    }
+                    AddPlacedZoneId(nZone);
+                    if (nZone < 0)
+                        goto fail_b;
+                    nRetry++;
+                    int nCell = i2 + j2 * 10;
+                    bFoundStep = 1;
+                    mapGrid[nCell].zoneType = genZoneTypeScratch;
+                    mapGrid[nCell].cellItemC = (short)genCellItemCScratch;
+                    mapGrid[nCell].cellItemA = (short)genCellItemAScratch;
+                    mapGrid[nCell].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
+                    mapGrid[nCell].cellQuestSlot0 = (short)genCellQuestSlot0Scratch;
+                    mapGrid[nCell].field30 = 0;
+                    apZoneGrid[nCell] = (Zone *)zones.GetAt(nZone);
+                    mapGrid[nCell].id = (unsigned short)nZone;
+                } while (nRetry < 0xc9);
+            }
+            if (bFoundStep == 0)
+            {
+                short nZ = PlaceQuestNode(1, -1, -1, -1, -1,
+                                          (short)GetZoneGridOrder(x, nOrderVal), 0);
+                if (nZ >= 0)
+                {
+                    int nCell = i2 + j2 * 10;
+                    mapGrid[nCell].zoneType = genZoneTypeScratch;
+                    apZoneGrid[nCell] = (Zone *)zones.GetAt(nZ);
+                    mapGrid[nCell].id = nZ;
+                    AddPlacedZoneId(nZ);
+                }
+            }
+            nOrderVal--;
+            nStepB--;
+        } while (nStepB > 0);
+    }
+    // consume the remaining plan tokens
+    {
+        int ty, tx;
+        for (ty = 0; ty < 10; ty++)
+        {
+            for (tx = 0; tx < 10; tx++)
+            {
+                int bMatched = 0;
+                genCellQuestSlot0Scratch = -1;
+                genCellQuestSlot6Scratch = -1;
+                genCellItemAScratch = -1;
+                genCellItemCScratch = -1;
+                short v = aPlan[ty * 10 + tx];
+                if (v != 0 && v != PLAN_BLOCKED && apZoneGrid[ty * 10 + tx] == NULL)
+                {
+                    int nZone = -1;
+                    switch (v)
+                    {
+                    case PLAN_START:
+                        nZone = (short)PlaceQuestNode(0xb, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(tx, ty), bFirst);
+                        if (nZone >= 0)
+                            mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_MAP_START;
+                        bMatched = 1;
+                        break;
+                    case PLAN_FORK_W:
+                        nZone = (short)PlaceQuestNode(5, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(tx, ty), bFirst);
+                        if (nZone >= 0)
+                        {
+                            mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_ITEM_TO_PASS;
+                            mapGrid[ty * 10 + tx].cellItemA = (short)genCellItemAScratch;
+                        }
+                        bMatched = 1;
+                        break;
+                    case PLAN_FORK_E:
+                        nZone = (short)PlaceQuestNode(4, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(tx, ty), bFirst);
+                        if (nZone >= 0)
+                        {
+                            mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_FIND_USEFUL_NPC;
+                            mapGrid[ty * 10 + tx].cellItemA = (short)genCellItemAScratch;
+                        }
+                        bMatched = 1;
+                        break;
+                    case PLAN_FORK_N:
+                        nZone = (short)PlaceQuestNode(2, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(tx, ty), bFirst);
+                        if (nZone >= 0)
+                        {
+                            mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_FINAL_DESTINATION;
+                            mapGrid[ty * 10 + tx].cellItemA = (short)genCellItemAScratch;
+                        }
+                        bMatched = 1;
+                        break;
+                    case PLAN_FORK_S:
+                        nZone = (short)PlaceQuestNode(3, -1, -1, -1, -1,
+                                                      (short)GetZoneGridOrder(tx, ty), bFirst);
+                        if (nZone >= 0)
+                        {
+                            mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_ITEM_FOR_ITEM;
+                            mapGrid[ty * 10 + tx].cellItemA = (short)genCellItemAScratch;
+                        }
+                        bMatched = 1;
+                        break;
+                    }
+                    if (nZone < 0)
+                    {
+                        if (v != PLAN_PATH && v != PLAN_WALL && v != PLAN_CORRIDOR && bMatched)
+                        {
+                            nZone = (short)PlaceQuestNode(1, -1, -1, -1, -1,
+                                                          (short)GetZoneGridOrder(tx, ty), bFirst);
+                            if (nZone >= 0)
+                            {
+                                apZoneGrid[ty * 10 + tx] = (Zone *)zones.GetAt(nZone);
+                                mapGrid[ty * 10 + tx].id = (unsigned short)nZone;
+                                mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_ENEMY_TERRITORY;
+                                mapGrid[ty * 10 + tx].cellItemC = -1;
+                                mapGrid[ty * 10 + tx].cellItemA = -1;
+                                mapGrid[ty * 10 + tx].cellQuestSlot6 = -1;
+                                AddPlacedZoneId(nZone);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        apZoneGrid[ty * 10 + tx] = (Zone *)zones.GetAt(nZone);
+                        mapGrid[ty * 10 + tx].id = (short)nZone;
+                        mapGrid[ty * 10 + tx].cellItemC = -1;
+                        if (mapGrid[ty * 10 + tx].zoneType != ZONE_TYPE_MAP_START)
+                            AddPlacedZoneId(nZone);
+                    }
+                }
+            }
+        }
+    }
+    if (WorldgenPlacePuzzles(aPlan) != 0)
+    {
+        MapZone *pMapCell = mapGrid;
+        i = 10;
+        do
+        {
+            j = 10;
+            do
+            {
+                if (pMapCell->id >= 0)
+                    PlaceZoneObjectTiles(pMapCell->id);
+                pMapCell++;
+                j--;
+            } while (j != 0);
+            i--;
+        } while (i != 0);
+        placedZoneIds.RemoveAt(0, nOldPlaced);
+        RemoveEmptyZonesFromPlacedList();
+        Nop2();
+        switch (currentPlanet)
+        {
+        case 1:
+            SaveStoryHistoryNevada();
+            break;
+        case 2:
+            SaveStoryHistoryAlaska();
+            break;
+        case 3:
+            SaveStoryHistoryOregon();
+            break;
+        }
+        nRequestedGoalItem = -1;
+        totalZones = (nSplits + nGoals) * 2 + questItemsA.GetSize() + questItemsB.GetSize();
+        timeBase = (int)time(NULL);
+        timeOffset = 0;
+        return 1;
+    }
+    questItemsA.SetSize(0, -1);
+    questItemsB.SetSize(0, -1);
+    uniqueRequiredItemsMaybe.SetSize(0, -1);
+    switch (currentPlanet)
+    {
+    case 1:
+        storyHistoryNevada.SetSize(0, -1);
+        break;
+    case 2:
+        storyHistoryAlaska.SetSize(0, -1);
+        break;
+    case 3:
+        storyHistoryOregon.SetSize(0, -1);
+        break;
+    }
+    n = worldgenPendingZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenPendingZones.SetSize(0, -1);
+    n = worldgenRefZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenRefZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenRefZones.SetSize(0, -1);
+    goalTileList.SetSize(0, -1);
+    placedZoneIds.SetSize(0, -1);
+    return 0;
+fail_a:
+    questItemsA.SetSize(0, -1);
+    questItemsB.SetSize(0, -1);
+    uniqueRequiredItemsMaybe.SetSize(0, -1);
+    switch (currentPlanet)
+    {
+    case 1:
+        storyHistoryNevada.SetSize(0, -1);
+        break;
+    case 2:
+        storyHistoryAlaska.SetSize(0, -1);
+        break;
+    case 3:
+        storyHistoryOregon.SetSize(0, -1);
+        break;
+    }
+    n = worldgenPendingZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenPendingZones.SetSize(0, -1);
+    n = worldgenRefZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenRefZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenRefZones.SetSize(0, -1);
+    goalTileList.SetSize(0, -1);
+    placedZoneIds.SetSize(0, -1);
+    return 0;
+fail_b:
+    questItemsA.SetSize(0, -1);
+    questItemsB.SetSize(0, -1);
+    uniqueRequiredItemsMaybe.SetSize(0, -1);
+    switch (currentPlanet)
+    {
+    case 1:
+        storyHistoryNevada.SetSize(0, -1);
+        break;
+    case 2:
+        storyHistoryAlaska.SetSize(0, -1);
+        break;
+    case 3:
+        storyHistoryOregon.SetSize(0, -1);
+        break;
+    }
+    n = worldgenPendingZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenPendingZones.SetSize(0, -1);
+    n = worldgenRefZones.GetSize();
+    i = 0;
+    if (n > 0)
+    {
+        do
+        {
+            delete (WorldgenZoneEntry *)worldgenRefZones.GetAt(i);
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    worldgenRefZones.SetSize(0, -1);
+    goalTileList.SetSize(0, -1);
+    placedZoneIds.SetSize(0, -1);
+    return 0;
+}
+
 // FUNCTION: YODA 0x00421460
 // Snapshot the active 10x10 MapZone grid into the backup grid (sparse-save baseline).
 void World::BackupZoneGrid()

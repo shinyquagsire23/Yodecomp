@@ -195,7 +195,8 @@ public:
     int         genCellQuestSlot0Scratch; // +0x3394
     int         genCellQuestSlot1Scratch; // +0x3398
     int         genZoneTypeScratch;       // +0x339c
-    char        _pad33a0[0x18];      // +0x33a0
+    int         nCurrentGoalItem;   // +0x33a0  Generate: = the goal puzzle id (demo hardcode 0x6c)
+    char        _pad33a4[0x14];      // +0x33a4
     int         unk33b8;             // +0x33b8
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
@@ -292,6 +293,16 @@ public:
     int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
+    void LoadStoryHistoryNevada();                       // 0x00401ac0 (GameData TU)
+    void LoadStoryHistoryAlaska();                       // 0x00401ea0 (GameData TU)
+    void LoadStoryHistoryOregon();                       // 0x00402280 (GameData TU)
+    void Nop1();                                         // 0x00402660 (GameData TU)
+    void SaveStoryHistoryNevada();                       // 0x00402670 (GameData TU)
+    void SaveStoryHistoryAlaska();                       // 0x004029c0 (GameData TU)
+    void SaveStoryHistoryOregon();                       // 0x00402d10 (GameData TU)
+    void Nop2();                                         // 0x00403060 (GameData TU)
+    void RemoveEmptyZonesFromPlacedList();               // 0x00403070 (GameData TU)
+    int  BuildQuestPathMaybe(short *paGrid, short *paOrder); // 0x00403c80 (GameData TU)
     void RefreshZone();                                  // 0x00403ae0 (GameData TU)
     void PlaceZoneObjectTiles(short zoneId);             // 0x00403140 (GameData TU)
     int  ParseTilesMaybe(CFile *pFile, unsigned int nBytes); // 0x0041a030 (WorldDoc TU)
