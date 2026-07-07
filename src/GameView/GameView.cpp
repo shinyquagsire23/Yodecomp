@@ -21,6 +21,20 @@ extern "C" {
     int  WINAPI WaveMixCloseSession(int hMixSession);
     int  WINAPI WaveMixPlay(void *lpMixPlayParams);
 }
+// WAVMIX32 MIXPLAYPARAMS (packed — a WORD then 4-byte fields at unaligned offsets).
+#pragma pack(push, 1)
+struct MIXPLAYPARAMS
+{
+    WORD wSize;         // +0x00
+    int  hMixSession;   // +0x02
+    int  iChannel;      // +0x06
+    int  lpMixWave;     // +0x0a
+    int  hWndNotify;    // +0x0e
+    int  dwFlags;       // +0x12
+    WORD wReserved;     // +0x16   (struct size 0x18)
+};
+#pragma pack(pop)
+
 // --- module globals -----------------------------------------------------------
 int    g_bStopMusicThread;   // 0x00456134  set nonzero to end the pump loop
 HANDLE g_hWaveMixEvent;      // 0x00459454  pump-tick event
@@ -233,6 +247,128 @@ void GameView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeac
         break;
     }
     CView::OnActivateView(bActivate, pActivateView, pDeactiveView);
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409060
+// GameView::PlaySound — gate the effect by sound/music-enabled flags (ids 0x37 & 0x3a-0x3f
+// are music, gated by nMusicEnabled; others by nSoundEnabled; id 3 muted while the walk-sound
+// suppression flag is set) then submit it to WAVMIX32. The wave handle comes from the loaded
+// table; ids >= 0x40 map only 0x25 (else lpMixWave is left uninitialized — sic, engine quirk).
+// EFFECTIVE (48/48 insns, byte_diff 21): logic + MIXPLAYPARAMS layout exact. Residual is a
+//   register-allocation tie-break — the original keeps nSoundEnabled in EAX (reused by the
+//   else-branch sound gate) and pWorld in EDX; our compile assigns them the opposite registers,
+//   a consistent bijection that propagates (identity_miss=9). Not source-steerable (goto/epilogue
+//   variants gave the identical score); a TU-phase reg-alloc residual, G1 fodder.
+void GameView::PlaySound(int nSoundId)
+{
+    MIXPLAYPARAMS mix;
+    World *pW = pWorld;
+    if (pW->nSoundEnabled == 0 && pW->nMusicEnabled == 0)
+        return;
+    if (nSoundId == 3 && bSuppressWalkSound != 0)
+        return;
+    if (nSoundId == 0x37 || (nSoundId >= 0x3a && nSoundId <= 0x3f))
+    {
+        if (pW->nMusicEnabled == 0)
+            return;
+    }
+    else if (pW->nSoundEnabled == 0)
+        return;
+    int session = soundSession;
+    if (session == 0)
+        return;
+    mix.hMixSession = session;
+    mix.iChannel = 0;
+    mix.wSize = 0x18;
+    if (nSoundId < 0x40)
+        mix.lpMixWave = g_waveHandles[nSoundId];
+    else if (nSoundId == 0x25)
+        mix.lpMixWave = g_waveHandles[5];
+    mix.wReserved = 0;
+    mix.dwFlags = 2;
+    mix.hWndNotify = 0;
+    WaveMixPlay(&mix);
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409110
+// GameView::OnDraw — the main frame paint: lazy-load the .wld save state once, select the
+// world palette, bevel-border the viewport/inventory/scrollbar rects, draw the HUD (health
+// dial+needle, direction arrows, item text, weapon box+icon), blit the 288x288 canvas, then
+// on the very first paint lazy-run World::Load (the .dta worldgen) — aborting on failure.
+// EFFECTIVE (logic/structure faithful; the World::Load tail is byte-identical to the original):
+//   our compile hoists the constant 0 into EDI (reused across the ~7 `push 0`/FALSE arg sites:
+//   SelectPalette x2, DrawRect bRaised x3, BitBlt srcX/srcY), which pulls EBP in as a 4th
+//   callee-saved register (`push ebp`) and cascades a register-rename through the middle. The
+//   original pushes 0 immediates and uses only EBX/ESI/EDI. Pure enregistration-heuristic
+//   tie-break (lesson #7/#8) — not source-steerable; expected to settle in G1.
+void GameView::OnDraw(CDC *pDC)
+{
+    CRect rc;
+    if (pWorld == 0)
+        pWorld = (World *)m_pDocument;
+    if (pWorld == 0)
+        return;
+    if (pWorld->bStateFileLoadedMaybe == 0)
+    {
+        pWorld->bStateFileLoadedMaybe++;
+        pWorld->LoadWorldStateFile();
+    }
+    CPalette *pOldPalette = pDC->SelectPalette(pWorld->pPalette, FALSE);
+    RealizePalette(pDC->m_hDC);
+    GetClientRect(&rc);
+    rc.left = pWorld->rectUnk3274.left - 3;
+    rc.top = pWorld->rectUnk3274.top - 3;
+    rc.right = pWorld->rectUnk3274.right + 3;
+    rc.bottom = pWorld->rectUnk3274.bottom + 3;
+    DrawRect(pDC, &rc, 0, 3);
+    rc.left = pWorld->rectUnk3284.left - 2;
+    rc.right = pWorld->rectUnk3284.right + 2;
+    rc.top = pWorld->rectUnk3284.top - 2;
+    rc.bottom = pWorld->rectUnk3284.bottom + 2;
+    DrawRect(pDC, &rc, 0, 2);
+    rc.left = pWorld->rectInvScrollMaybe.left - 2;
+    rc.right = pWorld->rectInvScrollMaybe.right + 2;
+    rc.top = pWorld->rectInvScrollMaybe.top - 2;
+    rc.bottom = pWorld->rectInvScrollMaybe.bottom + 2;
+    DrawRect(pDC, &rc, 0, 2);
+    DrawHealthDial(pDC);
+    DrawDirectionArrows(pDC);
+    DrawHealthNeedle(pDC);
+    DrawText(pDC);
+    DrawWeaponBox(pDC);
+    DrawWeaponIcon(pDC);
+    if (pWorld->pCanvas != 0)
+    {
+        int srcX, srcY;
+        if (bMapAtCanvasOriginMaybe == 1)
+        {
+            srcX = 0;
+            srcY = 0;
+        }
+        else
+        {
+            srcY = pWorld->nViewTop;
+            srcX = pWorld->nViewLeft;
+        }
+        pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                0x120, 0x120, srcX, srcY);
+        pDC->SelectPalette(pOldPalette, FALSE);
+        if (pWorld != 0 && pWorld->bDtaLoadedMaybe == 0)
+        {
+            pWorld->nFrameMode = 7;
+            pWorld->nMapChangeReason = 1;
+            bBusy = 0;
+            pWorld->bDtaLoadedMaybe++;
+            if (pWorld->Load() == 0)
+            {
+                AfxMessageBox(0xe01d, 0x10, (UINT)-1);
+                pWorld->OnCloseDocument();
+                AfxAbort();
+            }
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
