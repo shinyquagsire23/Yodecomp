@@ -351,6 +351,50 @@ InvScrollBar::ctor; Character.frames[7] = the weapon icon tile id (DrawWeaponBox
 - **The early-return dtor block lesson holds in the view code too** (DrawHealthNeedle's
   `if (nLo == 0) return;`).
 
+### ⏮ PRIOR (2026-07-06 v13 — condensed; the save/load session, lessons still in force)
+**Session result (commits 5ad13c3..04458c4): World-half of the TU finished — LoadWorldState-
+File + Serialize (EFFECTIVE DIFF-2 each), DrawLocatorMap + DrawRect (EFFECTIVE), OnNewWorld
+(EXACT), OnSaveWorld/OnLoadWorld (EFFECTIVE-WIP, autopsies in-source), ??_GCProgressCtrl
+(MATCH via marker only — our TU already emitted it).**
+- **.wld save format ("YODASAV44")**: seed/planet/unk33b8; quest-item word lists (the LAST
+  element re-seeds nCurrentGoalItem + startItem/startItem2 from Puzzle.itemA/B on load);
+  center-2x2 quest cells (mapScratch when unk33b8==0, else mapGrid[44..]); full 10x10
+  (mapGrid vs mapGridBackup by the same flag) as 15-field cell dumps; -1,-1-terminated
+  SaveZoneRecursive/LoadZoneRecursive streams; inventory as tile ids (re-NEWed InvItems);
+  player/weapon(char index + unk48 ammo)/camera/health/difftime-elapsed tail; unk248 saved
+  as count+SUM, rebuilt as count copies of the AVERAGE.
+- **&field pointer locals are REAL source** (`int *pHealth = &healthLo;` — the lea+spill+
+  deref pattern; OnSave/OnLoad cache gameState/nFrameMode/bStartingGame/&pWorld the same
+  way; OnInitialUpdate proved plain field writes ALSO produce compiler-made caches — write
+  plain first, add the pointer local only when the lea+slot shape demands).
+- **Never Read(&i,4) into a live loop counter** — taking its address memory-homes it
+  TU-wide and wrecks reg-alloc; the original uses fresh x/y pairs per sentinel loop.
+- **OnSaveWorld/OnLoadWorld shapes**: unk33b8 selectors are `!= 0` grid/backup-arm-FIRST
+  (all sites); recursive-save blocks materialize `MapZone *pCell` (base-folded [reg+4] id
+  reads); DoModal success arm = the if-body fall-through; story-history planet dispatch is
+  a SWITCH with per-arm vGoal/pArr temps + one cross-jumped SetAtGrow tail (SelectPuzzle's
+  planet dispatch is a LADDER — always read the disasm); Open-fail switches: OnSave 9/7/9,
+  OnLoad all-8 in the same three groups.
+- **CFileDialog**: needs <afxdlgs.h> (afxwin.h only fwd-declares — silent C2228/C2541 on
+  members otherwise); m_ofn.lpstrInitialDir = World.lpszSaveDirMaybe@0x33bc stored BEFORE
+  the pDlg null check in BOTH dialogs (sic, #8 family); save flags 0x80006 "wld"/
+  "savegame", open flags 0x1006 "*.wld" + Flags &= ~OFN_SHOWHELP(0x10); GetPathName chain:
+  `strPath = pDlg->GetPathName().GetBuffer(200);`.
+- **inc-vs-add-with-CSE'd-reg**: a 2-byte instruction-selection family (orig
+  `add [nDone],ecx` reusing ECX=1 from neighboring =1 stores; ++/+=1/n=n+1 all inert).
+- **DrawRect (free __stdcall, bevel)**: per-use strength-reduced IVs = copy-variable named
+  locals (`int y2 = y1;`) in source; edge-4 decl order x1,x2,nBottom,y1-LAST aligned the
+  pRect reload (align 26->8); explicit `int n = nThickness; do{..n--}while(n)` countdowns.
+- **asmscore best-fit trap**: free functions (no `Class::` after the marker) fall back to
+  global best-fit and can silently mispair (OnToggleSound stole DrawRect) — score by
+  explicit COMDAT name via match.coff_functions, or add `(?FuncName@)`-style marker hints.
+- **World vtable base = 0x44c438** (GetFirstViewPosition=+0x68 anchor): +0x58 SetTitle-4?
+  ... +0x60 IsModified, +0x64 SetModifiedFlag, +0x68/+0x6c GetFirstViewPosition/GetNextView,
+  +0x70/+0x74 OnChangedViewList/DeleteContents, +0x78/+0x7c OnNewDocument/OnOpenDocument
+  (app overrides), +0x80 OnSaveDocument, **+0x84 OnCloseDocument** (OnNewWorld's 0-arg
+  vcall — plain C++, the "GetFile bug" theory was retracted), +0x88 ReportSaveLoadException,
+  +0x8c GetFile (0x441f5d), +0x90 ReleaseFile. RecordDataFileOwner is #ifdef _MAC (absent).
+
 ### ⏮ PRIOR (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
 **State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
 14.86% exact + 33.86% partial = 48.72% transcribed. Session commits: 8d8402b (gap + queries +
