@@ -286,7 +286,23 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v11 — Phase D: 66 markers; 54.16% transcribed; the quest-path layer is DONE)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v12 — Phase D: 67 markers; 59.54% transcribed; Generate LANDED)
+**v12 delta on top of v11 (below): World::Generate 0x41f960 (6.6KB, the worldgen driver) is
+TRANSCRIBED (commit 5c8a451, ~90% row-aligned, autopsy in-source). PLAN-token semantics
+CONFIRMED from the consumer (enum comment updated): START->MAP_START, FORK_W/E/N/S ->
+zone types 5/4/2/3, GOAL->vehicle pairs. New cracks: planet dispatches are switch()es;
+grid cells addressed by INLINE `x + y * 10` expressions (named index/pointer defeats the
+pre-doubled-offset CSE — idxprobe battery); two pick flags not one bool; movsx-immediately
+`int nZone = (short)call()`. New header facts: nCurrentGoalItem@0x33a0, 10 GameData
+cross-TU decls. Generate's residuals for the joint pass: this=EBX rotation, dx/dy homing,
+completionCount arm flip, mapGrid walker id-anchor, A/B scratch interleave.**
+
+**▶ START HERE next: the save/load monsters — OnSaveWorld/OnLoadWorld/Serialize/
+LoadWorldStateFile (CArchive+CATCH_ALL, WorldDoc OnOpenDocument recipe), then the GameView
+methods 0x426c40-0x429150 (Phase-E prep needs GameView layout). After those the Worldgen TU
+is fully transcribed -> joint residual pass.**
+
+### ⏮ PRIOR (2026-07-06 v11 — Phase D: 66 markers; 54.16% transcribed; the quest-path layer is DONE)
 **State: src/Worldgen = 66 markers; 14.12% exact + 40.04% partial = 54.16% transcribed (the
 exact-count breathes with the dial — 24-29 range this session; per-function EFFECTIVE
 annotations carry the autopsies). Session commits: 6be5438 (PlaceQuestNode), 786f695

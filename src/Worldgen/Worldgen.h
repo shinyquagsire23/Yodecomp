@@ -17,7 +17,10 @@ extern int gWorldgenGridOrderTable[100];
 // Tokens of the transient 10x10 short PLAN grid that Generate carves the quest into
 // (CarveQuestPath writes PATH/GOAL/forks/blockers; PlaceBlockades stamps LOCK/WALL;
 // BuildQuestPath assigns ORDERED markers; PlacePuzzles keys off ORDERED adjacency).
-// Fork tokens are named for the direction their CORRIDOR extends (confirm vs Generate).
+// Fork tokens are named for the direction their CORRIDOR extends. Generate consumes them:
+// START->MAP_START zone, FORK_W->ITEM_TO_PASS(5), FORK_E->FIND_USEFUL_NPC(4),
+// FORK_N->FINAL_DESTINATION(2), FORK_S->ITEM_FOR_ITEM(3); GOAL cells become the
+// FROM/TO_ANOTHER_MAP vehicle pairs; leftovers fall back to ENEMY_TERRITORY.
 enum PlanToken
 {
     PLAN_EMPTY    = 0,
@@ -25,7 +28,7 @@ enum PlanToken
     PLAN_GOAL     = 0x65,   // 101   goal room (CarveQuestPath random promotion)
     PLAN_LOCK     = 0x66,   // 102   blockade lock spot (PlaceBlockades)
     PLAN_WALL     = 0x68,   // 104   blockade wall (PlaceBlockades)
-    PLAN_START    = 0xc9,   // 201   attachable seed cell Maybe (extendable like PATH/GOAL)
+    PLAN_START    = 0xc9,   // 201   the seed cell (Generate plants it; becomes MAP_START)
     PLAN_CORRIDOR = 0x12c,  // 300   corridor body (perpendicular neighbors blocked)
     PLAN_FORK_W   = 0x12d,  // 301   fork cell, corridor continues west
     PLAN_FORK_E   = 0x12e,  // 302   fork cell, corridor continues east
