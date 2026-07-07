@@ -142,7 +142,8 @@ public:
     int         playerY;             // +0x2e24
     char        _pad2e28[4];         // +0x2e28
     Character  *currentWeapon;       // +0x2e2c
-    char        _pad2e30[4];         // +0x2e30
+    int         unk2e30;             // +0x2e30  equipped-weapon character index + 8
+                                     //          (OnDragItem/OnLButtonUp write it; no reader found)
     int         unk2e34;             // +0x2e34
     short       startItem;           // +0x2e38  (Ghidra names)
     short       startItem2Maybe;     // +0x2e3a
@@ -188,7 +189,11 @@ public:
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
-    char        _pad3338[0x14];      // +0x3338
+    char        _pad3338[8];         // +0x3338
+    int         nWalkTargetXMaybe;   // +0x3340  OnLButtonDown mode-3 click target (fine coords, *32)
+    int         nWalkTargetYMaybe;   // +0x3344
+    short       ammoTheForceMaybe;   // +0x3348  saved charge for weapon tile 0x1fe (The Force)
+    short       ammoLightsaberMaybe; // +0x334a  saved charge for weapon tile 0x12 (lightsaber)
     short       weaponState[4];      // +0x334c  (Ghidra name; OnSaveWorld writes [0..2])
     short       nCurrentAmmoMaybe;   // +0x3354
     char        _pad3356[2];         // +0x3356

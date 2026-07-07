@@ -143,6 +143,19 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
 - **Reproduced:** `src/GameView/GameView.cpp` ZoneTransitionStep (`unsigned short nMask;`
   deliberately left uninitialized, `// sic:` comment).
 
+### 14. `GameView::OnDragItem` — Artoo help categories 0x13/0x14 leak the DC and selected palette
+
+- **Where:** 0x00410a7d / 0x00410a98 (the two `PlaySound(6); return;` arms of the
+  ClassifyTile switch inside the drag-Artoo branch).
+- **What:** the function opens with `GetDC()` + `SelectPalette(pWorld->pPalette, 0)`. Every
+  other exit path re-selects the old palette and calls `ReleaseDC`; these two arms jump
+  straight to the epilogue (0x410f70) after destroying the CString — the DC is never
+  released and the game palette stays selected into it.
+- **Impact:** latent resource leak (one DC per drag onto a category-0x13/0x14 target);
+  Win9x-era common DCs made this mostly invisible.
+- **Reproduced:** `src/GameView/GameView.cpp` OnDragItem (`return; // sic` comments on both
+  case arms).
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's

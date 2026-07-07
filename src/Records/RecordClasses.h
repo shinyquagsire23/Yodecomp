@@ -125,6 +125,12 @@ enum TileFlags
     TILE_THE_FORCE                  = 1 << 19, // TILE_PUZZLE_ITEM_SEED_END
     TILE_LOCATOR                    = 1 << 20, // (ITEM group)
     TILE_HEALTH_PACK                = 1 << 22, // (ITEM group)
+    TILE_KEYCARD                    = 1 << 16, // ITEM group: reusable key — OnDragItem does NOT
+                                               // consume it when it opens a lock (alias of bit 16)
+    TILE_PUZZLE_ITEM_1              = 1 << 17, // ITEM group (aliases of the WEAPON-subtype bits;
+    TILE_PUZZLE_ITEM_2              = 1 << 18, //  names from DesktopAdventures tile.h — the map
+    TILE_PUZZLE_ITEM_SEED_END       = 1 << 19, //  balloon text keys off them in OnLButtonDown)
+    TILE_ITEM_HARMFUL_MAYBE         = 1 << 21, // ITEM group: self-applied costs 25 health (OnDragItem)
 };
 
 // ZoneObj.type (names = DesktopAdventures OBJ_TYPE, src/include/objectinfo.h).

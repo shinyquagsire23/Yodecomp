@@ -15,7 +15,10 @@
 // --- WAVMIX32 imports (all __stdcall) -----------------------------------------
 extern "C" {
     UINT WINAPI WaveMixPump(void);
+    int  WINAPI WaveMixInit(void);
     int  WINAPI WaveMixActivate(int hMixSession, BOOL fActivate);
+    int  WINAPI WaveMixOpenWave(int hMixSession, char *szWaveFilename, int hInst, DWORD dwFlags);
+    int  WINAPI WaveMixOpenChannel(int hMixSession, int iChannel, DWORD dwFlags);
     int  WINAPI WaveMixFreeWave(int hMixSession, int lpMixWave);
     int  WINAPI WaveMixCloseChannel(int hMixSession, int iChannel, DWORD dwFlags);
     int  WINAPI WaveMixCloseSession(int hMixSession);
@@ -4296,6 +4299,9 @@ void GameView::ShowWinMessage(int x, int y, int dx, int dy)
 // (pushable 7 via TILE flag, doors 6/8, x-wing 0x12, ...), the enemy/NPC
 // flag bits (0/5), a friendly-tile switch (2) and the valid-hint-target
 // switch (4).
+// PHASE-DISPLACED (v24): byte-EXACT under the v23 dial (1569B, first compile);
+// the OnDragItem+SoundInit additions rotated it to align=240 (pure reg/schedule
+// tie-breaks). Source proven correct — G1.
 int GameView::ClassifyTile(int x, int y)
 {
     if (pWorld->gameState == 1)
@@ -4441,6 +4447,533 @@ int GameView::ClassifyTile(int x, int y)
     return -1;
 }
 
+// FUNCTION: YODA 0x004102d0
+// GameView::OnDragItem — drop handler for the dragged inventory item released at
+// pixel (x, y) (from OnLButtonUp). Out-of-range drops (not within one cell of the
+// player, and not the detonator 0x202 / Artoo 0x31a) just buzz. Dropping ON the
+// player uses the item: a weapon re-equips the matching character and reloads its
+// charge from the per-weapon ammo store (Force/saber default 30; 0x1ff blaster 15,
+// 0x200 30, 0x201 10, 0x204/0x205 15); a health pack heals by tile id (100/50/25);
+// a harmful item (flag 1<<21) costs 25 health. The detonator runs the 5-phase
+// palette effect (100-tick clock() busy-waits); dragging Artoo (0x31a) shows a help
+// balloon keyed by ClassifyTile (LoadString 0xe020..0xe038 + 5 rotating "can't
+// help" lines). Anything else resolves the world-map cell's puzzle (TRANSACTION
+// trade at an NPC / TRADE key on a lock: stamps flagA/flagB, queues the reward via
+// nPickup*, gameState 9) and fires the DragItem IACT (event 3).
+// sic: the Artoo cases 0x13/0x14 return WITHOUT restoring the palette or releasing
+// the DC (leak — see docs/engine-bugs.md #14); the nPuzIdx < 0 guard is dead (WORD
+// zero-extend, bug #10 family); pChar->unk48 self-assigns when the dragged weapon
+// is already equipped.
+//
+// EFFECTIVE MATCH-WIP (945/924 insns; align dominated by one GLOBAL register-role
+// rotation: orig px=EDI py=ESI + nWorldX/Y both slot-homed, ours px=EBX py=EDI +
+// nWorldY riding ESI into the IACT arm — the ShowWinMessage/OnTimer global-rank
+// family). Minimal-TU probe scored IDENTICAL solo (1046 vs 1054) ⇒ header-dial,
+// not TU-position — G1. Structure proven: every arm, call, constant, switch and
+// branch shape aligns. Cracks that landed: refill arms are &field POINTER LOCALS
+// (`short *p = &pWorld->weaponState[i]; short a = *p; if (a <= 0) { *p = K;
+// a = pWorld->weaponState[i]; }` — reproduces the add-reg,0xNNNN store form);
+// quest-list selector spelled `if (field30 != 1) B; else A;` (then-jump polarity);
+// the 2-case nType dispatch is a SWITCH (compares up front, je/je/jmp);
+// `int t = (short)GetTile(...)` (movsx, int compare vs cellQuestSlot6);
+// eager `int nQuestIdx` widening before the selector branch; the reward scan
+// DECREMENTS nObjs itself (`nObjs--` — a separate `int n = nObjs` leaves a
+// self-move fingerprint); characters walk = GetData() hoisted pointer while
+// tiles/objects use GetAt (per-iteration m_pData reloads). Parked residuals
+// (probed, rotation-coupled): the PlaySound(6)+DrawText(0) tails — orig
+// cross-jumps full-health→final-else (mov ecx,edx; jmp into the call) and
+// weapon→DrawText, ours emits 3 full copies (cl merged the heal/poison arms
+// into the IACT PlaySound tail instead; merge-partner choice not steerable);
+// ladder value-arm cluster flushes at our then-block end vs orig's outer join
+// with ONE shared 0x32 arm (`||`-inverted spelling canonicalizes back, lesson
+// #6); ours materializes EBX=0 in the trade arm where orig uses immediates;
+// nObjs slot-homed vs orig ESI; 0x12/0x1fe arms load/TEST/store vs ours
+// load/store/test (1-insn scheduling drift); i+8 hoist + bFound=1 placement
+// (imm-store-batching family); detonator clock-wait c/end reg swap; sx/sy
+// SI/DI swap.
+void GameView::OnDragItem(int x, int y, Tile *pTile)
+{
+    CDC *pDC = GetDC();
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    int nWorldX = pWorld->playerX;
+    int nWorldY = pWorld->playerY;
+    pWorld->equippedItem = pTile;
+    int tx = x / 32;
+    int ty = y / 32;
+    nDetonatorX = tx;
+    nDetonatorY = ty;
+    int px = pWorld->cameraX / 32;
+    int nSound = 6;
+    int py = pWorld->cameraY / 32;
+    pWorld->DrawPlayer();
+    DrawGameArea(0);
+    int id = pWorld->FindTile(pTile);
+    if (id != 0x202 && id != 0x31a
+        && (px - 1 > tx || px + 1 < tx || py - 1 > ty || py + 1 < ty))
+    {
+        PlaySound(6);
+    }
+    else if (px == tx && ty == py && id != 0x202 && id != 0x31a)
+    {
+        if (pTile->flags & TILE_WEAPON)
+        {
+            int nCount = pWorld->characters.GetSize();
+            int bFound = 0;
+            int i = 0;
+            if (nCount > 0)
+            {
+                Character **paChars = (Character **)pWorld->characters.GetData();
+                do
+                {
+                    Character *pChar = *paChars;
+                    int nCharTile;
+                    if (pChar != 0 && (nCharTile = pChar->frames[7]) >= 0
+                        && (Tile *)pWorld->tiles.GetAt(nCharTile) == draggedTile)
+                    {
+                        if (pChar == pWorld->currentWeapon)
+                        {
+                            pChar->unk48 = pWorld->currentWeapon->unk48;
+                        }
+                        else switch (nCharTile)
+                        {
+                        case 0x12:
+                            if ((pChar->unk48 = pWorld->ammoLightsaberMaybe) == 0)
+                                pChar->unk48 = 30;
+                            PlaySound(0x1f);
+                            break;
+                        case 0x1fe:
+                            if ((pChar->unk48 = pWorld->ammoTheForceMaybe) == 0)
+                                pChar->unk48 = 30;
+                            PlaySound(0x1f);
+                            break;
+                        case 0x1ff:
+                            if (pWorld->weaponState[0] > 0)
+                            {
+                                pChar->unk48 = pWorld->weaponState[0];
+                            }
+                            else
+                            {
+                                pChar->unk48 = 15;
+                                pWorld->weaponState[0] = 15;
+                            }
+                            PlaySound(0x34);
+                            break;
+                        case 0x200:
+                        {
+                            short *p = &pWorld->weaponState[1];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 30;
+                                a = pWorld->weaponState[1];
+                            }
+                            pChar->unk48 = a;
+                            PlaySound(0x20);
+                            break;
+                        }
+                        case 0x201:
+                        {
+                            short *p = &pWorld->weaponState[2];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 10;
+                                a = pWorld->weaponState[2];
+                            }
+                            pChar->unk48 = a;
+                            PlaySound(0x20);
+                            break;
+                        }
+                        case 0x204:
+                        {
+                            short *p = &pWorld->weaponState[3];
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 15;
+                                a = pWorld->weaponState[3];
+                            }
+                            pChar->unk48 = a;
+                            break;
+                        }
+                        case 0x205:
+                        {
+                            short *p = &pWorld->nCurrentAmmoMaybe;
+                            short a = *p;
+                            if (a <= 0)
+                            {
+                                *p = 15;
+                                a = pWorld->nCurrentAmmoMaybe;
+                            }
+                            pChar->unk48 = a;
+                            break;
+                        }
+                        }
+                        int nSlot = i + 8;
+                        bFound = 1;
+                        pWorld->currentWeapon = pChar;
+                        pWorld->unk2e30 = nSlot;
+                        draggedTile = 0;
+                        break;
+                    }
+                    paChars++;
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound == 0)
+                pWorld->currentWeapon = 0;
+            DrawWeaponBox(0);
+            DrawWeaponIcon(0);
+            DrawText(0);
+        }
+        else if (pTile->flags & TILE_HEALTH_PACK)
+        {
+            if (pWorld->healthHi == 1 && pWorld->healthLo == 1)
+            {
+                PlaySound(6);
+                DrawText(0);
+            }
+            else
+            {
+                int nHeal = pWorld->FindTile(pTile);
+                if (nHeal <= 0x1fa)
+                {
+                    if (nHeal < 0x1f9)
+                    {
+                        if (nHeal == 0x1e0 || nHeal == 0x1e2)
+                            nHeal = 50;
+                        else
+                            nHeal = 0;
+                    }
+                    else
+                    {
+                        nHeal = 100;
+                    }
+                }
+                else if (nHeal != 0x1fb)
+                {
+                    if (nHeal < 0x4ac || nHeal > 0x4ae)
+                        nHeal = 0;
+                    else
+                        nHeal = 50;
+                }
+                else
+                {
+                    nHeal = 25;
+                }
+                AddHealth(nHeal);
+                RemoveItem(pTile);
+                PlaySound(0);
+            }
+        }
+        else if (pTile->flags & TILE_ITEM_HARMFUL_MAYBE)
+        {
+            AddHealth(-25);
+            RemoveItem(pTile);
+            PlaySound(4);
+        }
+        else
+        {
+            PlaySound(6);
+            DrawText(0);
+        }
+    }
+    else if (px == tx && ty == py && id == 0x202)
+    {
+        PlaySound(6);
+    }
+    else if (id == 0x202 && bInvClickPending == 0)
+    {
+        RemoveItem(pTile);
+        PlaySound(0xb);
+        while (nDetonatorPhase < 5)
+        {
+            CyclePalette();
+            StepDetonatorEffect();
+            nDetonatorPhase++;
+            long c = clock();
+            long end = c + 100;
+            while (c < end)
+                c = clock();
+        }
+        nDetonatorPhase = 0;
+        pDC->SelectPalette(pOldPal, 0);
+        ReleaseDC(pDC);
+        return;
+    }
+    else if (id == 0x31a && bInvClickPending == 0)
+    {
+        CString str;
+        switch (ClassifyTile(tx, ty))
+        {
+        case -1:
+            // Artoo starts yapping about random things when dragged onto
+            // something he can't help with — 5 rotating lines.
+            switch (artooAnyhowHelpIdx)
+            {
+            case 0:
+                str.LoadString(0xe027);
+                break;
+            case 1:
+                str.LoadString(0xe028);
+                break;
+            case 2:
+                str.LoadString(0xe029);
+                break;
+            case 3:
+                str.LoadString(0xe02a);
+                break;
+            case 4:
+                str.LoadString(0xe02b);
+                break;
+            }
+            artooAnyhowHelpIdx = artooAnyhowHelpIdx + 1;
+            if (artooAnyhowHelpIdx > 4)
+                artooAnyhowHelpIdx = 0;
+            break;
+        case 0:
+            str.LoadString(0xe022);
+            break;
+        case 1:
+            str.LoadString(0xe02c);
+            break;
+        case 2:
+            str.LoadString(0xe020);
+            break;
+        case 4:
+            str.LoadString(0xe023);
+            break;
+        case 5:
+            str.LoadString(0xe025);
+            break;
+        case 6:
+            str.LoadString(0xe026);
+            break;
+        case 7:
+            str.LoadString(0xe024);
+            break;
+        case 8:
+            str.LoadString(0xe021);
+            break;
+        case 9:
+            str.LoadString(0xe02d);
+            break;
+        case 10:
+            str.LoadString(0xe02e);
+            break;
+        case 0xb:
+            str.LoadString(0xe02f);
+            break;
+        case 0xc:
+            str.LoadString(0xe030);
+            break;
+        case 0xd:
+            str.LoadString(0xe031);
+            break;
+        case 0xe:
+            str.LoadString(0xe033);
+            break;
+        case 0xf:
+            str.LoadString(0xe034);
+            break;
+        case 0x10:
+            str.LoadString(0xe035);
+            break;
+        case 0x11:
+            str.LoadString(0xe036);
+            break;
+        case 0x12:
+            str.LoadString(0xe038);
+            break;
+        case 0x13:
+            PlaySound(6);
+            return;     // sic: leaks the DC + selected palette
+        case 0x14:
+            PlaySound(6);
+            return;     // sic: leaks the DC + selected palette
+        }
+        // Show the Artoo speech balloon over the target cell.
+        pWorld->GetTileData(0x31a);
+        short sx = (short)tx;
+        short sy = (short)ty;
+        BlitTile(sy, sx, 0, pTile);
+        DrawGameArea(0);
+        ShowTextDialog(str, tx * 32 + 16, ty * 32 + 16, 0);
+        DrawZoneCell(sx, sy);
+        DrawGameArea(0);
+        pDC->SelectPalette(pOldPal, 0);
+        ReleaseDC(pDC);
+        return;
+    }
+    else
+    {
+        if (id == 0x1ff)
+        {
+            PlaySound(6);
+        }
+        else
+        {
+            int nCell = nWorldX + nWorldY * 10;
+            if (pWorld->mapGrid[nCell].cellQuestSlot0 >= 0
+                && pWorld->mapGrid[nCell].flagA == 0)
+            {
+                int nQuestIdx = pWorld->mapGrid[nCell].cellQuestSlot0;
+                unsigned short *paList;
+                if (pWorld->mapGrid[nCell].field30 != 1)
+                    paList = pWorld->questItemsB.GetData();
+                else
+                    paList = pWorld->questItemsA.GetData();
+                int nPuzIdx = paList[nQuestIdx];
+                if (nPuzIdx >= 0)   // sic: dead guard — WORD zero-extends
+                {
+                    Puzzle *pPuz = (Puzzle *)pWorld->puzzles.GetAt(nPuzIdx);
+                    if (pPuz != 0
+                        && (Tile *)pWorld->tiles.GetAt(pWorld->mapGrid[nCell].cellItemA) == pTile)
+                    {
+                        switch (pPuz->nType)
+                        {
+                        case PUZZLE_TYPE_TRANSACTION:
+                        {
+                            int t = (short)pWorld->currentZone->GetTile(tx, ty, 1);
+                            ZoneObj *pObj = pWorld->currentZone->FindObjectAt(tx, ty);
+                            if (pWorld->mapGrid[nCell].cellQuestSlot6 == t
+                                && pObj != 0 && pObj->state == 1)
+                            {
+                                nSound = 0;
+                                int nReward = pWorld->mapGrid[nCell].cellItemC;
+                                if (nReward >= 0)
+                                {
+                                    RemoveItem(pTile);
+                                    DrawText(0);
+                                    pWorld->mapGrid[nCell].flagA = 1;
+                                    CString strReply = pPuz->text2;
+                                    ShowTextDialog(strReply, tx * 32 + 16, ty * 32 + 16, 0);
+                                    nPickupX = tx;
+                                    nPickupY = ty;
+                                    nPickupTileId = nReward;
+                                    pPickupObj = 0;
+                                    nTransitionStep = 0;
+                                    bBlinkState = 0;
+                                    pWorld->mapGrid[nCell].flagB = 1;
+                                    bMouseCaptured = 0;
+                                    pWorld->nFrameMode = 9;
+                                }
+                            }
+                            else
+                            {
+                                nSound = 6;
+                            }
+                            break;
+                        }
+                        case PUZZLE_TYPE_TRADE:
+                        {
+                            int i = 0;
+                            int nObjs = pWorld->currentZone->objects.GetSize();
+                            int bFound = 0;
+                            if (nObjs > 0)
+                            {
+                                do
+                                {
+                                    if (bFound)
+                                        break;
+                                    World *pW = pWorld;
+                                    ZoneObj *pObj = (ZoneObj *)pW->currentZone->objects.GetAt(i);
+                                    if (pObj->x == tx && pObj->y == ty
+                                        && pObj->state != 0 && pObj->type == OBJ_LOCK)
+                                    {
+                                        bFound++;
+                                        pW->mapGrid[nCell].flagA = 1;
+                                    }
+                                    i++;
+                                } while (i < nObjs);
+                            }
+                            if (bFound)
+                            {
+                                nSound = 0;
+                                if (!(pTile->flags & TILE_KEYCARD))
+                                {
+                                    RemoveItem(pTile);
+                                    DrawText(0);
+                                }
+                                int nReward = pWorld->mapGrid[nCell].cellItemC;
+                                if (nReward >= 0 && nObjs > 0)
+                                {
+                                    int j = 0;
+                                    do
+                                    {
+                                        World *pW = pWorld;
+                                        ZoneObj *pObj = (ZoneObj *)pW->currentZone->objects.GetAt(j);
+                                        if (pObj->x == tx && pObj->y == ty
+                                            && pObj->state != 0
+                                            && pObj->type == OBJ_QUEST_ITEM_SPOT
+                                            && pObj->arg == nReward)
+                                        {
+                                            pW->mapGrid[nCell].flagB = 1;
+                                            nPickupX = tx;
+                                            nPickupTileId = nReward;
+                                            pPickupObj = 0;
+                                            nPickupY = ty;
+                                            nTransitionStep = 0;
+                                            bBlinkState = 0;
+                                            bMouseCaptured = 0;
+                                            pWorld->nFrameMode = 9;
+                                        }
+                                        j++;
+                                        nObjs--;
+                                    } while (nObjs != 0);
+                                }
+                            }
+                            else
+                            {
+                                nSound = 6;
+                            }
+                            break;
+                        }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                ZoneObj *pObj;
+                if (pWorld->mapGrid[nCell].cellItemA >= 0
+                    && (Tile *)pWorld->tiles.GetAt(pWorld->mapGrid[nCell].cellItemA) == pTile
+                    && (pObj = pWorld->currentZone->FindObjectAt(tx, ty)) != 0
+                    && pObj->state == 1 && pObj->type == OBJ_LOCK)
+                {
+                    nSound = 0;
+                    pWorld->mapGrid[nCell].flagA = 1;
+                    if (!(pTile->flags & TILE_KEYCARD))
+                    {
+                        RemoveItem(pTile);
+                        DrawText(0);
+                    }
+                }
+            }
+            int nPrevMode = pWorld->nFrameMode;
+            pWorld->nFrameMode = 1;
+            unsigned int nMask = pWorld->currentZone->IactRun(3, tx, ty, 0, 0, 0,
+                                                              pDC, pWorld, this);
+            int nZT = pWorld->currentZone->type;
+            if (nZT == 6 || nZT == 7 || nZT == 0xb)
+                TriggerHotspotsMaybe();
+            if (nPrevMode == 4)
+            {
+                if (pWorld->nFrameMode != 9 && pWorld->nFrameMode != 6)
+                    pWorld->nFrameMode = 3;
+            }
+            else if (pWorld->nFrameMode != 6 && pWorld->nFrameMode != 9)
+            {
+                pWorld->nFrameMode = nPrevMode;
+            }
+            if (!(nMask & 1))
+                PlaySound(nSound);
+        }
+    }
+    pDC->SelectPalette(pOldPal, 0);
+    ReleaseDC(pDC);
+}
+
 // FUNCTION: YODA 0x00411010  (??_GCBitmapButton@@UAEPAXI@Z — TU COMDAT copy; the GameView
 //   ctor's three CBitmapButton members odr-use it. Emitted mid-TU after OnDragItem.)
 // FUNCTION: YODA 0x004110d0  (??1CBitmapButton@@UAE@XZ — the plain dtor; GameView's ctor/dtor
@@ -4539,4 +5072,452 @@ void GameView::ScrollZoneTransition()
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
     pWorld->nFrameMode = 3;
+}
+
+// FUNCTION: YODA 0x00411520
+// GameView::SoundInit — one-shot WAVMIX32 session setup. Opens the mixer, loads
+// every named sound (World.soundNames[64], "sfx\<name>") into g_waveHandles,
+// opens channel 8 and activates; on any failure frees the loaded waves, closes
+// the session and turns sound+music off. On success spawns the music pump
+// thread (MusicThreadProcMaybe) with its tick event.
+void GameView::SoundInit()
+{
+    if (soundSession != 0)
+        return;
+    soundSession = WaveMixInit();
+    if (soundSession == 0)
+    {
+        pWorld->nSoundEnabled = 0;
+        pWorld->nMusicEnabled = 0;
+        return;
+    }
+    char szPath[100];
+    char szName[100];
+    int i = 0;
+    do
+    {
+        if (pWorld->soundNames[i].GetLength() > 0)
+        {
+            strcpy(szPath, "sfx\\");
+            strcpy(szName, pWorld->soundNames[i]);
+            strcat(szPath, szName);
+            g_waveHandles[i] = WaveMixOpenWave(soundSession, szPath, 0, 1);
+        }
+        i++;
+    } while (i < 64);
+    if (WaveMixOpenChannel(soundSession, 8, 1) != 0)
+    {
+        int *p = g_waveHandles;
+        do
+        {
+            if (*p != 0)
+                WaveMixFreeWave(soundSession, *p);
+            p++;
+        } while (p < g_waveHandles + 64);
+        WaveMixCloseSession(soundSession);
+        soundSession = 0;
+        pWorld->nSoundEnabled = 0;
+        pWorld->nMusicEnabled = 0;
+    }
+    else if (WaveMixActivate(soundSession, 1) != 0)
+    {
+        pWorld->nSoundEnabled = 0;
+        WaveMixCloseChannel(soundSession, 8, 1);
+        int *p = g_waveHandles;
+        do
+        {
+            if (*p != 0)
+                WaveMixFreeWave(soundSession, *p);
+            p++;
+        } while (p < g_waveHandles + 64);
+        WaveMixCloseSession(soundSession);
+        soundSession = 0;
+        pWorld->nSoundEnabled = 0;
+        pWorld->nMusicEnabled = 0;
+    }
+    if (soundSession != 0)
+    {
+        g_hWaveMixEvent = CreateEvent(0, 1, 0, 0);
+        pMusicThread = AfxBeginThread(MusicThreadProcMaybe, 0, 0, 0, 0, 0);
+    }
+    else
+    {
+        pMusicThread = 0;
+    }
+}
+
+// FUNCTION: YODA 0x00411730
+// GameView::OnLButtonDown — WM_LBUTTONDOWN by frame mode. Mode 2: back to 3.
+// Mode 3: scrollbar click = nothing, inventory rect = bInvClickPending, viewport
+// (inflated 12px) = set the walk target (fine coords *32), SetCapture, phase++,
+// mode 2. Mode 4: inventory rect only. Mode 7 reason 2 (win/lose screen): a
+// click past step 50 returns to the pending zone. Mode 7 reason 4 (world map):
+// clicking a visited cell shows its zone-name/status balloon (per zone type),
+// an ENEMY_TERRITORY cell teleports there when the locator is in inventory
+// slot 0 and the zone has an active teleporter; anything else buzzes and closes
+// the map back to pMapReturnZone (four copy-pasted close blocks with genuine
+// statement-order drift — transcribed verbatim). Mode 9: click on the pickup
+// cell sets bPickupClickPendingMaybe.
+// EFFECTIVE MATCH (70/2845 bytes differ; 761/750 insns). Residuals: (a) the
+// mode-3 walk-target pair — orig interleaves the X and Y chains (Y loads first,
+// X stores first, perfectly paired); plain statements emit sequentially and
+// int-local spellings are WORSE (+36 insns) — the TZD arg-eval-position family;
+// (b) ONE global EBX↔EDI role swap (gy and the pCell base) echoing through the
+// map-click case — allocator tie-break, G1; (c) jump/byte-table tail noise.
+// Cracks that landed: balloonY is a value-ternary with the *28 DUPLICATED in
+// both arms ((gy == 0) ? gy * 28 : (gy + 1) * 28 — polarity load-bearing); the
+// CString balloon arms live in INNER SCOPES so the dtor runs BEFORE
+// bMouseCaptured = 0 (dtor-vs-store order is source-visible); the four buzz-
+// close blocks are verbatim copies with per-copy statement order.
+void GameView::OnLButtonDown(UINT nFlags, CPoint point)
+{
+    bInvClickPending = 0;
+    if (bInputLocked != 0)
+        return;
+    if (nFlags & 4)
+        bShiftHeld = 1;
+    else
+        bShiftHeld = 0;
+    switch (pWorld->nFrameMode)
+    {
+    case 2:
+        pWorld->nFrameMode = 3;
+        break;
+    case 3:
+    {
+        RECT rc;
+        rc.left = pWorld->rectUnk3274.left - 12;
+        rc.right = pWorld->rectUnk3274.right + 12;
+        rc.top = pWorld->rectUnk3274.top - 12;
+        rc.bottom = pWorld->rectUnk3274.bottom + 12;
+        if (PtInRect(&pWorld->rectInvScrollMaybe, point) == 0)
+        {
+            if (PtInRect(&pWorld->rectUnk3284, point) != 0)
+            {
+                bInvClickPending = 1;
+            }
+            else if (PtInRect(&rc, point) != 0 && bInputLocked == 0)
+            {
+                pWorld->nWalkTargetXMaybe =
+                    (pWorld->nViewLeft - pWorld->rectUnk3274.left + point.x) * 32;
+                pWorld->nWalkTargetYMaybe =
+                    (pWorld->nViewTop - pWorld->rectUnk3274.top + point.y) * 32;
+                SetCapture();
+                nWalkFramePhase++;
+                bMouseCaptured = 1;
+                pWorld->nFrameMode = 2;
+            }
+        }
+        break;
+    }
+    case 4:
+        if (PtInRect(&pWorld->rectUnk3284, point) != 0)
+            bInvClickPending = 1;
+        break;
+    case 7:
+        switch (pWorld->nMapChangeReason)
+        {
+        case 2:
+            if (nTransitionStep > 0x32
+                && pWorld->GetZoneIndex(pWorld->pPendingZone) != 0x152)
+            {
+                pWorld->currentZone = pWorld->pPendingZone;
+                pWorld->cameraX = pWorld->nextCameraXMaybe;
+                pWorld->cameraY = pWorld->nextCameraYMaybe;
+                pWorld->RefreshZone();
+                pWorld->UpdateCamera();
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->DrawPlayer();
+                pWorld->nFrameMode = 3;
+                DrawGameArea(0);
+                DrawDirectionArrows(0);
+            }
+            break;
+        case 4:
+        {
+            int gx = (point.x + 12) / 28 - 1;
+            int gy = (point.y + 12) / 28 - 1;
+            int nBalloonX = gx * 28 + 18;
+            int nBalloonY = (gy == 0) ? gy * 28 : (gy + 1) * 28;
+            if (gx < 0 || gy < 0 || gx > 9 || gy > 9)
+            {
+                PlaySound(0x23);
+                pWorld->currentZone = pMapReturnZone;
+                bMapViewOpen = 0;
+                pWorld->RefreshZone();
+                pWorld->UpdateCamera();
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->nFrameMode = 3;
+                DrawGameArea(0);
+                bMouseCaptured = 0;
+                bMapTeleportEnabled = 0;
+                break;
+            }
+            if (pWorld->mapGrid[gy * 10 + gx].flagSolved == 0)
+            {
+                PlaySound(0x23);
+                pWorld->currentZone = pMapReturnZone;
+                bMapViewOpen = 0;
+                bMouseCaptured = 0;
+                pWorld->RefreshZone();
+                pWorld->UpdateCamera();
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->nFrameMode = 3;
+                DrawGameArea(0);
+                pWorld->DrawPlayer();
+                break;
+            }
+            switch (pWorld->mapGrid[gy * 10 + gx].zoneType)
+            {
+            default:
+                PlaySound(0x23);
+                pWorld->currentZone = pMapReturnZone;
+                bMapViewOpen = 0;
+                pWorld->RefreshZone();
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->UpdateCamera();
+                pWorld->nFrameMode = 3;
+                DrawGameArea(0);
+                bMouseCaptured = 0;
+                bMapTeleportEnabled = 0;
+                break;
+            case ZONE_TYPE_ENEMY_TERRITORY:
+                if (bMapTeleportEnabled == 1
+                    && ((InvItem *)pWorld->inventory.GetAt(0))->pTile
+                       == (Tile *)pWorld->tiles.GetAt(0x1a5))
+                {
+                    Zone *pZone = (Zone *)pWorld->zones.GetAt(
+                        pWorld->mapGrid[gy * 10 + gx].id);
+                    int nObjs = pZone->objects.GetSize();
+                    if (nObjs > 0)
+                    {
+                        int i = 0;
+                        ZoneObj **paObjs = (ZoneObj **)pZone->objects.GetData();
+                        do
+                        {
+                            ZoneObj *pObj = *paObjs;
+                            if (pObj->type == OBJ_TELEPORTER && pObj->state == 1)
+                            {
+                                PlaySound(0);
+                                pWorld->cameraX = pObj->x << 5;
+                                pWorld->cameraY = pObj->y << 5;
+                                pWorld->currentZone = pZone;
+                                pWorld->nFrameMode = 3;
+                                bMapViewOpen = 0;
+                                pWorld->bHidePlayerMaybe = 0;
+                                pWorld->RefreshZone();
+                                pWorld->UpdateCamera();
+                                DrawGameArea(0);
+                                pWorld->playerX = gx;
+                                pWorld->playerY = gy;
+                                DrawDirectionArrows(0);
+                                bMapTeleportEnabled = 0;
+                                bMouseCaptured = 0;
+                                return;
+                            }
+                            paObjs++;
+                            i++;
+                        } while (i < nObjs);
+                    }
+                }
+                PlaySound(0x23);
+                pWorld->currentZone = pMapReturnZone;
+                bMapViewOpen = 0;
+                pWorld->RefreshZone();
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->UpdateCamera();
+                pWorld->nFrameMode = 3;
+                DrawGameArea(0);
+                bMouseCaptured = 0;
+                bMapTeleportEnabled = 0;
+                break;
+            case ZONE_TYPE_FINAL_DESTINATION:
+            case ZONE_TYPE_ITEM_FOR_ITEM:
+            case ZONE_TYPE_FIND_USEFUL_NPC:
+            case ZONE_TYPE_ITEM_TO_PASS:
+            case ZONE_TYPE_FROM_ANOTHER_MAP:
+            case ZONE_TYPE_TO_ANOTHER_MAP:
+            {
+                {
+                    CString str;
+                    if (pWorld->mapGrid[gy * 10 + gx].flagA == 1)
+                    {
+                        str.LoadString(0xe01a);
+                    }
+                    else
+                    {
+                        short w = pWorld->mapGrid[gy * 10 + gx].cellItemA;
+                        if (w >= 0)
+                        {
+                            Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
+                            str.LoadString(0xe00e);
+                            CString strKind;
+                            if (pTile->flags & TILE_PUZZLE_ITEM_1)
+                            {
+                                strKind.LoadString(0xe016);
+                            }
+                            else if (pTile->flags & TILE_PUZZLE_ITEM_2)
+                            {
+                                strKind.LoadString(0xe017);
+                            }
+                            else if (pTile->flags & TILE_PUZZLE_ITEM_SEED_END)
+                            {
+                                strKind.LoadString(0xe018);
+                            }
+                            else if (pTile->flags & TILE_KEYCARD)
+                            {
+                                if (w == 0x213 || w == 0x285 || w == 0x43f || w == 0x433)
+                                    strKind.LoadString(0xe016);
+                                else
+                                    strKind.LoadString(0xe019);
+                            }
+                            str += strKind;
+                        }
+                    }
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            case ZONE_TYPE_FINAL_ITEM:
+            {
+                {
+                    CString str;
+                    if (pWorld->mapGrid[gy * 10 + gx].flagB == 1)
+                        str.LoadString(0xe014);
+                    else
+                        str.LoadString(0xe015);
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            case ZONE_TYPE_MAP_START:
+            {
+                {
+                    CString str;
+                    str.LoadString(0xe013);
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:
+            {
+                {
+                    CString str;
+                    if (pWorld->mapGrid[gy * 10 + gx].flagA == 1
+                        && pWorld->mapGrid[gy * 10 + gx].flagB == 1)
+                    {
+                        str.LoadString(0xe00d);
+                    }
+                    else
+                    {
+                        short w = pWorld->mapGrid[gy * 10 + gx].cellItemA;
+                        if (w >= 0)
+                        {
+                            Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
+                            str.LoadString(0xe00e);
+                            CString strKind;
+                            if (pTile->flags & TILE_PUZZLE_ITEM_1)
+                            {
+                                strKind.LoadString(0xe016);
+                            }
+                            else if (pTile->flags & TILE_PUZZLE_ITEM_2)
+                            {
+                                strKind.LoadString(0xe017);
+                            }
+                            else if (pTile->flags & TILE_PUZZLE_ITEM_SEED_END)
+                            {
+                                strKind.LoadString(0xe018);
+                            }
+                            else if (pTile->flags & TILE_KEYCARD)
+                            {
+                                if (w == 0x213 || w == 0x285 || w == 0x43f || w == 0x433)
+                                    strKind.LoadString(0xe016);
+                                else
+                                    strKind.LoadString(0xe019);
+                            }
+                            str += strKind;
+                        }
+                    }
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            case ZONE_TYPE_FIND_USEFUL_DROP:
+            {
+                short w = pWorld->mapGrid[gy * 10 + gx].cellItemA;
+                if (w >= 0)
+                {
+                    Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
+                    CString str;
+                    if (pWorld->mapGrid[gy * 10 + gx].flagA == 1)
+                    {
+                        str.LoadString(0xe00d);
+                    }
+                    else
+                    {
+                        str.LoadString(0xe00e);
+                        str += pTile->name;
+                        str += "...";
+                    }
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            case ZONE_TYPE_FIND_USEFUL_BUILDING:
+            {
+                {
+                    CString str;
+                    if (pWorld->mapGrid[gy * 10 + gx].flagB == 1)
+                    {
+                        str.LoadString(0xe00d);
+                    }
+                    else
+                    {
+                        short w = pWorld->mapGrid[gy * 10 + gx].cellItemC;
+                        if (w >= 0)
+                        {
+                            Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
+                            str.LoadString(0xe00f);
+                            CString strKind;
+                            if (pTile->flags & TILE_LOCATOR)
+                            {
+                                strKind.LoadString(0xe010);
+                            }
+                            else if (pTile->flags & TILE_WEAPON)
+                            {
+                                strKind.LoadString(0xe012);
+                            }
+                            else if (pTile->flags & TILE_ITEM)
+                            {
+                                strKind.LoadString(0xe011);
+                            }
+                            str += strKind;
+                        }
+                    }
+                    ShowTextDialog(str, nBalloonX, nBalloonY, 1);
+                }
+                bMouseCaptured = 0;
+                break;
+            }
+            }
+            break;
+        }
+        }
+        break;
+    case 9:
+    {
+        int cy = (pWorld->nViewTop - pWorld->rectUnk3274.top + point.y) / 32;
+        int cx = (pWorld->nViewLeft - pWorld->rectUnk3274.left + point.x) / 32;
+        if (cx == nPickupX && nPickupY == cy)
+            bPickupClickPendingMaybe = 1;
+        else
+            bPickupClickPendingMaybe = 0;
+        break;
+    }
+    }
 }
