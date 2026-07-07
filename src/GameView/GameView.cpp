@@ -11,6 +11,7 @@
 #include <string.h>
 #include <time.h>
 #include "../Worldgen/Worldgen.h"
+#include "../Dlg/Dlg.h"
 
 // --- WAVMIX32 imports (all __stdcall) -----------------------------------------
 extern "C" {
@@ -6442,6 +6443,74 @@ void GameView::SoundFlush()
         WaveMixFlushChannel(soundSession, 0, 1);
 }
 
+// FUNCTION: YODA 0x00413c10
+// WM_RBUTTONDOWN. When playing (nFrameMode 3) with a weapon equipped, resolves a cardinal
+// fire direction from the current movement delta (diagonals snap to up/left/right), bails if
+// firing would leave the visible zone, else latches a shot (nFrameMode 8). When in the map
+// overlay (nFrameMode 7) with the game running, closes the map and restores the play zone.
+void GameView::OnRButtonDown(UINT nFlags, CPoint point)
+{
+    switch (pWorld->nFrameMode) {
+    case 3:
+        if (pWorld->currentWeapon != 0) {
+            if (nMoveDX == 0 || nMoveDY == 0) {
+                nFireDirX = nMoveDX;
+                nFireDirY = nMoveDY;
+            } else if ((nMoveDX < 0 && nMoveDY < 0) || (nMoveDX == 1 && nMoveDY < 0)) {
+                nFireDirX = 0;
+                nFireDirY = -1;
+            } else if (nMoveDX < 0 && nMoveDY == 1) {
+                nFireDirX = -1;
+                nFireDirY = 0;
+            } else if (nMoveDX == 1 && nMoveDY == 1) {
+                nFireDirX = 1;
+                nFireDirY = 0;
+            }
+
+            if (nFireDirX != 0) {
+                if (nFireDirX < 0) {
+                    if (pWorld->cameraX < 0x20)
+                        return;
+                } else if (nFireDirX > 0) {
+                    if ((pWorld->currentZone->width - 2) * 32 < pWorld->cameraX)
+                        return;
+                }
+                nFireStep = 0;
+                bFireKeyLatchMaybe = 1;
+                pWorld->nFrameMode = 8;
+                return;
+            }
+            if (nFireDirY != 0) {
+                if (nFireDirY < 0) {
+                    if (pWorld->cameraY < 0x20)
+                        return;
+                } else if (nFireDirY > 0) {
+                    if ((pWorld->currentZone->height - 2) * 32 < pWorld->cameraY)
+                        return;
+                }
+                nFireStep = 0;
+                bFireKeyLatchMaybe = 1;
+                pWorld->nFrameMode = 8;
+                return;
+            }
+        }
+        break;
+    case 7:
+        if (pWorld->nMapChangeReason == 4) {
+            pWorld->currentZone = pMapReturnZone;
+            bMapViewOpen = 0;
+            pWorld->RefreshZone();
+            pWorld->bHidePlayerMaybe = 0;
+            pWorld->UpdateCamera();
+            pWorld->nFrameMode = 3;
+            DrawGameArea(NULL);
+            bMouseCaptured = 0;
+            bMapTeleportEnabled = 0;
+        }
+        break;
+    }
+}
+
 // FUNCTION: YODA 0x00413dd0
 // Redraws the zone cell at the camera position. NOTE the <<5: DrawZoneCell takes CELL
 // coords and multiplies by 32 itself — passing camera*32 here draws a far-off cell unless
@@ -7010,5 +7079,213 @@ void GameView::OnBumpTile(int dx, int dy)
         }
         bBusy = 0;
         bInputLocked = 0;
+    }
+}
+
+// FUNCTION: YODA 0x004150a0
+// Recomputes the player's sprite tile for the current facing (nMoveDX,nMoveDY) and repaints.
+void GameView::UpdatePlayerWalkFrame()
+{
+    bBusy = 1;
+    pWorld->pPlayerFrameTile =
+        (Tile *)pWorld->pPlayerChar->GetWalkFrameTile(nMoveDX, nMoveDY, &pWorld->tiles);
+    pWorld->DrawPlayer();
+    DrawGameArea(NULL);
+    bBusy = 0;
+}
+
+// FUNCTION: YODA 0x004150f0
+// WM_KEYDOWN. Space/Insert fire the weapon in the current facing (or in mode 9 collect the
+// blinking pickup); VK_PRIOR..VK_DOWN queue a move that commits in the shared tail; 'L' toggles
+// the locator map (open needs the locator tile 0x1a5 as the first inventory item; close restores
+// the play zone); Ctrl+F8 pops a debug dialog with zone id / camera cell / goal item.
+// [EFFECTIVE-WIP: align=452/reg_pen=6, byte_diff 281/1668 (~83% bytes). ALL case bodies match
+//  (fire/pickup/locator/debug transcribed 1:1). Two residuals, both parked:
+//  (1) SHARED-TAIL PLACEMENT (the dominant cost, block-sinking family — see v8/v9 parks): the
+//      original emits the `if(bMoved)` move-commit tail LAST (after case VK_F8, which falls
+//      through to it); cl here places it right after the `default:` block (which then falls
+//      through to it) and every other case JMPs back. Steering attempts ALL inert: default first
+//      / mid / last, VK_F8 with-break vs fall-through, case reorder — cl always makes default the
+//      tail's fall-through predecessor. Likely governed by trace/EH-region ordering cl 4.2 does
+//      not expose to source shape. (2) The two GetAsyncKeyState `& 0x8000` tests: orig keeps a
+//      redundant `movsx eax,ax` before `test ah,0x80`; ours tests AH directly (short local +
+//      int local both failed to reproduce / worsened reg_pen). ⭐ CRACK that landed: the tail's
+//      OnMouseMove takes `*(CPoint *)&nMouseX` (reinterpret the adjacent nMouseX/nMouseY as a
+//      CPoint — LEA &nMouseX + deref); `CPoint(nMouseX,nMouseY)` spills a temp and
+//      `*(POINT*)&nMouseX` adds a conversion copy (both worse). Switch is a jump table over
+//      keys 0x20..0x77; VK_F8 has no break (falls through, matching the orig's last-case flow).]
+void GameView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+    int bMoved = 0;
+
+    if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
+        bShiftHeld = 1;
+    else
+        bShiftHeld = 0;
+
+    switch (nChar)
+    {
+    case VK_SPACE:      // 0x20
+    case VK_INSERT:     // 0x2d
+        if (pWorld->nFrameMode == 3)
+        {
+            if (pWorld->currentWeapon != 0)
+            {
+                if (nMoveDX == 0 || nMoveDY == 0)
+                {
+                    nFireDirX = nMoveDX;
+                    nFireDirY = nMoveDY;
+                }
+                else if ((nMoveDX < 0 && nMoveDY < 0) || (nMoveDX == 1 && nMoveDY < 0))
+                {
+                    nFireDirX = 0;
+                    nFireDirY = -1;
+                }
+                else if (nMoveDX < 0 && nMoveDY == 1)
+                {
+                    nFireDirX = -1;
+                    nFireDirY = 0;
+                }
+                else if (nMoveDX == 1 && nMoveDY == 1)
+                {
+                    nFireDirX = 1;
+                    nFireDirY = 0;
+                }
+
+                if (nFireDirX == 0)
+                {
+                    if (nFireDirY != 0)
+                    {
+                        if (nFireDirY < 0)
+                        {
+                            if (pWorld->cameraY < 0x20)
+                                break;
+                        }
+                        else if (nFireDirY > 0)
+                        {
+                            if ((pWorld->currentZone->height - 2) * 32 < pWorld->cameraY)
+                                break;
+                        }
+                        nFireStep = 0;
+                        bFireKeyLatchMaybe = 1;
+                        pWorld->nFrameMode = 8;
+                    }
+                }
+                else
+                {
+                    if (nFireDirX < 0)
+                    {
+                        if (pWorld->cameraX < 0x20)
+                            break;
+                    }
+                    else if (nFireDirX > 0)
+                    {
+                        if ((pWorld->currentZone->width - 2) * 32 < pWorld->cameraX)
+                            break;
+                    }
+                    nFireStep = 0;
+                    bFireKeyLatchMaybe = 1;
+                    pWorld->nFrameMode = 8;
+                }
+            }
+        }
+        else if (pWorld->nFrameMode == 9 && nPickupTileId >= 0 && bBusy == 0)
+        {
+            AddItemToInv((Tile *)pWorld->tiles.GetAt(nPickupTileId));
+            short w = pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
+            if (w >= 0 && (int)w == nPickupTileId)
+                pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].flagB = 1;
+            if (pPickupObj != 0)
+            {
+                pPickupObj->state = 0;
+                pWorld->currentZone->SetTile(nPickupX, nPickupY, 1, -1);
+            }
+            DrawTileAt(nPickupX, nPickupY, -1);
+            DrawGameArea(0);
+            pWorld->nFrameMode = 3;
+            bMouseCaptured = 0;
+        }
+        break;
+    case VK_PRIOR:      // 0x21
+    case VK_NEXT:       // 0x22
+    case VK_END:        // 0x23
+    case VK_HOME:       // 0x24
+    case VK_LEFT:       // 0x25
+    case VK_UP:         // 0x26
+    case VK_RIGHT:      // 0x27
+    case VK_DOWN:       // 0x28
+        bMoved = 1;
+        nMoveCommand = nChar;
+        bKeyboardMoveActive = 1;
+        break;
+    default:
+        Default();
+        break;
+    case 0x4c:          // 'L' — toggle locator map
+        if (bLocatorKeyLatchMaybe == 0)
+        {
+            bLocatorKeyLatchMaybe = 1;
+            if (pWorld->nFrameMode == 7 && pWorld->nMapChangeReason == 4)
+            {
+                PlaySound(0x23);
+                pWorld->currentZone = pMapReturnZone;
+                bMapViewOpen = 0;
+                pWorld->bHidePlayerMaybe = 0;
+                pWorld->nFrameMode = 3;
+                pWorld->RefreshZone();
+                pWorld->UpdateCamera();
+                DrawGameArea(0);
+                bMapTeleportEnabled = 0;
+            }
+            else if (pWorld->nFrameMode == 3 && bBusy == 0 && pWorld->inventory.GetSize() > 0 &&
+                     ((InvItem *)pWorld->inventory.GetAt(0))->pTile == (Tile *)pWorld->tiles.GetAt(0x1a5))
+            {
+                CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+                CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+                bMapTeleportEnabled = 0;
+                bMapViewOpen = 1;
+                pMapReturnZone = pWorld->currentZone;
+                PlaySound(0x22);
+                pWorld->DrawLocatorMap(pDC, bBlinkState, bMapTeleportEnabled);
+                pDC->SelectPalette(pOldPal, 0);
+                ::ReleaseDC(m_hWnd, pDC->m_hDC);
+                pWorld->nFrameMode = 7;
+                pWorld->nMapChangeReason = 4;
+                bMouseCaptured = 0;
+            }
+        }
+        break;
+    case VK_F8:         // 0x77 — Ctrl+F8 debug info dialog
+        if (GetAsyncKeyState(VK_CONTROL) & 0x8000)
+        {
+            CTextDialog dlg(0);
+            char szBuf[20];
+            sprintf(szBuf, "%d", pWorld->GetZoneIndex(pWorld->currentZone));
+            dlg.m_strField3 = szBuf;
+            sprintf(szBuf, "%d", pWorld->cameraX / 32);
+            dlg.m_strField1 = szBuf;
+            sprintf(szBuf, "%d", pWorld->cameraY / 32);
+            dlg.m_strField2 = szBuf;
+            sprintf(szBuf, "%d", pWorld->nCurrentGoalItem);
+            dlg.m_strField0 = szBuf;
+            dlg.DoModal();
+            bDebugFlagMaybe = 0;
+        }
+        // falls through to the shared move-commit tail (last case, no break)
+    }
+
+    if (bMoved)
+    {
+        if (pWorld->nFrameMode == 3)
+            pWorld->nFrameMode = 2;
+        nMovePending = 1;
+        if (bKeyboardMoveActive == 0)
+        {
+            if (bShiftHeld == 0)
+                OnMouseMove(0, *(CPoint *)&nMouseX);
+            else
+                OnMouseMove(4, *(CPoint *)&nMouseX);
+        }
+        OnSetCursor(this, HTCLIENT, 0);
     }
 }

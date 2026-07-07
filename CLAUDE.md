@@ -375,6 +375,15 @@ Written to be followable without prior context: each phase lists concrete steps 
   OnBumpTile(4.6KB) effective + SoundFlush/RedrawPlayerCell/EmptyFrameHook EXACT
   (33/65 markers); ⭐ memcpy operand-provenance rule (field-to-field ⇒ lone rep movsb)
   (2026-07-07 v25)**;
+  **17.30 % exact / 92.28 % coverage — v26: OnRButtonDown 0x413c10 (was unidentified) +
+  UpdatePlayerWalkFrame 0x4150a0 EXACT; OnKeyDown 0x4150f0 (1538B) effective (36/68 markers).
+  ⭐ ROOT-CAUSE STRUCT FIXES (user directive): Ghidra GameView.pWorld@0x44 was typed `-BAD-`
+  (dangling) ⇒ every World-field access in GameView decompiled as raw `*(int*)(pWorld+off)`,
+  which is what made me pick gameState(0x68) over nMapChangeReason(0x60). Retyped World*
+  (via modify_struct_field_type HTTP; it clobbers the name, restore with modify_struct_field
+  field_name=offset:0xN). Also fixed Dlg.h CTextDialog sizeof 0xc8→0x6c (was the unrelated
+  game TextDialog@0x416b90's size; OnKeyDown's stack frame proves 0x6c; Dlg TU still 5/5).
+  (2026-07-07 v26)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -412,15 +421,44 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v25 — UpdateDragCursor→OnBumpTile; 16.02% exact / 90.95% coverage)
-**▶ v25 RESULTS: GameView.cpp = 33/65 markers (3971B exact); 90.95% coverage / 16.02% exact
-globally. New EXACT: SoundFlush 0x413bf0, RedrawPlayerCellMaybe 0x413dd0 (int temps for the
-<<5 args — a plain expr narrows to 16-bit `shl dx,5`), EmptyFrameHookMaybe 0x413be0, + one
-GameData flip-in (13/27). New EFFECTIVE (autopsies in-source): UpdateDragCursor 0x412cc0
-(align 130), OnSetCursor 0x4131a0 (align 30), OnMouseMove 0x413580 (align 130, ~91% bytes),
-OnEraseBkgnd 0x413b20 (align 20 — ONLY the two end stubs swapped: handler-thunk vs dtor-stub
-emission order, not source-steerable), OnBumpTile 0x413df0 (4635B monster, first pass ~84%
-bytes, align 1066).**
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v26 — OnRButtonDown/UpdatePlayerWalkFrame/OnKeyDown; 17.30% exact / 92.28% coverage)
+**▶ v26 RESULTS: GameView.cpp = 36/68 markers (6141B exact); 92.28% coverage / 17.30% exact
+globally. New EXACT: OnRButtonDown 0x413c10 (WM_RBUTTONDOWN — was the UNIDENTIFIED 445B gap;
+switch(nFrameMode){case 3: fire in facing; case 7: close map}; the fire dir-resolve + camera
+bounds are shared with OnKeyDown/OnBumpTile), UpdatePlayerWalkFrame 0x4150a0 (23 insns),
++ a Dlg-include dial flip-in. New EFFECTIVE: OnKeyDown 0x4150f0 (1538B, ~83% bytes, autopsy
+in-source — shared-tail block placement + 2 movsx are the only residuals).**
+- **⭐⭐ ROOT-CAUSE STRUCT FIXES (user directive — "decomp errors point to wrong Ghidra
+  structs; fix sooner not later"):** (a) Ghidra `GameView.pWorld@0x44` AND `m_pDocument@0x3c`
+  were typed **`-BAD-`** (dangling type refs — the ONLY -BAD- fields in the whole DB, audited
+  all 15 key structs). Effect: EVERY World-field access through pWorld decompiled as raw
+  `*(int*)(pWorld+off)` (an intermediate `iVarN`), which is exactly what made me pick
+  gameState(0x68) over the correct nMapChangeReason(0x60) in OnRButtonDown. Retyped `World *`
+  via **`modify_struct_field_type` HTTP** (JSON body {struct_name,field_name,new_type}) — it
+  CLOBBERS the field name, restore with `modify_struct_field` field_name=`offset:0xN`
+  (renamer auto-prefixes 'p' → m_pDocument became pM_pDocument, cosmetic). Decompiles now
+  render `pWorld->nMapChangeReason` etc. (b) **Dlg.h CTextDialog sizeof was 0xc8, really 0x6c**:
+  the `_pad6c[0x5c]` was copied from the unrelated game TextDialog@0x416b90; OnKeyDown's stack
+  frame proves 0x6c (dlg@[EBP-0x94], SUB ESP,0x88, members end +0x6c). Removed the pad, Dlg TU
+  still 5/5 (ctor/dtor/DDX don't encode sizeof). GameView.cpp now `#include "../Dlg/Dlg.h"`.
+- **⚠ run_script_inline is BLOCKED**: a phantom stale `McpInline_2bf5a8636ec45.java` (raw
+  top-level stmts, no class wrapper) is cached IN THE MCP PLUGIN's memory (not on disk — find
+  turns up nothing), breaking every inline-script compile. Use the dedicated HTTP endpoints
+  (modify_struct_field_type / modify_struct_field) for struct edits until the Ghidra session
+  is restarted.
+- **⭐ `*(CPoint *)&nMouseX`** (OnKeyDown tail): reinterpret adjacent nMouseX/nMouseY as a
+  CPoint by-value (LEA &nMouseX + deref both dwords). `CPoint(x,y)` spills a stack temp;
+  `*(POINT*)&nMouseX` adds a POINT→CPoint conversion copy — BOTH worse (v25's POINT note was
+  for a raw ::PtInRect POINT* arg; a CPoint-param call wants the CPoint cast).
+- **⭐ Switch shared-tail placement (block-sinking family, PARKED like v8/v9):** cl 4.2 emits
+  the post-switch merge block after whichever case it makes the fall-through predecessor.
+  OnKeyDown's `if(bMoved)` tail: orig places it LAST (after case VK_F8, no-break fall-through);
+  cl here always makes `default:` the fall-through pred (tail right after default, others JMP
+  back). default first/mid/last + VK_F8 break/fall-through ALL inert — governed by trace/EH
+  ordering cl doesn't expose. Do NOT keep grinding these; annotate + G1.
+- **Prior v25 cracks retained (in-source):** memcpy operand-provenance (field-to-field ⇒ lone
+  rep movsb); bare `return CONST` cross-jump only as branch target; positive-test else-arm
+  deferral; OnBumpTile flags-in-EAX + (short)-cast int locals for GetTile/GetZoneCell.
 - **⭐ MEMCPY OPERAND-PROVENANCE RULE (probe-proven, the UpdateDragCursor crack):** the
   intrinsic emits the LONE `rep movsb` form when BOTH args are struct-FIELD loads (any
   pointed type; a value-local copied from a field keeps field-ness); any param/global/
@@ -458,15 +496,20 @@ bytes, align 1066).**
   DrawGameArea tail — merge-partner family) + six 1-insn GetFrameTile site swaps;
   OnMouseMove imm-vs-reg zero stores + rcOuter.bottom wedge; OnEraseBkgnd stub order.
 
-**▶ START HERE (v26): remaining ~14KB of GameView TU, .text order:**
-1. **0x413c10 (445B — UNIDENTIFIED, between SoundFlush and RedrawPlayerCell — decompile
-   + name it first)**, then OnKeyDown 0x4150f0 (1538B, body healed v16), UpdatePlayerWalkFrame
-   0x4150a0 check, CheckCheat 0x415820 (552B), CyclePalette 0x415af0 (1280B), ConfirmExit
-   0x416030, TextDialog::Ctor 0x416b90 + Run 0x416c40 (2022B, plain class NOT CDialog),
-   0x4176f0 (1419B, identify), options dialogs 0x417ec0–0x4186e0 (three mini CDialog
-   classes — model per v16 notes).
-2. **OnBumpTile second pass (optional):** the remaining align-1066 is mostly the parked
-   families; do NOT grind — G1.
+**▶ START HERE (v27): remaining ~12KB of GameView TU, .text order (progress.py largest
+unclaimed):** OnKeyUp 0x415a50 + OnDestroy 0x415ac0 + OnHScroll 0x415ff0 (small handlers
+near 0x415820), CheckCheat 0x415820 (552B), CyclePalette 0x415af0 (1280B), ConfirmExit
+0x416030, then the biggest remaining: **TextDialog::Ctor 0x416b90 + Run 0x416c40 (2022B,
+the game's plain-class TextDialog, NOT CDialog — sizeof 0xc8, distinct from Dlg.h's
+CTextDialog!)**, 0x4176f0 (1419B, identify), options dialogs 0x417ec0–0x4186e0 (three mini
+CDialog classes — model per v16 notes; 0x418280 397B / 0x417570 384B unclaimed).
+- **⚠ Two DISTINCT "TextDialog" classes — do NOT conflate (this session's near-miss):**
+  Dlg.h `CTextDialog` @0x418dd0 = CDialog-derived debug dialog, **sizeof 0x6c** (used by
+  OnKeyDown Ctrl+F8). The game's `TextDialog` @0x416b90 = plain non-CDialog class,
+  **sizeof 0xc8** (ShowTextDialog). Their sizes got cross-contaminated once already.
+- **OnKeyDown residual (PARKED, G1):** shared-tail block placement + the 2 GetAsyncKeyState
+  `& 0x8000` movsx (orig keeps `movsx eax,ax` before `test ah,0x80`; short/int locals both
+  failed to reproduce). ~83% bytes; all case bodies match 1:1.
 3. **Open items (carried):** InvScrollBar ??_G/??1 (0x408690/0x4086b0) PARKED;
    World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); MapZone.field30 →
    quest-list selector rename candidate (1=listA, else listB — ShowWinMessage).
@@ -476,9 +519,9 @@ bytes, align 1066).**
    this-reload/import-caching; UpdateItemObjects this/pO swap; DrawText pTile-EBX
    CSE; ShowWinMessage tx/ty homing; plain-helper param widths; AFX_MSG map-order;
    v24/v25 parked lists above.
-5. **Re-verify ALL TUs after ANY Worldgen.h/GameView.h/RecordClasses.h edit** (v25 sweep:
-   GameView 33/65, Worldgen 33/90, WorldDoc 7/13, Records 24/33, GameData 13/27,
-   World 6/8, Iact 2/10).
+5. **Re-verify ALL TUs after ANY Worldgen.h/GameView.h/RecordClasses.h/Dlg.h edit** (v26
+   sweep: GameView 36/68, Dlg 5/5; re-run the others — Worldgen/WorldDoc/Records/GameData/
+   World/Iact — after any shared-header change, the CTextDialog decl add rotated the dial).
 
 ### ⏮ PRIOR (2026-07-07 v24 — mouse handlers, condensed)
 **▶ v24 RESULTS (2026-07-07, commits e9caa34+): GameView.cpp = 29/57 markers; 85.60%

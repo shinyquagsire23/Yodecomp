@@ -11,7 +11,10 @@ public:                              // vftable 0x0044bd30; CDialog base ends at
     CString m_strField1;             // +0x60  DDX id 0x78
     CString m_strField2;             // +0x64  DDX id 0x79
     CString m_strField3;             // +0x68  DDX id 0x75
-    char    _pad6c[0x5c];            // +0x6c  (sizeof 0xc8)
+                                     // sizeof 0x6c (proven by GameView::OnKeyDown's stack frame:
+                                     // dlg at [EBP-0x94], SUB ESP,0x88; members end at +0x6c).
+                                     // (was mistakenly padded to 0xc8 — that is the unrelated
+                                     //  game TextDialog@0x416b90's size.)
 
     CTextDialog(CWnd *pParent);                          // 0x00418dd0
     virtual void DoDataExchange(CDataExchange *pDX);     // 0x00418f90
