@@ -127,6 +127,24 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
   such zones the placer exhausts its candidate list and returns 0xffff.
 - **Reproduced:** `src/Worldgen/Worldgen.cpp` PlaceQuestNode (`// sic:` comment on the scan).
 
+### 13. `World::OnNewWorld` — stack-unbalanced 0-arg vcall of `CDocument::GetFile`
+
+- **Where:** 0x4244fc–0x424506 (the StartGame-failed fatal path).
+- **What:** after `CString::LoadString(0xe01e)` and `nFrameMode = 12`, the code calls vtable
+  slot +0x84 with NO arguments: `mov eax,[esi]; mov ecx,esi; call [eax+0x84]`. Slot +0x84 of
+  the World vtable (0x44c440) is `CDocument::GetFile(LPCTSTR, UINT, CFileException*)`
+  (0x441f5d; `RecordDataFileOwner` is `#ifdef _MAC`, so the non-Mac layout puts GetFile 11
+  slots after the `IsModified` override at +0x58 — verified against the vtable bytes). GetFile
+  is `__thiscall` with 3 stack args: it reads 12 bytes of garbage args and `ret 0xC` pops the
+  caller's saved-register area. The very next call is `FatalAppExit(0, str)` which never
+  returns, so the corrupted stack is never observed.
+- **Likely intent:** `OnCloseDocument()` (+0x7c) or some other no-arg cleanup virtual; a
+  header/source skew put the call two slots off. Unrepresentable in well-typed C++.
+- **Impact:** none observable (process is exiting), but any code inserted between the vcall
+  and FatalAppExit would crash.
+- **Reproduced:** `src/Worldgen/Worldgen.cpp` OnNewWorld via a cast through the
+  `CDocVtblSlot84` dummy-virtual stub (the CFile-vtable-stub recipe) + `// sic:` comment.
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's

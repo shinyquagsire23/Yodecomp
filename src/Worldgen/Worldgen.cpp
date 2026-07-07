@@ -5066,6 +5066,36 @@ unsigned int World::Randomize()
     return b3 | b2 | b1 | b0;
 }
 
+// FUNCTION: YODA 0x00424450
+// ON_COMMAND(0x8008 File>New World) [msgmap @0x44c330]: confirm via AfxMessageBox(0xE001
+// "...Build a New World anyway?") unless a game is over/not started, then
+// StartGame(Randomize(), 0) under a wait cursor; on failure show the 0xE01E fatal string
+// and FatalAppExit.
+void World::OnNewWorld()
+{
+    int nAnswer;
+    if (unk2e58 == 0 && gameState == 0)
+        nAnswer = AfxMessageBox(0xe001, 4, 0);
+    else
+        nAnswer = 6;
+    if (nAnswer == 6)
+    {
+        unsigned int nSeed = Randomize();
+        AfxGetApp()->DoWaitCursor(1);
+        int nRet = StartGame(nSeed, 0);
+        AfxGetApp()->DoWaitCursor(-1);
+        if (nRet == 0)
+        {
+            CString str;
+            str.LoadString(0xe01e);
+            nFrameMode = 12;
+            ((CDocVtblSlot84 *)this)->Slot84();  // sic: 0-arg vcall of CDocument::GetFile's
+                                                 // slot, stack-unbalanced (engine-bugs.md #13)
+            FatalAppExit(0, str);
+        }
+    }
+}
+
 // FUNCTION: YODA 0x00425e30
 // Lay the (demo-hardcoded) quest into the 10x10 grid: pick one of the shipped goal zones by
 // rand()%4 (or forced by the goal item), place its content, tag the center 2x2 cells.
