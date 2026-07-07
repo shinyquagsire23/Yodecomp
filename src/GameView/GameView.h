@@ -49,8 +49,12 @@ class InvScrollBar : public CScrollBar
 {
 public:
     int  scrollMax;                  // +0x3c
-    char _pad40[4];                  // +0x40
+    int  scrollPos;                  // +0x40
     InvScrollBar(GameView *pView, RECT *pRect);           // 0x004085c0 (Ghidra: CtorCreateMaybe)
+    //{{AFX_MSG(InvScrollBar)
+    afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409360
+    //}}AFX_MSG
+    DECLARE_MESSAGE_MAP()
 };
 
 // GameView (= CDeskcppView, sizeof 0x310): full ctor-era layout from the Ghidra DB (the
