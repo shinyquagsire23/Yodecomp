@@ -278,7 +278,8 @@ public:
     int     unk54;                   // +0x54  ShowTextDialog arg c
     char    _pad58[0x60];            // +0x58
     CString strText;                 // +0xb8
-    char    _padbc[8];               // +0xbc
+    char    _padbc[4];               // +0xbc
+    GameView *pParentView;           // +0xc0  (Ghidra name, backported v15)
     int     soundSession;            // +0xc4  copied from GameView.soundSession
                                      // sizeof 0xc8
     TextDialog(GameView *pView);                          // 0x00416b90 (GameView TU)
@@ -320,7 +321,9 @@ public:
     CWordArray  storyHistoryAlaska;  // +0x0298
     CWordArray  storyHistoryOregon;  // +0x02ac
     Zone       *currentZone;         // +0x02c0
-    CPalette   *pPalette;            // +0x02c4
+    CPalette   *pPalette;            // +0x02c4  plain `new CPalette` in World::World (v15: the
+                                     //          "app class" theory retired — vftable 0x44c4f0 IS
+                                     //          CPalette's; ??_GCPalette COMDAT = 0x41e8b0)
     int         unk2c8;              // +0x02c8
     int         worldSeed;           // +0x02cc
     Zone       *apZoneGrid[100];     // +0x02d0
@@ -397,7 +400,11 @@ public:
     int         genCellQuestSlot1Scratch; // +0x3398
     int         genZoneTypeScratch;       // +0x339c
     int         nCurrentGoalItem;   // +0x33a0  Generate: = the goal puzzle id (demo hardcode 0x6c)
-    char        _pad33a4[0x14];      // +0x33a4
+    char        _pad33a4[4];         // +0x33a4
+    int         lastCount;           // +0x33a8  (Ghidra names, backported v15)
+    int         highScore;           // +0x33ac
+    int         lastScore;           // +0x33b0
+    char        _pad33b4[4];         // +0x33b4
     int         unk33b8;             // +0x33b8  0 = quest cells swapped out (save reads mapScratch)
     char       *lpszSaveDirMaybe;    // +0x33bc  save dialog's m_ofn.lpstrInitialDir
 

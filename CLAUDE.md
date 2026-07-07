@@ -284,46 +284,73 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   (see the MapEntity/Puzzle sweep); matching iterations don't.
 - **Milestones** (progress.py %exact + transcribed): 7.02 % after A; 13.52 % mid-D (v7);
   **59.54 % transcribed / 13.78 % exact late-D (2026-07-06 v12)**;
-  **73.57 % transcribed / 15.14 % exact, doc TU fully transcribed (2026-07-06 v14)**;
+  **73.63 % transcribed / 15.14 % exact, doc TU fully transcribed + Ghidra synced (2026-07-06 v15)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers; 15.14% exact + 58.43% partial = 73.57% transcribed; THE ENTIRE WORLDGEN TU IS TRANSCRIBED)
-**State: src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc
-TU including the whole GameView tail block. v13+v14 sessions added: LoadWorldStateFile/
-Serialize/DrawLocatorMap/DrawRect/OnNewWorld(EXACT)/OnSaveWorld/OnLoadWorld/??_GCProgressCtrl
-(World half), then the GameView block: OnInitialUpdate, DrawDirectionArrows, ShowTextDialog
-(EXACT), ??1TextDialog (MATCH), DrawHealthDial/Needle, AddHealth, UseWeapon(WIP),
-DetonateAdjacentTiles (align=0), OnCmdMinimize (EXACT), DrawWeaponBox/Icon,
-BlitViewportDither, PreCreateWindow (EXACT), AddItemToInv. GameView (0x310) + TextDialog
-(0xc8, NOT MFC-derived) + InvScrollBar (0x44, scrollMax@0x3c) + InvItem (0xc, 2 ctors
-0x4011d0/0x401270) fully modeled in Worldgen.h; World gained rectWeaponBox/rectAmmoBar/
-rectHealthDial/rectArrowBox/rectUnk3284/rectInvScrollMaybe (the whole rect block 0x3274-
-0x32d4 is RECTs), equippedItem@0x3374 (holds a Tile*), lpszSaveDirMaybe@0x33bc, unk2e58,
-unk3378; Zone gained DamageEntityAt/HitEntityAt decls (RecordClasses.h — Records TU
-re-verified 25/33 ✓; Iact breathed 2->1 exact, its 8 annotated tie-breaks unaffected).**
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v15 — UseWeapon converged + Ghidra fully synced + ??_GCPalette solved + src/Dta retired; 15.14% exact / 73.63% transcribed)
+**v15 session results (all committed):**
+- **UseWeapon 0x427d20 dedicated pass DONE → EFFECTIVE-STRUCTURAL** (insns 772/774, align
+  1108→870, full autopsy in-source). Two REAL source cracks: (a) **NO coordinate locals —
+  the original writes `x + dx`, `y + dy`, `x + dx*2`, `x + dx*3` as full expressions at
+  EVERY call site** and the compiler CSEs x+dx/y+dy into slots 0x18/0x14 itself; explicit
+  tx/ty (or tx2/ty3) locals put the sums in REGISTERS = provably wrong residency (extends
+  the "params CSE-spill on their own" lesson to derived expressions). (b) **NO short
+  locals — the 16-bit DrawZoneCell arithmetic falls out of the callee's SHORT PARAMS on
+  plain int expressions**; sdx/sdy/sDmg word-slot stores don't exist in the original.
+  Per-site operand order mirrored (see annotation). RESIDUAL = one allocator binding flip
+  (orig promotes dy→EBX, dx→EDI, this→EBP; ours y→EBX, x→EBP, this→EDI — root: the 2nd
+  flag-zero picks EDI vs EBX and everything cascades). Proven NOT source-steerable (9
+  decl-order/placement probes) and NOT TU-position (identical score in a minimal
+  one-function TU) ⇒ it's the GameView header-decl DIAL (Worldgen.h has ~19 of ~60+ real
+  methods; Phase E completes it). Joint-pass candidate with the rest of the GameView-block
+  rotation family.
+- **✅ GHIDRA SYNC COMPLETE (v13+v14 pending lists, program SAVED)**: World rect block =
+  6 RECTs 0x3274-0x32f4 + unk2e58 + unk33b8 + lpszSaveDirMaybe@0x33bc + equippedItem
+  comment; GameView.0x2f4→bWeaponIactActiveMaybe; TextDialog fields (unk10/14/54,
+  strText@0xb8, soundSession@0xc4) + renames Ctor/Run(0-arg, byte-match-proven)/Dtor
+  (0x427440 was "DtorHelperMaybe" with WRONG World this); InvItem struct created (0xc:
+  vftable/pTile/name) + 0x4011d0→InvItem::Ctor + 0x401270→InvItem::CtorTileName;
+  0x4085c0→InvScrollBar::Ctor; 0x407df0→Canvas::Ctor (was "Init"); 0x425e10→
+  CProgressCtrl::ScalarDtor; Character.frames comment (frames[7]=weapon icon tile id);
+  0x44c4bc EOL comment (World vtable +0x84 = OnCloseDocument); LoadZoneRecursive already
+  3-arg ✓. Ghidra's richer names backported to Worldgen.h (World.lastCount/highScore/
+  lastScore@0x33a8-b0, TextDialog.pParentView@0xc0) — codegen-neutral, 34/90 verified.
+- **✅ 0x41e8b0 SOLVED — it is ??_GCPalette, there is NO app class.** The World ctor's
+  triple vftable-store chain is CObject(0x44ccc4)→CGdiObject(0x44cfd4)→CPalette(0x44c4f0)
+  (slot0 of 0x44c4f0 → 0x448491 returns the "CPalette" CRuntimeClass); World.pPalette
+  @0x2c4 = plain `new CPalette`; ??1 at 0x40a1a0 = the afxwin.inl inline-COMDAT
+  **~CGdiObject** (GameView-TU head copy; was mislabeled CBitmap_DtorMaybe); 0x401060/70/
+  80 = CObject::Serialize/AssertValid/Dump no-op COMDATs (first-app-TU copies won the
+  link; slots +8/+c/+0x10 of ~every CObject-family vtable). All renamed + plate-commented
+  + vftables labeled in Ghidra. ⚠ Phase-G/joint item: our TU does NOT emit ??_GCPalette
+  (no CPalette odr-use in our source), but the original TU emitted it between
+  PlaceBlockades and PickItemFromZone — find the odr-use. Ours also emits CPen/CBrush/
+  CGdiObject/CObject dtor COMDATs the original TU lacks (linker picked earlier-TU copies
+  there — harmless per-function, matters for whole-image).
+- **✅ src/Dta RETIRED** (git rm; its 3 markers live in Worldgen: Zaux/Zax2 MATCH, Zax3 is
+  the rotating clone). progress.py already dedupes.
+- 0x424fb0 bare jmp thunk: still Phase-G. Unclaimed in TU range now ONLY: the 4 exception
+  COMDATs @TU head, ??_GCPalette 0x41e8b0, CxxFrameHandlerThunk 0x424f69, 0x424fb0.
 
-**▶ START HERE:** (1) UseWeapon 0x427d20 needs its dedicated pass (in-source WIP notes:
-saber direction-pick shapes vs threaded && chains; per-arm IactRun cross-jump landed,
-align ~1100 left). (2) The reg/slot-rotation family pervades the GameView block (orig
-keeps this/pDC in ESI + temps in slots; ours inverts — DrawHealthDial/Needle, WeaponBox/
-Icon, AddItemToInv annotations) — candidates for the JOINT TU residual pass, which is NOW
-UNBLOCKED (TU fully transcribed): run full-TU permuter/joint passes over the parked
-EFFECTIVE annotations. (3) The 0x41e8b0 thin ??_G needs its app class modeled (vftable
-0x44c4f0, ??1 at 0x40a1a0 in the GameView-TU head, ctor used inside a WorldDoc-TU fn at
-~0x41af9a). (4) 0x424fb0 bare jmp thunk = Phase-G item. (5) Then retire src/Dta, consider
-WorldStub.h->Worldgen.h consolidation, and Phase E proper (GameView TU 0x408c60-0x418700
-— the struct is now COMPLETE in Worldgen.h, promote it to a shared header).
-
-**Ghidra sync PENDING (writes need YodaDemo ACTIVE):** all of v13's list (vtable base
-0x44c438, slot +0x84 = OnCloseDocument — no bug; InvItem struct + ctor renames;
-LoadZoneRecursive 3-arg; GameView.unk118→nTransitionStep is WRONG name — it IS
-nTransitionStep ✓ already; 0x425e10→??_GCProgressCtrl) PLUS v14: World rect block =
-6 RECTs (0x3274/84/94/32a4/b4/c4 — the "nHealthDial*" quad at 0x32d4 is the VIEW rect,
-the real dial rect is 0x32c4); GameView.0x2f4→bWeaponIactActiveMaybe; TextDialog struct
-(0xc8: unk10/unk14/unk54/strText@0xb8/soundSession@0xc4, ctor 0x416b90→TextDialog::Ctor,
-0x416c40→Run, 0x427440→??1TextDialog); InvScrollBar.scrollMax@0x3c; 0x4085c0→
-InvScrollBar::ctor; Character.frames[7] = the weapon icon tile id (DrawWeaponBox/UseWeapon).
+**▶ START HERE (v16):** (1) **the JOINT TU residual pass** — the TU is fully transcribed
+and every parked EFFECTIVE annotation is a reg/slot/dial tie-break; build the parallel
+wine-worker permuter loop (tools/permute.py --mode all over the whole TU, or a dial search
+over GameView/World decl sets) and burn down the 56 partials. (2) Phase E proper (GameView
+TU 0x408c60-0x418700, ~57 KB): promote Worldgen.h's now-complete GameView struct to a
+shared header; reconstruct the real GameView class decl set (also unblocks UseWeapon's
+binding flip); OnKeyDown body-repair first (0x41526f-0x415658 orphaned, FUN_004156f2 = its
+split EH tail; ~/ghidra_scripts has MergeEhFunclets.java etc. for exactly this). (3)
+WorldStub.h→Worldgen.h consolidation when touching GameData/Iact again.
+### ⏮ PRIOR (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers, condensed)
+**src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc TU
+including the whole GameView tail block (OnInitialUpdate, DrawDirectionArrows,
+ShowTextDialog EXACT, ??1TextDialog, DrawHealthDial/Needle, AddHealth, UseWeapon,
+DetonateAdjacentTiles, OnCmdMinimize EXACT, DrawWeaponBox/Icon, BlitViewportDither,
+PreCreateWindow EXACT, AddItemToInv; plus the v13 World half). GameView (0x310) +
+TextDialog (0xc8, NOT CDialog-derived) + InvScrollBar (0x44) + InvItem (0xc) fully
+modeled in Worldgen.h; Zone gained DamageEntityAt/HitEntityAt decls (Records TU
+re-verified 25/33 ✓; Iact breathed 2→1 exact, its 8 annotated tie-breaks unaffected).**
 
 **v14 net-new cracks (fold into instincts):**
 - **Duplicated-call arms are EVERYWHERE in this dev's code**: LoadIcon per arrow arm,
@@ -672,7 +699,7 @@ this TU (0x426c40-0x429150: OnInitialUpdate, DrawDirectionArrows, ShowTextDialog
 DrawHealthDial/Needle, AddHealth, UseWeapon, DetonateAdjacentTiles, DrawWeaponBox/Icon,
 BlitViewportDither, PreCreateWindow, AddItemToInv) need the real GameView layout — do them
 after the World:: half, growing the GameView stub the same way.
-**Retire src/Dta/ when its 3 addresses (0x423110/190/210) are exact here** (double markers).
+**src/Dta/ RETIRED (v15)** — its 3 addresses live here (Zaux/Zax2 MATCH; Zax3 = the rotating clone).
 **Ghidra renames pending (needs YodaDemo ACTIVE for writes):** EnterZone→GetZoneIndex
 (0x423dc0); the 0x32d4 quad nHealthDial*→view-window rect (also fix WorldDoc.h comments).
 
@@ -860,7 +887,8 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
      generated; don't add source inits the flow doesn't need.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
-  (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see `src/Dta/Dta.h`. Non-virtual
+  (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
+  `src/Records/RecordClasses.h` (src/Dta, the original example, was retired in v15). Non-virtual
   `__thiscall` helpers (e.g. record loaders) → model as member functions (implicitly thiscall); the
   call is a masked relocation so the exact target/name is irrelevant to the match.
 - **Completion-% endgame** (user goal): the rigorous version is an **asm-first build** — disassemble all,

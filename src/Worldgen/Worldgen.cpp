@@ -7244,15 +7244,33 @@ void GameView::DetonateAdjacentTiles(int x, int y)
 }
 
 // FUNCTION: YODA 0x00427d20
-// [TRANSCRIBED-WIP: insns 756/740, align~1100 — structure mostly landed but needs a
-// dedicated pass. Cracks so far: BOTH dispatch levels are switches (compares up front,
-// default: goto done); nTileId/nDmg are movsx-int; TWO flags (bRifle, bSaber) computed
-// before GetProjectileTile; nType seeded 1 by projectile existence then
-// `nType = nType != 0 ? 3 : nSavedItem` ternary degrade (sic); the IactRun(3, cell) call
-// + bWeaponIactActiveMaybe set/clear are DUPLICATED PER ARM in source (compiler
-// cross-jumps the common tail; per-arm coordinate pushes remain). Remaining: the
-// saber-arm direction-pick shapes vs the threaded && chains, pW reload scheduling,
-// reg/slot ranking (nType ESI vs slot).]
+// [EFFECTIVE-STRUCTURAL (2026-07-06 v15 dedicated pass): insns 772/774, structure fully
+// aligned — the residual is ONE allocator binding flip + its instruction-form echoes.
+// Cracks that landed this pass (each verified against the disasm):
+//  - NO coordinate locals AT ALL: the original writes `x + dx`, `y + dy`, `x + dx*2`,
+//    `x + dx*3` as full expressions at EVERY site; the compiler CSEs x+dx/y+dy into
+//    slots 0x18/0x14 itself (our explicit tx/ty locals put them in REGISTERS instead —
+//    provably wrong slot/reg residency; fresh tx2/ty3 locals likewise). Same lesson as
+//    GameData's "params used at 2+ sites CSE-spill on their own".
+//  - NO short locals: sdx/sdy/sDmg word-slot stores don't exist in the original. The
+//    16-bit DrawZoneCell arithmetic (`add ax,bx` / `imul bx,bx,3` / `add ax,word[esp+x]`)
+//    falls out of DrawZoneCell's SHORT PARAMS applied to plain int expressions.
+//    Operand order is source-mirrored per site: `x + nAX, nAY + y` (step1 saber),
+//    `nAX + x, y + nAY` (step2/3 saber), `x + dx, y + dy` (step1 blaster),
+//    `x + dx*2, y + dy*2` (step2 blaster: 32-bit LEAs, mem-first),
+//    `dx*3 + x, dy*3 + y` (step3 blaster: 16-bit IMUL, mul-first).
+//  - decl order `nType, bRifle, bSaber` puts nType in ESI (matches orig; probed all 6
+//    orders + 3 placements — the rest of the head is order-insensitive).
+// RESIDUAL: orig promotes dy->EBX, dx->EDI, this->EBP (x/y stay memory); ours promotes
+// y->EBX, x->EBP, this->EDI (dx/dy stay memory). Root: the SECOND flag zero picks EDI
+// (orig) vs EBX (ours) and the whole assignment cascades. Proven NOT steerable by decl
+// order/placement (9 probes) and NOT TU-position (identical score in a minimal
+// one-function TU) => it is the GameView class-decl DIAL (Worldgen.h carries ~19 of the
+// ~60+ real methods; Phase E completes it). All align hits are this flip's echoes:
+// dx-tests as cmp-mem vs test-reg, x+nAX as lea [ebp+esi] vs add-from-mem, 16-bit adds
+// reg-vs-mem mirrored, CSE slot ranks rotated. JOINT-pass candidate with the rest of
+// the GameView-block rotation family (DrawHealthDial/Needle, WeaponBox/Icon,
+// AddItemToInv).]
 // Player attack step nStep (1..3) in direction (dx,dy) from (x,y). Weapon class from the
 // icon tile id: 0x1ff = rifle (HitEntityAt at range nStep), saber ids 0x12/0x1fe = adjacent
 // swing (sideways cell per the threaded direction pick), else blaster (DamageEntityAt +
@@ -7261,8 +7279,8 @@ void GameView::DetonateAdjacentTiles(int x, int y)
 // weapon's tile around the swing, and IACT event 3 runs at the struck cell.
 void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
 {
-    int bRifle = 0;
     int nType = 0;
+    int bRifle = 0;
     int bSaber = 0;
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
@@ -7289,12 +7307,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         nType = 2;
     else
         nType = nType != 0 ? 3 : nSavedItem;  // sic: degrades to the saved equipped-item value
-    int ty = y + dy;
-    int tx = x + dx;
-    short nTile = pWorld->currentZone->GetTile(tx, ty, 1);
-    short sdy = (short)dy;
-    short sdx = (short)dx;
-    short sDmg = (short)nDmg;
+    short nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
     switch (nStep)
     {
     case 1:
@@ -7302,16 +7315,16 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         {
         case 1:
         {
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                pW2->currentZone->HitEntityAt(tx, ty, &pW2->characters, sDmg, pW2, this);
+                pW2->currentZone->HitEntityAt(x + dx, y + dy, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx, y + dy, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
@@ -7322,14 +7335,14 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             int nAY = 0;
             if (dx != 0 && dy == 0)
             {
-                nTile = pWorld->currentZone->GetTile(tx, y - 1, 1);
+                nTile = pWorld->currentZone->GetTile(x + dx, y - 1, 1);
                 nAY = -1;
                 nAX = dx;
             }
             else if (dy != 0 && dx == 0)
             {
                 nAX = -1;
-                nTile = pWorld->currentZone->GetTile(x - 1, ty, 1);
+                nTile = pWorld->currentZone->GetTile(x - 1, y + dy, 1);
                 nAY = dy;
             }
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
@@ -7339,7 +7352,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
                                                      nDmg, pW2, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x + nAX, nAY + y, 1, (short)0xffff);
-                    DrawZoneCell((short)x + (short)nAX, (short)nAY + (short)y);
+                    DrawZoneCell(x + nAX, nAY + y);
                 }
             }
             bWeaponIactActiveMaybe = 1;
@@ -7352,21 +7365,21 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         }
         case 3:
         {
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                if (pW2->currentZone->DamageEntityAt(tx, ty, &pW2->characters,
+                if (pW2->currentZone->DamageEntityAt(x + dx, y + dy, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
-                    pWorld->currentZone->SetTile(tx, ty, 1, (short)0xffff);
-                    DrawZoneCell((short)x + sdx, (short)y + sdy);
+                    pWorld->currentZone->SetTile(x + dx, y + dy, 1, (short)0xffff);
+                    DrawZoneCell(x + dx, y + dy);
                 }
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx, y + dy, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
@@ -7380,19 +7393,17 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         {
         case 1:
         {
-            pWorld->currentZone->GetTile(tx, ty, 1);
-            ty = y + dy * 2;
-            tx = x + dx * 2;
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            pWorld->currentZone->GetTile(x + dx, y + dy, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                pW2->currentZone->HitEntityAt(tx, ty, &pW2->characters, sDmg, pW2, this);
+                pW2->currentZone->HitEntityAt(x + dx * 2, y + dy * 2, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx * 2, y + dy * 2, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
@@ -7403,12 +7414,12 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             int nAX = 0;
             if (dx != 0 && dy == 0)
             {
-                nTile = pWorld->currentZone->GetTile(tx, y, 1);
+                nTile = pWorld->currentZone->GetTile(x + dx, y, 1);
                 nAX = dx;
             }
             else if (dy != 0 && dx == 0)
             {
-                nTile = pWorld->currentZone->GetTile(x, ty, 1);
+                nTile = pWorld->currentZone->GetTile(x, y + dy, 1);
                 nAX = 0;
                 nAY = dy;
             }
@@ -7419,7 +7430,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
                                                      nDmg, pW2, this) != 0)
                 {
                     pWorld->currentZone->SetTile(nAX + x, y + nAY, 1, (short)0xffff);
-                    DrawZoneCell((short)nAX + (short)x, (short)y + (short)nAY);
+                    DrawZoneCell(nAX + x, y + nAY);
                 }
             }
             bWeaponIactActiveMaybe = 1;
@@ -7432,24 +7443,22 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         }
         case 3:
         {
-            pWorld->currentZone->GetTile(tx, ty, 1);
-            ty = y + dy * 2;
-            tx = x + dx * 2;
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            pWorld->currentZone->GetTile(x + dx, y + dy, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                if (pW2->currentZone->DamageEntityAt(tx, ty, &pW2->characters,
+                if (pW2->currentZone->DamageEntityAt(x + dx * 2, y + dy * 2, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
-                    pWorld->currentZone->SetTile(tx, ty, 1, (short)0xffff);
-                    DrawZoneCell((short)x + sdx * 2, (short)y + sdy * 2);
+                    pWorld->currentZone->SetTile(x + dx * 2, y + dy * 2, 1, (short)0xffff);
+                    DrawZoneCell(x + dx * 2, y + dy * 2);
                 }
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx * 2, y + dy * 2, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
@@ -7463,20 +7472,18 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         {
         case 1:
         {
-            pWorld->currentZone->GetTile(tx, ty, 1);
+            pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
-            ty = y + dy * 3;
-            tx = x + dx * 3;
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx * 3, y + dy * 3, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                pW2->currentZone->HitEntityAt(tx, ty, &pW2->characters, sDmg, pW2, this);
+                pW2->currentZone->HitEntityAt(x + dx * 3, y + dy * 3, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx * 3, y + dy * 3, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
@@ -7487,13 +7494,13 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             int nAX = 0;
             if (dx != 0 && dy == 0)
             {
-                nTile = pWorld->currentZone->GetTile(tx, y + 1, 1);
+                nTile = pWorld->currentZone->GetTile(x + dx, y + 1, 1);
                 nAX = dx;
                 nAY = 1;
             }
             else if (dy != 0 && dx == 0)
             {
-                nTile = pWorld->currentZone->GetTile(x + 1, ty, 1);
+                nTile = pWorld->currentZone->GetTile(x + 1, y + dy, 1);
                 nAX = 1;
                 nAY = dy;
             }
@@ -7504,7 +7511,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
                                                      nDmg, pW2, this) != 0)
                 {
                     pWorld->currentZone->SetTile(nAX + x, y + nAY, 1, (short)0xffff);
-                    DrawZoneCell((short)nAX + (short)x, (short)y + (short)nAY);
+                    DrawZoneCell(nAX + x, y + nAY);
                 }
             }
             bWeaponIactActiveMaybe = 1;
@@ -7517,25 +7524,23 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         }
         case 3:
         {
-            pWorld->currentZone->GetTile(tx, ty, 1);
+            pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
-            ty = y + dy * 3;
-            tx = x + dx * 3;
-            nTile = pWorld->currentZone->GetTile(tx, ty, 1);
+            nTile = pWorld->currentZone->GetTile(x + dx * 3, y + dy * 3, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
                 World *pW2 = pWorld;
-                if (pW2->currentZone->DamageEntityAt(tx, ty, &pW2->characters,
+                if (pW2->currentZone->DamageEntityAt(x + dx * 3, y + dy * 3, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
-                    pWorld->currentZone->SetTile(tx, ty, 1, (short)0xffff);
-                    DrawZoneCell(sdx * 3 + (short)x, sdy * 3 + (short)y);
+                    pWorld->currentZone->SetTile(x + dx * 3, y + dy * 3, 1, (short)0xffff);
+                    DrawZoneCell(dx * 3 + x, dy * 3 + y);
                 }
             }
             bWeaponIactActiveMaybe = 1;
             {
                 World *pW3 = pWorld;
-                pW3->currentZone->IactRun(3, tx, ty, 0, 0, 0, pDC, pW3, this);
+                pW3->currentZone->IactRun(3, x + dx * 3, y + dy * 3, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
             break;
