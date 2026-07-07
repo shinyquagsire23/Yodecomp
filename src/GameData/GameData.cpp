@@ -491,15 +491,15 @@ void World::PlaceZoneObjectTiles(short zoneId)
                 case 6:
                 case 7:
                 case 8:
-                    if (o->state == 1 && o->visible >= 0) {
+                    if (o->state == 1 && o->arg >= 0) {
                         int t = (short)z->GetTile(o->x, o->y, 1);
                         if (t < 0)
-                            z->SetTile(o->x, o->y, 1, o->visible);
+                            z->SetTile(o->x, o->y, 1, o->arg);
                     }
                     break;
                 case 0xb:
                     if (o->state == 1) {
-                        o->visible = 0x1cb;
+                        o->arg = 0x1cb;
                         int t2 = (short)z->GetTile(o->x, o->y, 1);
                         if (t2 < 0)
                             z->SetTile(o->x, o->y, 1, 0x1cb);
@@ -568,13 +568,13 @@ void World::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
         ZoneObj *o = (ZoneObj *)z->objects[i];
-        if (o->type == 9 && o->visible >= 0)
-            SaveZoneRecursive(f, o->visible, full);
+        if (o->type == 9 && o->arg >= 0)
+            SaveZoneRecursive(f, o->arg, full);
     }
 }
 
 // FUNCTION: YODA 0x00403450  [EFFECTIVE MATCH: DIFF(6) at exact length — residual register roles;
-//   the child-local (o->visible cached across the Reads) was the structural crack, cf. HitEntityAt.]
+//   the child-local (o->arg cached across the Reads) was the structural crack, cf. HitEntityAt.]
 // .wld load mirror: read + verify each door child id before recursing.
 void World::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 {
@@ -585,7 +585,7 @@ void World::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
         ZoneObj *o = (ZoneObj *)z->objects[i];
-        short child = o->visible;      // cached in a callee-saved reg across the Read calls
+        short child = o->arg;      // cached in a callee-saved reg across the Read calls
         if (o->type == 9 && child >= 0) {
             f->Read(&savedId, 2);
             f->Read(&savedFull, 4);

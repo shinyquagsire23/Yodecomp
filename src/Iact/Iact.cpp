@@ -51,8 +51,8 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
     if (bFull) {
         pFile->Read(&tempVar, 4);
         pFile->Read(&randVar, 4);
-        pFile->Read(&zoneUnk83c, 4);
-        pFile->Read(&zoneUnk840, 4);
+        pFile->Read(&doorReturnX, 4);
+        pFile->Read(&doorReturnY, 4);
         pFile->Read(&globalVar, 2);
         pFile->Read(&planet, 2);
         for (i = 0; i < width; i++)
@@ -71,7 +71,7 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
     for (i = 0; i < count; i++) {
         ZoneObj *o = (ZoneObj *)objects[i];
         pFile->Read(&o->state, 2);
-        pFile->Read(&o->visible, 2);
+        pFile->Read(&o->arg, 2);
         pFile->Read(&o->type, 4);
         pFile->Read(&o->x, 2);
         pFile->Read(&o->y, 2);
@@ -127,8 +127,8 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
     if (bFull) {
         pFile->Write(&tempVar, 4);
         pFile->Write(&randVar, 4);
-        pFile->Write(&zoneUnk83c, 4);
-        pFile->Write(&zoneUnk840, 4);
+        pFile->Write(&doorReturnX, 4);
+        pFile->Write(&doorReturnY, 4);
         pFile->Write(&globalVar, 2);
         pFile->Write(&planet, 2);
         for (i = 0; i < width; i++)
@@ -140,7 +140,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
     for (i = 0; i < count; i++) {
         ZoneObj *o = (ZoneObj *)objects[i];
         pFile->Write(&o->state, 2);
-        pFile->Write(&o->visible, 2);
+        pFile->Write(&o->arg, 2);
         pFile->Write(&o->type, 4);
         pFile->Write(&o->x, 2);
         pFile->Write(&o->y, 2);

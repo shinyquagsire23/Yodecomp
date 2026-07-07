@@ -381,7 +381,7 @@ ZoneObj::ZoneObj()
     x = 0;
     state = 0;
     type = 0;
-    visible = -1;
+    arg = -1;
 }
 
 // FUNCTION: YODA 0x00404f40  (compiler-generated scalar-deleting destructor ??_GZoneObj)
@@ -392,7 +392,7 @@ ZoneObj::ZoneObj(unsigned int t, unsigned short px, unsigned short py)
     type = t;
     x = px;
     y = py;
-    visible = -1;
+    arg = -1;
 }
 
 // FUNCTION: YODA 0x00404fe0
@@ -407,13 +407,13 @@ void ZoneObj::Read(CFile *pFile)
     state = buf6[2];
     switch (type) {
     case 0: case 1: case 2: case 5:
-        pFile->Read(&buf2, 2); state = 0; visible = buf2; break;
+        pFile->Read(&buf2, 2); state = 0; arg = buf2; break;
     case 3: case 4: case 9: case 12: case 14: case 15:
-        pFile->Read(&buf2, 2); state = 1; visible = buf2; break;
+        pFile->Read(&buf2, 2); state = 1; arg = buf2; break;
     case 6: case 7: case 8:
-        pFile->Read(&buf2, 2); state = 1; visible = buf2; break;
+        pFile->Read(&buf2, 2); state = 1; arg = buf2; break;
     default:
-        pFile->Read(&buf2, 2); visible = 0xffff; state = 1; break;
+        pFile->Read(&buf2, 2); arg = 0xffff; state = 1; break;
     }
 }
 
@@ -563,14 +563,14 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
                             int m = objects.GetSize();
                             for (int j = 0; j < m; j++) {
                                 ZoneObj *o = (ZoneObj *)objects[j];
-                                if (o->type == 0 && (short)o->visible > 0) {
-                                    drop = o->visible;   // movsx: short -> int
+                                if (o->type == 0 && (short)o->arg > 0) {
+                                    drop = o->arg;   // movsx: short -> int
                                     break;
                                 }
                             }
                             if (drop > 0) {
                                 no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
-                                no->visible = drop;
+                                no->arg = drop;
                                 no->state = 1;
                                 objects.SetAtGrow(objects.GetSize(), no);
                                 SetTile(x, y, 1, drop);
@@ -578,7 +578,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
                             }
                         } else {
                             no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
-                            no->visible = e->item - 1;
+                            no->arg = e->item - 1;
                             no->state = 1;
                             objects.SetAtGrow(objects.GetSize(), no);
                             SetTile(x, y, 1, e->item - 1);

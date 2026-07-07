@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v19: 19/31 exact — transcribed through 0x40b160(excl). New EXACT: DrawGameArea, IsUsableTileMaybe (switch tree), 6 GDI COMDATs (CGdiObject/CBitmap ctor/??_G/??1 trios, hint-markers). EFFECTIVE: ZoneTransitionStep + WorldEntryStepMaybe (a parity-CROSSED clone pair), BlitTile/DrawTileAt (reg-role), FireWeaponStep (open flags-test axis). NEXT: DrawEntities 0x40b160, FindEntityAt 0x40b210, Tick 0x40b270 (10.8KB) |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v22: 21/44 exact — transcribed contiguously through 0x40f3c0(excl), incl. Tick/OnTimer (eff.) and the v22 hotspot/transition/inventory block (StepDetonatorEffect/TransitionZoneScript/ReenableHotspotObjects EXACT; AHC/XWing/Door/TriggerHotspots/UpdateItemObjects/DrawText eff., autopsies in-source). NEXT: 0x40f3d0 dtor trio (vft 0x44cfec), ShowWinMessage 0x40f4b0, ClassifyTile 0x40fca0 → OnKeyDown 0x4150f0 |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -359,6 +359,9 @@ Written to be followable without prior context: each phase lists concrete steps 
   **92.19 % transcribed / 16.46 % exact — v21: OnTimer 0x40d470 transcribed (align 802) +
   GetVictoryZoneIndex/GetLossZone MATCH in the scorers TU; exact% breathed from the
   Worldgen.h decl adds (35→31, fixed-point rule) (2026-07-07 v21)**;
+  **95.28 % transcribed / 16.02 % exact — v22: hotspot/transition/inventory block
+  0x40e400–0x40f3c0 done (3 EXACT + 6 eff., 21/44 GameView markers); World::DrawRect
+  proven __thiscall member; per-label jump-table mechanism found (2026-07-07 v22)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -396,77 +399,90 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v20+v21 — Tick + OnTimer transcribed; 16.46% exact / 92.19% transcribed)
-**v20+v21 session results (committed). src/GameView/GameView.cpp = 21 exact + 9 effective +
-6 COMDAT / 35 markers, contiguous 0x4084f0–0x40e400(excl). Plus scorers TU 6/8 (World.cpp
-gained GetVictoryZoneIndexMaybe 0x401a40 + GetLossZoneMaybe 0x401a60, both MATCH first
-compile — branchless demo-hardcoded zones[76]/[77] ternaries; decls added to Worldgen.h +
-ZONE_TYPE_VICTORY/LOSS_SCREEN enum values → the dial breathed Worldgen 35→31, WorldDoc 7→6,
-Records 25→24, GameData 11→13 — real decls, fixed-point rule, do NOT revert).**
-- **OnTimer 0x40d470 EFFECTIVE-WIP (1012/989 insns, align 802)** — the per-frame pump; full
-  autopsy in-source. Cracks that landed: duplicated `nTransitionStep == 0 && g_bReplayMode`
-  head condition; `default:` BEFORE `case 8:` in the reason switch; case-9 blink arms
-  blit-first; `> 7` scrollbar arm order; `<= 10` literals; camera zero via chained
-  `cameraX = cameraY = 0`. Parked: this-reload EDI↔EDX global role; per-case nFrameMode=3
-  copies cross-jump in ours (orig keeps 4 — the fire-block open family); import-pointer
-  caching (we cache ::SetScrollRange in EBX, orig calls through the import ×3). NEW GLOBALS:
-  g_pszFontName@0x456130 ("MS Sans Serif" char*, GameView TU data, read by OnTimer+DrawText);
-  Canvas stub in GameView.h gained hdc@0 (pWorld->pCanvas->hdc = the TextOut target).
-- g_bReplayMode==1 in mode 0xb calls pWorld->OnLoadWorld() THROUGH the 0x424fb0 jmp thunk —
-  the CLAUDE.md "loose end" thunk is just OnLoadWorld's ILT entry; source is a plain call.
-- **DrawEntities 0x40b160 EXACT** — countdown recipe (`int i=0; int n=nCount; do{...i++;n--;}
-  while(n!=0)` under `if (nCount>=1)` + inner `if (n>0)` DOUBLE guard); the SetTile val arg
-  needed `int nFrame = pChar->currentFrame;` between the calls (movsx-before-y/x-loads) with
-  `(short)nFrame` at the site. **FindEntityAt 0x40b210 EFFECTIVE** (35/35, align=0, 6B): decl
-  order pZone/nCharId/n/i load-bearing (12 perms probed, 3 tie at align=0); result var is a
-  16-bit AX-resident `short nCharId = -1` (mov ax,0xffff at head); residual = one 2-reg
-  walker/pEnt cycle (removing the pEnt local is WORSE — real local).
-- **Tick 0x40b270 (10.8KB) TRANSCRIBED, EFFECTIVE-WIP** (align 3588→2202; ~2350 real insns vs
-  2336 — +154 phantom rows are our 12 inner-switch jump tables at the COMDAT end disassembling
-  as zeros). Full autopsy in-source. ⭐ NEW LAYOUT MECHANISMS (the session's big find):
-  (a) **cl 4.2 defers any block ENDING in an unconditional transfer and prefers fall-through
-  continuity**: `if (c) goto L;` with L unemitted ⇒ cl INLINES L's block as the fall-through
-  and defers the source fall-through to after the current chain (the dead-entity cleanup =
-  deferred fall-through of `if (*pActive != 0) goto ALIVE_ENT;` — reproduces the orig exactly;
-  same mechanism as WorldDoc GetLocatorIcon's sunk early-return bodies).
-  (b) **An arm that FALLS THROUGH stays inline**: case 11's random-step block is the labeled
-  THEN-arm of an `||` if/else falling into the probe loop (backward `goto RANDOM11` from the
-  walkable test re-enters it) — align dropped 180+ from this one restructure.
-  (c) **Switch comparison-trees survive only with duplicated bodies**: `case -1: case 0:` and
-  `default:` need SEPARATE (textually duplicated) reset bodies or cl folds the tree to one
-  `cmp 1;jne` (4 probe-result switches; the duplicates then partially cross-jump like the orig).
-  (d) Walkable-check geography: case 1's `t != -1 ⇒ zeros` stays INLINE (falls to the retreat
-  counter); cases 2/3/6/7/8/9/10 spell `if (t != -1) { nDX=0; nDY=0; break; }` and cross-jump
-  into ONE shared block (= case 12's body). (e) **GetTile is SIGNED here**: `short t = GetTile(...)`
-  temps give the orig's `cmp ax,0xffff` (the ushort decl in RecordClasses.h made `== -1`
-  dead code — cast/temp at every site; v18 DrawZoneCell lesson generalizes).
-- **⚠ TWO GLOBAL RESIDUAL FAMILIES (park, G1):** (1) cmp-DIRECTION mirror on ~40
-  entity-vs-player compares (`cmp [slot],reg`+inverted jcc vs orig `cmp reg,[slot]`; forces
-  re-cmp where the orig reuses flags in sign chains) — correlates with our frame layout being
-  +4-shifted (pEnt slot 0x1c vs orig 0x18); one global tie-break. (2) reg-role rotation in the
-  bullet/erase blocks (pBY/pBX/pBDY/pBDX = EBX/EDI/EBP/ESI in orig). PLUS the parked FIRE/SHOOT
-  block placement (7 source shapes probed incl. full duplication — see the in-source autopsy;
-  do not re-grind without a new theory).
-- Literal-constant finds: `>= 6` (case-11 abs), `>= 14` (case-1 counter), `<=` in case-10's
-  3-arm signs, `pEnt->timer <= 0` (weapon gate) — always mirror cmp-constant+jcc from disasm.
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v22 — hotspot/transition/inventory block; 16.02% exact / 95.28% transcribed)
+**v22 session results. src/GameView/GameView.cpp = 21 exact + 15 effective + 6 COMDAT / 44
+markers, contiguous 0x4084f0–0x40f3c0(excl). New EXACT: StepDetonatorEffect 0x40e400,
+TransitionZoneScript 0x40e750 (sig byte-proven: (int nUnused, int nZoneId), ret 8, arg1
+never read — "(sig?)" tag cleared), ReenableHotspotObjects 0x40ebe0. New EFFECTIVE (all
+with in-source autopsies): ApplyHotspotCamera 0x40e500, TransitionZoneXWing 0x40e7c0,
+TransitionZoneDoor 0x40e9d0 (align=22, ONE xor-position residual), TriggerHotspotsMaybe
+0x40ec30 (was "DrawObjects" — fires vehicle/xwing hotspots at the camera tile, returns int),
+UpdateItemObjectsMaybe 0x40ed90 (was "DrawMap" — item pickup/re-place pass), DrawText
+0x40f060 (the inventory-panel painter; windows.h renames it DrawTextA — marker carries the
+mangled hint; asmscore.py now PARSES `(?mangled)` marker hints like verify.py).**
+- **⭐ World::DrawRect is a __thiscall World MEMBER, not free __stdcall** (proven: DrawText
+  loads ECX=pWorld deliberately at call sites; body ignores this, which is why the free
+  model byte-matched in v13). Worldgen.h decl moved into class World; all sites are now
+  pWorld->DrawRect(...); Worldgen re-verified 31/90 IDENTICAL bytes; Ghidra moved to
+  World:: + thiscall. DrawText dropped 219k→179k from this alone.
+- **⭐ NEW MECHANISM — per-label jump-table indices** (UpdateItemObjectsMaybe, proven via
+  the dword table at 0x40f024): cl 4.2 assigns a table arm-index PER CASE LABEL in VALUE
+  order — grouped labels (case 0: case 2: case 6: case 8:) get 4 distinct indices at the
+  SAME arm address, and an explicit empty `case 4: case 10: case 15: break;` arm widens
+  the byte table to 16 entries (its indices point at the exit block). A lone empty case
+  folds away (max label drops); duplicating shared bodies NEVER folds (cl 4.2 doesn't
+  merge duplicate arms — +155 insns). Read the dword table to recover the source labels.
+- **MFC 4.2: the ONLY virtual CDC::SelectObject overload is (CFont*)** — a vcall at
+  vtbl+0x30 means the source passed CFont::FromHandle(hFont) (CGdiObject* selects the
+  non-virtual INLINE overload → m_hObject-extraction shape, wrong). Evaluate-callee-first:
+  `CFont *pFont = CFont::FromHandle(h);` before the SelectObject. The CBrush* overload is
+  the out-of-line non-virtual (0x440c92).
+- More v22 cracks: `int slot = nScroll;` dedicated IV strength-reduces to the scroll<<2
+  byte walker while bounds tests spell `nScroll + i` (DrawText inventory loop);
+  `int vx = 0;` declared AFTER a call statement folds its xor into the call setup
+  (AHC/TZD; but exact position inside arg-eval is NOT always steerable — TZD's single
+  residual); the AHC/XWing clone pairs are parity-CROSSED like ZTS↔WES (pre-call xor =
+  vx in arm1 but i in arm2 — identical source can't produce both, G1); UpdateItemObjects'
+  quest-arm flags test (orig loads flags to ECX, ours folds to byte-mem test) = the SAME
+  axis as FireWeaponStep's parked flags-test.
+- Renames (Ghidra synced + saved): ZoneObj.visible → **arg** (door/vehicle target zone id,
+  DA "arg"; Records/GameData/Iact/Worldgen re-verified unchanged); Zone.zoneUnk83c/840 →
+  **doorReturnX/Y** (TransitionZoneDoor return pos); BlitTile prototype fixed (queue item
+  cleared). NOTE modify_struct_field API silently no-opped on these — used
+  run_script_inline setFieldName instead (add to the gotcha list).
+- Dial churn: the FindZoneCellById decl add (real method, 0x403250, GameData TU) flipped
+  OnActivateView/DrawEntities/BlitTile OUT of exact and moved FireWeaponStep/Tick closer
+  (fixed-point rule — do NOT revert). GameData 13/27, Records 24/33, Worldgen 31/90,
+  WorldDoc 6/13, World 6/8, Iact 2/10 all at expected levels.
 
-**▶ START HERE (v22): continue GameView.cpp in .text order from 0x40e400:**
-1. StepDetonatorEffect 0x40e400, ApplyHotspotCamera 0x40e500, TransitionZoneScript 0x40e750
-   (byte-prove its "(sig?)" unused arg1), TransitionZoneXWing 0x40e7c0, TransitionZoneDoor
-   0x40e9d0, ReenableHotspotObjects 0x40ebe0, DrawObjects 0x40ec30, DrawMap 0x40ed90,
-   DrawText 0x40f060 (reads g_pszFontName), then onward toward OnKeyDown 0x4150f0.
-2. Tick/OnTimer leftovers for G1 (not now): fire-block/nFrameMode=3-copies placement family,
-   cmp-direction mirror, this-reload role, case-10 3-arm jump-to-then, arg-push scheduling,
-   import-pointer caching axis.
-3. **Open items (carried):** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0) PARKED;
-   options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in this .cpp;
-   World.unk50 → nCurrentZoneIdMaybe rename (Worldgen.h+WorldDoc.h+Ghidra together + 4-TU
-   re-verify); Ghidra BlitTile prototype still __fastcall-confused (queue: void __thiscall
-   (GameView*, short, short, int, Tile*)); FireWeaponStep's flags-test axis (v19, 4 sites).
-4. **G1 dial axes:** ZTS↔WES parity crossing; DrawZoneCellRect/DrawWholeZone rotations;
-   FireWeaponStep flags-test + erase-block shapes; Tick's cmp-direction + fire-block + reg
-   roles; plain-helper param widths; AFX_MSG map-order. JOINT pass AFTER E.
+**▶ START HERE (v23): continue GameView.cpp in .text order from 0x40f3d0:**
+1. 0x40f3d0 Dtor_vft44cfec_Maybe + 0x40f420 ScalarDtor_vft44cfec_Maybe + 0x40f490
+   ScalarDtor (identify the class — vftable 0x44cfec; likely an embedded dialog/balloon
+   class), then **ShowWinMessage 0x40f4b0 (~2KB)**, FUN_0040fc80 (tiny), ClassifyTile
+   0x40fca0, onward toward OnKeyDown 0x4150f0.
+2. **FireWeaponStep flags-test theory to try (from UpdateItemObjects):** the orig
+   loads flags into a reg — probe a TWO-use spelling (e.g. testing two masks off one
+   local) or check if the site's pTile has another use keeping it in EAX; the wide-vs-
+   narrow choice tracks whether the VALUE lives in a reg at IL level.
+3. **Open items (carried):** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0)
+   PARKED; options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in
+   this .cpp; World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); DrawText's
+   CBrush ??1/??_G COMDATs now emitted by our TU (0x40f3d0-region ownership — check
+   whether the orig TU emits them at these addresses or they fold, Phase G).
+4. **G1 dial axes (carried):** ZTS↔WES + AHC arms + XWing arms parity crossings;
+   DrawZoneCellRect/DrawWholeZone rotations; FireWeaponStep flags-test + erase-block;
+   Tick's cmp-direction + fire-block + reg roles; OnTimer's this-reload/import-caching;
+   UpdateItemObjects' this/pO role swap; DrawText's pTile-EBX/pWorld-CSE; plain-helper
+   param widths; AFX_MSG map-order. JOINT pass AFTER E.
 5. **Re-verify Worldgen after ANY GameView.h/Worldgen.h edit** (one compile + verify.py).
+
+### ⏮ PRIOR (2026-07-07 v20+v21 — Tick + OnTimer transcribed, condensed)
+OnTimer 0x40d470 EFFECTIVE-WIP (align 802, autopsy in-source; duplicated head condition,
+default-before-case-8, blink blit-first, chained camera zero; parked: this-reload role,
+nFrameMode=3 copies, import-pointer caching). Tick 0x40b270 (10.8KB) EFFECTIVE-WIP (align
+2202; autopsy in-source). ⭐ v20 layout mechanisms: (a) cl 4.2 DEFERS any block ending in
+an unconditional transfer, preferring fall-through continuity (`if (c) goto L;` with L
+unemitted inlines L as fall-through); (b) an arm that falls through stays inline; (c)
+switch comparison-trees survive only with duplicated bodies; (d) GetTile is SIGNED —
+`short t = GetTile(...)` temps everywhere (ushort decl makes ==-1 dead). DrawEntities
+0x40b160 EXACT (countdown recipe: `int i=0; int n=nCount; do{...i++;n--;}while(n!=0)`
+under `if (nCount>=1)`; `int nFrame = pChar->currentFrame;` between calls). FindEntityAt
+0x40b210 eff. (decl order pZone/nCharId/n/i load-bearing; short nCharId=-1 AX-resident).
+Tick G1 families: cmp-direction mirror on ~40 entity-vs-player compares (frame +4-shift
+correlated); bullet/erase reg-role rotation; FIRE/SHOOT block placement (7 shapes probed).
+0x424fb0 jmp thunk = OnLoadWorld's ILT entry (plain call in source). v21: scorers TU 6/8
+(GetVictoryZoneIndexMaybe/GetLossZoneMaybe MATCH — branchless demo-hardcoded zones[76]/[77]
+ternaries); g_pszFontName@0x456130; Canvas stub gained hdc@0; ZONE_TYPE_VICTORY/LOSS enum.
 
 ### ⏮ PRIOR (2026-07-07 v19 — ZTS/WES/FireWeaponStep block, condensed)
 ZTS 0x409650 eff. (441/441, align=48; no-`x`-local CSE-temp lesson; span IS a local); WES

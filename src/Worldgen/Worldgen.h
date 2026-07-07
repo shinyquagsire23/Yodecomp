@@ -19,8 +19,6 @@ extern int gWorldgenGridOrderTable[100];
 // Quarter-circle needle-offset table (radius 16), shared by all four dial quadrants.
 extern int gNeedleTable[26];         // 0x00456938
 
-// Free __stdcall bevel-border helper (0x00424010; Ghidra: Render::DrawRect), lives in this TU.
-void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness);
 
 // Replay-a-story globals (App TU sets them from the command line; Frame TU owns the CString).
 extern int g_bReplayMode;            // 0x00459e2c (defined in src/App/App.cpp)
@@ -324,6 +322,8 @@ public:
     int  GetExitDirections();                            // 0x004032c0 (GameData TU)
     Tile *GetTileData(int idx);                          // 0x00403a40 (GameData TU)
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
+    void DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness); // 0x00424010 bevel border (thiscall-proven: DrawText loads ECX=pWorld)
+    int  FindZoneCellById(short id, int *pX, int *pY);   // 0x00403250 (GameData TU)
     unsigned int GetLocatorIconMaybe(int x, int y, int bAlt); // 0x0041a1c0 (WorldDoc TU)
     void LoadStoryHistoryNevada();                       // 0x00401ac0 (GameData TU)
     void LoadStoryHistoryAlaska();                       // 0x00401ea0 (GameData TU)

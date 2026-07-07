@@ -192,7 +192,7 @@ public:                          // +0x00  CObject vtable (0x44b1a8)
     short          state;        // +0x08  ==1 active/placed
     short          x;            // +0x0a
     short          y;            // +0x0c
-    short          visible;      // +0x0e  (0xffff default)
+    short          arg;          // +0x0e  door/vehicle target zone id (0xffff default; DA "arg")
 
     ZoneObj();                                                    // 0x00404ed0  default
     ZoneObj(unsigned int type, unsigned short x, unsigned short y);// 0x00404f60  spawn(type,x,y)
@@ -218,8 +218,8 @@ public:                              // +0x00 = CObject vtable
     CWordArray     genCandidateB;    // +0x820  same (ReadZax3)
     int            tempVar;          // +0x834
     int            randVar;          // +0x838
-    int            zoneUnk83c;       // +0x83c  saved-state dword (ReadSavedState)
-    int            zoneUnk840;       // +0x840  saved-state dword
+    int            doorReturnX;      // +0x83c  door return pos: where the player re-enters when exiting back (TransitionZoneDoor; also ReadSavedState)
+    int            doorReturnY;      // +0x840
     short          globalVar;        // +0x844
     short          planet;           // +0x846  planet this zone belongs to (== World.currentPlanet)
 

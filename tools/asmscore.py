@@ -392,10 +392,15 @@ def _cli():
     # pair by name (not global-min diff, which a tiny function would win).
     mk = re.search(r"//\s*FUNCTION:\s*YODA\s+0x0*%x\b" % addr, text, re.I)
     seg = text[mk.end():] if mk else text
+    # explicit mangled hint on the marker line: // FUNCTION: YODA 0xADDR  (?Name@Class@@...)
+    hint = re.match(r"[^\n]*\((\?\??[^\s)\u2014-]+)", seg)
     dm = re.search(r"\b(?:[A-Za-z_]\w*[\s\*]+)*([A-Za-z_]\w*)::(~?[A-Za-z_]\w*)\s*\(", seg)
     want = dm.group(2) if dm else None
     want_pats = None
-    if dm:
+    if hint:
+        want = want_pats = None
+        want_pats, want = [hint.group(1)], hint.group(1)
+    elif dm:
         klass, meth = dm.group(1), dm.group(2)
         if meth == klass:                      # constructor: ??0Class@@
             want_pats = ["??0%s@@" % klass]

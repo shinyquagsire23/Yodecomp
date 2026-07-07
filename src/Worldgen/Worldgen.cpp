@@ -62,8 +62,8 @@ int World::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        found = ZoneHasIzxItemMaybe(pObj->visible, itemId, sel);
+                    if (pObj->arg >= 0)
+                        found = ZoneHasIzxItemMaybe(pObj->arg, itemId, sel);
                     if (found == 1)
                         break;
                 }
@@ -109,8 +109,8 @@ int World::ZoneRequiresItemMaybe(short zoneId, short itemId)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        found = ZoneRequiresItemMaybe(pObj->visible, itemId);
+                    if (pObj->arg >= 0)
+                        found = ZoneRequiresItemMaybe(pObj->arg, itemId);
                     if (found == 1)
                         break;
                 }
@@ -166,8 +166,8 @@ int World::PickUnplacedItemMaybe(short zoneId)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        nResult = PickUnplacedItemMaybe(pObj->visible);
+                    if (pObj->arg >= 0)
+                        nResult = PickUnplacedItemMaybe(pObj->arg);
                     if (nResult >= 0)
                         break;
                 }
@@ -222,8 +222,8 @@ int World::ZoneProvidesItem(short zoneId, short itemId)
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                     if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                     {
-                        if (pObj->visible >= 0)
-                            found = ZoneProvidesItem(pObj->visible, itemId);
+                        if (pObj->arg >= 0)
+                            found = ZoneProvidesItem(pObj->arg, itemId);
                         if (found == 1)
                             return found;
                     }
@@ -292,8 +292,8 @@ int World::ZoneFindInIzxList(short zoneId, short itemId, int sel)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        result = ZoneFindInIzxList(pObj->visible, itemId, sel);
+                    if (pObj->arg >= 0)
+                        result = ZoneFindInIzxList(pObj->arg, itemId, sel);
                     if (result >= 0)
                         break;
                 }
@@ -345,7 +345,7 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
                     if (pObj != NULL && pObj->type == OBJ_QUEST_ITEM_SPOT)
                     {
                         nResult = v;
-                        pObj->visible = v;
+                        pObj->arg = v;
                         pObj->state = 1;
                     }
                 }
@@ -366,8 +366,8 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        nResult = WorldgenFillQuestItemSpot(pObj->visible, itemId);
+                    if (pObj->arg >= 0)
+                        nResult = WorldgenFillQuestItemSpot(pObj->arg, itemId);
                     if (nResult >= 0)
                         break;
                 }
@@ -416,7 +416,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
                     if (pObj != NULL && pObj->type == OBJ_SPAWN)
                     {
                         nResult = v;
-                        pObj->visible = v;
+                        pObj->arg = v;
                         pObj->state = 1;
                         genCellQuestSlot6Scratch = nResult;
                     }
@@ -438,8 +438,8 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj != NULL && pObj->type == OBJ_DOOR_IN)
                 {
-                    if (pObj->visible >= 0)
-                        nResult = WorldgenFillSpawn(pObj->visible, itemId);
+                    if (pObj->arg >= 0)
+                        nResult = WorldgenFillSpawn(pObj->arg, itemId);
                     if (nResult >= 0)
                         break;
                 }
@@ -672,7 +672,7 @@ int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId,
                             genCellItemAScratch = itemId;
                         else
                             genCellItemBScratch = itemId;
-                        pObj->visible = itemId;
+                        pObj->arg = itemId;
                         nResult = 1;
                         pObj->state = 1;
                         break;
@@ -691,7 +691,7 @@ int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId,
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                     if (pObj->type == OBJ_DOOR_IN &&
-                        (nResult = WorldgenPlaceItemOnLock(pObj->visible, a2, nVal, itemId, sel)) == 1)
+                        (nResult = WorldgenPlaceItemOnLock(pObj->arg, a2, nVal, itemId, sel)) == 1)
                         break;
                     j++;
                 } while (j < nObjs);
@@ -753,7 +753,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
                     paSpots.GetAt(rand() % paSpots.GetSize()));
                 WorldgenAddZoneEntry(itemId, nVal);
                 genCellItemCScratch = (short)itemId;
-                pObj->visible = itemId;
+                pObj->arg = itemId;
                 pObj->state = 1;
                 nResult = 1;
             }
@@ -768,7 +768,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
                 {
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                     if (pObj->type == OBJ_DOOR_IN &&
-                        (nResult = WorldgenFillQuestItemSpot2Maybe(pObj->visible, a2, nVal, itemId)) == 1)
+                        (nResult = WorldgenFillQuestItemSpot2Maybe(pObj->arg, a2, nVal, itemId)) == 1)
                         break;
                     j++;
                 } while (j < nObjs);
@@ -910,7 +910,7 @@ int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrd
             int nAvail = paSpots.GetSize();
             ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(
                 paSpots.GetAt(rand() % nAvail));
-            pObj->visible = itemId;
+            pObj->arg = itemId;
             pObj->state = 1;
             WorldgenAddZoneEntry(itemId, nOrder);
             genCellItemCScratch = nTile;
@@ -927,7 +927,7 @@ int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrd
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj->type == OBJ_DOOR_IN)
                 {
-                    int vis = pObj->visible;
+                    int vis = pObj->arg;
                     if (vis >= 0)
                         nPlaced = WorldgenPlaceUsefulObjectMaybe(vis, itemId, nOrder);
                     if (nPlaced == 1)
@@ -1812,7 +1812,7 @@ int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                 if (pObj->type == OBJ_DOOR_IN)
                 {
-                    result = WorldgenPickItemFromZone(pObj->visible, a2, sel);
+                    result = WorldgenPickItemFromZone(pObj->arg, a2, sel);
                     if (result >= 0)
                         break;
                 }
@@ -2315,12 +2315,12 @@ int World::CheckZoneItemsAvailable(short zoneId)
             case 6:
             case 7:
             case 8:
-                if (pObj->visible >= 0 && IsItemPlaced(pObj->visible) != 0)
+                if (pObj->arg >= 0 && IsItemPlaced(pObj->arg) != 0)
                     ok = 0;
                 break;
             case 9:
-                if (pObj->visible >= 0)
-                    ok = CheckZoneItemsAvailable(pObj->visible);
+                if (pObj->arg >= 0)
+                    ok = CheckZoneItemsAvailable(pObj->arg);
                 break;
             }
             if (ok == 0)
@@ -2349,12 +2349,12 @@ void World::WorldgenCollectZoneRefs(short zoneId)
                 case 6:
                 case 7:
                 case 8:
-                    if (pObj->visible >= 0)
-                        WorldgenAddZoneEntry(pObj->visible, -1);
+                    if (pObj->arg >= 0)
+                        WorldgenAddZoneEntry(pObj->arg, -1);
                     break;
                 case 9:
-                    if (pObj->visible >= 0)
-                        WorldgenCollectZoneRefs(pObj->visible);
+                    if (pObj->arg >= 0)
+                        WorldgenCollectZoneRefs(pObj->arg);
                     break;
                 }
             }
@@ -2789,7 +2789,7 @@ int World::Generate(unsigned int nSeed)
                                 ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(k);
                                 if (pObj->type == OBJ_VEHICLE_TO)
                                 {
-                                    nDest = (short)pObj->visible;
+                                    nDest = (short)pObj->arg;
                                     break;
                                 }
                                 k++;
@@ -4885,11 +4885,11 @@ void World::UpdateCamera()
 // ParseSnds family) + three clean 2-cycle reg rotations (EBX/EDI edge2, ESI/EDI edges 3-4).
 // Edge-4 decl order y1-LAST is load-bearing (aligns the pRect reload after EAX is clobbered
 // by the bottom load): x1, x2, nBottom, y1 — align 26 -> 8.]
-// Free __stdcall helper (Ghidra: Render::DrawRect): draw an nThickness-pixel 3D bevel border
+// World member (thiscall; Ghidra: Render::DrawRect): draw an nThickness-pixel 3D bevel border
 // just inside pRect. bRaised==1 = raised (top/left highlight, bottom/right shadow), else
 // sunken. Top/left edges use the second pen, bottom/right the first; corners mitred by
 // pulling each line end in per ring.
-void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
+void World::DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
 {
     DWORD dwShadow = GetSysColor(COLOR_BTNSHADOW);
     DWORD dwHilite = GetSysColor(COLOR_BTNHIGHLIGHT);
@@ -6035,7 +6035,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                     if (pObj->x == 3 && pObj->y == 3)
                     {
-                        pObj->visible = v;
+                        pObj->arg = v;
                         pObj->state = 1;
                         genCellQuestSlot6Scratch = (short)v;
                         return 1;
@@ -6067,7 +6067,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
                     ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(j);
                     if (pObj->x == 3 && pObj->y == 3)
                     {
-                        pObj->visible = v;
+                        pObj->arg = v;
                         pObj->state = 1;
                         genCellQuestSlot6Scratch = (short)v;
                         return 1;
@@ -6105,7 +6105,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
                         if (pObj != NULL && pObj->type == OBJ_SPAWN)
                         {
                             found = (short)v;
-                            pObj->visible = v;
+                            pObj->arg = v;
                             pObj->state = 1;
                             genCellQuestSlot6Scratch = found;
                         }
@@ -6923,7 +6923,7 @@ void GameView::DrawWeaponBox(CDC *pDC)
     rc.right = pWorld->rectWeaponBox.right + 2;
     rc.top = pWorld->rectWeaponBox.top - 2;
     rc.bottom = pWorld->rectWeaponBox.bottom + 2;
-    DrawRect(pDC, &rc, 0, 2);
+    pWorld->DrawRect(pDC, &rc, 0, 2);
     if (pWorld->currentWeapon != NULL)
     {
         Tile *pTile = (Tile *)pWorld->tiles.GetAt(pWorld->currentWeapon->frames[7]);
@@ -6937,7 +6937,7 @@ void GameView::DrawWeaponBox(CDC *pDC)
             (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
     }
     pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 0x1e, 0x1e, 1, 1);
-    DrawRect(pDC, (RECT *)&pWorld->rectWeaponBox, 1, 1);
+    pWorld->DrawRect(pDC, (RECT *)&pWorld->rectWeaponBox, 1, 1);
     if (bReleaseDC != 0)
     {
         pDC->SelectPalette(pOldPal, 0);
@@ -6993,7 +6993,7 @@ void GameView::DrawWeaponIcon(CDC *pDC)
     rc.right = pWorld->rectAmmoBar.right + 2;
     rc.top = pWorld->rectAmmoBar.top - 2;
     rc.bottom = pWorld->rectAmmoBar.bottom + 2;
-    DrawRect(pDC, &rc, 0, 2);
+    pWorld->DrawRect(pDC, &rc, 0, 2);
     int nHeight;
     if (pWorld->currentWeapon != NULL)
     {
@@ -7009,7 +7009,7 @@ void GameView::DrawWeaponIcon(CDC *pDC)
         nHeight = 0x1e;
     }
     pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 7, nHeight, 1, 1);
-    DrawRect(pDC, (RECT *)&pWorld->rectAmmoBar, 1, 1);
+    pWorld->DrawRect(pDC, (RECT *)&pWorld->rectAmmoBar, 1, 1);
     if (bReleaseDC != 0)
     {
         pDC->SelectPalette(pOldPal, 0);

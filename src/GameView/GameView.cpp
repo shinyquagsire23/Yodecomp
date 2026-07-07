@@ -408,17 +408,17 @@ void GameView::OnDraw(CDC *pDC)
     rc.top = pWorld->rectUnk3274.top - 3;
     rc.right = pWorld->rectUnk3274.right + 3;
     rc.bottom = pWorld->rectUnk3274.bottom + 3;
-    DrawRect(pDC, &rc, 0, 3);
+    pWorld->DrawRect(pDC, &rc, 0, 3);
     rc.left = pWorld->rectUnk3284.left - 2;
     rc.right = pWorld->rectUnk3284.right + 2;
     rc.top = pWorld->rectUnk3284.top - 2;
     rc.bottom = pWorld->rectUnk3284.bottom + 2;
-    DrawRect(pDC, &rc, 0, 2);
+    pWorld->DrawRect(pDC, &rc, 0, 2);
     rc.left = pWorld->rectInvScrollMaybe.left - 2;
     rc.right = pWorld->rectInvScrollMaybe.right + 2;
     rc.top = pWorld->rectInvScrollMaybe.top - 2;
     rc.bottom = pWorld->rectInvScrollMaybe.bottom + 2;
-    DrawRect(pDC, &rc, 0, 2);
+    pWorld->DrawRect(pDC, &rc, 0, 2);
     DrawHealthDial(pDC);
     DrawDirectionArrows(pDC);
     DrawHealthNeedle(pDC);
@@ -3126,13 +3126,13 @@ void GameView::OnTimer(UINT nIDEvent)
             ShowTextDialog(strEmpty, 0, 0, 0);
             bShowEmptyDialogOnceMaybe = 0;
         }
-        DrawMap();
+        UpdateItemObjectsMaybe();
         pWorld->currentZone->IactRun(1, pWorld->cameraX / 32, pWorld->cameraY / 32,
                                      0, 0, 0, NULL, pWorld, this);
         if (pWorld->currentZone->type == 6 || pWorld->currentZone->type == 7
             || pWorld->currentZone->type == 0xb)
         {
-            DrawObjects();
+            TriggerHotspotsMaybe();
         }
         bMapAtCanvasOriginMaybe = 0;
         bSuppressWalkSound = 0;
@@ -3335,5 +3335,721 @@ void GameView::OnTimer(UINT nIDEvent)
         }
         bBusy = 0;
         break;
+    }
+}
+
+// FUNCTION: YODA 0x0040e400
+// GameView::StepDetonatorEffect — thermal-detonator explosion animation at
+// (nDetonatorX,nDetonatorY): phases 0..2 blit tiles 0x202/0x431/0x432, phase 3
+// blits 0x433 then DetonateAdjacentTiles, phase 4 restores the zone cell.
+void GameView::StepDetonatorEffect()
+{
+    int x = nDetonatorX;
+    int y = nDetonatorY;
+
+    switch (nDetonatorPhase)
+    {
+    case 0:
+        BlitTile((short)y, (short)x, 0, pWorld->GetTileData(0x202));
+        DrawGameArea(NULL);
+        return;
+    case 1:
+        BlitTile((short)y, (short)x, 0, pWorld->GetTileData(0x431));
+        DrawGameArea(NULL);
+        return;
+    case 2:
+        BlitTile((short)y, (short)x, 0, pWorld->GetTileData(0x432));
+        DrawGameArea(NULL);
+        return;
+    case 3:
+        BlitTile((short)y, (short)x, 0, pWorld->GetTileData(0x433));
+        DrawGameArea(NULL);
+        DetonateAdjacentTiles(x, y);
+        return;
+    case 4:
+        DrawZoneCell((short)x, (short)y);
+        DrawGameArea(NULL);
+        break;
+    }
+}
+
+// FUNCTION: YODA 0x0040e500
+// GameView::ApplyHotspotCamera — vehicle hotspot click: pObj is an active
+// OBJ_VEHICLE_TO/FROM object; find the paired object in the linked zone
+// (pObj->arg), aim the camera at it (<<5 = tile->pixel) and kick off a
+// mode-6 zone transition (nMapChangeReason 1 = to, 2 = from). Returns 1 if
+// the transition was started.
+// EFFECTIVE MATCH (align=34, 168/168 insns, byte_diff=31): the two type arms
+// are a textual clone pair and the ORIGINAL emits them parity-CROSSED
+// (block1: vx's xor folded into the GetZoneById call setup, i's xor after the
+// count load; block2: the reverse — i pre-call, vx post-count) — identical
+// source cannot produce both (ZTS<->WES / loader-triplet family, G1).
+// Matched block1's registers exactly (i=EDX, walker=ECX, count reg-resident);
+// residual = the count-load/i-xor 2-insn order in block1 + block2's rotated
+// roles (EBX/EBP/ECX/EDX cycle) with cmp-direction fallout. Probed: i-vs-
+// nCount decl order x3 (seesaw between blocks), decl-early/init-late i,
+// vx-before/after-pZone (after = -20 align, kept). Structure cracks that
+// landed: Find-fail arm as else-of-(!=0) (fail body sunk after the then-arm),
+// vx=0 declared right after the pZone call (folds into call setup).
+int GameView::ApplyHotspotCamera(ZoneObj *pObj)
+{
+    int cellX;
+    int cellY;
+
+    if (pObj->state == 0)
+        return 0;
+    bBusy = 1;
+    if (pObj->type == OBJ_VEHICLE_TO)
+    {
+        int nZoneId = pObj->arg;
+        if (pWorld->FindZoneCellById((short)nZoneId, &cellX, &cellY) != 0)
+        {
+            Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+            int vx = 0;
+            if (pZone != NULL)
+            {
+                int i = 0;
+                int nCount = pZone->objects.GetSize();
+                int vy = 0;
+                int bFound = 0;
+                if (nCount > 0)
+                {
+                    do
+                    {
+                        ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                        if (pO->type == OBJ_VEHICLE_FROM)
+                        {
+                            bFound = 1;
+                            vx = pO->x;
+                            vy = pO->y;
+                            break;
+                        }
+                        i++;
+                    } while (i < nCount);
+                }
+                if (bFound != 0)
+                {
+                    if (pZone->activatedFlag == 0)
+                        pWorld->PlaceZoneObjectTiles((short)nZoneId);
+                    pWorld->cameraX = vx << 5;
+                    pWorld->cameraY = vy << 5;
+                    pWorld->nMapChangeReason = 1;
+                    nTargetZoneId = nZoneId;
+                    nTransitionStep = 0;
+                    pWorld->nFrameMode = 6;
+                    bBusy = 0;
+                    return 1;
+                }
+            }
+        }
+        else
+        {
+            bBusy = 0;
+            return 0;
+        }
+    }
+    else if (pObj->type == OBJ_VEHICLE_FROM)
+    {
+        int nZoneId = pObj->arg;
+        if (pWorld->FindZoneCellById((short)nZoneId, &cellX, &cellY) != 0)
+        {
+            Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+            int vx = 0;
+            if (pZone != NULL)
+            {
+                int i = 0;
+                int nCount = pZone->objects.GetSize();
+                int vy = 0;
+                int bFound = 0;
+                if (nCount > 0)
+                {
+                    do
+                    {
+                        ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                        if (pO->type == OBJ_VEHICLE_TO)
+                        {
+                            bFound = 1;
+                            vx = pO->x;
+                            vy = pO->y;
+                            break;
+                        }
+                        i++;
+                    } while (i < nCount);
+                }
+                if (bFound != 0)
+                {
+                    pWorld->cameraX = vx << 5;
+                    pWorld->cameraY = vy << 5;
+                    pWorld->nMapChangeReason = 2;
+                    nTargetZoneId = nZoneId;
+                    nTransitionStep = 0;
+                    pWorld->nFrameMode = 6;
+                    bBusy = 0;
+                    return 1;
+                }
+            }
+        }
+        else
+        {
+            bBusy = 0;
+            return 0;
+        }
+    }
+    bBusy = 0;
+    return 0;
+}
+
+// FUNCTION: YODA 0x0040e750
+// GameView::TransitionZoneScript — IACT-driven zone change (command warp):
+// activate the target zone's objects if needed, then start the mode-6
+// transition with nMapChangeReason 8. arg1 is pushed by callers but never
+// read (sig byte-proven: ret 8, plain dword loads).
+int GameView::TransitionZoneScript(int nUnused, int nZoneId)
+{
+    bBusy = 1;
+    Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+    if (pZone != NULL)
+    {
+        if (pZone->activatedFlag == 0)
+            pWorld->PlaceZoneObjectTiles((short)nZoneId);
+        pWorld->nMapChangeReason = 8;
+        nTargetZoneId = nZoneId;
+        nTransitionStep = 0;
+        pWorld->nFrameMode = 6;
+        bInputLocked = 0;
+        bBusy = 0;
+        return 1;
+    }
+    bBusy = 0;
+    return 0;
+}
+
+// FUNCTION: YODA 0x0040e7c0
+// GameView::TransitionZoneXWing — X-Wing takeoff/landing hotspot: like
+// ApplyHotspotCamera but for the OBJ_XWING_TO/FROM pair, and the world map
+// is swapped: TO (takeoff) backs up the zone grid, builds the fresh
+// travel grid and restores the quest records (unk33b8=1); FROM (landing)
+// backs up the records and restores the grid backup (unk33b8=0).
+// EFFECTIVE MATCH (align=22, 152/152 insns, byte_diff=10): same parity-
+// crossed clone pair as ApplyHotspotCamera (the pre-call xor is vx in arm1
+// but i in arm2 in the ORIGINAL). Arm1 matches exactly. Arm2 residual = a
+// 2-reg i<->count cycle (orig i=EBX,count=EDI; ours i=EDI,count=EBX) + the
+// vx/vy xor scheduling around the count load + cmp-direction fallout.
+// Probes: identical-clone decls (align=24, reg_pen=3 — the plausible true
+// source, G1 candidate), i-after-pZone + vx/vy inside (kept, align=22),
+// vx-before-nCount (32k), i-before-pZone (43k).
+int GameView::TransitionZoneXWing(ZoneObj *pObj)
+{
+    if (pObj->state == 0)
+        return 0;
+    bBusy = 1;
+    if (pObj->type == OBJ_XWING_TO)
+    {
+        int nZoneId = pObj->arg;
+        Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+        int vx = 0;
+        if (pZone != NULL)
+        {
+            int nCount = pZone->objects.GetSize();
+            int i = 0;
+            int vy = 0;
+            int bFound = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                    if (pO->type == OBJ_XWING_FROM)
+                    {
+                        bFound = 1;
+                        vx = pO->x;
+                        vy = pO->y;
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound != 0)
+            {
+                if (pZone->activatedFlag == 0)
+                    pWorld->PlaceZoneObjectTiles((short)nZoneId);
+                pWorld->cameraX = vx << 5;
+                pWorld->cameraY = vy << 5;
+                pWorld->nMapChangeReason = 1;
+                nTransitionStep = 0;
+                nTargetZoneId = nZoneId;
+                pWorld->nFrameMode = 6;
+                pWorld->BackupZoneGrid();
+                pWorld->SetupGrid();
+                pWorld->RestoreRecords();
+                pWorld->unk33b8 = 1;
+                bBusy = 0;
+                return 1;
+            }
+        }
+    }
+    else if (pObj->type == OBJ_XWING_FROM)
+    {
+        int nZoneId = pObj->arg;
+        Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+        int i = 0;
+        if (pZone != NULL)
+        {
+            int nCount = pZone->objects.GetSize();
+            int vx = 0;
+            int vy = 0;
+            int bFound = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                    if (pO->type == OBJ_XWING_TO)
+                    {
+                        bFound = 1;
+                        vx = pO->x;
+                        vy = pO->y;
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound != 0)
+            {
+                pWorld->cameraX = vx << 5;
+                pWorld->cameraY = vy << 5;
+                pWorld->nMapChangeReason = 2;
+                nTargetZoneId = nZoneId;
+                nTransitionStep = 0;
+                pWorld->nFrameMode = 6;
+                pWorld->BackupRecords();
+                pWorld->SetupGrid();
+                pWorld->RestoreGridFromBackup();
+                pWorld->unk33b8 = 0;
+                bBusy = 0;
+                return 1;
+            }
+        }
+    }
+    bBusy = 0;
+    return 0;
+}
+
+// FUNCTION: YODA 0x0040e9d0
+// GameView::TransitionZoneDoor — walk-through-door transition (OnBumpTile).
+// DOOR_IN: record the return position into the current zone
+// (doorReturnX/Y), stamp the paired DOOR_OUT's arg with the current zone
+// index, aim the camera at the DOOR_OUT and start the mode-6 transition
+// (reason 3). DOOR_OUT: return to the zone in arg at its saved
+// doorReturnX/Y (reason 4).
+// EFFECTIVE MATCH (align=22, 151/151 insns, reg_pen=0, byte_diff=10): sole
+// residual = ONE instruction position — the orig folds vx's `xor ebx,ebx`
+// INSIDE GetZoneIndex's argument evaluation (between the pWorld load and the
+// currentZone deref); ours emits it at pDoor(EBX)'s death 3 insns earlier.
+// vx-decl before/after the call statement both inert. Every register/slot
+// identical. Scheduling family, G1.
+void GameView::TransitionZoneDoor(ZoneObj *pDoor)
+{
+    if (pDoor->state != 0)
+    {
+        bBusy = 1;
+        if (pDoor->type == OBJ_DOOR_IN)
+        {
+            int nZoneId = pDoor->arg;
+            if (nZoneId < 0)
+            {
+                bBusy = 0;
+                return;
+            }
+            Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+            if (pZone == NULL)
+            {
+                bBusy = 0;
+                return;
+            }
+            pWorld->currentZone->doorReturnX = pDoor->x;
+            pWorld->currentZone->doorReturnY = pDoor->y;
+            int nCurZoneIdx = pWorld->GetZoneIndex(pWorld->currentZone);
+            int vx = 0;
+            int vy = 0;
+            int bFound = 0;
+            int nCount = pZone->objects.GetSize();
+            int i = 0;
+            if (nCount > 0)
+            {
+                do
+                {
+                    ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                    if (pO->type == OBJ_DOOR_OUT)
+                    {
+                        bFound = 1;
+                        pO->arg = (short)nCurZoneIdx;
+                        vx = pO->x;
+                        vy = pO->y;
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound != 0)
+            {
+                if (pZone->activatedFlag == 0)
+                    pWorld->PlaceZoneObjectTiles((short)nZoneId);
+                pWorld->cameraX = vx << 5;
+                pWorld->cameraY = vy << 5;
+                pWorld->nMapChangeReason = 3;
+                nTargetZoneId = nZoneId;
+                nTransitionStep = 0;
+                pWorld->nFrameMode = 6;
+                bBusy = 0;
+                return;
+            }
+        }
+        else if (pDoor->type == OBJ_DOOR_OUT)
+        {
+            int nZoneId = pDoor->arg;
+            if (nZoneId < 0)
+            {
+                bBusy = 0;
+                return;
+            }
+            Zone *pZone = pWorld->GetZoneById((short)nZoneId);
+            if (pZone == NULL)
+            {
+                bBusy = 0;
+                return;
+            }
+            int y2 = pZone->doorReturnY;
+            pWorld->cameraX = pZone->doorReturnX << 5;
+            pWorld->cameraY = y2 << 5;
+            pWorld->nMapChangeReason = 4;
+            nTargetZoneId = nZoneId;
+            nTransitionStep = 0;
+            pWorld->nFrameMode = 6;
+            bBusy = 0;
+            return;
+        }
+        bBusy = 0;
+    }
+}
+
+// FUNCTION: YODA 0x0040ebe0
+// GameView::ReenableHotspotObjects — re-arm all vehicle hotspots in the
+// current zone (state=1) so they can be triggered again.
+void GameView::ReenableHotspotObjects()
+{
+    int n = pWorld->currentZone->objects.GetSize();
+    if (n > 0)
+    {
+        int i = 0;
+        do
+        {
+            ZoneObj *pO = (ZoneObj *)pWorld->currentZone->objects.GetAt(i);
+            if (pO->type == OBJ_VEHICLE_TO || pO->type == OBJ_VEHICLE_FROM)
+                pO->state = 1;
+            i++;
+            n--;
+        } while (n != 0);
+    }
+}
+
+// FUNCTION: YODA 0x0040ec30
+// GameView::TriggerHotspotsMaybe — scan the current zone's objects for an
+// ACTIVE vehicle/X-Wing hotspot on the camera tile (cameraX/Y are pixel
+// coords, /32 = tile) and fire its transition. Returns the transition
+// call's result (0 if nothing fired). Skipped entirely while a mode-6/7
+// transition is already running.
+// EFFECTIVE MATCH (126/130 insns; align inflated by the 13-entry jump
+// table disassembling as data): body identical except (a) pWorld/nCount
+// ride ESI/ECX in the orig vs ECX/ESI in ours — one 2-reg role swap that
+// also flips the 2-insn prologue order (orig loads pWorld before this->EDI)
+// — and (b) i's xor vs n's spill order at loop entry. World* local probe
+// inert (CSE identical); n/i decl order inert. Countdown recipe (separate
+// nCount guard + n counter) and per-arm duplicated calls (vehicle pair kept
+// separate, xwing pair cross-jumped by cl) both required.
+int GameView::TriggerHotspotsMaybe()
+{
+    int nResult = 0;
+
+    if (pWorld->nFrameMode == 6 || pWorld->nFrameMode == 7)
+        return 0;
+    int nCount = pWorld->currentZone->objects.GetSize();
+    if (nCount == 0)
+        return 0;
+    bBusy = 1;
+    int tx = pWorld->cameraX / 32;
+    int ty = pWorld->cameraY / 32;
+    if (nCount > 0)
+    {
+        int n = nCount;
+        int i = 0;
+        do
+        {
+            ZoneObj *pO = (ZoneObj *)pWorld->currentZone->objects.GetAt(i);
+            if (pO->state != 0)
+            {
+                switch (pO->type)
+                {
+                case OBJ_VEHICLE_TO:
+                    if (pO->x == tx && pO->y == ty)
+                        nResult = ApplyHotspotCamera(pO);
+                    break;
+                case OBJ_VEHICLE_FROM:
+                    if (pO->x == tx && pO->y == ty)
+                        nResult = ApplyHotspotCamera(pO);
+                    break;
+                case OBJ_XWING_FROM:
+                    if (pO->x == tx && pO->y == ty)
+                        nResult = TransitionZoneXWing(pO);
+                    break;
+                case OBJ_XWING_TO:
+                    if (pO->x == tx && pO->y == ty)
+                        nResult = TransitionZoneXWing(pO);
+                    break;
+                }
+            }
+            i++;
+            n--;
+        } while (n != 0);
+    }
+    bBusy = 0;
+    return nResult;
+}
+
+// FUNCTION: YODA 0x0040ed90
+// GameView::UpdateItemObjectsMaybe — per-frame item-object pass over the
+// current zone (was "DrawMap"): for pickup-able objects (quest item spot /
+// Force / item / weapon; locator with its own flag mask) standing under the
+// camera tile, move the tile into the inventory and clear it; for objects
+// whose layer-1 tile has gone missing, re-place it from pO->arg (spawns
+// re-place from the map cell's quest slot). Redraws the touched cell.
+// sic: in the quest-item arm a vanished tile / non-item tile ABORTS the
+// whole pass (early return), while the locator arm just skips.
+// EFFECTIVE MATCH (align residual; 224 real insns aligned 1:1, byte_diff=115
+// mostly reloc/table-offset shift): body structure EXACT including the
+// 16-entry byte jump table. Residuals: (a) this/pO reg-role 2-cycle (orig
+// this=EDI,pO=EBX; ours EBX/EDI) which also shifts one prologue push ebp —
+// flipped when the empty case arm was added, tie-break; (b) the quest-arm
+// flags test: orig loads flags to ECX + test cl,0xc0, ours folds to
+// test byte[mem] — SAME axis as FireWeaponStep's parked flags-test (a
+// local is copy-propagated away, single-use); (c) tx/ty cmp slot-vs-reg
+// direction (operand-flip probe inert, lesson #6).
+// ⭐ NEW MECHANISM (proven via the dword table at 0x40f024): cl 4.2 assigns
+// a jump-table ARM INDEX PER CASE LABEL VALUE (dense, value-ordered), so
+// grouped labels (case 0: case 2: case 6: case 8:) get 4 DISTINCT indices
+// all pointing at the shared arm address, and an empty `case 4: case 10:
+// case 15: break;` arm widens the table to 16 entries with its indices
+// aiming at the exit block. Duplicating the shared bodies textually does
+// NOT reproduce this (cl 4.2 never folds duplicate arms - +155 insns).
+// Other cracks: int t = (short)GetTile(...) temps (movsx-immediately),
+// DRAW tail (DrawTileAt+DrawGameArea) textually duplicated per arm
+// (cross-jumped), i decl AFTER ty (xor interleaves into ty's division).
+void GameView::UpdateItemObjectsMaybe()
+{
+    if (pWorld->nFrameMode == 6 || pWorld->nFrameMode == 7)
+        return;
+    int nCount = pWorld->currentZone->objects.GetSize();
+    if (nCount != 0)
+    {
+        bBusy = 1;
+        int tx = pWorld->cameraX / 32;
+        int ty = pWorld->cameraY / 32;
+        int i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                Zone *pZone = pWorld->currentZone;
+                ZoneObj *pO = (ZoneObj *)pZone->objects.GetAt(i);
+                if (pO->state != 0)
+                {
+                    switch (pO->type)
+                    {
+                    case OBJ_QUEST_ITEM_SPOT:
+                    case OBJ_THE_FORCE:
+                    case OBJ_ITEM:
+                    case OBJ_WEAPON:
+                        if (pO->x == tx && pO->y == ty)
+                        {
+                            int t = (short)pZone->GetTile(pO->x, pO->y, 1);
+                            if (t < 0)
+                            {
+                                bBusy = 0;
+                                return;
+                            }
+                            Tile *pTile = (Tile *)pWorld->tiles.GetAt(t);
+                            unsigned int flags = pTile->flags;
+                            if ((flags & 0xc0) == 0)
+                            {
+                                bBusy = 0;
+                                return;
+                            }
+                            AddItemToInv(pTile);
+                            pWorld->currentZone->SetTile(pO->x, pO->y, 1, -1);
+                            pO->state = 0;
+                            DrawTileAt(pO->x, pO->y, -1);
+                            DrawGameArea(NULL);
+                        }
+                        else
+                        {
+                            int t = (short)pZone->GetTile(pO->x, pO->y, 1);
+                            if (t < 0)
+                            {
+                                pWorld->currentZone->SetTile(pO->x, pO->y, 1, pO->arg);
+                                DrawTileAt(pO->x, pO->y, -1);
+                                DrawGameArea(NULL);
+                            }
+                        }
+                        break;
+                    case OBJ_SPAWN:
+                        {
+                            int t = (short)pZone->GetTile(pO->x, pO->y, 1);
+                            if (t < 0)
+                            {
+                                short cell = pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].cellQuestSlot6;
+                                if (cell >= 0)
+                                {
+                                    pWorld->currentZone->SetTile(pO->x, pO->y, 1, cell);
+                                    DrawTileAt(pO->x, pO->y, -1);
+                                    DrawGameArea(NULL);
+                                }
+                            }
+                        }
+                        break;
+                    case OBJ_VEHICLE_FROM:
+                    case OBJ_DOOR_OUT:
+                    case OBJ_XWING_TO:
+                        break;
+                    case OBJ_LOCATOR:
+                        if (pO->x == tx && pO->y == ty)
+                        {
+                            int t = (short)pZone->GetTile(pO->x, pO->y, 1);
+                            if (t >= 0)
+                            {
+                                Tile *pTile = (Tile *)pWorld->tiles.GetAt(t);
+                                if ((pTile->flags & 0x100080) != 0)
+                                {
+                                    AddItemToInv(pTile);
+                                    pWorld->currentZone->SetTile(pO->x, pO->y, 1, -1);
+                                    pO->state = 0;
+                                    DrawTileAt(pO->x, pO->y, -1);
+                                    DrawGameArea(NULL);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            int t = (short)pZone->GetTile(pO->x, pO->y, 1);
+                            if (t < 0)
+                            {
+                                pWorld->currentZone->SetTile(pO->x, pO->y, 1, pO->arg);
+                                DrawTileAt(pO->x, pO->y, -1);
+                                DrawGameArea(NULL);
+                            }
+                        }
+                        break;
+                    }
+                }
+                i++;
+            } while (nCount > i);
+        }
+        bBusy = 0;
+    }
+}
+
+// FUNCTION: YODA 0x0040f060  (?DrawTextA@GameView@@QAEXPAVCDC@@@Z — windows.h renames DrawText)
+// GameView::DrawText — paints the 7-slot inventory panel (rectUnk3284):
+// for each visible row, fill the 32x32 drag canvas with the button-face
+// color, blit the item tile into it (skipped for the slot being dragged),
+// frame the icon cell + name cell with the bevel DrawRect, blit the icon,
+// and TextOut the item name in MS Sans Serif. pDC==NULL = self-service
+// GetDC + palette select (bReleaseDC arm).
+// EFFECTIVE MATCH (285/284 insns, align=172 = one coherent reg-role
+// rotation echoed ~30x + slot-order fallout): every structural element
+// aligned — the EH frame, the cached SelectObject vcall (vtbl/fnptr slots
+// -0x44/-0x3c), the inventory byte-offset walker, rc/rc2 slots, all call
+// shapes. Residual: pTile rides EBX (orig EDI), freeing EDI for a pWorld
+// CSE the orig doesn't do (2-insn delta), + this/pDC reload role noise.
+// pItem/pTile decl order inert. CRACKS (new lessons): (a) MFC 4.2's ONLY
+// virtual CDC::SelectObject overload is (CFont*) — the +0x30 vcall proves
+// the source used CFont::FromHandle (CGdiObject* selects the non-virtual
+// INLINE overload -> m_hObject extraction, wrong shape); write the
+// FromHandle result to a local first (evaluate-callee-first). (b) the
+// GetAt walker needed a dedicated `int slot = nScroll;` IV (SR to
+// scroll<<2 byte walker) while the bounds tests spell nScroll + i.
+// (c) windows.h renames DrawText->DrawTextA: marker carries the mangled
+// hint, asmscore now parses it.
+void GameView::DrawText(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    CPalette *pOldPal;
+
+    if (pDC == NULL)
+    {
+        pDC = GetDC();
+        if (pDC == NULL)
+            return;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
+    }
+    HFONT hFont = CreateFont(-14, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, g_pszFontName);
+    CFont *pFont = CFont::FromHandle(hFont);
+    CFont *pOldFont = pDC->SelectObject(pFont);
+    int nCount = pWorld->inventory.GetSize();
+    pDC->SetBkMode(1);
+    int nScroll = pInvScrollBar->scrollPos;
+    if (nScroll < 0)
+        nScroll = 0;
+    int i = 0;
+    int y = 0;
+    int slot = nScroll;
+    RECT rc;
+    do
+    {
+        Tile *pTile;
+        InvItem *pItem;
+        if (nScroll + i < nCount)
+        {
+            pItem = (InvItem *)pWorld->inventory.GetAt(slot);
+            pTile = pItem->pTile;
+            pDragTileCanvas->Fill((char)GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(0xf)));
+            if (nDragSlot - i != nScroll)
+                pDragTileCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, 0, 0, 0);
+        }
+        CBrush brush(GetSysColor(0xf));
+        CBrush *pOldBrush = pDC->SelectObject(&brush);
+        rc.top = pWorld->rectUnk3284.top + y;
+        rc.bottom = rc.top + 0x20;
+        rc.left = pWorld->rectUnk3284.left;
+        rc.right = rc.left + 0x20;
+        if (nCount <= nScroll + i)
+            PatBlt(pDC->m_hDC, rc.left, rc.top, 0x20, 0x20, 0xf00021);
+        pWorld->DrawRect(pDC, &rc, 1, 1);
+        if (nScroll + i < nCount)
+            pDragTileCanvas->BitBlt(pDC, rc.left + 1, rc.top + 1, 0x1e, 0x1e, 1, 1);
+        rc.left += 0x21;
+        rc.right = pWorld->rectUnk3284.right;
+        RECT rc2;
+        CopyRect(&rc2, &rc);
+        PatBlt(pDC->m_hDC, rc2.left, rc2.top, rc2.right - rc2.left, rc2.bottom - rc2.top, 0xf00021);
+        pDC->SelectObject(pOldBrush);
+        pWorld->DrawRect(pDC, &rc, 1, 1);
+        if (nScroll + i < nCount)
+            pDC->TextOut(rc.left + 4, rc.top + 8, pItem->name);
+        y += 0x20;
+        slot++;
+        i++;
+    } while (y < 0xe0);
+    rc.top = pWorld->rectUnk3284.top;
+    rc.left = pWorld->rectUnk3284.left;
+    rc.right = rc.left + 0x20;
+    rc.bottom = rc.top + 0x20;
+    pWorld->DrawRect(pDC, &rc, 1, 1);
+    pDC->SelectObject(pOldFont);
+    DeleteObject(hFont);
+    if (bReleaseDC != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ReleaseDC(pDC);
     }
 }

@@ -211,12 +211,12 @@ public:
     void Tick();                                           // 0x0040b270 (10.8KB frame loop)
     void StepDetonatorEffect();                            // 0x0040e400
     int  ApplyHotspotCamera(ZoneObj *pObj);               // 0x0040e500
-    int  TransitionZoneScript(int nUnused, int nZoneId);   // 0x0040e750 (sig?)
+    int  TransitionZoneScript(int nUnused, int nZoneId);   // 0x0040e750
     int  TransitionZoneXWing(ZoneObj *pObj);              // 0x0040e7c0
     void TransitionZoneDoor(ZoneObj *pDoor);              // 0x0040e9d0
     void ReenableHotspotObjects();                        // 0x0040ebe0
-    void DrawObjects();                                   // 0x0040ec30
-    void DrawMap();                                       // 0x0040ed90
+    int  TriggerHotspotsMaybe();                          // 0x0040ec30 (was DrawObjects; fires vehicle/xwing hotspots at the camera tile)
+    void UpdateItemObjectsMaybe();                        // 0x0040ed90 (was DrawMap; picks up / re-places item-object tiles)
     void DrawText(CDC *pDC);                              // 0x0040f060
     void ShowWinMessage(int x, int y, int dx, int dy);   // 0x0040f4b0
     int  ClassifyTile(int x, int y);                     // 0x0040fca0
