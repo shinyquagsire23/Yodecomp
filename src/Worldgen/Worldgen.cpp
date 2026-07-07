@@ -461,7 +461,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
 // from BOTH quest chains — questItemsA[iA]/[iA+1] and questItemsB[iB] give the three puzzles
 // whose items must meet here. Two paths: if the zone still provides an unplaced IZX3 item,
 // spawn it; otherwise wire the A/B chain items into quest-item spots. Returns 1 on success.
-int World::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrder, int a5)
+int World::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrder, short a5)
 {
     Zone *pZone = (Zone *)zones.GetAt(zoneId);
     if (pZone == NULL)
@@ -788,7 +788,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
 // lock item on the zone's OBJ_LOCK, then the follow-up into a quest-item spot.
 // sic: on CheckZoneItemsAvailable failure it removes item1a TWICE and never removes item2
 // (docs/engine-bugs.md #11); the two `>= 0` guards on zero-extended WORDs are always true.
-int World::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, int nOrder, short sel)
+int World::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, short nOrder, short sel)
 {
     short item1a = -1;
     short item2 = -1;
@@ -1308,6 +1308,231 @@ void World::WorldgenShuffleList(CWordArray *pList)
         for (i = 0; nSize > i; i++)
             pList->SetAt(i, temp.GetAt(i));
     }
+}
+
+// FUNCTION: YODA 0x0041f120
+// [EFFECTIVE-WIP ~97% insn-identical: residual = the this/i callee-saved 2-cycle (EDI/EBX
+// swapped; proven source-SENSITIVE — a SetAt-arms probe flipped it while breaking the single
+// store, so it is dial-coupled, not a fixed source shape) + the prologue push/store interleave
+// and the movsx(a2)-above-the-branch schedule in the 0xf/0x10 cases, all downstream of that
+// cycle. Raw byte/align scores are inflated by the two switch jump tables at +0x6a0. Structure
+// fully mirrored: both switches, the shared EH fail-return, sunk accept blocks, pDst join.
+// Joint-TU pass territory.]
+// The per-quest-step placement hub: collect all unloaded-slot-free zones of the requested worldgen
+// type on the current planet into a local list, shuffle it, then try each candidate with the
+// type-specific placer until one accepts. Returns the chosen zone id, or 0xffff if none accepts.
+unsigned short World::PlaceQuestNode(short nType, short a2, short a3, short a4, short a5,
+                                     short nOrder, short a7)
+{
+    int bDone = 0;
+    int nZones = zones.GetSize();
+    int bFirst = 0;
+    if (a2 == 0)
+        bFirst = 1;
+    short i = 0;
+    CWordArray list;
+    list.SetSize(0, -1);
+    if (nZones > 0)
+    {
+        do
+        {
+            Zone *pZone = (Zone *)zones.GetAt(i);
+            if (pZone != (Zone *)-1 && pZone->planet == currentPlanet)
+            {
+                switch (nType)
+                {
+                case ZONE_TYPE_ENEMY_TERRITORY:
+                case ZONE_TYPE_FINAL_DESTINATION:
+                case ZONE_TYPE_ITEM_FOR_ITEM:
+                case ZONE_TYPE_FIND_USEFUL_NPC:
+                case ZONE_TYPE_ITEM_TO_PASS:
+                case ZONE_TYPE_FROM_ANOTHER_MAP:
+                case ZONE_TYPE_TO_ANOTHER_MAP:
+                case ZONE_TYPE_FINAL_ITEM:
+                case ZONE_TYPE_MAP_START:
+                case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:
+                case ZONE_TYPE_FIND_USEFUL_DROP:
+                    if ((short)pZone->type == nType)
+                        list.SetAtGrow(list.GetSize(), i);
+                    break;
+                case ZONE_TYPE_FIND_USEFUL_BUILDING:
+                    if (pZone->type == ZONE_TYPE_FIND_USEFUL_BUILDING ||
+                        pZone->type == ZONE_TYPE_FIND_THE_FORCE)
+                        list.SetAtGrow(list.GetSize(), i);
+                    break;
+                }
+            }
+            i++;
+        } while (i < nZones);
+    }
+    if (list.GetSize() == 0)
+        return 0xffff;
+    WorldgenShuffleList(&list);
+    short nPos = 0;
+    short nCount = (short)list.GetSize();
+    do
+    {
+        short nZoneId = list.GetAt(nPos);
+        Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+        if (IsZoneUsed(nZoneId) == 0 ||
+            (nType == ZONE_TYPE_FINAL_ITEM && nRequestedGoalItem > 0))
+        {
+            switch (nType)
+            {
+            case ZONE_TYPE_ENEMY_TERRITORY:
+                if (genSkipTeleCheckMaybe == 0)
+                {
+                    if (pZone->type == ZONE_TYPE_ENEMY_TERRITORY)
+                        return nZoneId;
+                }
+                else
+                {
+                    int nObjs = pZone->objects.GetSize();
+                    if (nObjs <= 0)
+                        return nZoneId;
+                    int j = 0;
+                    do
+                    {
+                        if (((ZoneObj *)pZone->objects.GetAt(j))->type == OBJ_TELEPORTER)
+                            break;
+                        j++;
+                    } while (j < nObjs);
+                    // sic: the scan result is unused — with the teleporter check on, only
+                    // object-FREE zones are ever accepted (docs/engine-bugs.md #12)
+                }
+                break;
+            case ZONE_TYPE_FINAL_DESTINATION:
+                if (pZone->type == ZONE_TYPE_FINAL_DESTINATION &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_ITEM_FOR_ITEM:
+                if (pZone->type == ZONE_TYPE_ITEM_FOR_ITEM &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_FIND_USEFUL_NPC:
+                if (pZone->type == ZONE_TYPE_FIND_USEFUL_NPC &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_ITEM_TO_PASS:
+                if (pZone->type == ZONE_TYPE_ITEM_TO_PASS &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_FROM_ANOTHER_MAP:
+                if (pZone->type == ZONE_TYPE_FROM_ANOTHER_MAP &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_TO_ANOTHER_MAP:
+                if (pZone->type == ZONE_TYPE_TO_ANOTHER_MAP &&
+                    WorldgenAssignTransitItemMaybe(nZoneId, nOrder, 0) == 1)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_FINAL_ITEM:
+                if (pZone->type == ZONE_TYPE_FINAL_ITEM &&
+                    ZoneRequiresItemMaybe(nZoneId, a4) == 1 &&
+                    ZoneRequiresItemMaybe(nZoneId, a5) == 1)
+                {
+                    int nItemA = WorldgenPickItemFromZone(nZoneId, a2, 0);
+                    int nItemB = WorldgenPickItemFromZone(nZoneId, a3, 1);
+                    if (nItemA >= 0 && nItemB >= 0)
+                    {
+                        int nPuzA = WorldgenSelectPuzzle(nItemA, a4, ZONE_TYPE_FINAL_ITEM, bFirst);
+                        if (nPuzA >= 0)
+                            goalTileList.SetAtGrow(goalTileList.GetSize(), nPuzA);
+                        int nPuzB = WorldgenSelectPuzzle(nItemB, a5, ZONE_TYPE_FINAL_ITEM, bFirst);
+                        if (nPuzB >= 0)
+                            goalTileList.SetAtGrow(goalTileList.GetSize(), nPuzB);
+                        if (nPuzA >= 0 && nPuzB >= 0)
+                        {
+                            questItemsA.SetAt(a2, nPuzA);
+                            questItemsB.SetAt(a3, nPuzB);
+                            if (WorldgenPopulateGoalZone(nZoneId, a2, a3, nOrder, a7) == 1)
+                            {
+                                WorldgenAddZoneEntry(nItemA, nOrder);
+                                WorldgenAddZoneEntry(nItemB, nOrder);
+                                return nZoneId;
+                            }
+                            questItemsA.SetAt(a2, 0xffff);
+                            questItemsB.SetAt(a3, 0xffff);
+                        }
+                    }
+                }
+                break;
+            case ZONE_TYPE_MAP_START:
+                if (pZone->type == ZONE_TYPE_MAP_START)
+                    return nZoneId;
+                break;
+            case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:
+                if (pZone->type == ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK &&
+                    ZoneRequiresItemMaybe(nZoneId, a4) == 1)
+                {
+                    int nItem = WorldgenPickItemFromZone(nZoneId, a2, 0);
+                    if (nItem >= 0)
+                    {
+                        int nPuz = WorldgenSelectPuzzle(nItem, a4,
+                                                        ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK, bFirst);
+                        if (nPuz >= 0)
+                        {
+                            unsigned short *pDst;
+                            if (a7 != 0)
+                                pDst = questItemsA.GetData();
+                            else
+                                pDst = questItemsB.GetData();
+                            pDst[a2] = nPuz;
+                            if (WorldgenPlaceItemForLockChainMaybe(nZoneId, a2, nOrder, a7) == 1)
+                            {
+                                goalTileList.SetAtGrow(goalTileList.GetSize(), nPuz);
+                                WorldgenAddZoneEntry(nItem, nOrder);
+                                return nZoneId;
+                            }
+                        }
+                    }
+                }
+                break;
+            case ZONE_TYPE_FIND_USEFUL_DROP:
+                if (pZone->type == ZONE_TYPE_FIND_USEFUL_DROP &&
+                    ZoneRequiresItemMaybe(nZoneId, a4) == 1)
+                {
+                    int nItem = WorldgenPickItemFromZone(nZoneId, a2, 0);
+                    if (nItem >= 0)
+                    {
+                        int nPuz = WorldgenSelectPuzzle(nItem, a4,
+                                                        ZONE_TYPE_FIND_USEFUL_DROP, bFirst);
+                        if (nPuz >= 0)
+                        {
+                            unsigned short *pDst;
+                            if (a7 != 0)
+                                pDst = questItemsA.GetData();
+                            else
+                                pDst = questItemsB.GetData();
+                            pDst[a2] = nPuz;
+                            if (WorldgenPlaceUsefulDropChainMaybe(nZoneId, a2, nOrder, a7) == 1)
+                            {
+                                goalTileList.SetAtGrow(goalTileList.GetSize(), nPuz);
+                                WorldgenAddZoneEntry(nItem, nOrder);
+                                return nZoneId;
+                            }
+                        }
+                    }
+                }
+                break;
+            case ZONE_TYPE_FIND_USEFUL_BUILDING:
+                if ((pZone->type == ZONE_TYPE_FIND_USEFUL_BUILDING ||
+                     pZone->type == ZONE_TYPE_FIND_THE_FORCE) &&
+                    WorldgenPlaceUsefulObjectMaybe(nZoneId, a4, nOrder) == 1)
+                    return nZoneId;
+                break;
+            }
+        }
+        nPos++;
+        if (nPos >= nCount)
+            bDone++;
+    } while (bDone == 0);
+    return 0xffff;
 }
 
 // FUNCTION: YODA 0x0041f830

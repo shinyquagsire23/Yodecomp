@@ -440,7 +440,7 @@ Zone::Zone(short w, short h)
     tempVar = 0;
     globalVar = -1;
     randVar = -1;
-    zoneUnk846 = -1;
+    planet = -1;
 }
 
 // FUNCTION: YODA 0x00405300  (compiler-generated scalar-deleting destructor ??_GZone -- MATCH, no source)

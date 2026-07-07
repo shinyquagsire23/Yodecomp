@@ -186,7 +186,8 @@ public:
     int  WorldgenFillQuestItemSpot(short zoneId, short itemId); // 0x0041c580
     int  WorldgenFillSpawn(short zoneId, short itemId);  // 0x0041c730
     int  WorldgenPopulateGoalZone(short zoneId, short iA, short iB,
-                                  short nOrder, int a5);  // 0x0041c8f0
+                                  short nOrder, short a5);  // 0x0041c8f0 (a5 unread in body;
+                                                            // caller pushes it un-widened => short)
     int  WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx,
                                            short nOrder, short sel); // 0x0041cbe0
     int  WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal,
@@ -194,7 +195,8 @@ public:
     int  WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal,
                                          unsigned short itemId);  // 0x0041cf10
     int  WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx,
-                                            int nOrder, short sel); // 0x0041d0c0
+                                            short nOrder, short sel); // 0x0041d0c0 (nOrder unread
+                                                            // in body; caller pushes un-widened)
     int  WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId,
                                         short nOrder);       // 0x0041d260
     int  WorldgenAssignTransitItemMaybe(short zoneId, short nOrder,
@@ -208,8 +210,12 @@ public:
     void AddPlacedZoneId(short zoneId);                  // 0x0041d920
     int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
-    unsigned short PlaceQuestNode(short nType, int a2, int a3, int a4,
-                                  int a5, short nOrder, short a7);  // 0x0041f120 (this TU, later)
+    int  WorldgenSelectPuzzle(short nItem, short nItem2, short nType,
+                              int bFirst);           // 0x0041eab0 (this TU, later; Ghidra:
+                                                     // WorldgenSelectPuzzleMaybe. nItem2/bFirst
+                                                     // unread in the body; widths = caller-side guess)
+    unsigned short PlaceQuestNode(short nType, short a2, short a3, short a4,
+                                  short a5, short nOrder, short a7);  // 0x0041f120
     int  CheckZoneItemsAvailable(short zoneId);          // 0x0041f830
     void WorldgenCollectZoneRefs(short zoneId);          // 0x0041f8e0
     int  Generate(unsigned int nSeed);                   // 0x0041f960 (this TU, later)

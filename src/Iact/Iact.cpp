@@ -34,7 +34,7 @@ void Zone::ReadIzon(CFile *pFile)
     pFile->Read(&height, 2);
     pFile->Read(&type, 4);
     pFile->Read(&globalVar, 2);
-    pFile->Read(&zoneUnk846, 2);
+    pFile->Read(&planet, 2);
     for (i = 0; i < width; i++)
         pFile->Read(&tiles[i * 54], height * 6);
 }
@@ -54,7 +54,7 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
         pFile->Read(&zoneUnk83c, 4);
         pFile->Read(&zoneUnk840, 4);
         pFile->Read(&globalVar, 2);
-        pFile->Read(&zoneUnk846, 2);
+        pFile->Read(&planet, 2);
         for (i = 0; i < width; i++)
             pFile->Read(&tiles[i * 54], height * 6);
     }
@@ -130,7 +130,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
         pFile->Write(&zoneUnk83c, 4);
         pFile->Write(&zoneUnk840, 4);
         pFile->Write(&globalVar, 2);
-        pFile->Write(&zoneUnk846, 2);
+        pFile->Write(&planet, 2);
         for (i = 0; i < width; i++)
             pFile->Write(&tiles[i * 54], height * 6);
     }

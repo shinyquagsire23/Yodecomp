@@ -208,7 +208,7 @@ public:                              // +0x00 = CObject vtable
     int            zoneUnk83c;       // +0x83c  saved-state dword (ReadSavedState)
     int            zoneUnk840;       // +0x840  saved-state dword
     short          globalVar;        // +0x844
-    short          zoneUnk846;       // +0x846
+    short          planet;           // +0x846  planet this zone belongs to (== World.currentPlanet)
 
     Zone(short w = 18, short h = 18);                       // 0x00405150
     virtual ~Zone();                                        // 0x004054d0

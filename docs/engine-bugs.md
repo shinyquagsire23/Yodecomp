@@ -113,6 +113,20 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
 - **Reproduced:** `src/Worldgen/Worldgen.cpp` WorldgenPlaceItemForLockChainMaybe
   (`RemoveZoneEntry2(item1a);` twice, `// sic:` comment).
 
+### 12. `World::PlaceQuestNode` — the ENEMY_TERRITORY teleporter scan discards its result
+
+- **Where:** 0x41f2a1–0x41f2cb (the `case 1:` arm of the placement switch, genSkipTeleCheck != 0
+  branch).
+- **What:** when the teleporter-distance check is enabled, the candidate zone is accepted
+  immediately if it has NO objects (`JLE 0x41f757` -> return zoneId). Otherwise the object list
+  is scanned for an existing `OBJ_TELEPORTER` (type 0xd) — but BOTH scan outcomes (found via
+  `JZ 0x41f737`, and exhausted via `JMP 0x41f737`) fall to the switch break and just skip the
+  zone. The intended "accept if no teleporter present" return is missing, so any
+  ENEMY_TERRITORY zone that contains objects can never be picked in this mode.
+- **Impact:** teleporter placement silently restricted to object-free zones; on maps without
+  such zones the placer exhausts its candidate list and returns 0xffff.
+- **Reproduced:** `src/Worldgen/Worldgen.cpp` PlaceQuestNode (`// sic:` comment on the scan).
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's
