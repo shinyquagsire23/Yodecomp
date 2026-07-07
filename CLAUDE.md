@@ -286,7 +286,7 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v10 — Phase D: 63 markers; 14.86% exact, 48.72% transcribed)
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
 **State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
 14.86% exact + 33.86% partial = 48.72% transcribed. Session commits: 8d8402b (gap + queries +
 5 placers + enums), then the World.h consolidation commit. Worldgen exact-count breathes with
@@ -334,6 +334,41 @@ Zone.type/ZoneObj.type/Tile.flags typed with them; decompiles now print OBJ_DOOR
 GOTCHA: modify_struct_field_type clobbers the field NAME — restore with modify_struct_field
 using field_name="offset:0xN". HTTP writes need JSON bodies (form-POST returns "address is
 required"); key is "function_address" for renames, "address" for plate comments.
+
+**✅ GHIDRA WORLD-STRUCT SYNC COMPLETE (v10-FINAL — do not redo):** the Ghidra `World`
+(0x33c0) now mirrors Worldgen.h exactly: m_bModified@0x44, the full 0x54-0x7c block
+(score/unk74/timeBase/timeOffset...), **tiles/zones/inventory/characters/puzzles as real
+CObArrays** (the old exploded tileArray/zoneObjects/puzzles-as-Puzzle** fields are GONE —
+decompiles now render `(this->zones).m_pData[i]`, matching our GetAt-inline idiom),
+questItemsA/B (Maybe dropped — semantics proven), **uniqueRequiredItemsMaybe@0x234** (named
+from AssignTransitItem: one-shot dedup of single-IZAX required items; renamed in Worldgen.h/
+WorldDoc.h/Worldgen.cpp too — codegen-neutral, 26/62+4/6 verified), unk248@0x248, worldgen
+CObArray lists@0x25c/0x270, apZoneGrid Zone*[100]@0x2d0, apUiTiles Tile*[20]@0x460,
+**mapGrid/mapGridBackup/mapScratch as MapZone[100]/[100]/[4] @0x4b0/0x1900/0x2d50** (vptr-TRUE
+anchoring — Ghidra's MapZone was rebuilt to the ctor-proven layout: vftable@0, id@4,
+zoneType@8 typed with the ZoneType enum), pSysColorTable@0x326c, 3 RECTs@0x3274, and the whole
+0x32a4-0x33b0 tail. GameView struct: NOT touched this pass (Phase-E prep as planned).
+
+**⚠ STRUCT-EDIT GOTCHAS learned the hard way (v10-FINAL):**
+- **`recreate_struct` force IGNORES field offsets** (packs sequentially from 0) AND its
+  naming filter auto-prefixes (id→nId, score→nScore). NEVER use it for offset-precise
+  structs. **`remove_struct_field` on packed structs DELETES the bytes and SHIFTS everything
+  after** (it silently shrank World 13248→11770 mid-edit).
+- **The reliable tool is `run_script_inline`** (POST JSON key `"code"`, JAVA source injected
+  into a GhidraScript): `Structure.deleteAll(); growStructure(size)` (deleteAll leaves a
+  notional length-1 — re-grow to target), then `replaceAtOffset(off, dt, len, name, comment)`
+  per field. Honors offsets and exact names. Old broken *.java files in ~/ghidra_scripts
+  produce compile-error NOISE in every run's output — ignore them, check for your println.
+- **Force-recreating a struct broke ~24 World-namespace functions' conventions** (this-typing
+  degraded to __fastcall(int)); swept back to __thiscall via script over
+  fm.getFunctions + setCallingConvention, then cleared leftover spurious EDX params on the
+  void methods. CreateObject 0x419ed0 / FUN_00419f50 are genuinely __stdcall DYNCREATE
+  statics — do NOT thiscall them. The 4 exception dtors were moved OUT of World into real
+  CException/CFileException class namespaces (rename_function_by_address does NOT parse `::`
+  — it had made flat "CException::Dtor" names inside World).
+- HTTP writes: JSON bodies only; rename key = "function_address", plate key = "address";
+  modify_struct_field addresses unnamed fields as field_name="offset:0xN" (its renamer also
+  auto-prefixes: probe→nProbe).
 
 **World.h consolidation (user directive, v10):** src/World/World.h DELETED — the scorers TU
 (src/World/World.cpp) now includes ../Worldgen/Worldgen.h (shared World facade; score/

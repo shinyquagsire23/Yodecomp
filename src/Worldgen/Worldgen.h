@@ -101,7 +101,7 @@ public:
     CWordArray  questItemsB;         // +0x01f8
     CWordArray  goalTileList;        // +0x020c
     CWordArray  placedZoneIds;       // +0x0220
-    CWordArray  unk234;              // +0x0234
+    CWordArray  uniqueRequiredItemsMaybe;              // +0x0234
     CWordArray  unk248;              // +0x0248
     CObArray    worldgenPendingZones; // +0x025c  worklist (push-front)
     CObArray    worldgenRefZones;    // +0x0270  dedup set (WorldgenZoneEntry*)

@@ -947,11 +947,11 @@ int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrd
 // `if (zoneId < 0) return 0;` emits the shared dtor+return-0 block as its FALL-THROUGH and
 // every later `return 0` cross-jumps back to it (write guards as separate early returns,
 // NOT nested ifs, in EH functions). Residual: bIn-zero placement + a reg double-swap in the
-// unk234 dedup block (decl-order probe made it worse -- reverted). Joint pass.]
+// uniqueRequiredItems dedup block (decl-order probe made it worse -- reverted). Joint pass.]
 // Transit-zone item assignment (quest-path cases 2-7): pick a random not-yet-placed item from
 // the zone's cobArray4 (sel==0) or cobArray5, push it onto the worklist (priority 5 for
 // Zone.type==6, else nOrder) and register it; if the zone's IZAX lists exactly ONE required
-// item, that item is deduped through the one-shot list @0x234 — a repeat aborts with 0.
+// item, that item is deduped through uniqueRequiredItemsMaybe @0x234 — a repeat aborts with 0.
 int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
 {
     CWordArray paItems;
@@ -1007,14 +1007,14 @@ int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
     {
         unsigned short first = pZone->genCandidateA.GetAt(0);
         int bIn = 0;
-        int nUsed = unk234.GetSize();
+        int nUsed = uniqueRequiredItemsMaybe.GetSize();
         int k = nUsed;
         if (k > 0)
         {
             int i = 0;
             do
             {
-                if (unk234.GetAt(i) == first)
+                if (uniqueRequiredItemsMaybe.GetAt(i) == first)
                     bIn = 1;
                 i++;
                 k--;
@@ -1022,7 +1022,7 @@ int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
         }
         if (bIn != 0)
             return 0;
-        unk234.SetAtGrow(nUsed, first);
+        uniqueRequiredItemsMaybe.SetAtGrow(nUsed, first);
     }
     if (pZone->type == ZONE_TYPE_FROM_ANOTHER_MAP)
         WorldgenPushZoneEntry(item, 5);
@@ -1658,7 +1658,7 @@ int World::WorldgenPlacePuzzles(short *paPlanGrid)
         } while (nLeft != 0);
     }
     worldgenPendingZones.SetSize(0, -1);
-    unk234.SetSize(0, -1);
+    uniqueRequiredItemsMaybe.SetSize(0, -1);
 
     int bRetry;
     int nBanned;
