@@ -165,26 +165,123 @@ public:
     int          bDropOutsideViewMaybe; // +0x30c
                                      // sizeof 0x310
 
-    // ---- methods defined in the doc TU's tail block (Worldgen TU, 0x426c40-0x429150) ----
-    virtual void OnInitialUpdate();                       // 0x00426c40 (CView override)
-    void DrawDirectionArrows(CDC *pDC);                   // 0x004270f0
+    // ============================================================================
+    // Method decl set reconstructed in Phase E (v16) — THE DIAL. Sources:
+    //  * virtual overrides: GameView vtable (0x44b638) diffed vs base CView vtable
+    //    (0x44d4ac) — only 6 slots differ (dtor, PreCreateWindow, OnInitialUpdate,
+    //    OnActivateView, OnUpdate, OnDraw); GetRuntimeClass/GetMessageMap/CreateObject
+    //    come from the DYNCREATE + message-map macros, not hand decls.
+    //  * afx_msg handlers + their MFC-standard signatures: message map @0x44b240
+    //    (GetMessageMap 0x408570). Declared in //{{AFX_MSG in message-MAP order.
+    //  * plain helpers: per-function disasm sweep (widths read from call-site pushes).
+    //    Ones marked (sig?) had their param widths inferred, not yet byte-proven —
+    //    refine during transcription. Ordered by .text address.
+    // NOTE ON THE DIAL: this is an intermediate point, NOT the fixed point. The exact
+    // count in src/Worldgen WILL breathe as this set fills in — that's expected
+    // (roadmap G1 resolves it). Do not grind per-function residuals against this.
+    // ============================================================================
+    DECLARE_DYNCREATE(GameView)                           // CreateObject 0x4084f0 / GetRuntimeClass 0x408560
+protected:
+    GameView();                                           // 0x00408710 (protected, DYNCREATE ctor)
+
+public:
+    // ---- Operations / view helpers (GameView TU, in .text order) ----
+    static UINT MusicThreadProcMaybe(void *pParam);       // 0x00408590 (AfxBeginThread proc)
+    void PlaySound(int nSoundId);                          // 0x00409060
+    void ForwardHScrollToInvMaybe(UINT nSBCode, UINT nPos, CScrollBar *pBar); // 0x00409340
+    int  DrawZoneCell(short x, short y);                   // 0x00409460
+    void DrawZoneCellRect(int x1, int y1, int x2, int y2); // 0x004095d0
+    void DrawWholeZone();                                  // 0x00409610
+    int  ZoneTransitionStep(short nZoneId, short nStep);   // 0x00409650
+    int  WorldEntryStepMaybe(short nZoneId, short nStep);  // 0x00409c10
+    void DrawGameArea(CDC *pDC);                           // 0x0040a200
+    void BlitTile(short y, short x, int nUnused, Tile *pTile); // 0x0040a320 (sig?)
+    void DrawTileAt(short x, short y, short frame);        // 0x0040a3a0
+    static int IsUsableTileMaybe(short tileId);            // 0x0040a620 (__cdecl static)
+    void FireWeaponStep(int nStep);                        // 0x0040a710
+    void DrawEntities();                                   // 0x0040b160
+    short FindEntityAt(int x, int y);                      // 0x0040b210
+    void Tick();                                           // 0x0040b270 (10.8KB frame loop)
+    void StepDetonatorEffect();                            // 0x0040e400
+    int  ApplyHotspotCamera(ZoneObj *pObj);               // 0x0040e500
+    int  TransitionZoneScript(int nUnused, int nZoneId);   // 0x0040e750 (sig?)
+    int  TransitionZoneXWing(ZoneObj *pObj);              // 0x0040e7c0
+    void TransitionZoneDoor(ZoneObj *pDoor);              // 0x0040e9d0
+    void ReenableHotspotObjects();                        // 0x0040ebe0
+    void DrawObjects();                                   // 0x0040ec30
+    void DrawMap();                                       // 0x0040ed90
+    void DrawText(CDC *pDC);                              // 0x0040f060
+    void ShowWinMessage(int x, int y, int dx, int dy);   // 0x0040f4b0
+    int  ClassifyTile(int x, int y);                     // 0x0040fca0
+    void OnDragItem(int x, int y, Tile *pTile);          // 0x004102d0
+    void ScrollZoneTransition();                         // 0x00411180
+    void SoundInit();                                    // 0x00411520
+    void UpdateDragCursor(int bClear);                   // 0x00412cc0
+    void EmptyFrameHookMaybe();                          // 0x00413be0 (real but empty stub, called from OnTimer)
+    void SoundFlush();                                   // 0x00413bf0
+    void RedrawPlayerCellMaybe();                        // 0x00413dd0
+    void OnBumpTile(int dx, int dy);                     // 0x00413df0
+    void UpdatePlayerWalkFrame();                        // 0x004150a0
+    void CheckCheat();                                   // 0x00415820
+    void CyclePalette();                                 // 0x00415af0
+    void ConfirmExit();                                  // 0x00416030
+    // tail block (doc TU, 0x426c40-0x429150; transcribed in src/Worldgen)
+    void DrawDirectionArrows(CDC *pDC);                  // 0x004270f0
     int  ShowTextDialog(CString &strText, int a, int b, int c); // 0x00427310
     void DrawHealthDial(CDC *pDC);                        // 0x00427490
     void AddHealth(int nDelta);                           // 0x00427690
     void DrawHealthNeedle(CDC *pDC);                      // 0x004278a0
-    afx_msg void OnCmdMinimize();                         // 0x00428aa0
-    void DrawWeaponBox(CDC *pDC);                         // 0x00428ac0
-    void DrawWeaponIcon(CDC *pDC);                        // 0x00428c40
-    void BlitViewportDither();                            // 0x00428e30
-    virtual BOOL PreCreateWindow(CREATESTRUCT &cs);       // 0x00428f30 (CWnd override)
-    void AddItemToInv(Tile *pTile);                       // 0x00428f50
     void UseWeapon(int x, int y, int dx, int dy, int nStep); // 0x00427d20
     void DetonateAdjacentTiles(int x, int y);             // 0x00428680
-    int  DrawZoneCell(short x, short y);                  // 0x00409460 (GameView TU head)
-    // ---- cross-TU (GameView TU / its own little TUs) ----
-    void PlaySound(int nSound);                           // 0x00409060 (GameView TU head)
-    void SoundInit();                                     // 0x00411520 (GameView TU)
-    void RemoveItem(Tile *pTile);                         // 0x00429150 (past this TU's end)
+    void DrawWeaponBox(CDC *pDC);                          // 0x00428ac0
+    void DrawWeaponIcon(CDC *pDC);                         // 0x00428c40
+    void BlitViewportDither();                            // 0x00428e30
+    void AddItemToInv(Tile *pTile);                       // 0x00428f50
+    void RemoveItem(Tile *pTile);                         // 0x00429150
+
+    // ---- Overrides (ClassWizard virtuals; address order) ----
+    virtual void OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeactiveView); // 0x00408df0
+    virtual void OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint); // 0x00408e70
+    virtual void OnDraw(CDC *pDC);                         // 0x00409110
+    virtual void OnInitialUpdate();                       // 0x00426c40
+    virtual BOOL PreCreateWindow(CREATESTRUCT &cs);       // 0x00428f30
+
+    // ---- Implementation ----
+protected:
+    virtual ~GameView();                                  // 0x00408c60 (ScalarDtor 0x408c40)
+
+    // ---- Message handlers (//{{AFX_MSG order == BEGIN_MESSAGE_MAP @0x44b240) ----
+    //{{AFX_MSG(GameView)
+    afx_msg void OnCmdMinimize();                         // 0x00428aa0  WM_COMMAND 0x8001
+    afx_msg void OnLButtonDown(UINT nFlags, CPoint point); // 0x00411730
+    afx_msg void OnLButtonUp(UINT nFlags, CPoint point);   // 0x00412250
+    afx_msg BOOL OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message); // 0x004131a0
+    afx_msg void OnMouseMove(UINT nFlags, CPoint point);   // 0x00413580
+    afx_msg BOOL OnEraseBkgnd(CDC *pDC);                   // 0x00413b20
+    afx_msg void OnRButtonDown(UINT nFlags, CPoint point); // 0x00413c10
+    afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags); // 0x004150f0
+    afx_msg void OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);   // 0x00415a50
+    afx_msg void OnTimer(UINT nIDEvent);                   // 0x0040d470
+    afx_msg void OnDestroy();                              // 0x00415ac0
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00415ff0
+    afx_msg void OnAppExit();                              // 0x00416110  ID_APP_EXIT
+    afx_msg void OnCmdDifficulty();                        // 0x00416120  cmd 0x8005
+    afx_msg void OnUpdateDifficultyUi(CCmdUI *pCmdUI);     // 0x004165b0
+    afx_msg void OnTogglePause();                          // 0x00416220  cmd 0x8002
+    afx_msg void OnUpdatePauseUi(CCmdUI *pCmdUI);          // 0x004162a0
+    afx_msg void OnCmdGameSpeed();                         // 0x00416310  cmd 0x800c
+    afx_msg void OnUpdateGameSpeedUi(CCmdUI *pCmdUI);      // 0x00416460
+    afx_msg void OnCmdWorldSizeMaybe();                    // 0x004164d0  cmd 0x800d (demo-disabled)
+    afx_msg void OnUpdateWorldSizeUi(CCmdUI *pCmdUI);      // 0x004165a0
+    afx_msg void OnCmdStatsMaybe();                        // 0x00416620  cmd 0x800e (demo-disabled)
+    afx_msg void OnUpdateStatsUi(CCmdUI *pCmdUI);          // 0x00416800
+    afx_msg void OnDialogCloseBtn();                       // 0x00416a60  BN 0x1389
+    afx_msg void OnDialogDownBtnNop();                     // 0x00416a80  BN 0x138a
+    afx_msg void OnDialogUpBtnNop();                       // 0x00416a70  BN 0x138b
+    afx_msg HBRUSH OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor); // 0x00416a90  WM_CTLCOLOR
+    afx_msg void OnChar(UINT nChar, UINT nRepCnt, UINT nFlags); // 0x00416ae0
+    //}}AFX_MSG
+    DECLARE_MESSAGE_MAP()
 };
 
 // TextDialog (sizeof 0xc8): the modal in-game text/dialogue box. NOT MFC-derived (its dtor
