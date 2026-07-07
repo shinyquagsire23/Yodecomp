@@ -283,8 +283,9 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
 - **Agents for RE sweeps, main thread for matching.** Reader-analysis naming sweeps parallelize well
   (see the MapEntity/Puzzle sweep); matching iterations don't.
 - **Milestones** (progress.py %exact + transcribed): 7.02 % after A; 13.52 % mid-D (v7);
-  **59.54 % transcribed / 13.78 % exact late-D (2026-07-06 v12)**; ~55 %
-  after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
+  **59.54 % transcribed / 13.78 % exact late-D (2026-07-06 v12)**;
+  **73.57 % transcribed / 15.14 % exact, doc TU fully transcribed (2026-07-06 v14)**;
+  ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
 ### ⏭ NEXT SESSION PICKUP (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers; 15.14% exact + 58.43% partial = 73.57% transcribed; THE ENTIRE WORLDGEN TU IS TRANSCRIBED)
