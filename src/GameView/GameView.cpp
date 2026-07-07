@@ -250,6 +250,91 @@ void GameView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeac
 }
 
 // -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00408e70
+// GameView::OnUpdate — partial-repaint dispatcher keyed on lHint: 0=full RedrawWindow,
+// 1=item text, 2=weapon box+icon, 3=repaint the game area through a temp DC, 4=health
+// dial+needle, 399=first-time init (bind doc, start sound+music, allocate the two
+// drag-save bit buffers sized to the screen depth — OOM aborts via THROW_LAST/AfxAbort).
+// EFFECTIVE: the case-399 body + the hand-expanded TRY/CATCH_ALL(e)+THROW_LAST+dead-AfxAbort
+//   OOM path (engine-bug #7) are BYTE-IDENTICAL to the original; the dispatch cases and all
+//   calls match too. Residual is the block-layout open problem: the original sinks the single
+//   function epilogue to the physical END (after the shared ReleaseDC tail) and jmps every case
+//   to it, while our compile emits the epilogue right after case 0 and cross-jumps the rest —
+//   which also shifts how the shared ReleaseDC tail is materialized. Same unmapped mechanism as
+//   WorldDoc::GetLocatorIcon; not source-steerable (flat if/else-if vs nested both ~285). G1.
+void GameView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
+{
+    if (lHint == 0)
+    {
+        RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
+    }
+    else if (lHint == 1)
+    {
+        DrawText(0);
+    }
+    else if (lHint == 2)
+    {
+        DrawWeaponBox(0);
+        DrawWeaponIcon(0);
+    }
+    else
+    {
+        HWND hWnd;
+        HDC  hdc;
+        if (lHint == 3)
+        {
+            hdc = ::GetDC(m_hWnd);
+            CDC *pDC = CDC::FromHandle(hdc);
+            CPalette *pOld = pDC->SelectPalette(pWorld->pPalette, FALSE);
+            DrawGameArea(pDC);
+            pDC->SelectPalette(pOld, FALSE);
+            hdc = pDC->m_hDC;
+            hWnd = m_hWnd;
+        }
+        else
+        {
+            if (lHint == 4)
+            {
+                DrawHealthDial(0);
+                DrawHealthNeedle(0);
+                return;
+            }
+            if (lHint != 399)
+                return;
+            if (pWorld == 0)
+                pWorld = (World *)m_pDocument;
+            if (soundSession == 0)
+            {
+                SoundInit();
+                if (pWorld->nMusicEnabled == 1)
+                    PlaySound(0x3d);
+            }
+            nTransitionStep = 0;
+            HDC hdcScreen = ::GetDC(NULL);
+            if (hdcScreen == 0)
+                return;
+            int nBytes = GetDeviceCaps(hdcScreen, BITSPIXEL) / 8 << 10;
+            TRY {
+                paDragSaveBits = new BYTE[nBytes];
+                paDragSaveBits2 = new BYTE[nBytes];
+            }
+            }
+            catch (CException *e)
+            {
+                _afxExceptionLink.m_pException = e;
+                AfxMessageBox(0xe01e, 0, (UINT)-1);
+                THROW_LAST();
+                AfxAbort();                        // sic: dead code after THROW_LAST (#7)
+            }
+            }
+            hWnd = NULL;
+            hdc = hdcScreen;
+        }
+        ::ReleaseDC(hWnd, hdc);
+    }
+}
+
+// -----------------------------------------------------------------------------
 // FUNCTION: YODA 0x00409060
 // GameView::PlaySound — gate the effect by sound/music-enabled flags (ids 0x37 & 0x3a-0x3f
 // are music, gated by nMusicEnabled; others by nSoundEnabled; id 3 muted while the walk-sound
@@ -369,6 +454,15 @@ void GameView::OnDraw(CDC *pDC)
             }
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409340
+// InvScrollBar::OnHScroll — the inventory bar reuses its vertical handler for horizontal
+// scroll (GameView::OnHScroll forwards WM_HSCROLL here). Plain tail-forward (no frame).
+void InvScrollBar::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+    OnVScroll(nSBCode, nPos, pScrollBar);
 }
 
 // -----------------------------------------------------------------------------

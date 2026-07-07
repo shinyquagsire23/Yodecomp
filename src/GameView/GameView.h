@@ -52,6 +52,7 @@ public:
     int  scrollMax;                  // +0x3c
     int  scrollPos;                  // +0x40
     InvScrollBar(GameView *pView, RECT *pRect);           // 0x004085c0 (Ghidra: CtorCreateMaybe)
+    void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409340 (fwd->OnVScroll)
     //{{AFX_MSG(InvScrollBar)
     afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409360
     //}}AFX_MSG
@@ -193,7 +194,7 @@ public:
     // ---- Operations / view helpers (GameView TU, in .text order) ----
     static UINT MusicThreadProcMaybe(void *pParam);       // 0x00408590 (AfxBeginThread proc)
     void PlaySound(int nSoundId);                          // 0x00409060
-    void ForwardHScrollToInvMaybe(UINT nSBCode, UINT nPos, CScrollBar *pBar); // 0x00409340
+    // (0x00409340 is InvScrollBar::OnHScroll, not a GameView method — see that class above)
     int  DrawZoneCell(short x, short y);                   // 0x00409460
     void DrawZoneCellRect(int x1, int y1, int x2, int y2); // 0x004095d0
     void DrawWholeZone();                                  // 0x00409610
