@@ -150,7 +150,7 @@ public:
     short       startItem2Maybe;     // +0x2e3a
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
     int         bStartingGameMaybe;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
-    char        _pad2e44[4];         // +0x2e44
+    int         bWeaponHitPendingMaybe; // +0x2e44  FireWeaponStep zeroes per shot fired
     int         nWeaponHitXMaybe;    // +0x2e48  (Ghidra names)
     int         nWeaponHitYMaybe;    // +0x2e4c
     int         goalItemTileId;      // +0x2e50

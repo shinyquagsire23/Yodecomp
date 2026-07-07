@@ -1169,3 +1169,411 @@ int GameView::IsUsableTileMaybe(short tileId)
     }
     return 1;
 }
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x0040a710
+// GameView::FireWeaponStep — one frame of the weapon-fire animation, driven by
+// OnTimer mode 8 with nStep = nFireStep 0..3. The player's cell comes from the
+// camera (cameraX/32, cameraY/32). Step 0 plays the fire sound and pays ammo
+// (weapon tiles 0x1fe "The Force" and 0x12 lightsaber are free; the five ammo
+// counters 0x334c.. map to weapon tiles 0x1ff/0x200/0x201/0x204/0x205). Each step
+// draws the muzzle tile at the player, the beam tile one cell ahead, and walks
+// the projectile tile outward (alternating animation via nStep % 2 + 1); the
+// blaster (0x1ff) leaves its impact cell in nWeaponHitX/YMaybe, other weapons
+// stop flight (nFireStep = 4) on a usable/blocking overlay tile. After drawing,
+// the viewport is flushed and UseWeapon resolves hits; an emptied weapon is
+// deselected, removed from inventory, re-armed from a spare in the inventory
+// (with per-weapon ammo refill + sound) or falls back to the lightsaber
+// character (frames[7] == 0x12).
+// NOTE the X (horizontal) and Y (vertical) projectile arms are genuinely
+// ASYMMETRIC in the original: the X arm duplicates the draw-triple in all three
+// no-stop paths, the Y arm shares one copy behind skip-gotos; the Y arm also
+// tests (flags & 0x60000) before IsUsableTileMaybe where the X arm combines
+// them. Faithful dev code — do not "clean up".
+//
+// EFFECTIVE MATCH (820 vs 828 insns, ~97% identical; part of the align score is
+// the 7-entry ammo jump-table DATA at the COMDAT end misaligning as insns).
+// Structure proven: both dir arms, all draw triples, the erase/beam blocks, the
+// dead-weapon rescan loops and the refill switch are insn-identical up to one
+// consistent register rotation (this: EBX↔ESI etc.). Cracks that landed it:
+// int nWeaponTile local (movsx+dword slot) with the CONDITIONS re-mentioning
+// pWeapon->frames[7] (16-bit cmps); nStep == 0 duplicated into BOTH head
+// conditions (the binary jump-threads them); t != -1 arms FIRST everywhere;
+// the X non-blaster stop test is `IsUsable && bBlocked == 0` with an int
+// bBlocked set from a chained GetTileData(t)->flags test; refill cases assign
+// pWeapon->unk48 in BOTH if/else arms (cross-jumped); `unk48 <= 0` (zero-reg
+// cmp) not `< 1`. Parked residuals (probed, not source-steerable):
+//  * OPEN CODEGEN AXIS — the original tests tile flags as `mov eax,[pT+0x404];
+//    test eax,0x60000` (4 sites) where every spelling we tried (direct field,
+//    pT local, flags local, outer-scope flags, (int) cast, chained call)
+//    byte-narrows to `test byte [pT+0x406],6`. Detonate's original DOES use the
+//    narrow form for `& 0x20000` — so the wide form here is a real source shape
+//    we haven't found. Related: the compiler VN-eliminates our bBlocked into a
+//    spilled flags copy at the X non-blaster site.
+//  * erase-block `dir * nStep + x`: orig folds nStep as an imul-mem operand and
+//    sign-tests via the add (js); ours materializes nStep and uses lea+test.
+//  * 1-insn scheduling drifts at the cleanup GetDC head and the two scan-loop
+//    heads; backedge cmp directions (jl vs jg — canonicalization, both source
+//    spellings identical); jump-table byte differences from reloc masking.
+void GameView::FireWeaponStep(int nStep)
+{
+    int x = pWorld->cameraX / 32;
+    int y = pWorld->cameraY / 32;
+    int w = pWorld->currentZone->width;
+    int ty = nFireDirY + y;
+    int tx = nFireDirX + x;
+    Character *pWeapon = pWorld->currentWeapon;
+    if (pWeapon == 0)
+        return;
+    bBusy = 1;
+    int nWeaponTile = pWeapon->frames[7];
+    if (nStep == 0 && (pWeapon->frames[7] == 0x1fe || pWeapon->frames[7] == 0x12))
+    {
+        PlaySound(pWeapon->weaponCharId);
+        DrawWeaponIcon(0);
+    }
+    else if (nStep == 0 && pWeapon->unk48 > 0)
+    {
+        PlaySound(pWeapon->weaponCharId);
+        pWeapon->unk48--;
+        DrawWeaponIcon(0);
+        pWorld->bWeaponHitPendingMaybe = 0;
+        switch (nWeaponTile)
+        {
+        case 0x1ff:
+            pWorld->weaponState[0]--;
+            break;
+        case 0x200:
+            pWorld->weaponState[1]--;
+            break;
+        case 0x201:
+            pWorld->weaponState[2]--;
+            break;
+        case 0x204:
+            pWorld->weaponState[3]--;
+            break;
+        case 0x205:
+            pWorld->nCurrentAmmoMaybe--;
+            break;
+        }
+    }
+    Tile *pBeamH = (Tile *)pWeapon->GetProjectileTile(nStep % 2 + 1, nFireDirX, nFireDirY,
+                                                      1, &pWorld->tiles);
+    Tile *pBeamV = (Tile *)pWeapon->GetProjectileTile(nStep % 2 + 1, nFireDirX, nFireDirY,
+                                                      2, &pWorld->tiles);
+    Tile *pProj = (Tile *)pWeapon->GetProjectileTile(nStep % 2 + 1, nFireDirX, nFireDirY,
+                                                     0, &pWorld->tiles);
+    if (nFireStep < 3)
+        DrawTileAt((short)x, (short)y, 0);
+    if (nFireDirX != 0)
+    {
+        if (tx >= 0 && tx < w)
+            DrawZoneCell((short)tx, (short)y);
+    }
+    else if (nFireDirY != 0)
+    {
+        if (ty >= 0 && ty < w)
+            DrawZoneCell((short)x, (short)ty);
+    }
+    if (nStep < 3)
+    {
+        BlitTile((short)y, (short)x, 1, pBeamH);
+        DrawTileAt((short)x, (short)y, 2);
+        if (nFireDirX != 0 && pBeamV != 0)
+        {
+            if (tx >= 0 && tx < w)
+            {
+                BlitTile((short)y, (short)tx, 1, pBeamV);
+                DrawTileAt((short)tx, (short)y, 2);
+            }
+        }
+        else if (nFireDirY != 0 && pBeamV != 0 && ty >= 0 && ty < w)
+        {
+            BlitTile((short)ty, (short)x, 1, pBeamV);
+            DrawTileAt((short)x, (short)ty, 2);
+        }
+    }
+    if (pProj != 0)
+    {
+        if (nStep > 0)
+        {
+            if (nFireDirX != 0)
+            {
+                int px = nFireDirX * nStep + x;
+                if (px >= 0 && w > px)
+                    DrawTileAt((short)px, (short)y, -1);
+            }
+            else if (nFireDirY != 0)
+            {
+                int py = nFireDirY * nStep + y;
+                if (py >= 0 && w > py)
+                    DrawTileAt((short)x, (short)py, -1);
+            }
+        }
+        if (nStep >= 0 && nStep < 3)
+        {
+            int dx = nFireDirX;
+            if (dx != 0)
+            {
+                int nx = (nStep + 1) * dx + x;
+                if (nx >= 0 && w > nx)
+                {
+                    if (pWeapon->frames[7] == 0x1ff)
+                    {
+                        short t = pWorld->currentZone->GetTile(nx - dx, y, 1);
+                        if (t == -1)
+                        {
+                            DrawTileAt((short)nx, (short)y, 0);
+                            DrawTileAt((short)nx, (short)y, 1);
+                            BlitTile((short)y, (short)nx, 1, pProj);
+                            DrawTileAt((short)nx, (short)y, 2);
+                            pWorld->nWeaponHitXMaybe = nx;
+                            pWorld->nWeaponHitYMaybe = y;
+                        }
+                        else
+                        {
+                            if ((pWorld->GetTileData(t)->flags & 0x60000) == 0)
+                            {
+                                DrawTileAt((short)nx, (short)y, 0);
+                                DrawTileAt((short)nx, (short)y, 1);
+                                BlitTile((short)y, (short)nx, 1, pProj);
+                                DrawTileAt((short)nx, (short)y, 2);
+                                pWorld->nWeaponHitXMaybe = nx;
+                                pWorld->nWeaponHitYMaybe = y;
+                            }
+                            else
+                            {
+                                nFireStep = 4;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        int bBlocked = 0;
+                        short t = pWorld->currentZone->GetTile(nx, y, 1);
+                        if (t != -1)
+                        {
+                            if (pWorld->GetTileData(t)->flags & 0x60000)
+                                bBlocked = 1;
+                            if (IsUsableTileMaybe(t) != 0 && bBlocked == 0)
+                            {
+                                nFireStep = 4;
+                            }
+                            else
+                            {
+                                DrawTileAt((short)nx, (short)y, 0);
+                                DrawTileAt((short)nx, (short)y, 1);
+                                BlitTile((short)y, (short)nx, 1, pProj);
+                                DrawTileAt((short)nx, (short)y, 2);
+                            }
+                        }
+                        else
+                        {
+                            t = pWorld->currentZone->GetTile(nx - nFireDirX, y, 1);
+                            if (t != -1)
+                            {
+                                if (IsUsableTileMaybe(t) == 0)
+                                {
+                                    DrawTileAt((short)nx, (short)y, 0);
+                                    DrawTileAt((short)nx, (short)y, 1);
+                                    BlitTile((short)y, (short)nx, 1, pProj);
+                                    DrawTileAt((short)nx, (short)y, 2);
+                                }
+                                else
+                                {
+                                    nFireStep = 4;
+                                }
+                            }
+                            else
+                            {
+                                DrawTileAt((short)nx, (short)y, 0);
+                                DrawTileAt((short)nx, (short)y, 1);
+                                BlitTile((short)y, (short)nx, 1, pProj);
+                                DrawTileAt((short)nx, (short)y, 2);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                int dy = nFireDirY;
+                if (dy != 0)
+                {
+                    int ny = (nStep + 1) * dy + y;
+                    if (ny >= 0 && w > ny)
+                    {
+                        if (pWeapon->frames[7] == 0x1ff)
+                        {
+                            short t = pWorld->currentZone->GetTile(x, ny - dy, 1);
+                            if (t == -1)
+                            {
+                                DrawTileAt((short)x, (short)ny, 0);
+                                DrawTileAt((short)x, (short)ny, 1);
+                                BlitTile((short)ny, (short)x, 1, pProj);
+                                DrawTileAt((short)x, (short)ny, 2);
+                                pWorld->nWeaponHitXMaybe = x;
+                                pWorld->nWeaponHitYMaybe = ny;
+                            }
+                            else
+                            {
+                                if ((pWorld->GetTileData(t)->flags & 0x60000) == 0)
+                                {
+                                    DrawTileAt((short)x, (short)ny, 0);
+                                    DrawTileAt((short)x, (short)ny, 1);
+                                    BlitTile((short)ny, (short)x, 1, pProj);
+                                    DrawTileAt((short)x, (short)ny, 2);
+                                    pWorld->nWeaponHitXMaybe = x;
+                                    pWorld->nWeaponHitYMaybe = ny;
+                                }
+                                else
+                                {
+                                    nFireStep = 4;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            short t = pWorld->currentZone->GetTile(x, ny, 1);
+                            if (t != -1)
+                            {
+                                Tile *pT = pWorld->GetTileData(t);
+                                unsigned int flags = pT->flags;
+                                int usable = IsUsableTileMaybe(t);
+                                if (flags & 0x60000)
+                                    goto cleanup;
+                                if (usable != 0)
+                                {
+                                    nFireStep = 4;
+                                    goto cleanup;
+                                }
+                            }
+                            else
+                            {
+                                t = pWorld->currentZone->GetTile(x, ny - nFireDirY, 1);
+                                if (t != -1 && IsUsableTileMaybe(t) != 0)
+                                {
+                                    nFireStep = 4;
+                                    goto cleanup;
+                                }
+                            }
+                            DrawTileAt((short)x, (short)ny, 0);
+                            DrawTileAt((short)x, (short)ny, 1);
+                            BlitTile((short)ny, (short)x, 1, pProj);
+                            DrawTileAt((short)x, (short)ny, 2);
+                        }
+                    }
+                }
+            }
+        }
+    }
+cleanup:
+    ;
+    int i = 0;
+    CDC *pDC = GetDC();
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    DrawGameArea(pDC);
+    pDC->SelectPalette(pOldPal, 0);
+    ReleaseDC(pDC);
+    UseWeapon(x, y, nFireDirX, nFireDirY, nStep);
+    if (pWeapon->unk48 <= 0 && pWeapon->frames[7] != 0x1fe && pWeapon->frames[7] != 0x12)
+    {
+        pWorld->currentWeapon = 0;
+        DrawWeaponBox(0);
+        DrawWeaponIcon(0);
+        Tile *pTile = pWorld->GetTileData(pWeapon->frames[7]);
+        RemoveItem(pTile);
+        int bFound = 0;
+        int nInv = pWorld->inventory.GetSize();
+        if (nInv > 0)
+        {
+            do
+            {
+                InvItem *pItem = (InvItem *)pWorld->inventory.GetAt(i);
+                if (pItem->pTile == pTile)
+                {
+                    pWorld->currentWeapon = pWeapon;
+                    switch (nWeaponTile)
+                    {
+                    case 0x1ff:
+                        if (pWorld->weaponState[0] > 0)
+                            pWeapon->unk48 = pWorld->weaponState[0];
+                        else
+                        {
+                            pWorld->weaponState[0] = 15;
+                            pWeapon->unk48 = pWorld->weaponState[0];
+                        }
+                        PlaySound(0x34);
+                        break;
+                    case 0x200:
+                        if (pWorld->weaponState[1] > 0)
+                            pWeapon->unk48 = pWorld->weaponState[1];
+                        else
+                        {
+                            pWorld->weaponState[1] = 30;
+                            pWeapon->unk48 = pWorld->weaponState[1];
+                        }
+                        PlaySound(0x20);
+                        break;
+                    case 0x201:
+                        if (pWorld->weaponState[2] > 0)
+                            pWeapon->unk48 = pWorld->weaponState[2];
+                        else
+                        {
+                            pWorld->weaponState[2] = 10;
+                            pWeapon->unk48 = pWorld->weaponState[2];
+                        }
+                        PlaySound(0x20);
+                        break;
+                    case 0x204:
+                        if (pWorld->weaponState[3] > 0)
+                            pWeapon->unk48 = pWorld->weaponState[3];
+                        else
+                        {
+                            pWorld->weaponState[3] = 15;
+                            pWeapon->unk48 = pWorld->weaponState[3];
+                        }
+                        break;
+                    case 0x205:
+                        if (pWorld->nCurrentAmmoMaybe > 0)
+                            pWeapon->unk48 = pWorld->nCurrentAmmoMaybe;
+                        else
+                        {
+                            pWorld->nCurrentAmmoMaybe = 15;
+                            pWeapon->unk48 = pWorld->nCurrentAmmoMaybe;
+                        }
+                        break;
+                    }
+                    DrawWeaponBox(0);
+                    DrawWeaponIcon(0);
+                    bFound = 1;
+                    break;
+                }
+                i++;
+            } while (nInv > i);
+        }
+        if (bFound == 0)
+        {
+            int j = 0;
+            int nChars = pWorld->characters.GetSize();
+            if (nChars > 0)
+            {
+                do
+                {
+                    Character *pChar = (Character *)pWorld->characters.GetAt(j);
+                    if (pChar->frames[7] == 0x12)
+                    {
+                        pChar->unk48 = 30;
+                        pWorld->currentWeapon = pChar;
+                        PlaySound(0x1f);
+                        break;
+                    }
+                    j++;
+                } while (nChars > j);
+            }
+            DrawWeaponBox(0);
+            DrawWeaponIcon(0);
+        }
+    }
+    bBusy = 0;
+}
