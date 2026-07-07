@@ -5089,8 +5089,7 @@ void World::OnNewWorld()
             CString str;
             str.LoadString(0xe01e);
             nFrameMode = 12;
-            ((CDocVtblSlot84 *)this)->Slot84();  // sic: 0-arg vcall of CDocument::GetFile's
-                                                 // slot, stack-unbalanced (engine-bugs.md #13)
+            OnCloseDocument();
             FatalAppExit(0, str);
         }
     }

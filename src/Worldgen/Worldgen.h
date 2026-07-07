@@ -80,24 +80,6 @@ public:                              // +0x00 vftable (0x44b050)
     virtual ~MapZone();                                   // 0x00401180
 };
 
-// Vtable-slot stub for OnNewWorld's sic 0-arg call of CDocument vtable slot +0x84
-// (= CDocument::GetFile's slot; see docs/engine-bugs.md #13). 33 dummy slots put
-// Slot84 at vtable offset +0x84; only the call shape matters, nothing is defined.
-class CDocVtblSlot84
-{
-public:
-    virtual void s00(); virtual void s04(); virtual void s08(); virtual void s0c();
-    virtual void s10(); virtual void s14(); virtual void s18(); virtual void s1c();
-    virtual void s20(); virtual void s24(); virtual void s28(); virtual void s2c();
-    virtual void s30(); virtual void s34(); virtual void s38(); virtual void s3c();
-    virtual void s40(); virtual void s44(); virtual void s48(); virtual void s4c();
-    virtual void s50(); virtual void s54(); virtual void s58(); virtual void s5c();
-    virtual void s60(); virtual void s64(); virtual void s68(); virtual void s6c();
-    virtual void s70(); virtual void s74(); virtual void s78(); virtual void s7c();
-    virtual void s80();
-    virtual void Slot84();           // vtable +0x84
-};
-
 // Canvas stub: only what this TU touches (real module: src/Canvas/, byte-matched).
 class Canvas
 {
