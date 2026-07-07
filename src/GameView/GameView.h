@@ -24,7 +24,8 @@ public:
 class Canvas
 {
 public:
-    char _pad[0x43c];                // no vptr; sizeof == 0x43c
+    HDC  hdc;                        // +0x000  memory DC (CreateCompatibleDC)
+    char _pad[0x438];                // no vptr; sizeof == 0x43c
     Canvas(int width, int height);                        // 0x00407df0 (Canvas TU's "Init" —
                                                           //  the guarded new-expr shape in
                                                           //  OnInitialUpdate proves ctor-hood)

@@ -163,6 +163,8 @@ enum ZoneType
     ZONE_TYPE_INTRO             = 9,
     ZONE_TYPE_FINAL_ITEM        = 10,
     ZONE_TYPE_MAP_START         = 11,
+    ZONE_TYPE_VICTORY_SCREEN    = 13,   // demo: zones[76] (GetVictoryZoneIndexMaybe)
+    ZONE_TYPE_LOSS_SCREEN       = 14,   // demo: zones[77] (GetLossZoneMaybe)
     ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK = 15,
     ZONE_TYPE_FIND_USEFUL_DROP  = 16,
     ZONE_TYPE_FIND_USEFUL_BUILDING = 17,

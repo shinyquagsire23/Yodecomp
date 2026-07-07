@@ -356,6 +356,9 @@ Written to be followable without prior context: each phase lists concrete steps 
   **89.09 % transcribed / 16.84 % exact — Phase E step 4: DrawEntities EXACT +
   FindEntityAt eff. + the 10.8KB Tick transcribed (align 3588→2202), 22/34 markers
   (2026-07-07 v20)**;
+  **92.19 % transcribed / 16.46 % exact — v21: OnTimer 0x40d470 transcribed (align 802) +
+  GetVictoryZoneIndex/GetLossZone MATCH in the scorers TU; exact% breathed from the
+  Worldgen.h decl adds (35→31, fixed-point rule) (2026-07-07 v21)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -393,9 +396,24 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v20 — Phase E step 4: Tick transcribed; 16.84% exact / 89.09% transcribed)
-**v20 session results (committed). src/GameView/GameView.cpp = 20 exact + 8 effective +
-6 COMDAT / 34 markers, contiguous 0x4084f0–0x40d470(excl).**
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v20+v21 — Tick + OnTimer transcribed; 16.46% exact / 92.19% transcribed)
+**v20+v21 session results (committed). src/GameView/GameView.cpp = 21 exact + 9 effective +
+6 COMDAT / 35 markers, contiguous 0x4084f0–0x40e400(excl). Plus scorers TU 6/8 (World.cpp
+gained GetVictoryZoneIndexMaybe 0x401a40 + GetLossZoneMaybe 0x401a60, both MATCH first
+compile — branchless demo-hardcoded zones[76]/[77] ternaries; decls added to Worldgen.h +
+ZONE_TYPE_VICTORY/LOSS_SCREEN enum values → the dial breathed Worldgen 35→31, WorldDoc 7→6,
+Records 25→24, GameData 11→13 — real decls, fixed-point rule, do NOT revert).**
+- **OnTimer 0x40d470 EFFECTIVE-WIP (1012/989 insns, align 802)** — the per-frame pump; full
+  autopsy in-source. Cracks that landed: duplicated `nTransitionStep == 0 && g_bReplayMode`
+  head condition; `default:` BEFORE `case 8:` in the reason switch; case-9 blink arms
+  blit-first; `> 7` scrollbar arm order; `<= 10` literals; camera zero via chained
+  `cameraX = cameraY = 0`. Parked: this-reload EDI↔EDX global role; per-case nFrameMode=3
+  copies cross-jump in ours (orig keeps 4 — the fire-block open family); import-pointer
+  caching (we cache ::SetScrollRange in EBX, orig calls through the import ×3). NEW GLOBALS:
+  g_pszFontName@0x456130 ("MS Sans Serif" char*, GameView TU data, read by OnTimer+DrawText);
+  Canvas stub in GameView.h gained hdc@0 (pWorld->pCanvas->hdc = the TextOut target).
+- g_bReplayMode==1 in mode 0xb calls pWorld->OnLoadWorld() THROUGH the 0x424fb0 jmp thunk —
+  the CLAUDE.md "loose end" thunk is just OnLoadWorld's ILT entry; source is a plain call.
 - **DrawEntities 0x40b160 EXACT** — countdown recipe (`int i=0; int n=nCount; do{...i++;n--;}
   while(n!=0)` under `if (nCount>=1)` + inner `if (n>0)` DOUBLE guard); the SetTile val arg
   needed `int nFrame = pChar->currentFrame;` between the calls (movsx-before-y/x-loads) with
@@ -432,14 +450,14 @@ Written to be followable without prior context: each phase lists concrete steps 
 - Literal-constant finds: `>= 6` (case-11 abs), `>= 14` (case-1 counter), `<=` in case-10's
   3-arm signs, `pEnt->timer <= 0` (weapon gate) — always mirror cmp-constant+jcc from disasm.
 
-**▶ START HERE (v21): more Tick polish is G1 fodder — move ON. Next in .text order:**
-1. **OnTimer/UpdateFrameMaybe 0x40d470** (the actual per-frame driver: Tick×5 + CyclePalette×6
-   + DrawGameArea×4 + win/lose via abortFrame; docs/game-logic.md has the frame-mode table),
-   then StepDetonatorEffect 0x40e400, ApplyHotspotCamera 0x40e500, TransitionZoneScript
-   0x40e750 (byte-prove its "(sig?)" unused arg1), TransitionZoneXWing 0x40e7c0,
-   TransitionZoneDoor 0x40e9d0, ReenableHotspotObjects 0x40ebe0, DrawObjects 0x40ec30.
-2. Tick leftovers for G1 (not now): fire-block placement, cmp-direction family, case-10 3-arm
-   jump-to-then (je vs jne), tail SetTile arg scheduling, loop-increment order, bTurned slot.
+**▶ START HERE (v22): continue GameView.cpp in .text order from 0x40e400:**
+1. StepDetonatorEffect 0x40e400, ApplyHotspotCamera 0x40e500, TransitionZoneScript 0x40e750
+   (byte-prove its "(sig?)" unused arg1), TransitionZoneXWing 0x40e7c0, TransitionZoneDoor
+   0x40e9d0, ReenableHotspotObjects 0x40ebe0, DrawObjects 0x40ec30, DrawMap 0x40ed90,
+   DrawText 0x40f060 (reads g_pszFontName), then onward toward OnKeyDown 0x4150f0.
+2. Tick/OnTimer leftovers for G1 (not now): fire-block/nFrameMode=3-copies placement family,
+   cmp-direction mirror, this-reload role, case-10 3-arm jump-to-then, arg-push scheduling,
+   import-pointer caching axis.
 3. **Open items (carried):** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0) PARKED;
    options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in this .cpp;
    World.unk50 → nCurrentZoneIdMaybe rename (Worldgen.h+WorldDoc.h+Ghidra together + 4-TU

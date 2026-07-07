@@ -289,6 +289,7 @@ public:
     void SetCurrentToIntroZone();                        // 0x00423d20
     void ReadStupCanvas(CFile *pFile);                   // 0x00423d60
     int  GetZoneIndex(Zone *pZone);                      // 0x00423dc0 (Ghidra: EnterZone)
+    void DrawPlayer();                                   // 0x0041a6d0 (WorldDoc TU)
     void DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt); // 0x00423df0
     void UpdateCamera();                                 // 0x00423f50
     afx_msg void OnNewWorld();                           // 0x00424450
@@ -313,6 +314,8 @@ public:
     int            CalcScoreFromCounter();               // 0x004016d0 (scorers TU)
     int            CalcSolvedScore();                    // 0x00401780 (scorers TU)
     int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
+    int            GetVictoryZoneIndexMaybe();           // 0x00401a40 (scorers TU)
+    Zone          *GetLossZoneMaybe();                   // 0x00401a60 (scorers TU)
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
     void SaveZoneRecursive(CFile *pFile, short zoneId);  // 0x004033b0 (GameData TU)
     void LoadZoneRecursive(CFile *pFile, short zoneId, int nArg); // 0x00403450 (GameData TU)

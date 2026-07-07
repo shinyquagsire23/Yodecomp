@@ -36,6 +36,7 @@ struct MIXPLAYPARAMS
 #pragma pack(pop)
 
 // --- module globals -----------------------------------------------------------
+char  *g_pszFontName = "MS Sans Serif";  // 0x00456130  (read by OnTimer + DrawText)
 int    g_bStopMusicThread;   // 0x00456134  set nonzero to end the pump loop
 HANDLE g_hWaveMixEvent;      // 0x00459454  pump-tick event
 int    g_dat459450;          // 0x00459450  cleared by the GameView ctor (music/sound related)
@@ -2901,5 +2902,438 @@ void GameView::Tick()
             } while (nCount > i);
         }
         bBusy = 0;
+    }
+}
+
+// FUNCTION: YODA 0x0040d470
+// GameView::OnTimer — ON_WM_TIMER, THE per-frame pump. Gate: nIDEvent must be
+// our timer (or the 0xabcd force value) and !bBusy. Difficulty smoothing
+// (counter converges on difficulty by halves), win/lose handling on
+// World.abortFrame (win: score + TextOut on the viewport canvas + profile
+// Count/HScore/LScore; lose: LCount++, swap to the loss zone), then the
+// frame-mode dispatch (see docs/game-logic.md): 1/4 idle palette, 2 play
+// (Tick + the 0x21-0x28 move-command decode -> OnBumpTile), 3 dialogue/idle
+// (Tick + walk frame + map + IactRun trigger 1), 5 modal wait, 6 zone
+// transition per nMapChangeReason, 7 post-transition (win counter / locator
+// blink), 8 weapon fire, 9 pickup blink, 0xb world entry (+ scrollbar reset,
+// deferred replay OnLoadWorld), 0xc/0xd fatal, 0xe pause dither.
+// sic: the lose arm calls GetProfileInt("OPTIONS","LCount") and DISCARDS the
+// result before incrementing the in-memory count.
+//
+// EFFECTIVE-WIP (v21 first pass: 1012/989 insns — the excess is jump-table
+// data at the COMDAT end — align 802, and identity_miss 425 is ONE global
+// role swap: the reloaded `this` ([ebp-0x10]) lives in EDI in the orig, EDX
+// here). Landed shapes: the duplicated `nTransitionStep == 0 && g_bReplayMode`
+// head condition (FireWeaponStep family), `default:` BEFORE `case 8:` in the
+// reason switch (the orig ladder tests 3 then 4 then jumps out, case 8 last),
+// case-9 blink arms blit-first, the `> 7` scrollbar arm order, `<= 10` return
+// literals. Parked residuals: the 4 per-case `nFrameMode = 3` copies cross-
+// jump in ours but stay separate in the orig (same open family as Tick's fire
+// block); pApp spilled to the CString-shared slot [ebp-0x14] in the orig vs
+// reg here (function-scope decl probe was WORSE); IactRun arg-push scheduling;
+// our 3 ::SetScrollRange calls cache the import pointer in EBX (orig calls
+// through the import each time — inverse of the v19 ZTS GetDC quirk).
+void GameView::OnTimer(UINT nIDEvent)
+{
+    if (pWorld->difficulty != pWorld->counter)
+        pWorld->counter = (pWorld->difficulty + pWorld->counter) / 2;
+    if ((nIDEvent != 0xabcd && nTimerId != nIDEvent) || bBusy != 0)
+        return;
+    if (bMouseCaptured != 0 && pWorld->nFrameMode == 3 && bMapAtCanvasOriginMaybe == 0)
+        pWorld->nFrameMode = 2;
+    if (pWorld->abortFrame != 0)
+    {
+        if (pWorld->abortFrame == 1)
+        {
+            pWorld->gameState = 1;
+            pWorld->pPendingZone = pWorld->currentZone;
+            pWorld->bHidePlayerMaybe = 1;
+            nDragSlot = -1;
+            bDragActive = 0;
+            nDragLastScreenY = -1;
+            nDragLastScreenX = -1;
+            draggedTile = NULL;
+            bBusy = 1;
+            pWorld->completionCount++;
+            CWinApp *pApp = AfxGetApp();
+            pApp->WriteProfileInt("OPTIONS", "Count", pWorld->completionCount);
+            int nZone = pWorld->GetVictoryZoneIndexMaybe();
+            pWorld->nextCameraXMaybe = pWorld->cameraX;
+            pWorld->nextCameraYMaybe = pWorld->cameraY;
+            pWorld->cameraX = pWorld->cameraY = 0;
+            pWorld->nFrameMode = 7;
+            pWorld->nMapChangeReason = 2;
+            pWorld->abortFrame = 0;
+            PlaySound(0x3f);
+            int i = 0;
+            do
+            {
+                ZoneTransitionStep((short)nZone, (short)i);
+                i++;
+            } while (i < 11);
+            bMouseCaptured = 0;
+            HDC hdc = ::GetDC(m_hWnd);
+            CDC *pDC = CDC::FromHandle(hdc);
+            CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+            SetTextColor(pWorld->pCanvas->hdc, 0xffffff);
+            int nOldBkMode = SetBkMode(pWorld->pCanvas->hdc, TRANSPARENT);
+            pWorld->score = 0;
+            pWorld->UpdateScore();
+            if (pWorld->score < 1000)
+                pWorld->score += rand() % 9;
+            if (pWorld->score > 1000)
+                pWorld->score = 1000;
+            pWorld->lastScore = pWorld->score;
+            if (pWorld->highScore < pWorld->lastScore)
+                pWorld->highScore = pWorld->lastScore;
+            pApp->WriteProfileInt("OPTIONS", "HScore", pWorld->highScore);
+            pApp->WriteProfileInt("OPTIONS", "LScore", pWorld->lastScore);
+            char szBuf[8];
+            sprintf(szBuf, "%d", pWorld->score);
+            HFONT hFont = CreateFont(-8, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, g_pszFontName);
+            HGDIOBJ hOldFont = SelectObject(pWorld->pCanvas->hdc, hFont);
+            TextOut(pWorld->pCanvas->hdc, 0xbe, 0xeb, szBuf, strlen(szBuf));
+            SetBkMode(pWorld->pCanvas->hdc, nOldBkMode);
+            DrawGameArea(pDC);
+            DrawDirectionArrows(pDC);
+            SelectObject(pWorld->pCanvas->hdc, hOldFont);
+            pDC->SelectPalette(pOldPal, 0);
+            ::ReleaseDC(m_hWnd, pDC->m_hDC);
+            pWorld->nFrameMode = 7;
+            pWorld->nMapChangeReason = 2;
+            bMouseCaptured = 0;
+            bInputLocked = 0;
+            bBusy = 0;
+            nTransitionStep = 0;
+            return;
+        }
+        if (pWorld->abortFrame == -1)
+        {
+            CWinApp *pApp = AfxGetApp();
+            pApp->GetProfileInt("OPTIONS", "LCount", pWorld->lastCount);
+            pWorld->lastCount++;
+            pApp->WriteProfileInt("OPTIONS", "LCount", pWorld->lastCount);
+            pWorld->gameState = -1;
+            nDragSlot = -1;
+            bDragActive = 0;
+            nDragLastScreenY = -1;
+            nDragLastScreenX = -1;
+            draggedTile = NULL;
+            pWorld->bHidePlayerMaybe = 1;
+            pWorld->pPendingZone = pWorld->currentZone;
+            pWorld->currentZone = pWorld->GetLossZoneMaybe();
+            pWorld->RefreshZone();
+            pWorld->nextCameraXMaybe = pWorld->cameraX;
+            pWorld->nextCameraYMaybe = pWorld->cameraY;
+            pWorld->cameraX = pWorld->cameraY = 0;
+            pWorld->UpdateCamera();
+            DrawGameArea(NULL);
+            pWorld->nFrameMode = 7;
+            pWorld->nMapChangeReason = 3;
+            pWorld->abortFrame = 0;
+            PlaySound(0x3e);
+            return;
+        }
+    }
+    switch (pWorld->nFrameMode)
+    {
+    case 1:
+        CyclePalette();
+        break;
+    case 2:
+        CyclePalette();
+        Tick();
+        nWalkFramePhase++;
+        if ((int)nWalkFramePhase > 3)
+            nWalkFramePhase = 0;
+        if (nMovePending != 0 && nMoveCommand != -1)
+        {
+            switch (nMoveCommand)
+            {
+            case 0x21:
+                nMoveDX = 1;
+                nMoveDY = -1;
+                bMouseCaptured = 0;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                break;
+            case 0x22:
+                nMoveDX = 1;
+                nMoveDY = 1;
+                bMouseCaptured = 0;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                break;
+            case 0x23:
+                nMoveDX = -1;
+                nMoveDY = 1;
+                bMouseCaptured = 0;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                break;
+            case 0x24:
+                nMoveDX = -1;
+                nMoveDY = -1;
+                bMouseCaptured = 0;
+                nMovePending = 0;
+                nMoveCommand = -1;
+                break;
+            case 0x25:
+                nMoveDX = -1;
+                nMoveCommand = -1;
+                bMouseCaptured = 0;
+                nMovePending = 0;
+                nMoveDY = 0;
+                break;
+            case 0x26:
+                nMoveDX = 0;
+                nMoveDY = -1;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                bMouseCaptured = 0;
+                break;
+            case 0x27:
+                nMoveDX = 1;
+                nMoveDY = 0;
+                bMouseCaptured = 0;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                break;
+            case 0x28:
+                nMoveDX = 0;
+                nMoveCommand = -1;
+                nMovePending = 0;
+                bMouseCaptured = 0;
+                nMoveDY = 1;
+                break;
+            default:
+                nMovePending = 0;
+                nMoveCommand = -1;
+                break;
+            }
+        }
+        OnBumpTile(nMoveDX, nMoveDY);
+        if (bMouseCaptured == 0)
+            ReleaseCapture();
+        break;
+    case 3:
+        CyclePalette();
+        Tick();
+        UpdatePlayerWalkFrame();
+        if (bShowEmptyDialogOnceMaybe != 0)
+        {
+            CString strEmpty = "";
+            ShowTextDialog(strEmpty, 0, 0, 0);
+            bShowEmptyDialogOnceMaybe = 0;
+        }
+        DrawMap();
+        pWorld->currentZone->IactRun(1, pWorld->cameraX / 32, pWorld->cameraY / 32,
+                                     0, 0, 0, NULL, pWorld, this);
+        if (pWorld->currentZone->type == 6 || pWorld->currentZone->type == 7
+            || pWorld->currentZone->type == 0xb)
+        {
+            DrawObjects();
+        }
+        bMapAtCanvasOriginMaybe = 0;
+        bSuppressWalkSound = 0;
+        break;
+    case 4:
+        CyclePalette();
+        UpdateDragCursor(0);
+        break;
+    case 5:
+        bMouseCaptured = 0;
+        break;
+    case 6:
+        switch (pWorld->nMapChangeReason)
+        {
+        case 1:
+            ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
+            nTransitionStep++;
+            if (nTransitionStep <= 10)
+                return;
+            pWorld->nFrameMode = 3;
+            break;
+        case 2:
+            ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
+            nTransitionStep++;
+            if (nTransitionStep <= 10)
+                return;
+            pWorld->nFrameMode = 3;
+            break;
+        case 3:
+            if (nTransitionStep == 0 && pWorld->currentZone->globalVar >= 0)
+            {
+                Zone *pZone = pWorld->GetZoneById((short)nTargetZoneId);
+                pZone->globalVar = pWorld->currentZone->globalVar;
+            }
+            ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
+            nTransitionStep++;
+            if (nTransitionStep <= 10)
+                return;
+            pWorld->nFrameMode = 3;
+            break;
+        case 4:
+            if (nTransitionStep == 0 && pWorld->currentZone->globalVar >= 0)
+            {
+                Zone *pZone = pWorld->GetZoneById((short)nTargetZoneId);
+                pZone->globalVar = pWorld->currentZone->globalVar;
+            }
+            ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
+            nTransitionStep++;
+            if (nTransitionStep <= 10)
+                return;
+            pWorld->nFrameMode = 3;
+            break;
+        default:
+            return;
+        case 8:
+            if (nTransitionStep == 0 && pWorld->currentZone->globalVar >= 0)
+            {
+                Zone *pZone = pWorld->GetZoneById((short)nTargetZoneId);
+                pZone->globalVar = pWorld->currentZone->globalVar;
+            }
+            if (ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep) != 0)
+                nTransitionStep++;
+            if (nTransitionStep <= 10)
+                return;
+            pWorld->nFrameMode = 3;
+            break;
+        }
+        bBusy = 0;
+        break;
+    case 7:
+        if (pWorld->nMapChangeReason == 2)
+        {
+            nTransitionStep++;
+            if (nTransitionStep > 0x33)
+                nTransitionStep = 0x33;
+        }
+        else if (pWorld->nMapChangeReason == 4)
+        {
+            nTransitionStep++;
+            if (nTransitionStep > 2)
+            {
+                bBlinkState = bBlinkState == 0;
+                HDC hdc = ::GetDC(m_hWnd);
+                CDC *pDC = CDC::FromHandle(hdc);
+                CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+                pWorld->DrawLocatorMap(pDC, bBlinkState, bMapTeleportEnabled);
+                pDC->SelectPalette(pOldPal, 0);
+                ::ReleaseDC(m_hWnd, pDC->m_hDC);
+                nTransitionStep = 0;
+            }
+        }
+        break;
+    case 8:
+        CyclePalette();
+        Tick();
+        FireWeaponStep(nFireStep);
+        nFireStep++;
+        if (nFireStep > 3 && pWorld->nFrameMode != 9)
+            pWorld->nFrameMode = 3;
+        break;
+    case 9:
+        CyclePalette();
+        nTransitionStep++;
+        pWorld->DrawPlayer();
+        if (nTransitionStep > 1)
+        {
+            nTransitionStep = 0;
+            bBlinkState = bBlinkState == 0;
+            if (bBlinkState != 0)
+            {
+                BlitTile((short)nPickupY, (short)nPickupX, 2,
+                         (Tile *)pWorld->tiles.GetAt(nPickupTileId));
+                DrawGameArea(NULL);
+            }
+            else
+            {
+                DrawTileAt((short)nPickupX, (short)nPickupY, -1);
+                DrawGameArea(NULL);
+            }
+        }
+        break;
+    case 0xb:
+        if (nTransitionStep == 0 && g_bReplayMode == 1)
+        {
+            pWorld->OnLoadWorld();
+            break;
+        }
+        if (nTransitionStep == 0)
+        {
+            if (pWorld->bWorldInvalidMaybe == 0)
+                bSuppressWalkSound = 1;
+            bDragActive = 0;
+            nDragSlot = -1;
+            nDragLastScreenY = -1;
+            nDragLastScreenX = -1;
+            draggedTile = NULL;
+            if (pWorld->bWorldInvalidMaybe != 0)
+            {
+                DrawWeaponBox(NULL);
+                DrawWeaponIcon(NULL);
+            }
+            ::SetScrollRange(pInvScrollBar->m_hWnd, 2, 0, 1, 0);
+            pInvScrollBar->scrollMax = 0;
+            pInvScrollBar->scrollPos = 0;
+            ::SetScrollPos(pInvScrollBar->m_hWnd, 2, 0, 1);
+            bMapViewOpen = 0;
+            DrawText(NULL);
+            DrawHealthNeedle(NULL);
+            if (pWorld->bWorldInvalidMaybe != 0)
+            {
+                int nRange = pWorld->inventory.GetSize();
+                if (nRange > 7)
+                {
+                    nRange -= 7;
+                    ::SetScrollRange(pInvScrollBar->m_hWnd, 2, 0, nRange, 1);
+                    pInvScrollBar->scrollMax = nRange;
+                }
+                else
+                {
+                    ::SetScrollRange(pInvScrollBar->m_hWnd, 2, 0, 1, 1);
+                    pInvScrollBar->scrollMax = 0;
+                }
+            }
+            pWorld->bHidePlayerMaybe = 0;
+            pWorld->bWorldReadyMaybe = 0;
+        }
+        if (pWorld->bWorldInvalidMaybe == 0 && pWorld->totalZones != -1)
+            WorldEntryStepMaybe((short)nTargetZoneId, (short)nTransitionStep);
+        else
+            ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
+        nTransitionStep++;
+        if (nTransitionStep > 10)
+        {
+            pWorld->nFrameMode = 3;
+            bBusy = 0;
+            DrawDirectionArrows(NULL);
+            pWorld->bWorldInvalidMaybe = 0;
+            if (pWorld->unk74 == 0x1e && bOneShotStubMaybe == 0)
+            {
+                bOneShotStubMaybe = 1;
+                EmptyFrameHookMaybe();
+            }
+        }
+        break;
+    case 0xc:
+    case 0xd:
+        {
+            CString strMsg;
+            pWorld->OnCloseDocument();
+            strMsg.LoadString(0xe01e);
+            FatalAppExit(0, strMsg);
+        }
+        break;
+    case 0xe:
+        bBusy = 1;
+        if (bPauseOverlayDrawn == 0)
+        {
+            BlitViewportDither();
+            bPauseOverlayDrawn = 1;
+        }
+        bBusy = 0;
+        break;
     }
 }

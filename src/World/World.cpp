@@ -123,6 +123,22 @@ int World::CalcTimeScore()
     return 200 - t;
 }
 
+// FUNCTION: YODA 0x00401a40
+// World::GetVictoryZoneIndexMaybe — demo-hardcoded: zone 76 is the victory
+// screen; returns its index if it really has 13, else -1.
+int World::GetVictoryZoneIndexMaybe()
+{
+    return ((Zone *)zones.GetAt(76))->type == ZONE_TYPE_VICTORY_SCREEN ? 76 : -1;
+}
+
+// FUNCTION: YODA 0x00401a60
+// World::GetLossZoneMaybe — demo-hardcoded: zone 77 is the loss screen.
+Zone *World::GetLossZoneMaybe()
+{
+    Zone *pZone = (Zone *)zones.GetAt(77);
+    return pZone->type == ZONE_TYPE_LOSS_SCREEN ? pZone : NULL;
+}
+
 // FUNCTION: YODA 0x00401a80
 unsigned short World::GetZoneCell(int x, int y)
 {
