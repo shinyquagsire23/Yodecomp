@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x408c60–0x418700 | ~63 KB | ⭐ PHASE E ACTIVE. v16: OnKeyDown healed; GameView.h PROMOTED (struct+TextDialog/InvScrollBar/InvItem/Canvas); full METHOD DECL SET reconstructed (vtable-diff overrides + msgmap afx_msg + ~35 helper sigs). NEXT (step 4): transcribe .cpp in .text order. Debunked 0x40e3f0/embedded dialog classes |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v17: single-TU confirmed (no EH-COMDAT boundary; InvScrollBar interleaved). HEAD BLOCK 0x4084f0–0x409460 DONE = 10 exact + 5 eff: CreateObject/GetRuntimeClass/both GetMessageMap/MusicThreadProc/InvScrollBar-ctor/~GameView/??_GGameView/OnActivateView/OnHScroll EXACT; ctor+OnUpdate+OnDraw+PlaySound+OnVScroll EFFECTIVE. NEXT: DrawZoneCell 0x409460 → the view methods |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -347,6 +347,8 @@ Written to be followable without prior context: each phase lists concrete steps 
   **73.63 % transcribed / 15.14 % exact, doc TU fully transcribed + Ghidra synced (2026-07-06 v15)**;
   **73.63 % transcribed / 15.21 % exact — Phase E steps 1-3 (GameView.h promoted + full
   method decl set reconstructed) (2026-07-07 v16)**;
+  **76.50 % transcribed / 16.03 % exact — Phase E step 4 begun: GameView TU head block
+  0x4084f0–0x409460 (10 exact + 5 eff) (2026-07-07 v17)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -384,54 +386,59 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v16 — Phase E steps 1-3 DONE: GameView.h promoted + full method decl set reconstructed; 15.21% exact / 73.63% transcribed)
-**v16 session results (all committed; Ghidra SAVED):**
-- **Step 1 ✅ OnKeyDown already healed** — decompiles as one function (0x4150f0–0x4156f1);
-  0x4156f2–0x415813 = its EH cleanup funclet (free from C++ EH codegen, not transcribed).
-- **Step 2 ✅ Header promotion** — `src/GameView/GameView.h` now holds InvItem/Canvas/
-  InvScrollBar/GameView/TextDialog; Worldgen.h `#include`s it at the OLD position (decl order
-  preserved). ⚠ **NEW DIAL LESSON:** a token-neutral header split can still rotate the dial
-  via `#line`/blank-line provenance — re-including the (guarded) MFC/Records headers inside
-  GameView.h dropped 34→33 despite BYTE-IDENTICAL preprocessed tokens. Fix: GameView.h does
-  NOT re-include them (it's only included after them). **Keep the physical byte layout stable
-  across a header split, not just the tokens.** 34/90 restored.
-- **Step 3 ✅ (intermediate) GameView method decl set reconstructed** in MFC/ClassWizard
-  structure. Overrides pinned by **VTABLE DIFF** (GameView 0x44b638 vs base CView 0x44d4ac →
-  exactly 6 slots differ = the ONLY real overrides: ~GameView, PreCreateWindow, OnInitialUpdate,
-  OnActivateView, OnUpdate, OnDraw; GetRuntimeClass/GetMessageMap/CreateObject = DYNCREATE +
-  msgmap macros). afx_msg handlers from msgmap @0x44b240 with MFC-standard sigs, //{{AFX_MSG in
-  MAP order. ~35 plain helpers from a fable disasm sweep (param widths from call-site pushes;
-  "(sig?)"-tagged widths not yet byte-proven). Result: 34/90 holds, exact bytes **6306→6393**
-  (gained IsItemPlaced+Randomize, lost ParseZax2+SetCurrentToIntroZone — dial breathing;
-  OnCmdMinimize re-mangled public→protected, still matches).
-- **Debunked / RE bonuses (in Ghidra):** 0x40e3f0 = folded CView no-op DEFAULT, NOT an
-  override (plate-commented); 0x40a560/0x411010 = embedded BalloonBitmap/BalloonButton
-  vtables (slot 73 null-terminates GameView's). 0x413be0 → renamed EmptyFrameHookMaybe (real
-  empty method called from OnTimer). **0x417ec0–0x4186e0 = THREE embedded options-dialog
-  classes** (GameSpeed ctrl0x67 / Sound ctrl0x8f / Difficulty ctrl0x90; each CDialog with
-  OnInitDialog @0x417f50/0x418230/0x418510 + ??_G + msgmap COMDATs) — NOT GameView; plate-
-  commented @0x417ec0. Model as their own mini-classes in step 4 / Phase F.
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v17 — Phase E step 4 BEGUN: GameView TU head block done; 16.03% exact / 76.50% transcribed)
+**v17 session results (all committed; Ghidra SAVED — OnHScroll@0x409340→InvScrollBar ns,
+AfxAbort@0x43777e). src/GameView/GameView.cpp created = 10 exact + 5 effective / 24 markers.**
+- **SINGLE-TU settled (roadmap E preamble answered):** NO exception-COMDAT cluster anywhere in
+  0x4084f0–0x418700, and InvScrollBar's ctor/dtor is interleaved BETWEEN GameView's DYNCREATE
+  statics and GameView::GameView — MSVC never interleaves .objs, so the whole range is ONE .obj /
+  ONE `src/GameView/GameView.cpp` (head is NOT a separate source file). Embedded helper classes
+  (InvScrollBar, the 3 options dialogs, TextDialog) live in the same .cpp.
+- **HEAD BLOCK 0x4084f0–0x409460 COMPLETE.** EXACT (10): CreateObject 0x4084f0 + GetRuntimeClass
+  0x408560 (IMPLEMENT_DYNCREATE(GameView,CView), marker-paired), GameView+InvScrollBar
+  GetMessageMap 0x408570/0x408580 (two BEGIN_MESSAGE_MAP, MAP order verbatim), MusicThreadProc
+  0x408590, InvScrollBar::Ctor 0x4085c0, ~GameView 0x408c60, ??_GGameView 0x408c40,
+  OnActivateView 0x408df0, InvScrollBar::OnHScroll 0x409340. EFFECTIVE (5): GameView ctor 0x408710
+  (imm/reg store-scheduling + member-ctor inline heuristic), OnUpdate 0x408e70 (block-layout:
+  epilogue-to-END + shared-ReleaseDC cross-jump; the case-399/EH OOM path is BYTE-IDENTICAL),
+  OnDraw 0x409110 (const-0 cached in EDI → extra EBP reg cascade; World::Load tail BYTE-IDENTICAL),
+  PlaySound 0x409060 (EAX/EDX role swap), OnVScroll 0x409360 (lea &scrollPos + cmp order).
+- **CRACKS THAT LANDED EXACTS (fold into instincts):** (a) **switch(x) not if/else-if** for a
+  0/1/other dispatch gives the up-front test-0/cmp-1/jmp-default layout (OnActivateView flipped to
+  EXACT). (b) In the dtor, declaring `int *p = arr` AFTER the preceding call lets the scheduler
+  interleave the `mov esi,offset` into that call's arg pushes (killed the last 2 bytes → EXACT).
+  (c) CBitmapButton members ARE real MFC (CButton+4 CBitmap=0x5c) — the earlier "BalloonButton/
+  Bitmap" was over-analysis; vtable 0x44b748 is just CBitmap's app-emitted vtable. strCheatBuffer
+  is CString, wndDialogText is CEdit — implicit member construction gets ctor/dtor codegen free.
+  (d) verify.py pairs markers to `IMPLEMENT_DYNCREATE`/`BEGIN_MESSAGE_MAP` and `(??_GClass)` hints,
+  so macro-generated COMDATs are checkable.
+- **Header/struct facts wired:** GameView.h — strCheatBuffer→CString, InvScrollBar gained
+  scrollPos@0x40 + message map + OnHScroll + OnVScroll, Canvas gained ~Canvas(). Worldgen.h —
+  0x32fc named bStateFileLoadedMaybe. World+0x60 = nMapChangeReason (OnDraw). GameView.cpp globals:
+  g_bStopMusicThread@0x456134, g_hWaveMixEvent@0x459454, g_dat459450, g_waveHandles[64]@0x459458
+  (dtor loop bound 0x459558), MIXPLAYPARAMS packed struct (PlaySound). **⚠ GameView.h edits ROTATE
+  the doc TU dial** (it #includes GameView.h): they were NET-POSITIVE, 34→35/90 (6510B). Always
+  re-verify Worldgen after touching GameView.h.
 
-**▶ START HERE (v17): PHASE E step 4 — TRANSCRIBE the GameView TU in .text order.**
-The header (GameView.h) + method decl set are in place. Now write the .cpp(s) under
-src/GameView/, exactly like Phase D. Suggested order + open items:
-1. **First settle the head-vs-two-TUs question** (roadmap E preamble): is 0x408c60–0x40a560
-   a SEPARATE source file? Check exception-COMDAT clusters at the boundary + shared string
-   clusters before choosing one .cpp vs several.
-2. **Transcribe head block first** (0x408df0–0x40b270): ~GameView (0x408c60), OnActivateView,
-   OnUpdate, PlaySound, OnDraw, DrawZoneCell, DrawZoneCellRect, DrawWholeZone,
-   ZoneTransitionStep, DrawGameArea, BlitTile, DrawTileAt, FireWeaponStep, DrawEntities,
-   FindEntityAt, Tick (10.8KB — docs/game-logic.md has the frame loop). Then 0x40d470 (OnTimer)
-   onward. The IMPLEMENT_DYNCREATE + BEGIN_MESSAGE_MAP macros live in the .cpp.
-3. **As you transcribe, byte-proof the "(sig?)" helper widths** (BlitTile arg order,
-   TransitionZoneScript's unused arg1) and correct GameView.h if wrong — those refine the dial.
-4. **Two OPEN dial axes for G1** (do NOT grind now): (a) plain-helper param widths; (b) whether
-   handler decls should be in AFX_MSG-MAP order (what I used) vs pure .text-address order — the
-   real ClassWizard block is MAP-order, but unverified. UseWeapon's parked binding flip and the
-   rest of the GameView-block rotation family resolve once the whole view TU is transcribed +
-   the header reaches its fixed point.
-5. TextDialog::Ctor/Run (0x416b90/0x416c40) + the 3 options dialogs are embedded in this range.
-**The JOINT residual pass stays AFTER E (G1).** WorldStub.h→Worldgen.h consolidation deferred.
+**▶ START HERE (v18): continue transcribing GameView.cpp in .text order from DrawZoneCell 0x409460.**
+1. **DrawZoneCell 0x409460** (⚠ Ghidra shows a spurious `longlong`/CONCAT return + phantom
+   `undefined4 param_2` — ABI-confusion artifact; the real sig is `int DrawZoneCell(short x, short y)`.
+   Read the raw disasm to pin the return/EDX threading before transcribing). It blits tile layers
+   0/1/2 of currentZone(World+0x2c0) cell into pCanvas via Canvas::BlitFast / BlitMasked (when Tile
+   flag bit0 @+0x404 set); uses Zone::GetTile + World::GetTileData. Callers DrawZoneCellRect 0x4095d0
+   (2 nested for-loops) + DrawWholeZone 0x409610 thread the same phantom param — same artifact.
+2. Then ZoneTransitionStep 0x409650, WorldEntryStepMaybe 0x409c10, the ~CGdiObject/CBitmap GDI
+   COMDATs (0x40a0c0/0x40a120/0x40a1a0 come free from CBitmap member usage — mark them), DrawGameArea
+   0x40a200, BlitTile 0x40a320 (byte-prove the "(sig?)" arg order), DrawTileAt 0x40a3a0, then onward
+   through 0x40a620+. The 10.8KB Tick/frame-loop FUN_0040b270 + enemy-AI switch are in
+   docs/game-logic.md (transcription, not research).
+3. **Open items:** byte-prove the "(sig?)" helper widths in GameView.h as you reach them (BlitTile,
+   TransitionZoneScript unused arg1). InvScrollBar's ??_G/??1 dtor COMDATs (0x408690/0x4086b0) are
+   PARKED (their ??_G/??1 split shape needs dtor modeling — Phase F/G). The 3 options-dialog classes
+   (0x417ec0–0x4186e0) + TextDialog (0x416b90) are embedded later in this same .cpp.
+4. **Two OPEN dial axes for G1** (do NOT grind): plain-helper param widths; AFX_MSG-MAP-order vs
+   .text-address-order for handler decls. UseWeapon's parked binding flip + the GameView-block
+   rotation family resolve once the whole view TU is transcribed. JOINT residual pass stays AFTER E.
 
 **Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
 `{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
@@ -445,6 +452,20 @@ range FIRST (it won't consume neighbors); renames into class namespaces:
 finish with POST `save_program`. The compile-error noise from old *.java files in
 ~/ghidra_scripts is expected — those 4 scripts (MergeEhFunclets/ParentGapFunclets/
 CreateGapFunctions/FillFunctionHoles) are REAL body-repair tools kept for Phase E step 1.
+### ⏮ PRIOR (2026-07-07 v16 — Phase E steps 1-3, condensed)
+GameView.h promoted out of Worldgen.h (InvItem/Canvas/InvScrollBar/GameView/TextDialog); it does
+NOT re-include MFC/Records (a token-neutral split still rotates the dial via #line/blank-line
+provenance — keep the physical byte layout stable, not just tokens). Full GameView method decl set
+reconstructed: overrides pinned by VTABLE DIFF (GameView 0x44b638 vs base CView 0x44d4ac = exactly 6
+differ: ~GameView/PreCreateWindow/OnInitialUpdate/OnActivateView/OnUpdate/OnDraw); afx_msg from
+msgmap @0x44b240 in MAP order; ~35 plain helpers from a fable disasm sweep (some widths "(sig?)"
+unproven). Debunked (all plate-commented in Ghidra): **0x40e3f0 = folded CView no-op DEFAULT, not an
+override**; 0x40a560/0x411010 = embedded BalloonBitmap/BalloonButton vtables (slot 73 terminates
+GameView's); 0x413be0 = EmptyFrameHookMaybe (real empty method from OnTimer); **0x417ec0–0x4186e0 =
+THREE embedded options-dialog classes** (GameSpeed ctrl0x67 / Sound ctrl0x8f / Difficulty ctrl0x90;
+each CDialog+OnInitDialog @0x417f50/0x418230/0x418510 + ??_G + msgmap) — model as mini-classes in
+step-4/F. OnKeyDown 0x4150f0 healed (0x4156f2+ = its EH cleanup funclet, comes free).
+
 ### ⏮ PRIOR (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers, condensed)
 **src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc TU
 including the whole GameView tail block (OnInitialUpdate, DrawDirectionArrows,
