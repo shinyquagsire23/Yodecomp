@@ -4807,6 +4807,50 @@ int World::GetZoneIndex(Zone *pZone)
     return -1;
 }
 
+// FUNCTION: YODA 0x00423df0
+// [EFFECTIVE MATCH: DIFF(12), insns 101/101, reg_pen=0. Sole residual: orig emits a redundant
+// promotion MOVSX EDI,DI / MOVSX EBX,BX before the word-adds destX/destY += 0x1c (its peephole
+// kept the int-promotion; ours deletes it). Probed inert: +=, expression assign, (short) cast.
+// Instruction-selection family — not source-steerable.]
+// Draw the 10x10 locator map into pCanvas (28px cells at +4,+4; background tile 0x344 under
+// each cell; per-cell icon from GetLocatorIconMaybe; the 32x32 player marker apUiTiles[15]
+// over the player's cell when bDrawPlayer), then blit the 288x288 result to the DC at
+// rectUnk3274's origin. UI tile slots 1..15 fall back to slot 0 when unset.
+void World::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
+{
+    pCanvas->Fill(0);
+    for (short i = 1; i < 16; i++)
+    {
+        if (apUiTiles[i] == NULL)
+            apUiTiles[i] = apUiTiles[0];
+    }
+    short y = 0;
+    short destY = 4;
+    do
+    {
+        short x = 0;
+        int nY = y;
+        short destX = 4;
+        do
+        {
+            Tile *pTile = GetTileData(0x344);
+            pCanvas->BlitFast(pTile->pixels, 0x1c, 0x1c, 0x20, destX, destY);
+            short nIcon = (short)GetLocatorIconMaybe(x, nY, bAlt);
+            if (nIcon >= 0)
+            {
+                pCanvas->BlitFast(apUiTiles[nIcon]->pixels, 0x1c, 0x1c, 0x20, destX, destY);
+                if (playerX == x && playerY == nY && bDrawPlayer != 0)
+                    pCanvas->BlitMasked((char *)apUiTiles[15]->pixels, 0x20, 0x20, destX, destY, 0);
+            }
+            destX += 0x1c;
+            x++;
+        } while (x < 10);
+        destY += 0x1c;
+        y++;
+    } while (y < 10);
+    pCanvas->BitBlt(pDC, rectUnk3274.left, rectUnk3274.top, 0x120, 0x120, 0, 0);
+}
+
 // FUNCTION: YODA 0x00423f50
 // Clamp the visible 288x288 window to the camera position (small zones pin to full window).
 void World::UpdateCamera()
@@ -4835,6 +4879,114 @@ void World::UpdateCamera()
     nViewBottom = nViewTop + 0x120;
 }
 
+// FUNCTION: YODA 0x00424010
+// [EFFECTIVE MATCH: insns 243/243, align residual = one frame-slot pair (orig homes pPenTL at
+// ebp-0x14 = pen A's raw-new temp slot; ours picks ebp-0x10 — usage-count slot ranking, the
+// ParseSnds family) + three clean 2-cycle reg rotations (EBX/EDI edge2, ESI/EDI edges 3-4).
+// Edge-4 decl order y1-LAST is load-bearing (aligns the pRect reload after EAX is clobbered
+// by the bottom load): x1, x2, nBottom, y1 — align 26 -> 8.]
+// Free __stdcall helper (Ghidra: Render::DrawRect): draw an nThickness-pixel 3D bevel border
+// just inside pRect. bRaised==1 = raised (top/left highlight, bottom/right shadow), else
+// sunken. Top/left edges use the second pen, bottom/right the first; corners mitred by
+// pulling each line end in per ring.
+void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
+{
+    DWORD dwShadow = GetSysColor(COLOR_BTNSHADOW);
+    DWORD dwHilite = GetSysColor(COLOR_BTNHIGHLIGHT);
+    CPen *pPenBR, *pPenTL;
+    if (bRaised == 1)
+    {
+        pPenBR = new CPen(PS_SOLID, 1, dwShadow);
+        pPenTL = new CPen(PS_SOLID, 1, dwHilite);
+    }
+    else
+    {
+        pPenBR = new CPen(PS_SOLID, 1, dwHilite);
+        pPenTL = new CPen(PS_SOLID, 1, dwShadow);
+    }
+    CPen *pOld;
+    {
+        int x1 = pRect->left;
+        int y1 = pRect->top;
+        int y2 = y1;
+        int x2 = pRect->right;
+        pOld = pDC->SelectObject(pPenTL);
+        if (nThickness > 0)
+        {
+            int n = nThickness;
+            do
+            {
+                pDC->MoveTo(x1, y2);
+                pDC->LineTo(x2, y1);
+                y2++;
+                y1++;
+                x2--;
+                n--;
+            } while (n != 0);
+        }
+    }
+    {
+        int x1 = pRect->left;
+        int nTop = pRect->top;
+        int x2 = x1;
+        int y2 = pRect->bottom - 1;
+        if (nThickness > 0)
+        {
+            int n = nThickness;
+            do
+            {
+                pDC->MoveTo(x2, nTop);
+                pDC->LineTo(x1, y2);
+                x2++;
+                y2--;
+                x1++;
+                n--;
+            } while (n != 0);
+        }
+    }
+    pDC->SelectObject(pPenBR);
+    {
+        int x1 = pRect->left;
+        int y1 = pRect->bottom - 1;
+        int nRight = pRect->right;
+        int y2 = y1;
+        if (nThickness > 0)
+        {
+            int n = nThickness;
+            do
+            {
+                pDC->MoveTo(x1, y2);
+                pDC->LineTo(nRight, y1);
+                x1++;
+                y2--;
+                y1--;
+                n--;
+            } while (n != 0);
+        }
+    }
+    {
+        int x1 = pRect->right - 1;
+        int x2 = x1;
+        int nBottom = pRect->bottom - 1;
+        int y1 = pRect->top;
+        if (nThickness > 0)
+        {
+            int n = nThickness;
+            do
+            {
+                pDC->MoveTo(x2, nBottom);
+                pDC->LineTo(x1, y1);
+                x2--;
+                y1++;
+                x1--;
+                n--;
+            } while (n != 0);
+        }
+    }
+    pDC->SelectObject(pOld);
+    delete pPenBR;
+    delete pPenTL;
+}
 
 // FUNCTION: YODA 0x004242a0
 // Audio menu: toggle sound; opening the first sound session lazily.

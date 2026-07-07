@@ -14,6 +14,9 @@
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
 
+// Free __stdcall bevel-border helper (0x00424010; Ghidra: Render::DrawRect), lives in this TU.
+void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness);
+
 // Tokens of the transient 10x10 short PLAN grid that Generate carves the quest into
 // (CarveQuestPath writes PATH/GOAL/forks/blockers; PlaceBlockades stamps LOCK/WALL;
 // BuildQuestPath assigns ORDERED markers; PlacePuzzles keys off ORDERED adjacency).
@@ -83,6 +86,13 @@ class Canvas
 public:
     char _pad[0x43c];                // no vptr; sizeof == 0x43c
     void *GetData();                                      // 0x00407f50 (Canvas TU)
+    int   BitBlt(CDC *dest, int destX, int destY,         // 0x00408000 (Canvas TU)
+                 int width, int height, int srcX, int srcY);
+    void  Fill(unsigned char value);                      // 0x004080a0 (Canvas TU)
+    void  BlitFast(void *src, int flags, short height,    // 0x00408110 (Canvas TU)
+                   unsigned short srcStride, short destX, short destY);
+    void  BlitMasked(char *src, unsigned short srcStride, short height, // 0x00408240
+                     short destX, short destY, char key);
 };
 
 // GameView stub: only what this TU touches (real class = CDeskcppView, GameView TU).
@@ -160,7 +170,8 @@ public:
     char        _pad2e68[0x404];     // +0x2e68
     BYTE       *pSysColorTable;      // +0x326c
     Canvas     *pCanvas;             // +0x3270
-    char        _pad3274[0x60];      // +0x3274  (viewport/inventory/weapon-box rects)
+    RECT        rectUnk3274;         // +0x3274  locator-map blit origin (left/top used)
+    char        _pad3284[0x50];      // +0x3284  (viewport/inventory/weapon-box rects)
     int         nViewLeft;           // +0x32d4  visible 288x288 window (UpdateCamera writes;
     int         nViewTop;            // +0x32d8   named nHealthDial* in WorldDoc.h — TODO reconcile)
     int         nViewRight;          // +0x32dc
@@ -276,6 +287,7 @@ public:
     void SetCurrentToIntroZone();                        // 0x00423d20
     void ReadStupCanvas(CFile *pFile);                   // 0x00423d60
     int  GetZoneIndex(Zone *pZone);                      // 0x00423dc0 (Ghidra: EnterZone)
+    void DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt); // 0x00423df0
     void UpdateCamera();                                 // 0x00423f50
     afx_msg void OnToggleSound();                        // 0x004242a0
     afx_msg void OnUpdateToggleSound(CCmdUI *pCmdUI);    // 0x004242f0
@@ -297,7 +309,9 @@ public:
     int            CalcSolvedScore();                    // 0x00401780 (scorers TU)
     int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
+    Tile *GetTileData(int idx);                          // 0x00403a40 (GameData TU)
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
+    unsigned int GetLocatorIconMaybe(int x, int y, int bAlt); // 0x0041a1c0 (WorldDoc TU)
     void LoadStoryHistoryNevada();                       // 0x00401ac0 (GameData TU)
     void LoadStoryHistoryAlaska();                       // 0x00401ea0 (GameData TU)
     void LoadStoryHistoryOregon();                       // 0x00402280 (GameData TU)
