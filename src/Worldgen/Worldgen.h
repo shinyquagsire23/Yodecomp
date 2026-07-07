@@ -232,6 +232,7 @@ public:
     void WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid,
                                 int maxGoals, int *pnGoals, int maxSplits,
                                 int *pnSplits, int *pnPlaced); // 0x0041d940
+    void WorldgenPlaceBlockades(int nCount, short *paPlanGrid); // 0x0041e350
     int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
     int  WorldgenSelectPuzzle(short nItem, short nItem2, short nType,

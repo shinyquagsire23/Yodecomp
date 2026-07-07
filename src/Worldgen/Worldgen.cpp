@@ -1482,6 +1482,273 @@ void World::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid, in
     *pnPlaced = nPlaced;
 }
 
+// FUNCTION: YODA 0x0041e350
+// [EFFECTIVE-WIP, structurally converged (all four REP-STOS wall fills reproduced, unmerged):
+// residual = per-case scan-register rotation (the original itself drifts roles across its four
+// clone arms), two mirrored fill guards (jge/jle — orig drifts too), the bPlaced=0 store slot,
+// and case-0's count reassociation staging. KEY CRACKS: horizontal wall fills must be indexed
+// for-loops over a FRESH variable (a reused/live counter or explicit-count do-while defeats
+// VC's rep-stos idiom); far arms are written EXPRESSION-style (nWid + nStart - 1 folds the
+// trip count to nWid-1); bPlaced = 1 sits INSIDE each near/far arm (the after-if/else form
+// lets the compiler cross-jump the two rep tails into one, which the original does not).]
+// Stamp nCount ITEM_TO_PASS blockades onto the plan grid: per blockade, roll one of the four
+// map edges, find the longest run of cells where the edge lane is empty and the lane beside it
+// is empty-or-blocked, then write one PLAN_LOCK at a random end of the (clamped) run and
+// PLAN_WALLs across the rest. Edge cases: 3-runs only qualify at the grid corners (and the
+// south/east arms require >= 4, leaving their 3-run corner logic dead - sic, kept verbatim);
+// up to 201 rolls per blockade.
+void World::WorldgenPlaceBlockades(int nCount, short *paPlanGrid)
+{
+    if (nCount > 0)
+    {
+        int nLeft = nCount;
+        do
+        {
+            int bDone = 0;
+            int nTries = 0;
+            do
+            {
+                int bPlaced = 0;
+                int r, j;
+                switch (rand() % 4)
+                {
+                case 0:
+                {
+                    int nRun = 0, nBest = 0, nStart = 0, i = 0;
+                    int nWid;
+                    short *p = &paPlanGrid[1];
+                    do
+                    {
+                        if (p[-1] == 0 && (*p == 0 || *p == PLAN_BLOCKED))
+                            nRun++;
+                        else
+                        {
+                            if (nBest < nRun)
+                            {
+                                nBest = nRun;
+                                nStart = i - nRun;
+                            }
+                            nRun = 0;
+                        }
+                        p += 10;
+                        i++;
+                    } while (i < 10);
+                    if (nBest < nRun)
+                    {
+                        nBest = nRun;
+                        nStart = 10 - nRun;
+                    }
+                    if (nBest < 3)
+                        break;
+                    if (nBest == 3 && (nStart == 0 || nStart == 7))
+                        nWid = 2;
+                    if (nBest == 3 && nStart > 0 && nStart < 7)
+                        break;
+                    if (nBest >= 4)
+                        nWid = nBest - 2;
+                    if (nWid > 4)
+                        nWid = 4;
+                    r = rand() % 2;
+                    if (nStart > 0 && nWid + nStart <= 9)
+                        nStart++;
+                    if (r != 0)
+                    {
+                        paPlanGrid[nStart * 10] = PLAN_LOCK;
+                        for (j = nStart + 1; j < nWid + nStart; j++)
+                            paPlanGrid[j * 10] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    else
+                    {
+                        paPlanGrid[(nWid + nStart - 1) * 10] = PLAN_LOCK;
+                        for (j = nStart; j < nWid + nStart - 1; j++)
+                            paPlanGrid[j * 10] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    break;
+                }
+                case 1:
+                {
+                    int nRun = 0, nBest = 0, nStart = 0, i = 0;
+                    int nWid;
+                    short *p = &paPlanGrid[10];
+                    do
+                    {
+                        if (p[-10] == 0 && (*p == 0 || *p == PLAN_BLOCKED))
+                            nRun++;
+                        else
+                        {
+                            if (nBest < nRun)
+                            {
+                                nBest = nRun;
+                                nStart = i - nRun;
+                            }
+                            nRun = 0;
+                        }
+                        p++;
+                        i++;
+                    } while (i < 10);
+                    if (nBest < nRun)
+                    {
+                        nBest = nRun;
+                        nStart = 10 - nRun;
+                    }
+                    if (nBest < 3)
+                        break;
+                    if (nBest == 3 && (nStart == 0 || nStart == 7))
+                        nWid = 2;
+                    if (nBest == 3 && nStart > 0 && nStart < 7)
+                        break;
+                    if (nBest >= 4)
+                        nWid = nBest - 2;
+                    if (nWid > 4)
+                        nWid = 4;
+                    r = rand() % 2;
+                    if (nStart > 0 && nWid + nStart <= 9)
+                        nStart++;
+                    if (r != 0)
+                    {
+                        paPlanGrid[nStart] = PLAN_LOCK;
+                        for (j = nStart + 1; j < nWid + nStart; j++)
+                            paPlanGrid[j] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    else
+                    {
+                        paPlanGrid[nWid + nStart - 1] = PLAN_LOCK;
+                        for (j = nStart; j < nWid + nStart - 1; j++)
+                            paPlanGrid[j] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    break;
+                }
+                case 2:
+                {
+                    int nRun = 0, nBest = 0, nStart = 0, i = 0;
+                    int nWid;
+                    short *p = &paPlanGrid[80];
+                    do
+                    {
+                        if (p[10] == 0 && (*p == 0 || *p == PLAN_BLOCKED))
+                            nRun++;
+                        else
+                        {
+                            if (nBest < nRun)
+                            {
+                                nBest = nRun;
+                                nStart = i - nRun;
+                            }
+                            nRun = 0;
+                        }
+                        p++;
+                        i++;
+                    } while (i < 10);
+                    if (nBest < nRun)
+                    {
+                        nBest = nRun;
+                        nStart = 10 - nRun;
+                    }
+                    if (nBest < 4)
+                        break;
+                    if (nBest == 3 && (nStart == 0 || nStart == 7))
+                        nWid = 2;
+                    if (nBest == 3 && nStart > 0 && nStart < 7)
+                        break;
+                    if (nBest >= 4)
+                        nWid = nBest - 2;
+                    if (nWid > 4)
+                        nWid = 4;
+                    r = rand() % 2;
+                    if (nStart > 0 && nWid + nStart <= 9)
+                        nStart++;
+                    if (r != 0)
+                    {
+                        paPlanGrid[nStart + 90] = PLAN_LOCK;
+                        for (j = nStart + 1; j < nWid + nStart; j++)
+                            paPlanGrid[j + 90] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    else
+                    {
+                        paPlanGrid[nWid + nStart - 1 + 90] = PLAN_LOCK;
+                        for (j = nStart; j < nWid + nStart - 1; j++)
+                            paPlanGrid[j + 90] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    break;
+                }
+                case 3:
+                {
+                    int nRun = 0, nBest = 0, nStart = 0, i = 0;
+                    int nWid;
+                    short *p = &paPlanGrid[8];
+                    do
+                    {
+                        if (p[1] == 0 && (*p == 0 || *p == PLAN_BLOCKED))
+                            nRun++;
+                        else
+                        {
+                            if (nBest < nRun)
+                            {
+                                nBest = nRun;
+                                nStart = i - nRun;
+                            }
+                            nRun = 0;
+                        }
+                        p += 10;
+                        i++;
+                    } while (i < 10);
+                    if (nBest < nRun)
+                    {
+                        nBest = nRun;
+                        nStart = 10 - nRun;
+                    }
+                    if (nBest < 4)
+                        break;
+                    if (nBest == 3 && (nStart == 0 || nStart == 7))
+                        nWid = 2;
+                    if (nBest == 3 && nStart > 0 && nStart < 7)
+                        break;
+                    if (nBest >= 4)
+                        nWid = nBest - 2;
+                    if (nWid > 4)
+                        nWid = 4;
+                    r = rand() % 2;
+                    if (nStart > 0 && nWid + nStart <= 9)
+                        nStart++;
+                    if (r != 0)
+                    {
+                        paPlanGrid[nStart * 10 + 9] = PLAN_LOCK;
+                        for (j = nStart + 1; j < nWid + nStart; j++)
+                            paPlanGrid[j * 10 + 9] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    else
+                    {
+                        paPlanGrid[(nWid + nStart - 1) * 10 + 9] = PLAN_LOCK;
+                        for (j = nStart; j < nWid + nStart - 1; j++)
+                            paPlanGrid[j * 10 + 9] = PLAN_WALL;
+                        bPlaced = 1;
+                    }
+                    break;
+                }
+                default:
+                    nTries++;
+                }
+                if (bPlaced != 0)
+                    bDone++;
+                else
+                {
+                    nTries++;
+                    if (nTries > 200)
+                        bDone++;
+                }
+            } while (bDone == 0);
+            nLeft--;
+        } while (nLeft != 0);
+    }
+}
+
 // FUNCTION: YODA 0x0041e920
 // Collect the zone's IZX2/IZX3 item ids not already placed, random-pick one; if none, recurse
 // into DOOR_IN child zones.
