@@ -201,7 +201,7 @@ public:
     int  ZoneTransitionStep(short nZoneId, short nStep);   // 0x00409650
     int  WorldEntryStepMaybe(short nZoneId, short nStep);  // 0x00409c10
     void DrawGameArea(CDC *pDC);                           // 0x0040a200
-    void BlitTile(short y, short x, int nUnused, Tile *pTile); // 0x0040a320 (sig?)
+    void BlitTile(short y, short x, int nUnused, Tile *pTile); // 0x0040a320 (byte-proven v19)
     void DrawTileAt(short x, short y, short frame);        // 0x0040a3a0
     static int IsUsableTileMaybe(short tileId);            // 0x0040a620 (__cdecl static)
     void FireWeaponStep(int nStep);                        // 0x0040a710

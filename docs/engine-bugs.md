@@ -127,6 +127,22 @@ Alaska story list) are intentional and documented in CLAUDE.md's GameData notes,
   such zones the placer exhausts its candidate list and returns 0xffff.
 - **Reproduced:** `src/Worldgen/Worldgen.cpp` PlaceQuestNode (`// sic:` comment on the scan).
 
+### 13. `GameView::ZoneTransitionStep` — step 10 reads an uninitialized IACT result mask
+
+- **Where:** 0x409b2c (the only write to `[EBP-0x1a]`) vs 0x409b30 / 0x409b5c (unconditional
+  `TEST byte ptr [EBP-0x1a], 0x4 / 0x20` reads), inside the `nStep == 10` arm.
+- **What:** the step-10 arm declares a local result mask for its final zone-entry
+  `Zone::IactRun(5, ...)`, but the call is guarded (`bSkipEntryIactMaybe == 0 &&
+  bWorldInvalidMaybe == 0`) while the two flag tests afterward (`& 4` → UpdateCamera,
+  `& 0x20` → DrawWholeZone) are not. When the IactRun is skipped the mask is stack garbage —
+  whatever the earlier ring-blit loop left in that slot — so the redraw decisions at step 10
+  are nondeterministic in that path.
+- **Impact:** benign-looking (worst case a spurious UpdateCamera/DrawWholeZone or a missing
+  one right after a skipped entry script); invisible in normal play because the flag is only
+  set around scripted zone entries.
+- **Reproduced:** `src/GameView/GameView.cpp` ZoneTransitionStep (`unsigned short nMask;`
+  deliberately left uninitialized, `// sic:` comment).
+
 ## Compiler quirks that LOOK like bugs (they aren't)
 
 - **Dead stores to the script index** (`idx = 0` / `idx = nInv` in #1) are the compiler's

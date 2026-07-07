@@ -641,3 +641,531 @@ void GameView::DrawWholeZone()
         for (x = m; x >= 0; x--)
             DrawZoneCell(x, y);
 }
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409650
+// GameView::ZoneTransitionStep — one step of the square-wipe zone transition,
+// driven by OnTimer frame-mode 6 (nStep 0..10):
+//   steps 0..4  — paint one shrinking ring of black 32x32 tiles into the canvas
+//                 (top/bottom/left/right edges per iteration), then blit the whole
+//                 288x288 viewport to the screen;
+//   step  5     — the actual switch: currentZone = GetZoneById(nZoneId) (restoring
+//                 the old zone if the id is bad), locate the new zone in the 10x10
+//                 map grid (world-map player position + ZONE_TYPE 7 flagA), run
+//                 IACT zone-entry triggers 4 and 5 (bIactZoneEntryMaybe wraps
+//                 trigger 5), set frame mode 6 (or keep 0xb), DrawEntities +
+//                 DrawWholeZone, mark the grid cell visited (flagSolved);
+//   steps 6..9  — blit an expanding centered square of the (redrawn) viewport;
+//   step 10     — DrawDirectionArrows + a final IACT trigger 5 (skipped when
+//                 bSkipEntryIactMaybe), frame mode 6 / kept.
+// Returns 0 when trigger 5 at step 5 reported a warp (0x800) that trigger 4 hadn't
+// already claimed (caller restarts the transition); else 1.
+// The black source tile is a heap Tile allocated under TRY/CATCH_ALL every call —
+// the catch is the recurring dead OOM box (AfxMessageBox(0xe01e)+AfxAbort).
+// sic: engine-bugs.md #13 — step 10's nMask is READ UNINITIALIZED when its IactRun
+// is skipped (bSkipEntryIactMaybe set or world invalid): the &4 / &0x20 redraw
+// tests then act on stack garbage.
+//
+// EFFECTIVE MATCH (441/441 insns, align=48, reg_pen=7 — ~97% identical; the raw
+// byte-diff lies here: a 4-byte frame delta shifts every tail EBP offset). Structure
+// proven: register roles (i→EBX, sy→EDI, ESI=&pWorld), all four blit sites, both
+// loops, the whole step-5/10 logic and the duplicated cleanup arms are insn-identical.
+// Residual autopsy (all probed; none source-steerable — G1 fodder):
+//  * KEY CRACKS that got here (reuse for WorldEntryStepMaybe): (a) NO `x` local for
+//    `sx + i` — the original's slot -0x40 is the compiler's OWN CSE temp (written +
+//    reloaded); declaring `short x` promoted it to a register, cascaded sy into a
+//    slot, and made the invariant `span + sy` get LICM-hoisted out of the loop
+//    (align 188 → 48 from removing it). (b) `span` IS a real local (slot -0x1c),
+//    summed at the call site each iteration.
+//  * blit4 window: orig emits `movsx ebx,bx` before `add bx,0x20` (maintains (int)i
+//    for the `i + sy` leas, base=EBX) and increments BETWEEN the y/x pushes; ours
+//    picks lea base=EDI, drops the movsx and increments before the pushes. Probed:
+//    sy+i vs i+sy (inert), (int)i+sy (worse), cnt--/i+= order swap (much worse) —
+//    IL value-numbering, not source-steerable.
+//  * head: orig calls GetDC via `mov ebx,[__imp_GetDC]; call ebx` — UNIQUE in the
+//    binary (OnUpdate/DrawDirectionArrows/... all `call [iat]`). Probed: member
+//    GetDC()/ReleaseDC(pDC) (identical output — kept), the explicit
+//    FromHandle-of-::GetDC spelling (identical), HDC local (worse). The EBX free
+//    there is what hands the original nStep→BX at the ladder; ours converges to the
+//    same roles by the loop anyway.
+//  * 1-insn scheduling drift of `xor di,di` (nMask = 0 emitted before vs after the
+//    unk50 store), nSavedMode in DX vs AX, and the 4B-smaller frame (ours packs the
+//    cnt/sx2 word slots where the orig dword-spaces them).
+int GameView::ZoneTransitionStep(short nZoneId, short nStep)
+{
+    Tile *pTile;
+    TRY {
+        pTile = new Tile;
+    }
+    }              // closes the try block the TRY macro opened
+    catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+        _afxExceptionLink.m_pException = e;
+        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: dead OOM dialog
+        AfxAbort();                            //      (docs/engine-bugs.md #7)
+    }
+    }              // closes the TRY macro's outer (link-scope) brace
+    unsigned char *pPixels = pTile->pixels;
+    memset(pPixels, 0, 0x400);
+    short nCellX = (short)pWorld->playerX;     // world-map grid coords; conditionally
+    short nCellY = (short)pWorld->playerY;     // re-derived by step 5's grid search
+    CDC *pDC = GetDC();
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    int bAborted = 0;
+    if (nStep < 5)
+    {
+        short sx = (short)pWorld->nViewLeft + nStep * 32;
+        short sy = (short)pWorld->nViewTop + nStep * 32;
+        short n = 9 - nStep * 2;               // ring edge length, in tiles
+        if (n > 0)
+        {
+            short i = 0;
+            short span = (n - 1) * 32;
+            short sx2 = span + sx;
+            short cnt = n;
+            do
+            {
+                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx + i, sy);    // top
+                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx + i,
+                                          span + sy);                                // bottom
+                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx, i + sy);    // left
+                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx2, i + sy);   // right
+                i += 32;
+                cnt--;
+            } while (cnt != 0);
+        }
+        pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                0x120, 0x120, pWorld->nViewLeft, pWorld->nViewTop);
+    }
+    else if (nStep == 5)
+    {
+        Zone *pOldZone = pWorld->currentZone;
+        pWorld->currentZone = pWorld->GetZoneById(nZoneId);
+        if (pWorld->currentZone == NULL)
+            pWorld->currentZone = pOldZone;
+        if (pWorld->bWorldInvalidMaybe == 0)
+        {
+            short y = 0;
+            nCellX = -1;
+            nCellY = -1;
+            do
+            {
+                short x = 0;
+                do
+                {
+                    if (pWorld->GetZoneById(pWorld->GetZoneCell(x, y)) == pWorld->currentZone)
+                    {
+                        nCellX = x;
+                        nCellY = y;
+                        break;
+                    }
+                    x++;
+                } while (x < 10);
+                y++;
+            } while (y < 10);
+            if (nCellX >= 0)
+            {
+                if (nCellY >= 0)
+                {
+                    pWorld->playerX = nCellX;
+                    pWorld->playerY = nCellY;
+                }
+                if (nCellX >= 0 && nCellY >= 0 &&
+                    pWorld->mapGrid[nCellX + nCellY * 10].zoneType == 7)
+                    pWorld->mapGrid[nCellX + nCellY * 10].flagA = 1;
+            }
+        }
+        pWorld->unk50 = nZoneId;
+        unsigned short nMask = 0;
+        pWorld->UpdateCamera();
+        pWorld->RefreshZone();
+        short nSavedMode = (short)pWorld->nFrameMode;
+        if (pWorld->bWorldInvalidMaybe == 0)
+        {
+            nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
+                                                                 pDC, pWorld, this);
+            if (nMask & 0x800)
+                bAborted = 1;
+        }
+        bIactZoneEntryMaybe = 1;
+        if (pWorld->bWorldInvalidMaybe == 0)
+            nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
+                                                                  pDC, pWorld, this);
+        bIactZoneEntryMaybe = 0;
+        if (nMask & 4)
+            pWorld->UpdateCamera();
+        if (nSavedMode != 0xb)
+            pWorld->nFrameMode = 6;
+        else
+            pWorld->nFrameMode = 0xb;
+        pWorld->currentZone->activatedFlag = 1;
+        if (pWorld->bWorldInvalidMaybe == 0)
+            DrawEntities();
+        DrawWholeZone();
+        pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
+        if (bAborted == 0 && (nMask & 0x800))
+        {
+            pDC->SelectPalette(pOldPal, 0);
+            ReleaseDC(pDC);
+            delete pTile;
+            return 0;
+        }
+    }
+    else if (nStep == 10)
+    {
+        DrawDirectionArrows(pDC);
+        short nSavedMode = (short)pWorld->nFrameMode;
+        unsigned short nMask;                  // sic: uninitialized when the IactRun
+                                               //      below is skipped (engine-bugs #13)
+        if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalidMaybe == 0)
+            nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
+                                                                 pDC, pWorld, this);
+        if (nMask & 4)
+            pWorld->UpdateCamera();
+        bSkipEntryIactMaybe = 0;
+        if (nSavedMode != 0xb)
+            pWorld->nFrameMode = 6;
+        else
+            pWorld->nFrameMode = nSavedMode;
+        if (nMask & 0x20)
+            DrawWholeZone();
+    }
+    else
+    {
+        short nOff = (10 - nStep) * 32;
+        short nSize = (nStep - 1) * 32;
+        pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left + nOff,
+                                pWorld->rectUnk3274.top + nOff, nSize - nOff, nSize - nOff,
+                                pWorld->nViewLeft + nOff, pWorld->nViewTop + nOff);
+    }
+    pDC->SelectPalette(pOldPal, 0);
+    ReleaseDC(pDC);
+    delete pTile;
+    return 1;
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x00409c10
+// GameView::WorldEntryStepMaybe — twin of ZoneTransitionStep, driven by OnTimer
+// frame-mode 0xb (fresh world entry): steps 0..4 are NO-OPS (no black ring — the
+// whole body sits under `if (nStep >= 5)`); step 5 = the same zone switch/IACT 4+5
+// sequence but with nTransitionStep = -1 instead of the mode save/restore, and the
+// grid-cell visited mark GUARDED by the found coords (unlike ZoneTransitionStep's
+// unguarded store); steps 6..9 = the expanding reveal blit; step 10 = direction
+// arrows + final IACT 5, then chains into mode 6 (nMapChangeReason = 1,
+// nTransitionStep = 0). Returns 0 on an unclaimed warp (0x800) from trigger 5.
+// sic: engine-bugs.md #13 (same bug as ZoneTransitionStep): step 10's nMask is
+// read uninitialized when its IactRun is skipped — here the compiler even emits an
+// explicit `mov di,[ebp-0x18]` load of the never-written slot on the skip path.
+// NOTE the head here vindicates ZoneTransitionStep's parked head residuals: THIS
+// function's original calls GetDC directly via `call [__imp_GetDC]`, loads nStep
+// into DI and pWorld into EAX (cx/ax word loads) — exactly the shapes our compiler
+// produces for both functions. The memset has no pixel-pointer local (nothing
+// reuses it — no ring blits), so it's written inline here.
+//
+// EFFECTIVE MATCH (349/349 insns, align=8, reg_pen=14 — 13 diff rows, ALL register-
+// role). The residual is a clean PARITY CROSSING with ZoneTransitionStep: for the
+// same two code shapes (head pWorld/word-load regs: EAX+cx/ax vs ECX+ax/dx; grid
+// search: y→EBX,x→DI vs y→EDI,x→BX) the ORIGINAL uses shape A here and shape B in
+// ZoneTransitionStep, while OUR compile emits them exactly swapped — both shapes
+// reproduce, on the wrong functions. Same TU-phase drift family as the original's
+// own loader jg/jl/jg triplet; almost certainly one dial state with the
+// DrawZoneCellRect/DrawWholeZone rotations. Do not grind — G1 joint pass.
+int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
+{
+    Tile *pTile;
+    TRY {
+        pTile = new Tile;
+    }
+    }              // closes the try block the TRY macro opened
+    catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+        _afxExceptionLink.m_pException = e;
+        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: dead OOM dialog
+        AfxAbort();                            //      (docs/engine-bugs.md #7)
+    }
+    }              // closes the TRY macro's outer (link-scope) brace
+    memset(pTile->pixels, 0, 0x400);
+    short nCellX = (short)pWorld->playerX;     // world-map grid coords; conditionally
+    short nCellY = (short)pWorld->playerY;     // re-derived by step 5's grid search
+    CDC *pDC = GetDC();
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    int bAborted = 0;
+    if (nStep >= 5)
+    {
+        if (nStep == 5)
+        {
+            Zone *pOldZone = pWorld->currentZone;
+            pWorld->currentZone = pWorld->GetZoneById(nZoneId);
+            if (pWorld->currentZone == NULL)
+                pWorld->currentZone = pOldZone;
+            if (pWorld->bWorldInvalidMaybe == 0)
+            {
+                short y = 0;
+                nCellX = -1;
+                nCellY = -1;
+                do
+                {
+                    short x = 0;
+                    do
+                    {
+                        if (pWorld->GetZoneById(pWorld->GetZoneCell(x, y)) == pWorld->currentZone)
+                        {
+                            nCellX = x;
+                            nCellY = y;
+                            break;
+                        }
+                        x++;
+                    } while (x < 10);
+                    y++;
+                } while (y < 10);
+                if (nCellX >= 0)
+                {
+                    if (nCellY >= 0)
+                    {
+                        pWorld->playerX = nCellX;
+                        pWorld->playerY = nCellY;
+                    }
+                    if (nCellX >= 0 && nCellY >= 0 &&
+                        pWorld->mapGrid[nCellX + nCellY * 10].zoneType == 7)
+                        pWorld->mapGrid[nCellX + nCellY * 10].flagA = 1;
+                }
+            }
+            unsigned short nMask = 0;
+            pWorld->unk50 = nZoneId;
+            pWorld->UpdateCamera();
+            pWorld->RefreshZone();
+            if (pWorld->bWorldInvalidMaybe == 0)
+            {
+                nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
+                                                                     pDC, pWorld, this);
+                if (nMask & 0x800)
+                    bAborted = 1;
+            }
+            bIactZoneEntryMaybe = 1;
+            if (pWorld->bWorldInvalidMaybe == 0)
+                nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
+                                                                      pDC, pWorld, this);
+            bIactZoneEntryMaybe = 0;
+            if (nMask & 4)
+                pWorld->UpdateCamera();
+            nTransitionStep = -1;
+            pWorld->currentZone->activatedFlag = 1;
+            if (pWorld->bWorldInvalidMaybe == 0)
+                DrawEntities();
+            DrawWholeZone();
+            if (nCellY >= 0 && nCellX >= 0)
+                pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
+            if (bAborted == 0 && (nMask & 0x800))
+            {
+                pDC->SelectPalette(pOldPal, 0);
+                ReleaseDC(pDC);
+                delete pTile;
+                return 0;
+            }
+        }
+        else if (nStep == 10)
+        {
+            DrawDirectionArrows(pDC);
+            unsigned short nMask;              // sic: uninitialized when the IactRun
+                                               //      below is skipped (engine-bugs #13)
+            if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalidMaybe == 0)
+                nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
+                                                                     pDC, pWorld, this);
+            if (nMask & 4)
+                pWorld->UpdateCamera();
+            bSkipEntryIactMaybe = 0;
+            pWorld->nFrameMode = 6;
+            pWorld->nMapChangeReason = 1;
+            nTransitionStep = 0;
+            if (nMask & 0x20)
+                DrawWholeZone();
+        }
+        else
+        {
+            short nOff = (10 - nStep) * 32;
+            short nSize = (nStep - 1) * 32;
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left + nOff,
+                                    pWorld->rectUnk3274.top + nOff, nSize - nOff,
+                                    nSize - nOff, pWorld->nViewLeft + nOff,
+                                    pWorld->nViewTop + nOff);
+        }
+    }
+    pDC->SelectPalette(pOldPal, 0);
+    ReleaseDC(pDC);
+    delete pTile;
+    return 1;
+}
+
+// =============================================================================
+// MFC GDI COMDAT copies emitted into this TU by CBitmap/CBitmapButton member
+// usage (this .cpp instantiates CBitmap locals + the btnDialog* members) — all
+// six byte-match the originals with zero source lines. Ghidra's
+// "CBitmap_CtorMaybe" @0x40a0c0 is really CGdiObject::CGdiObject (rename queued).
+// The CBitmap trio sits later in .text (0x40a4e0-0x40a5d0, after DrawTileAt).
+// =============================================================================
+// FUNCTION: YODA 0x0040a0c0  (??0CGdiObject@@ ctor COMDAT)
+// FUNCTION: YODA 0x0040a120  (??_GCGdiObject@@ scalar-deleting dtor COMDAT)
+// FUNCTION: YODA 0x0040a1a0  (??1CGdiObject@@ dtor COMDAT)
+// FUNCTION: YODA 0x0040a4e0  (??0CBitmap@@ ctor COMDAT)
+// FUNCTION: YODA 0x0040a560  (??_GCBitmap@@ scalar-deleting dtor COMDAT)
+// FUNCTION: YODA 0x0040a5d0  (??1CBitmap@@ dtor COMDAT)
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x0040a200
+// GameView::DrawGameArea — blit the 288x288 game viewport to the screen at client
+// (8,7). With no DC supplied, grabs one (with palette) and releases it after. The
+// GetPixel probe at (0x138,0x11c) — just outside the viewport — detects the frame
+// having been painted over (e.g. by a dialog): if that pixel is valid and no longer
+// COLOR_3DFACE, the whole window is invalidated first. Locator-map modes (mode 5
+// with the map open, mode 7, or the map open at all — the last || term makes the
+// mode-5 check redundant, faithful dev code) blit the canvas from its origin
+// (the map is composited at 0,0); play modes blit the camera window (nViewLeft/Top).
+void GameView::DrawGameArea(CDC *pDC)
+{
+    CPalette *pOldPal = 0;
+    if (pDC == 0)
+    {
+        pDC = GetDC();
+        if (pDC == 0)
+            return;
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    }
+    int nMode = pWorld->nFrameMode;
+    COLORREF pixel = ::GetPixel(pDC->m_hDC, 0x138, 0x11c);
+    DWORD clr = ::GetSysColor(0xf);
+    if (pixel != 0xffffffff && clr != pixel)
+        ::RedrawWindow(m_hWnd, 0, 0, 0x105);
+    if ((nMode == 5 && bMapViewOpen != 0) || nMode == 7 || bMapViewOpen != 0)
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, 0, 0);
+    else
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, pWorld->nViewLeft,
+                                pWorld->nViewTop);
+    if (pOldPal != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ReleaseDC(pDC);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x0040a320
+// GameView::BlitTile — draw one 32x32 tile into the back-buffer canvas at zone
+// cell (x,y) (pixel x<<5, y<<5), masked when the tile's transparency flag is set.
+// Bounds use the zone WIDTH for both axes (square zones). The 3rd param is passed
+// by every caller but never read (byte-proven: RET 0x10 = 4 dword params, no
+// [esp+0x14] access) — the header's "(sig?)" tag can come off.
+// EFFECTIVE (47/47 insns, align=20): one consistent register rotation (orig x→SI
+//   y→DX w→AX; ours x→DX y→AX w→SI) + the induced cmp mirror (`cmp w,x; jle` vs
+//   `cmp x,w; jge` — `w > x` and `x < w` spellings compile identically, lesson #6).
+//   Crack that mattered: sx/sy MUST be locals — written at the call sites the
+//   x<<5/y<<5 pair gets re-emitted per arm instead of hoisted above the flags test.
+void GameView::BlitTile(short y, short x, int nUnused, Tile *pTile)
+{
+    Canvas *pCanvas = pWorld->pCanvas;
+    if (pCanvas != 0 && pTile != 0)
+    {
+        short w = pWorld->currentZone->width;
+        if (x >= 0 && y >= 0 && x < w && y < w)
+        {
+            short sx = x << 5;
+            short sy = y << 5;
+            if (pTile->flags & 1)
+            {
+                pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+                return;
+            }
+            pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x0040a3a0
+// GameView::DrawTileAt — redraw zone cell (x,y) into the canvas: frame < 0 paints
+// all 3 layers back-to-front (the DrawZoneCell composite, but via the raw tile
+// array); frame 0..2 paints that single layer only. Tile ids are signed shorts
+// (-1 = empty). NOTE the register split the decompile confirms: the 3-layer loop
+// re-mentions pWorld->pCanvas / pWorld->tiles fresh each iteration (the calls
+// clobber the caller-saved copies), while the single-frame arm reuses the pCanvas
+// local and the entry pWorld — write it exactly that way.
+// EFFECTIVE (109/109 insns, align=32): pure two-register swap (orig this→EBP,
+//   pCell→EBX; ours the reverse) + the same cmp mirror as BlitTile + a 1-insn
+//   entry scheduling shuffle. Structure, both arms, the 3-layer countdown loop and
+//   every call site are insn-identical. DrawZoneCellRect rotation family — G1.
+void GameView::DrawTileAt(short x, short y, short frame)
+{
+    Canvas *pCanvas = pWorld->pCanvas;
+    if (pCanvas != 0)
+    {
+        short *pCell = &pWorld->currentZone->tiles[(y * 18 + x) * 3];
+        short w = pWorld->currentZone->width;
+        if (x >= 0 && y >= 0 && w > x && w > y)
+        {
+            short sx = x << 5;
+            short sy = y << 5;
+            if (frame < 0)
+            {
+                int n = 3;
+                do
+                {
+                    if (*pCell >= 0)
+                    {
+                        Tile *pTile = (Tile *)pWorld->tiles.GetAt(*pCell);
+                        if (pTile->flags & 1)
+                            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20,
+                                                        sx, sy, 0);
+                        else
+                            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20,
+                                                      sx, sy);
+                    }
+                    pCell++;
+                    n--;
+                } while (n != 0);
+            }
+            else if (pCell[frame] >= 0)
+            {
+                Tile *pTile = (Tile *)pWorld->tiles.GetAt(pCell[frame]);
+                if (pTile->flags & 1)
+                {
+                    pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+                    return;
+                }
+                pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+            }
+        }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FUNCTION: YODA 0x0040a620
+// GameView::IsUsableTileMaybe — hardcoded tile-id predicate: 0 for the special-
+// behaviour tile ranges below, 1 for everything else. Written as a switch (66
+// cases after range folding) — VC4.2 builds the balanced comparison tree with
+// per-subtree copies of the default `return 1` epilogue (the ReadZone whitelist
+// pattern, lesson #11).
+int GameView::IsUsableTileMaybe(short tileId)
+{
+    switch (tileId)
+    {
+    case 0x67: case 0x68: case 0x69:
+    case 0x6b:
+    case 0x163:
+    case 0x176: case 0x177: case 0x178:
+    case 0x17c: case 0x17d: case 0x17e: case 0x17f: case 0x180: case 0x181:
+    case 0x182: case 0x183: case 0x184: case 0x185: case 0x186:
+    case 0x271: case 0x272:
+    case 0x346: case 0x347: case 0x348: case 0x349: case 0x34a: case 0x34b:
+    case 0x34c: case 0x34d: case 0x34e: case 0x34f: case 0x350: case 0x351:
+    case 0x352: case 0x353: case 0x354: case 0x355: case 0x356: case 0x357:
+    case 0x396: case 0x397: case 0x398:
+    case 0x39b:
+    case 0x39d: case 0x39e: case 0x39f: case 0x3a0: case 0x3a1: case 0x3a2:
+    case 0x3a3: case 0x3a4:
+    case 0x3fd:
+    case 0x47b: case 0x47c: case 0x47d: case 0x47e: case 0x47f: case 0x480:
+    case 0x481: case 0x482: case 0x483: case 0x484: case 0x485: case 0x486:
+    case 0x53d:
+    case 0x740:
+        return 0;
+    }
+    return 1;
+}

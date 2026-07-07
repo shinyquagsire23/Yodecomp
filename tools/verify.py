@@ -54,8 +54,15 @@ def main():
     exe_bytes = open(exe, "rb").read()
     # keep only our COMDATs (drop MFC base-class library methods + CRT init thunks), then pair
     # each marker to its SAME-named COMDAT (best-fit mis-assigns reloc-masked-identical stubs).
+    # Exception: a marker with an EXPLICIT mangled hint (e.g. "(??0CGdiObject@@ ctor COMDAT)")
+    # claims its COMDAT even when the class is lib-owned — some MFC COMDAT copies provably
+    # SURVIVE per-TU in the app region (the CException dtor family, GameView's CGdiObject/
+    # CBitmap trios) and are ours to match there.
+    hinted = set(re.findall(
+        r"//\s*FUNCTION:\s*YODA\s+0x[0-9a-fA-F]+[^\n]*?(\?\?(?:_[A-Z]|[0-9])\w+@@)", text))
     funcs = [f for f in match.coff_functions(obj)
-             if owner_of(f[0]) not in LIB_OWNERS
+             if (owner_of(f[0]) not in LIB_OWNERS
+                 or any(h in f[0] for h in hinted))
              and not f[0].lstrip("?").startswith(("_$E", "$E"))]
     paired = match.pair_by_name(text, funcs)
 
