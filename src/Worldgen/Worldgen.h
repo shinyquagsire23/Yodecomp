@@ -14,6 +14,27 @@
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
 
+// Tokens of the transient 10x10 short PLAN grid that Generate carves the quest into
+// (CarveQuestPath writes PATH/GOAL/forks/blockers; PlaceBlockades stamps LOCK/WALL;
+// BuildQuestPath assigns ORDERED markers; PlacePuzzles keys off ORDERED adjacency).
+// Fork tokens are named for the direction their CORRIDOR extends (confirm vs Generate).
+enum PlanToken
+{
+    PLAN_EMPTY    = 0,
+    PLAN_PATH     = 1,      //       plain path room
+    PLAN_GOAL     = 0x65,   // 101   goal room (CarveQuestPath random promotion)
+    PLAN_LOCK     = 0x66,   // 102   blockade lock spot (PlaceBlockades)
+    PLAN_WALL     = 0x68,   // 104   blockade wall (PlaceBlockades)
+    PLAN_START    = 0xc9,   // 201   attachable seed cell Maybe (extendable like PATH/GOAL)
+    PLAN_CORRIDOR = 0x12c,  // 300   corridor body (perpendicular neighbors blocked)
+    PLAN_FORK_W   = 0x12d,  // 301   fork cell, corridor continues west
+    PLAN_FORK_E   = 0x12e,  // 302   fork cell, corridor continues east
+    PLAN_FORK_N   = 0x12f,  // 303   fork cell, corridor continues north
+    PLAN_FORK_S   = 0x130,  // 304   fork cell, corridor continues south
+    PLAN_BLOCKED  = 0x131,  // 305   reserved/blocker
+    PLAN_ORDERED  = 0x132,  // 306   order-id assigned (BuildQuestPath)
+};
+
 // Worldgen zone-entry record (8 bytes, vtable 0x44b080, ctor Mfc::0x401390): the element type
 // of the two worldgen zone-entry lists (worldgenPendingZones worklist / worldgenRefZones dedup set).
 class WorldgenZoneEntry : public CObject
@@ -208,6 +229,9 @@ public:
     void WorldgenAddZoneEntry(short zoneId, short val);  // 0x0041d800
     int  IsZoneUsed(short zoneId);                       // 0x0041d8d0
     void AddPlacedZoneId(short zoneId);                  // 0x0041d920
+    void WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid,
+                                int maxGoals, int *pnGoals, int maxSplits,
+                                int *pnSplits, int *pnPlaced); // 0x0041d940
     int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
     int  WorldgenSelectPuzzle(short nItem, short nItem2, short nType,

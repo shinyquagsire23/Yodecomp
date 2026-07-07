@@ -1159,6 +1159,329 @@ void World::AddPlacedZoneId(short zoneId)
     placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), zoneId);
 }
 
+// FUNCTION: YODA 0x0041d940
+// [EFFECTIVE-WIP, structurally 100% converged (every aligned row a pure register rename):
+// residual = one callee-saved rotation (nBudget EBX<->EDI, y ESI<->EBX, pCell EDI<->ESI) and
+// the up-arm's scratch pick (orig AX -> short-form cmp ax,imm16 saves 1 byte; ours CX) which
+// shifts the four switch byte-tables by 4 via alignment — hence the scary raw byte diff.
+// Cracked on the way: exit test is literally `nBudget <= 0` (test/jg), and the band picks are
+// TERNARIES `rand() % 2 != 0 ? base : opp` (load/cond-overwrite/store — the two-statement form
+// emits store-store). Joint pass.]
+// Random-walk one difficulty ring of the quest path onto the plan grid. Per attempt: pick a
+// random cell on the tier's border band (a vertical or horizontal edge, coin-flipped), and if
+// it is empty and touches exactly-reachable path on one side, either extend a corridor fork
+// (budgeted by rand()%forkDen<forkNum and the neighbor's grid order), continue a corridor
+// through the cell, or stamp a plain path room; freshly placed rooms may be promoted to goal
+// rooms. Runs until the room budget is spent or 145 attempts.
+void World::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid, int maxGoals,
+                                   int *pnGoals, int maxSplits, int *pnSplits, int *pnPlaced)
+{
+    int xBase, xOpp, yBase, yOpp, span, forkDen, forkNum, goalNum;
+    short v;
+    int nGoals = *pnGoals;
+    int nSplits = *pnSplits;
+    int nPlaced = *pnPlaced;
+    switch (nTier)
+    {
+    case 2:
+        xBase = 3;
+        xOpp = 6;
+        yBase = 3;
+        yOpp = 6;
+        span = 4;
+        forkDen = 9;
+        forkNum = 2;
+        goalNum = 1;
+        break;
+    case 3:
+        xBase = 2;
+        xOpp = 7;
+        yBase = 2;
+        yOpp = 7;
+        span = 6;
+        forkDen = 4;
+        goalNum = 3;
+        forkNum = 2;
+        break;
+    case 4:
+        xBase = 1;
+        xOpp = 8;
+        yBase = 1;
+        yOpp = 8;
+        span = 8;
+        forkNum = 1;
+        forkDen = 5;
+        goalNum = 6;
+        break;
+    }
+    int bDone = 0;
+    int nAttempts = 0;
+    do
+    {
+        int x, y;
+        if (rand() % 2 != 0)
+        {
+            x = rand() % 2 != 0 ? xBase : xOpp;
+            y = yBase + rand() % span;
+        }
+        else
+        {
+            y = rand() % 2 != 0 ? yBase : yOpp;
+            x = xBase + rand() % span;
+        }
+        nAttempts++;
+        short *pCell = &paPlanGrid[x + y * 10];
+        if (*pCell == 0)
+        {
+            if (pCell[-1] != 0 && pCell[-1] != PLAN_BLOCKED)
+            {
+                v = pCell[-1];
+                switch (v)
+                {
+                case PLAN_PATH:
+                case PLAN_GOAL:
+                case PLAN_START:
+                case PLAN_ORDERED:
+                    if (maxSplits > nSplits && rand() % forkDen < forkNum)
+                    {
+                        if (GetZoneGridOrder(x - 1, y) < nTier)
+                        {
+                            if ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                                (pCell[10] == 0 || pCell[10] == PLAN_BLOCKED))
+                            {
+                                *pCell = PLAN_FORK_E;
+                                nPlaced++;
+                                nBudget--;
+                                nPlaced++;
+                                pCell[-10] = PLAN_BLOCKED;
+                                pCell[10] = PLAN_BLOCKED;
+                                pCell[1] = PLAN_CORRIDOR;
+                                pCell[-9] = PLAN_BLOCKED;
+                                pCell[11] = PLAN_BLOCKED;
+                                nSplits++;
+                            }
+                            else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                                     pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                            {
+                                *pCell = PLAN_PATH;
+                                nPlaced++;
+                                nBudget--;
+                            }
+                        }
+                    }
+                    else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                             pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                    {
+                        *pCell = PLAN_PATH;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                case PLAN_CORRIDOR:
+                case PLAN_FORK_E:
+                    if ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                        (pCell[10] == 0 || pCell[10] == PLAN_BLOCKED))
+                    {
+                        *pCell = PLAN_CORRIDOR;
+                        pCell[-10] = PLAN_BLOCKED;
+                        pCell[10] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                }
+            }
+            else if (pCell[1] != 0 && pCell[1] != PLAN_BLOCKED)
+            {
+                v = pCell[1];
+                switch (v)
+                {
+                case PLAN_PATH:
+                case PLAN_GOAL:
+                case PLAN_START:
+                case PLAN_ORDERED:
+                    if (maxSplits > nSplits && rand() % forkDen < forkNum)
+                    {
+                        if (GetZoneGridOrder(x + 1, y) < nTier)
+                        {
+                            if ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                                (pCell[10] == 0 || pCell[10] == PLAN_BLOCKED))
+                            {
+                                *pCell = PLAN_FORK_W;
+                                nPlaced++;
+                                nBudget--;
+                                nPlaced++;
+                                pCell[-10] = PLAN_BLOCKED;
+                                pCell[10] = PLAN_BLOCKED;
+                                pCell[-1] = PLAN_CORRIDOR;
+                                pCell[-11] = PLAN_BLOCKED;
+                                pCell[9] = PLAN_BLOCKED;
+                                nSplits++;
+                            }
+                            else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                                     pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                            {
+                                *pCell = PLAN_PATH;
+                                nPlaced++;
+                                nBudget--;
+                            }
+                        }
+                    }
+                    else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                             pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                    {
+                        *pCell = PLAN_PATH;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                case PLAN_CORRIDOR:
+                case PLAN_FORK_W:
+                    if ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                        (pCell[10] == 0 || pCell[10] == PLAN_BLOCKED))
+                    {
+                        *pCell = PLAN_CORRIDOR;
+                        pCell[-10] = PLAN_BLOCKED;
+                        pCell[10] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                }
+            }
+            else if (pCell[-10] != 0 && pCell[-10] != PLAN_BLOCKED)
+            {
+                v = pCell[-10];
+                switch (v)
+                {
+                case PLAN_PATH:
+                case PLAN_GOAL:
+                case PLAN_START:
+                case PLAN_ORDERED:
+                    if (maxSplits > nSplits && rand() % forkDen < forkNum)
+                    {
+                        if (GetZoneGridOrder(x, y - 1) < nTier)
+                        {
+                            if ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                                (pCell[1] == 0 || pCell[1] == PLAN_BLOCKED))
+                            {
+                                *pCell = PLAN_FORK_S;
+                                nPlaced++;
+                                nBudget--;
+                                nPlaced++;
+                                pCell[-1] = PLAN_BLOCKED;
+                                pCell[1] = PLAN_BLOCKED;
+                                pCell[10] = PLAN_CORRIDOR;
+                                pCell[9] = PLAN_BLOCKED;
+                                pCell[11] = PLAN_BLOCKED;
+                                nSplits++;
+                            }
+                            else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                                     pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                            {
+                                *pCell = PLAN_PATH;
+                                nPlaced++;
+                                nBudget--;
+                            }
+                        }
+                    }
+                    else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                             pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                    {
+                        *pCell = PLAN_PATH;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                case PLAN_CORRIDOR:
+                case PLAN_FORK_S:
+                    if ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                        (pCell[1] == 0 || pCell[1] == PLAN_BLOCKED))
+                    {
+                        *pCell = PLAN_CORRIDOR;
+                        pCell[-1] = PLAN_BLOCKED;
+                        pCell[1] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                }
+            }
+            else if (pCell[10] != 0 && pCell[10] != PLAN_BLOCKED)
+            {
+                v = pCell[10];
+                switch (v)
+                {
+                case PLAN_PATH:
+                case PLAN_GOAL:
+                case PLAN_START:
+                case PLAN_ORDERED:
+                    if (maxSplits > nSplits && rand() % forkDen < forkNum)
+                    {
+                        if (GetZoneGridOrder(x, y + 1) < nTier)
+                        {
+                            if ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                                (pCell[1] == 0 || pCell[1] == PLAN_BLOCKED))
+                            {
+                                *pCell = PLAN_FORK_N;
+                                nPlaced++;
+                                nBudget--;
+                                nPlaced++;
+                                pCell[-1] = PLAN_BLOCKED;
+                                pCell[1] = PLAN_BLOCKED;
+                                pCell[-10] = PLAN_CORRIDOR;
+                                pCell[-11] = PLAN_BLOCKED;
+                                pCell[-9] = PLAN_BLOCKED;
+                                nSplits++;
+                            }
+                            else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                                     pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                            {
+                                *pCell = PLAN_PATH;
+                                nPlaced++;
+                                nBudget--;
+                            }
+                        }
+                    }
+                    else if (pCell[-1] < PLAN_CORRIDOR && pCell[1] < PLAN_CORRIDOR &&
+                             pCell[-10] < PLAN_CORRIDOR && pCell[10] < PLAN_CORRIDOR)
+                    {
+                        *pCell = PLAN_PATH;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                case PLAN_CORRIDOR:
+                case PLAN_FORK_N:
+                    if ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                        (pCell[1] == 0 || pCell[1] == PLAN_BLOCKED))
+                    {
+                        *pCell = PLAN_CORRIDOR;
+                        pCell[-1] = PLAN_BLOCKED;
+                        pCell[1] = PLAN_BLOCKED;
+                        nPlaced++;
+                        nBudget--;
+                    }
+                    break;
+                }
+            }
+            if (*pCell == PLAN_PATH && maxGoals > nGoals && rand() % 8 < goalNum &&
+                v != PLAN_GOAL && nTier > 2)
+            {
+                *pCell = PLAN_GOAL;
+                nGoals++;
+            }
+        }
+        if (nBudget <= 0)
+            bDone++;
+        if (nAttempts > 0x90)
+            bDone++;
+    } while (bDone == 0);
+    *pnGoals = nGoals;
+    *pnSplits = nSplits;
+    *pnPlaced = nPlaced;
+}
+
 // FUNCTION: YODA 0x0041e920
 // Collect the zone's IZX2/IZX3 item ids not already placed, random-pick one; if none, recurse
 // into DOOR_IN child zones.
