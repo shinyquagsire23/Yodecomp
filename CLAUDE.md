@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v22: 21/44 exact — transcribed contiguously through 0x40f3c0(excl), incl. Tick/OnTimer (eff.) and the v22 hotspot/transition/inventory block (StepDetonatorEffect/TransitionZoneScript/ReenableHotspotObjects EXACT; AHC/XWing/Door/TriggerHotspots/UpdateItemObjects/DrawText eff., autopsies in-source). NEXT: 0x40f3d0 dtor trio (vft 0x44cfec), ShowWinMessage 0x40f4b0, ClassifyTile 0x40fca0 → OnKeyDown 0x4150f0 |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v23: 28/53 exact — transcribed through 0x4115b0(excl) minus OnDragItem; ClassifyTile (1569B) EXACT, ShowWinMessage/ScrollZoneTransition eff., 6 COMDATs vtable-pinned. REMAINING ~32KB: OnDragItem 0x4102d0, SoundInit 0x411520, OnLButtonDown 0x411730, 0x412250, 0x413df0 (4.6KB), OnKeyDown 0x4150f0, TextDialog ctor/Run, options dialogs |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -362,6 +362,12 @@ Written to be followable without prior context: each phase lists concrete steps 
   **95.28 % transcribed / 16.02 % exact — v22: hotspot/transition/inventory block
   0x40e400–0x40f3c0 done (3 EXACT + 6 eff., 21/44 GameView markers); World::DrawRect
   proven __thiscall member; per-label jump-table mechanism found (2026-07-07 v22)**;
+  **17.41 % exact / 79.71 % HONEST coverage — v23: ClassifyTile (1569B) EXACT +
+  ShowWinMessage/ScrollZoneTransition eff. + 6 COMDATs (28/53 markers). ⚠ progress.py's
+  old transcribed% was INFLATED (our-COMDAT lengths vs the 128158 denominator); it now
+  also prints marker coverage against TRUE Ghidra extents (toolchain/test/app_funcs.txt,
+  156054 bytes incl. funclets/tables) — use THAT for coverage from now on
+  (2026-07-07 v23)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -445,25 +451,51 @@ mangled hint; asmscore.py now PARSES `(?mangled)` marker hints like verify.py).*
   (fixed-point rule — do NOT revert). GameData 13/27, Records 24/33, Worldgen 31/90,
   WorldDoc 6/13, World 6/8, Iact 2/10 all at expected levels.
 
-**▶ START HERE (v23): continue GameView.cpp in .text order from 0x40f3d0:**
-1. 0x40f3d0 Dtor_vft44cfec_Maybe + 0x40f420 ScalarDtor_vft44cfec_Maybe + 0x40f490
-   ScalarDtor (identify the class — vftable 0x44cfec; likely an embedded dialog/balloon
-   class), then **ShowWinMessage 0x40f4b0 (~2KB)**, FUN_0040fc80 (tiny), ClassifyTile
-   0x40fca0, onward toward OnKeyDown 0x4150f0.
-2. **FireWeaponStep flags-test theory to try (from UpdateItemObjects):** the orig
-   loads flags into a reg — probe a TWO-use spelling (e.g. testing two masks off one
-   local) or check if the site's pTile has another use keeping it in EAX; the wide-vs-
-   narrow choice tracks whether the VALUE lives in a reg at IL level.
-3. **Open items (carried):** InvScrollBar ??_G/??1 dtor COMDATs (0x408690/0x4086b0)
-   PARKED; options dialogs (0x417ec0–0x4186e0) + TextDialog ctor/Run embedded later in
-   this .cpp; World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); DrawText's
-   CBrush ??1/??_G COMDATs now emitted by our TU (0x40f3d0-region ownership — check
-   whether the orig TU emits them at these addresses or they fold, Phase G).
-4. **G1 dial axes (carried):** ZTS↔WES + AHC arms + XWing arms parity crossings;
+**▶ v23 RESULTS (2026-07-07, committed): GameView.cpp = 28/53 markers, contiguous
+0x4084f0–0x4115b0(excl) minus OnDragItem.**
+- **ClassifyTile 0x40fca0 EXACT first compile (1569B — biggest exact yet):** three
+  sequential switches + guards; asmscore's dump showed table-region noise but the
+  masked byte-compare was 0 diffs — for table-heavy functions ALWAYS confirm with a
+  direct masked byte-compare before touching anything.
+- COMDAT identities pinned via vtable evidence (byte-compare can't disambiguate thin
+  ??_Gs — the reloc IS the identity): 0x40f3d0/0x40f420 = ??1/??_G CBrush (DrawText's
+  local); 0x40f490 = ??_GCEdit (vft 0x44dcd4 = wndDialogText@0x298, dtor in the ctor
+  funclet); 0x40fc80 = ??_GCScrollBar (vft 0x44dda4 via InvScrollBar's inline base
+  ctor); 0x411010/0x4110d0 = ??_G/??1 CBitmapButton. All 6 MATCH marker-only.
+- **ShowWinMessage 0x40f4b0 EFFECTIVE-WIP** (495/491, autopsy in-source): the orig
+  homes tx/ty to slots and pre-loads playerX/Y/equipped/m_pData in regs above the
+  3-arm dispatch — one global rank tie-break; PLUS an intra-function arm-pair reg-role
+  crossing (field30 if/else pairs) that blocks cl's cross-jump. int-id locals
+  (xor+mov dx), int a/b hoisted in arm C, str += " " (0x456108 literal).
+- **ScrollZoneTransition 0x411180 EFFECTIVE-WIP** (255/264, ours 9 shorter): orig
+  spills this to [esp] + n2 to a slot, giving all 4 callee-saved regs to
+  pDC/n/scratch (the OnTimer this-reload family). Cracks: int *pHide = &field
+  pointer-local, CWinApp *pApp = AfxGetApp() local, GetSafeHdc() for BitBlt src,
+  one-test three-way dispatch, clock()+50 busy-wait.
+- Renames/retypes (Ghidra synced+saved): World.equippedItem int→Tile* (UseWeapon's
+  ternary keeps an (int) cast — sic, pointer value degrades into nType);
+  scrollDirX/Y@0x3360/4, unk3370 added. ⚠ modify_struct_field silently NO-OPs on
+  field renames — use run_script_inline setFieldName (confirmed twice).
+- ⚠ progress.py fix: PARTIAL used our-COMDAT lengths (funclets+tables) → inflated
+  transcribed%. Now also prints Ghidra-extent coverage (regen app_funcs.txt via the
+  dump script when Ghidra body-repairs change extents).
+
+**▶ START HERE (v24): the remaining ~32KB of GameView TU, biggest-first or .text order:**
+1. **OnDragItem 0x4102d0** (3257B per Ghidra extent — the Artoo drag-drop handler,
+   feeds ClassifyTile); then 0x411520 SoundInit (~0x210), OnLButtonDown 0x411730
+   (2803B), 0x412250 (2602B — unnamed, identify), 0x413df0 (4635B — likely
+   OnBumpTile, the biggest unclaimed), OnKeyDown 0x4150f0 (1538B), TextDialog::Run
+   0x416c40 (2022B) + ctor 0x416b90, options dialogs 0x417ec0–0x4186e0.
+2. **FireWeaponStep flags-test theory (carried):** orig loads flags into a reg —
+   probe a TWO-use spelling / check whether pTile has another use keeping it in EAX.
+3. **Open items (carried):** InvScrollBar ??_G/??1 (0x408690/0x4086b0) PARKED;
+   World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); MapZone.field30 →
+   quest-list selector rename candidate (1=listA, else listB — ShowWinMessage).
+4. **G1 dial axes (carried):** ZTS↔WES + AHC/XWing arms parity crossings;
    DrawZoneCellRect/DrawWholeZone rotations; FireWeaponStep flags-test + erase-block;
-   Tick's cmp-direction + fire-block + reg roles; OnTimer's this-reload/import-caching;
-   UpdateItemObjects' this/pO role swap; DrawText's pTile-EBX/pWorld-CSE; plain-helper
-   param widths; AFX_MSG map-order. JOINT pass AFTER E.
+   Tick cmp-direction/fire-block/reg-roles; OnTimer + ScrollZoneTransition
+   this-reload/import-caching; UpdateItemObjects this/pO swap; DrawText pTile-EBX
+   CSE; ShowWinMessage tx/ty homing; plain-helper param widths; AFX_MSG map-order.
 5. **Re-verify Worldgen after ANY GameView.h/Worldgen.h edit** (one compile + verify.py).
 
 ### ⏮ PRIOR (2026-07-07 v20+v21 — Tick + OnTimer transcribed, condensed)

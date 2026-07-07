@@ -7285,9 +7285,9 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     World *pW = pWorld;
-    int nSavedItem = pW->equippedItem;
+    Tile *pSavedItem = pW->equippedItem;
     Character *pWeapon = pW->currentWeapon;
-    pW->equippedItem = (int)pW->tiles.GetAt(pWeapon->frames[7]);
+    pW->equippedItem = (Tile *)pW->tiles.GetAt(pWeapon->frames[7]);
     int nDmg = pWeapon->damage;
     int nDiff = pWorld->difficulty;
     if (nDiff < 0x32)
@@ -7306,7 +7306,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
     else if (bSaber)
         nType = 2;
     else
-        nType = nType != 0 ? 3 : nSavedItem;  // sic: degrades to the saved equipped-item value
+        nType = nType != 0 ? 3 : (int)pSavedItem;  // sic: degrades to the saved equipped-item POINTER value
     short nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
     switch (nStep)
     {
@@ -7553,7 +7553,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         goto done;
     }
 done:
-    pWorld->equippedItem = nSavedItem;
+    pWorld->equippedItem = pSavedItem;
     pDC->SelectPalette(pOldPal, 0);
     ::ReleaseDC(m_hWnd, pDC->m_hDC);
 }

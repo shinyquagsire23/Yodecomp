@@ -194,8 +194,11 @@ public:
     char        _pad3356[2];         // +0x3356
     Tile       *pPlayerFrameTile;    // +0x3358
     Character  *pPlayerChar;         // +0x335c
-    char        _pad3360[0x14];      // +0x3360
-    int         equippedItem;        // +0x3374  (holds a Tile*; UseWeapon saves/overrides it)
+    int         scrollDirX;          // +0x3360  edge-scroll direction (ScrollZoneTransition)
+    int         scrollDirY;          // +0x3364
+    char        _pad3368[8];         // +0x3368
+    int         unk3370;             // +0x3370  cleared by GameView::ShowWinMessage tail
+    Tile       *equippedItem;        // +0x3374  (UseWeapon saves/overrides it)
     int         unk3378;             // +0x3378  zeroed when STUP world-view state is entered
     int         bWorldInvalidMaybe;  // +0x337c  (Ghidra name; OnLoadWorld sets 1)
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block

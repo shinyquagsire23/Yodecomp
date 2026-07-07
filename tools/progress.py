@@ -109,6 +109,31 @@ def main():
     print("  TOTAL    %6d bytes  (%d funcs in app region)" % (TOTAL_APP_BYTES, TOTAL_APP_FUNCS))
     print("  >>> %.2f%% exact + %.2f%% partial = %.2f%% transcribed; "
           "%.2f%% left to decompile <<<" % (e_pct, p_pct, t_pct, 100.0 - t_pct))
+    # HONEST transcription coverage (v23): the PARTIAL sum above uses OUR COMDAT
+    # lengths (EH funclets + jump tables included), which overcounts against the
+    # 128158 denominator. Measure marker coverage against TRUE Ghidra extents
+    # (toolchain/test/app_funcs.txt, regenerate via the run_script_inline dump).
+    ext_path = os.path.join(ROOT, "toolchain", "test", "app_funcs.txt")
+    if os.path.exists(ext_path):
+        table = {}
+        for ln in open(ext_path):
+            p = ln.split()
+            if len(p) == 2:
+                table[int(p[0], 16)] = int(p[1])
+        marked = set()
+        for cpp in glob.glob(os.path.join(ROOT, "src", "**", "*.cpp"), recursive=True):
+            for m in re.finditer(r"FUNCTION:\s*YODA\s+0x0*([0-9a-fA-F]+)",
+                                 open(cpp).read()):
+                marked.add(int(m.group(1), 16))
+        tot = sum(table.values())
+        cov = sum(sz for va, sz in table.items() if va in marked)
+        un = sorted((sz, va) for va, sz in table.items() if va not in marked)
+        print("  --- Ghidra-extent basis (%d funcs, %d bytes incl. funclets/tables) ---"
+              % (len(table), tot))
+        print("  >>> marker coverage %.2f%% (%d bytes); largest unclaimed:" 
+              % (100.0 * cov / tot, cov))
+        for sz, va in un[-6:][::-1]:
+            print("      %#x  %d bytes" % (va, sz))
 
 
 if __name__ == "__main__":

@@ -4053,3 +4053,490 @@ void GameView::DrawText(CDC *pDC)
         ReleaseDC(pDC);
     }
 }
+
+// FUNCTION: YODA 0x0040f3d0  (??1CBrush@@UAE@XZ — TU COMDAT copy, emitted by DrawText's local CBrush)
+// FUNCTION: YODA 0x0040f420  (??_GCBrush@@UAEPAXI@Z — scalar-deleting dtor, same origin)
+
+// FUNCTION: YODA 0x0040f4b0
+// GameView::ShowWinMessage — puzzle-solving interaction at the bumped cell
+// (x,y)+(dx,dy). Three arms on the equipped item: tile 780 (the demo's goal
+// item) in a FIND_USEFUL_DROP cell, tile 2034 with goalItemTileId 0xbd
+// (dialog placed at the camera instead of the bumped tile), else the
+// generic NPC trade (cellQuestSlot0 indexes the quest word lists; the
+// cell's field30 picks list A vs B). Unsolved cells (flagA==0) show the
+// reward text (text4 / text1+" "+next text3), blit the reward item and
+// enter the mode-9 pickup blink; solved cells re-show text3/text2 (with
+// the "you won" string 0xe00b overriding after victory).
+// EFFECTIVE-WIP (495/491 insns, all six CString EH scopes + every call and
+// store aligned; align=654 dominated by a global allocation split):
+// (a) the orig HOMES tx/ty to slots [-0x1c]/[-0x14] and pre-loads
+// playerX/playerY/equippedItem/tiles.m_pData into EDX/EDI/ESI/EAX above the
+// arm dispatch (CSE'd across all 3 arm conditions; arm B's cmp reuses
+// EAX/ESI from the head); ours gives tx/ty the callee-saved regs and spills
+// m_pData/equipped to slots instead — one global rank tie-break echoed
+// everywhere. Probed: no-tx/ty-locals full-expression form (worse — the
+// orig computes both at HEAD, so they ARE source locals), n operand order
+// (canonicalized, inert). (b) the orig's paired field30 if/else arms have
+// CROSSED size/data reg roles (A: size->EAX,data->ESI; B: size->ESI,
+// data->EAX) which blocks cl's cross-jump of the GetAt tails; ours emits
+// them symmetric and merges — same intra-function rotation family as the
+// ZTS/WES clone pairs, not source-steerable. Cracks that landed: int id
+// locals (xor+mov dx zero-extend idiom, v10 lesson), int a/b hoisted only
+// in arm C (both bodies), per-arm duplicated dismiss-flag if/else,
+// str += " " via the 0x456108 literal (adjacent to the yen/cent
+// placeholder glyphs in this TU's literal pool).
+void GameView::ShowWinMessage(int x, int y, int dx, int dy)
+{
+    int tx = dx + x;
+    int ty = dy + y;
+
+    if ((Tile *)pWorld->tiles.GetAt(780) == pWorld->equippedItem)
+    {
+        int n = pWorld->playerY * 10 + pWorld->playerX;
+        if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)
+        {
+            if (pWorld->mapGrid[n].flagA == 0)
+            {
+                int id;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id = pWorld->questItemsA.GetAt(pWorld->questItemsA.GetSize() - 1);
+                else
+                    id = pWorld->questItemsB.GetAt(pWorld->questItemsB.GetSize() - 1);
+                CString str = ((Puzzle *)pWorld->puzzles.GetAt(id))->text4;
+                pWorld->DrawPlayer();
+                DrawGameArea(NULL);
+                ShowTextDialog(str, tx * 32 + 16, ty * 32 + 16, 0);
+                pWorld->mapGrid[n].flagA = 1;
+                int id2;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id2 = pWorld->questItemsA.GetAt(0);
+                else
+                    id2 = pWorld->questItemsB.GetAt(0);
+                int nTile = ((Puzzle *)pWorld->puzzles.GetAt(id2))->itemA;
+                BlitTile((short)ty, (short)tx, 2, (Tile *)pWorld->tiles.GetAt(nTile));
+                DrawGameArea(NULL);
+                nPickupX = tx;
+                nPickupY = ty;
+                nPickupTileId = nTile;
+                pPickupObj = NULL;
+                nTransitionStep = 0;
+                bBlinkState = 0;
+                pWorld->nFrameMode = 9;
+                bMouseCaptured = 0;
+                pWorld->mapGrid[n].flagB = 1;
+            }
+            else
+            {
+                int id;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id = pWorld->questItemsA.GetAt(pWorld->questItemsA.GetSize() - 1);
+                else
+                    id = pWorld->questItemsB.GetAt(pWorld->questItemsB.GetSize() - 1);
+                CString str = ((Puzzle *)pWorld->puzzles.GetAt(id))->text3;
+                pWorld->DrawPlayer();
+                DrawGameArea(NULL);
+                if (pWorld->gameState == 1)
+                    str.LoadString(0xe00b);
+                ShowTextDialog(str, tx * 32 + 16, ty * 32 + 16, 0);
+                if (bDialogClickDismissMaybe == 0)
+                {
+                    bTextDialogShown = 1;
+                    bInputLocked = 1;
+                }
+                else
+                {
+                    bTextDialogShown = 1;
+                    bInputLocked = 0;
+                }
+            }
+        }
+    }
+    else if ((Tile *)pWorld->tiles.GetAt(2034) == pWorld->equippedItem && pWorld->goalItemTileId == 0xbd)
+    {
+        int n = pWorld->playerY * 10 + pWorld->playerX;
+        if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)
+        {
+            if (pWorld->mapGrid[n].flagA == 0)
+            {
+                int id;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id = pWorld->questItemsA.GetAt(pWorld->questItemsA.GetSize() - 1);
+                else
+                    id = pWorld->questItemsB.GetAt(pWorld->questItemsB.GetSize() - 1);
+                CString str = ((Puzzle *)pWorld->puzzles.GetAt(id))->text4;
+                pWorld->DrawPlayer();
+                DrawGameArea(NULL);
+                ShowTextDialog(str, pWorld->cameraX + 16, pWorld->cameraY + 16, 0);
+                pWorld->mapGrid[n].flagA = 1;
+                int id2;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id2 = pWorld->questItemsA.GetAt(0);
+                else
+                    id2 = pWorld->questItemsB.GetAt(0);
+                int nTile = ((Puzzle *)pWorld->puzzles.GetAt(id2))->itemA;
+                BlitTile((short)ty, (short)tx, 2, (Tile *)pWorld->tiles.GetAt(nTile));
+                DrawGameArea(NULL);
+                nPickupX = tx;
+                nPickupY = ty;
+                nPickupTileId = nTile;
+                pPickupObj = NULL;
+                nTransitionStep = 0;
+                bBlinkState = 0;
+                pWorld->nFrameMode = 9;
+                bMouseCaptured = 0;
+                pWorld->mapGrid[n].flagB = 1;
+            }
+            else
+            {
+                int id;
+                if (pWorld->mapGrid[n].field30 == 1)
+                    id = pWorld->questItemsA.GetAt(pWorld->questItemsA.GetSize() - 1);
+                else
+                    id = pWorld->questItemsB.GetAt(pWorld->questItemsB.GetSize() - 1);
+                CString str = ((Puzzle *)pWorld->puzzles.GetAt(id))->text3;
+                pWorld->DrawPlayer();
+                DrawGameArea(NULL);
+                if (pWorld->gameState == 1)
+                    str.LoadString(0xe00b);
+                ShowTextDialog(str, pWorld->cameraX + 16, pWorld->cameraY + 16, 0);
+                if (bDialogClickDismissMaybe == 0)
+                {
+                    bTextDialogShown = 1;
+                    bInputLocked = 1;
+                }
+                else
+                {
+                    bTextDialogShown = 1;
+                    bInputLocked = 0;
+                }
+            }
+        }
+    }
+    else
+    {
+        int n = pWorld->playerY * 10 + pWorld->playerX;
+        short sSlot = pWorld->mapGrid[n].cellQuestSlot0;
+        if (sSlot >= 0)
+        {
+            int id = pWorld->questItemsA.GetAt(sSlot);
+            if (pWorld->mapGrid[n].cellQuestSlot6 >= 0
+                && (Tile *)pWorld->tiles.GetAt(pWorld->mapGrid[n].cellQuestSlot6) == pWorld->equippedItem)
+            {
+                int a = tx * 32 + 16;
+                int b = ty * 32 + 16;
+                if (pWorld->mapGrid[n].flagA == 0)
+                {
+                    if (pWorld->mapGrid[n].field30 != 1)
+                        id = pWorld->questItemsB.GetAt(sSlot);
+                    Puzzle *pPuz = (Puzzle *)pWorld->puzzles.GetAt(id);
+                    if (pPuz != NULL)
+                    {
+                        CString str = pPuz->text1;
+                        str += " ";
+                        int id3;
+                        if (pWorld->mapGrid[n].field30 == 1)
+                            id3 = pWorld->questItemsA.GetAt(pWorld->mapGrid[n].cellQuestSlot0 + 1);
+                        else
+                            id3 = pWorld->questItemsB.GetAt(pWorld->mapGrid[n].cellQuestSlot0 + 1);
+                        str += ((Puzzle *)pWorld->puzzles.GetAt(id3))->text3;
+                        pWorld->DrawPlayer();
+                        DrawGameArea(NULL);
+                        ShowTextDialog(str, a, b, 0);
+                        if (bDialogClickDismissMaybe == 0)
+                        {
+                            bTextDialogShown = 1;
+                            bInputLocked = 1;
+                        }
+                        else
+                        {
+                            bTextDialogShown = 1;
+                            bInputLocked = 0;
+                        }
+                    }
+                }
+                else
+                {
+                    if (pWorld->mapGrid[n].field30 != 1)
+                        id = pWorld->questItemsB.GetAt(sSlot);
+                    Puzzle *pPuz = (Puzzle *)pWorld->puzzles.GetAt(id);
+                    if (pPuz != NULL)
+                    {
+                        CString str = pPuz->text2;
+                        pWorld->DrawPlayer();
+                        DrawGameArea(NULL);
+                        ShowTextDialog(str, a, b, 0);
+                        if (bDialogClickDismissMaybe == 0)
+                        {
+                            bTextDialogShown = 1;
+                            bInputLocked = 1;
+                        }
+                        else
+                        {
+                            bTextDialogShown = 1;
+                            bInputLocked = 0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    pWorld->unk3370 = 0;
+}
+
+// FUNCTION: YODA 0x0040f490  (??_GCEdit@@UAEPAXI@Z — thin scalar dtor; identity vtable-proven:
+//   its dtor target 0x447f8b is the dtor in wndDialogText's funclet (member @0x298, vft 0x44dcd4))
+// FUNCTION: YODA 0x0040fc80  (??_GCScrollBar@@UAEPAXI@Z — thin scalar dtor; vft 0x44dda4 is the
+//   CScrollBar vtable stored by InvScrollBar's inline base ctor; dtor target 0x447ff9 = ~CScrollBar)
+
+// FUNCTION: YODA 0x0040fca0
+// GameView::ClassifyTile — classifies the object at (x,y) for the Artoo
+// hint table in OnDragItem (result 0..0x14 -> string ids 0xe020..0xe038;
+// -1 = no hint -> rotating small talk). Win/lose state first, then the
+// one-shot beep flags, the player cell (0xe), a layer-1 tile-id switch
+// (pushable 7 via TILE flag, doors 6/8, x-wing 0x12, ...), the enemy/NPC
+// flag bits (0/5), a friendly-tile switch (2) and the valid-hint-target
+// switch (4).
+int GameView::ClassifyTile(int x, int y)
+{
+    if (pWorld->gameState == 1)
+        return 9;
+    if (pWorld->gameState == -1)
+        return 10;
+    if (bArtooBeepPending0Maybe != 0)
+    {
+        bArtooBeepPending0Maybe = 0;
+        return 0x13;
+    }
+    if (bDropOnArtooMaybe != 0)
+    {
+        bDropOnArtooMaybe = 0;
+        return 0x13;
+    }
+    if (bDraggedArtooBlockedMaybe != 0)
+    {
+        bDraggedArtooBlockedMaybe = 0;
+        return 0x14;
+    }
+    if (bDropOutsideViewMaybe != 0)
+    {
+        bDropOutsideViewMaybe = 0;
+        return 0x13;
+    }
+    if (pWorld->cameraX / 32 == x && pWorld->cameraY / 32 == y)
+        return 0xe;
+    int t = (short)pWorld->currentZone->GetTile(x, y, 1);
+    if (t < 0)
+    {
+        int t0 = (short)pWorld->currentZone->GetTile(x, y, 0);
+        if (t0 == 0x218)
+            return 0x10;
+        return t0 == 0x219 ? 0xf : -1;
+    }
+    unsigned int flags = ((Tile *)pWorld->tiles.GetAt(t))->flags;
+    if ((flags & 8) != 0)
+        return 7;
+    if (t <= 0 || t == 0x7f2)
+        return -1;
+    switch (t)
+    {
+    case 0x30c:
+        return 6;
+    case 0x200:
+    case 0x201:
+    case 0x202:
+        return 0x12;
+    case 0x314:
+    case 0x77c:
+    case 0x77d:
+    case 0x77e:
+        return 1;
+    case 0x310:
+    case 0x58a:
+    case 0x6e3:
+    case 0x6e4:
+        return 0xc;
+    case 0x3b8:
+    case 0x3b9:
+    case 0x3ba:
+    case 0x3bb:
+        return 8;
+    case 0x31d:
+        return 0x11;
+    case 0x645:
+    case 0x646:
+    case 0x64f:
+    case 0x650:
+        return 0xb;
+    case 0x6e8:
+    case 0x6ee:
+    case 0x6ef:
+    case 0x6f0:
+    case 0x6f1:
+        return 0xd;
+    }
+    if ((flags & 0x20000) != 0)
+        return 0;
+    if ((flags & 0x40000) != 0)
+        return 5;
+    switch (t)
+    {
+    case 0x10:
+    case 0x102:
+    case 0x279:
+    case 0x27b:
+    case 0x27c:
+    case 0x48d:
+    case 0x6e5:
+        return 2;
+    }
+    switch (t)
+    {
+    case 0x46:
+    case 0x47:
+    case 0x48:
+    case 0x49:
+    case 0x4a:
+    case 0x4b:
+    case 0x4c:
+    case 0x91:
+    case 0x95:
+    case 0x98:
+    case 0x99:
+    case 0xdc:
+    case 0xdd:
+    case 0xdf:
+    case 0xe7:
+    case 0xe8:
+    case 0xe9:
+    case 0x15e:
+    case 0x246:
+    case 0x248:
+    case 0x24a:
+    case 0x24c:
+    case 0x2be:
+    case 0x2c5:
+    case 0x2f3:
+    case 0x2f4:
+    case 0x2f7:
+    case 0x2f8:
+    case 0x324:
+    case 0x326:
+    case 0x3d7:
+    case 0x3d8:
+    case 0x417:
+    case 0x418:
+    case 0x439:
+    case 0x458:
+    case 0x460:
+    case 0x4eb:
+    case 0x5b5:
+    case 0x5b6:
+    case 0x5c0:
+    case 0x5c1:
+    case 0x600:
+    case 0x603:
+    case 0x608:
+        return 4;
+    }
+    return -1;
+}
+
+// FUNCTION: YODA 0x00411010  (??_GCBitmapButton@@UAEPAXI@Z — TU COMDAT copy; the GameView
+//   ctor's three CBitmapButton members odr-use it. Emitted mid-TU after OnDragItem.)
+// FUNCTION: YODA 0x004110d0  (??1CBitmapButton@@UAE@XZ — the plain dtor; GameView's ctor/dtor
+//   EH funclets for btnDialogClose/btnDialogUp/btnDialogDown jmp here.)
+
+// FUNCTION: YODA 0x00411180
+// GameView::ScrollZoneTransition — edge-of-zone walk transition: scrolls
+// the 288px viewport 16px per step in the scrollDirX/Y direction, blitting
+// the on-screen area over itself and painting the newly exposed strip from
+// the world canvas, with a 50ms clock() busy-wait per step. Runs the
+// enter-zone IACT (event 4) first with the player hidden, and stamps the
+// map cell solved + mode 3 when done. One-shot: seeds the MIDILoad
+// registry default on first use (bMidiProfileInitMaybe).
+// EFFECTIVE-WIP (255/264 insns — ours 9 SHORTER): every call, arm and
+// constant aligned; the residual is ONE register-budget decision echoed
+// TU-wide: the orig spills THIS to [esp] and n2 to [esp+0x14] (reloading
+// this before nearly every statement — the OnTimer this-reload family),
+// assigning the four callee-saved regs to pDC(ESI)/n(EDI)/per-arm scratch
+// (EBX/EBP incl. the GetSafeHdc temp); ours keeps this=ESI, pDC=EDI,
+// n2=EBX, n=EBP and reads fields directly. n/n2 decl order inert.
+// Cracks: int *pHide = &bHidePlayerMaybe pointer-local (add eax,0x2e54
+// store form), CWinApp *pApp = AfxGetApp() local (single ModuleState
+// call), GetSafeHdc() for the BitBlt src hdc, one test-eax three-way
+// dispatch (dirX >0 / <0 / else dirY), clock()+50 busy-wait, per-arm
+// duplicated Canvas::BitBlt calls cross-jumping into one tail.
+void GameView::ScrollZoneTransition()
+{
+    CDC *pDC = GetDC();
+    if (bMidiProfileInitMaybe == 0)
+    {
+        CWinApp *pApp = AfxGetApp();
+        if (pApp->GetProfileInt("OPTIONS", "MIDILoad", -1) == -1)
+            pApp->WriteProfileInt("OPTIONS", "MIDILoad", 1);
+        bMidiProfileInitMaybe = 1;
+    }
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    int *pHide = &pWorld->bHidePlayerMaybe;
+    int nOldHide = *pHide;
+    *pHide = 1;
+    unsigned int nMask = pWorld->currentZone->IactRun(4, -1, -1, -1, -1, -1, NULL, pWorld, this);
+    if (pWorld->currentZone->activatedFlag == 0)
+        DrawEntities();
+    if ((nMask & 0x20) != 0)
+        DrawWholeZone();
+    int n = 0;
+    int n2 = 0x10;
+    do
+    {
+        if (pWorld->scrollDirX > 0)
+        {
+            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                     0x120 - n2, 0x120, pDC->GetSafeHdc(),
+                     pWorld->rectUnk3274.left + 0x10, pWorld->rectUnk3274.top, SRCCOPY);
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left - n2 + 0x120,
+                                    pWorld->rectUnk3274.top, n2, 0x120, 0, pWorld->nViewTop);
+        }
+        else if (pWorld->scrollDirX < 0)
+        {
+            int e = pWorld->rectUnk3274.left + n;
+            ::BitBlt(pDC->m_hDC, e + 0x10, pWorld->rectUnk3274.top,
+                     0x110 - n, 0x120, pDC->GetSafeHdc(),
+                     e, pWorld->rectUnk3274.top, SRCCOPY);
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                    n + 0x10, 0x120, 0x22f - n, pWorld->nViewTop);
+        }
+        else if (pWorld->scrollDirY < 0)
+        {
+            int e = pWorld->rectUnk3274.top + n;
+            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, e + 0x10,
+                     0x120, 0x110 - n, pDC->GetSafeHdc(),
+                     pWorld->rectUnk3274.left, e, SRCCOPY);
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                    0x120, n + 0x10, pWorld->nViewLeft, 0x22f - n);
+        }
+        else if (pWorld->scrollDirY > 0)
+        {
+            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                     0x120, 0x120 - n2, pDC->GetSafeHdc(),
+                     pWorld->rectUnk3274.left, pWorld->rectUnk3274.top + 0x10, SRCCOPY);
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left,
+                                    pWorld->rectUnk3274.top - n2 + 0x120, 0x120, n2,
+                                    pWorld->nViewLeft, 0);
+        }
+        long c = clock();
+        long end = c + 50;
+        while (c < end)
+            c = clock();
+        n2 += 0x10;
+        n += 0x10;
+    } while (n2 <= 0x120);
+    pWorld->bHidePlayerMaybe = nOldHide;
+    pWorld->currentZone->activatedFlag = 1;
+    DrawWholeZone();
+    pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].flagSolved = 1;
+    DrawDirectionArrows(pDC);
+    pDC->SelectPalette(pOldPal, 0);
+    ReleaseDC(pDC);
+    pWorld->nFrameMode = 3;
+}
