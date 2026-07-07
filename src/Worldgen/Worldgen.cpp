@@ -5416,6 +5416,498 @@ void World::OnSaveWorld()
     pView->bBusy = 0;
 }
 
+// NOTE: 0x424fb0 (16 bytes) is a bare `jmp 0x424fc0` thunk that GameView::OnTimer (0x40e0ec)
+// calls to kick a replay load — not producible from C++ source (likely an incremental-link
+// ILT remnant); reproduce at the Phase-G whole-image link, not here.
+
+// FUNCTION: YODA 0x00424fc0
+// [EFFECTIVE-WIP: insns 1131/1136, align=496 mostly echo; len 3606 vs ~3696 extent (orig
+// includes more EH-funclet bytes). Cracks that landed (session 2026-07-06): early-return
+// guard shape (the shared dtor+epilogue is the FIRST guard's fall-through; later exits
+// cross-jump back — v10 EH lesson); DoModal success arm as if-body fall-through (cancel arm
+// out-of-line after it); SEPARATE x/y locals for the -1,-1 sentinel reads (reusing the loop
+// counters for Read(&i,4) address-homes them and wrecks reg-alloc TU-wide); story-history
+// planet dispatch is a SWITCH (compares up front) with per-arm vGoal/pArr temps feeding one
+// cross-jumped SetAtGrow tail; countdown-init-first preheaders on the 2x2/10x10 grid loops.
+// Parked residuals: the Open-fail AfxMessageBox switch arms each carry a duplicated
+// `cmp pDlg,0/je` join head (OPEN tail-dup family, same as Load/OnSaveWorld); inventory-loop
+// backedge cmp direction (reg-vs-mem operand order, lesson #6 — `nInv > i` inert); the
+// imm-vs-reg batching in the tail state stores (WorldDoc-ctor OPEN family); preheader
+// slot/reg shuffles riding the this-reload color cascade.]
+// ON_COMMAND(0x800A File>Load World) [msgmap @0x44c360] — also entered via the 0x424fb0 jmp
+// thunk (GameView::OnTimer's replay kick; Ghidra's old name "Serialize"). Confirm box unless
+// replaying; open dialog (filter 0xE007, *.wld) or take g_strReplayPath; read the
+// "YODASAV44" state back: seed/planet/unk33b8 + StartGame(0,1) + quest-item lists (tail
+// element seeds nCurrentGoalItem/startItem from the puzzle records) + the 2x2 quest cells +
+// zone records (LoadZoneRecursive until the -1,-1 sentinel) + the 10x10 grid (rebuilding
+// apZoneGrid) + inventory (freeing and re-newing InvItems from tile ids) + player/weapon/
+// camera/health/time tail; then PlaceZoneObjectTiles over unsolved grid cells and append the
+// goal to the planet's story history.
+void World::OnLoadWorld()
+{
+    CString strPath;
+    CFileDialog *pDlg = NULL;
+    int nAnswer;
+    if (gameState == 0 && g_bReplayMode == 0)
+        nAnswer = AfxMessageBox(3, 4, 0);
+    else
+        nAnswer = 6;
+    if (nAnswer != 6)
+        return;
+    {
+        CString strFilter;
+        strFilter.LoadString(0xe007);
+        if (g_bReplayMode == 0)
+        {
+            pDlg = new CFileDialog(1, "wld", "*.wld", 0x1006, strFilter, NULL);
+            pDlg->m_ofn.lpstrInitialDir = lpszSaveDirMaybe;  // sic: dereferences pDlg BEFORE
+            if (pDlg == NULL)                                //      the null check
+                return;
+            pDlg->m_ofn.Flags &= ~0x10;
+            if (pDlg->DoModal() == 1)
+            {
+                strPath = pDlg->GetPathName().GetBuffer(200);
+            }
+            else
+            {
+                delete pDlg;
+                return;
+            }
+        }
+        else
+        {
+            strPath = g_strReplayPath;
+        }
+        GameView *pView = NULL;
+        POSITION pos = GetFirstViewPosition();
+        if (pos != NULL)
+            pView = (GameView *)GetNextView(pos);
+        int nSavedMode = nFrameMode;
+        if (nSavedMode == 1)
+        {
+            if (pDlg != NULL)
+                delete pDlg;
+            return;
+        }
+        nFrameMode = 0;
+        pView->bBusy = 1;
+        CFile *pFile = new CFile;
+        CFileException e;
+        if (pFile->Open(strPath, CFile::modeRead, &e) == 0)
+        {
+            switch (e.m_cause)
+            {
+            case CFileException::generic:
+            case CFileException::fileNotFound:
+            case CFileException::badPath:
+            case CFileException::tooManyOpenFiles:
+            case CFileException::removeCurrentDir:
+            case CFileException::badSeek:
+            case CFileException::hardIO:
+            case CFileException::sharingViolation:
+            case CFileException::lockViolation:
+            case CFileException::endOfFile:
+                AfxMessageBox(8, 0, (UINT)-1);
+                break;
+            case CFileException::accessDenied:
+            case CFileException::invalidFile:
+            case CFileException::directoryFull:
+            case CFileException::diskFull:
+                AfxMessageBox(8, 0, (UINT)-1);
+                break;
+            default:
+                AfxMessageBox(8, 0, (UINT)-1);
+                break;
+            }
+            if (pDlg != NULL)
+                delete pDlg;
+            nFrameMode = nSavedMode;
+            pView->bBusy = 0;
+            g_bReplayMode = 0;
+            return;
+        }
+        char buf[10];
+        pFile->Read(buf, 9);
+        buf[9] = 0;
+        if (strcmp(buf, "YODASAV44") != 0)
+        {
+            if (pDlg != NULL)
+                delete pDlg;
+            AfxMessageBox(0xe008, 0, (UINT)-1);
+            nFrameMode = nSavedMode;
+            pView->bBusy = 0;
+            g_bReplayMode = 0;
+            return;
+        }
+        pFile->Read(&worldSeed, 4);
+        pFile->Read(&currentPlanet, 4);
+        pFile->Read(&unk33b8, 4);
+        bStartingGameMaybe = 1;
+        StartGame(0, 1);
+        gameState = 0;
+        abortFrame = 0;
+        short nCount;
+        pFile->Read(&nCount, 2);
+        questItemsA.SetSize(0, -1);
+        questItemsA.SetSize(nCount, -1);
+        int i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                unsigned short v;
+                pFile->Read(&v, 2);
+                questItemsA.SetAt(i, v);
+                if (nCount - i == 1)
+                {
+                    nCurrentGoalItem = (short)v;
+                    startItem = ((Puzzle *)puzzles.GetAt((short)v))->itemA;
+                }
+                i++;
+            } while (i < nCount);
+        }
+        pFile->Read(&nCount, 2);
+        questItemsB.SetSize(0, -1);
+        questItemsB.SetSize(nCount, -1);
+        i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                unsigned short v;
+                pFile->Read(&v, 2);
+                questItemsB.SetAt(i, v);
+                if (nCount - i == 1)
+                {
+                    nCurrentGoalItem = (short)v;
+                    startItem2Maybe = ((Puzzle *)puzzles.GetAt((short)v))->itemB;
+                }
+                i++;
+            } while (i < nCount);
+        }
+        i = 2;
+        MapZone *pGridQuest = mapGrid + 0x2c;
+        MapZone *pScratch = mapScratch;
+        do
+        {
+            int j = 2;
+            MapZone *pG = pGridQuest;
+            do
+            {
+                MapZone *pCell = pG;
+                if (unk33b8 == 0)
+                    pCell = pScratch;
+                pFile->Read(&pCell->flagSolved, 4);
+                pFile->Read(&pCell->flagA, 4);
+                pFile->Read(&pCell->flagC, 4);
+                pFile->Read(&pCell->flagB, 4);
+                pFile->Read(&pCell->flagD, 4);
+                pFile->Read(&pCell->id, 2);
+                pFile->Read(&pCell->cellQuestSlot0, 2);
+                pFile->Read(&pCell->cellItemA, 2);
+                pFile->Read(&pCell->cellItemC, 2);
+                pFile->Read(&pCell->cellQuestSlot1, 2);
+                pFile->Read(&pCell->cellItemB, 2);
+                pFile->Read(&pCell->cellQuestSlot5, 2);
+                pFile->Read(&pCell->cellQuestSlot6, 2);
+                pFile->Read(&pCell->zoneType, 4);
+                pFile->Read(&pCell->field30, 2);
+                pG++;
+                pScratch++;
+                j--;
+            } while (j != 0);
+            pGridQuest += 10;
+            i--;
+        } while (i != 0);
+        int nDone = 0;
+        int x = 0;
+        int y = 0;
+        do
+        {
+            pFile->Read(&x, 4);
+            pFile->Read(&y, 4);
+            if (y == -1 && x == -1)
+            {
+                nDone++;
+            }
+            else
+            {
+                short id;
+                int nArg;
+                pFile->Read(&id, 2);
+                pFile->Read(&nArg, 4);
+                LoadZoneRecursive(pFile, id, nArg);
+            }
+        } while (nDone == 0);
+        int j;
+        i = 10;
+        MapZone *pBackup = mapGridBackup;
+        Zone **ppZone = apZoneGrid;
+        do
+        {
+            j = 10;
+            do
+            {
+                MapZone *pCell = pBackup;
+                if (unk33b8 == 0)
+                    pCell = pBackup - 100;
+                pFile->Read(&pCell->flagSolved, 4);
+                pFile->Read(&pCell->flagA, 4);
+                pFile->Read(&pCell->flagC, 4);
+                pFile->Read(&pCell->flagB, 4);
+                pFile->Read(&pCell->flagD, 4);
+                pFile->Read(&pCell->id, 2);
+                pFile->Read(&pCell->cellQuestSlot0, 2);
+                pFile->Read(&pCell->cellItemA, 2);
+                pFile->Read(&pCell->cellItemC, 2);
+                pFile->Read(&pCell->cellQuestSlot1, 2);
+                pFile->Read(&pCell->cellItemB, 2);
+                pFile->Read(&pCell->cellQuestSlot5, 2);
+                pFile->Read(&pCell->cellQuestSlot6, 2);
+                pFile->Read(&pCell->zoneType, 4);
+                pFile->Read(&pCell->field30, 2);
+                if (pCell->id >= 0)
+                    *ppZone = (Zone *)zones.GetAt(pCell->id);
+                ppZone++;
+                pBackup++;
+                j--;
+            } while (j != 0);
+            i--;
+        } while (i != 0);
+        nDone = 0;
+        int x2 = 0;
+        int y2 = 0;
+        do
+        {
+            pFile->Read(&x2, 4);
+            pFile->Read(&y2, 4);
+            if (y2 == -1 && x2 == -1)
+            {
+                nDone++;
+            }
+            else
+            {
+                short id;
+                int nArg;
+                pFile->Read(&id, 2);
+                pFile->Read(&nArg, 4);
+                LoadZoneRecursive(pFile, id, nArg);
+            }
+        } while (nDone == 0);
+        int nInv = inventory.GetSize();
+        i = 0;
+        if (nInv > 0)
+        {
+            do
+            {
+                InvItem *pItem = (InvItem *)inventory.GetAt(i);
+                if (pItem != NULL)
+                    delete pItem;
+                i++;
+            } while (nInv > i);
+        }
+        inventory.SetSize(0, -1);
+        pFile->Read(&nInv, 4);
+        i = 0;
+        if (nInv > 0)
+        {
+            do
+            {
+                short nTile;
+                pFile->Read(&nTile, 2);
+                Tile *pTile = (Tile *)tiles.GetAt(nTile);
+                InvItem *pNew;
+                TRY {
+                    pNew = new InvItem;
+                }
+                }              // closes the try block the TRY macro opened
+                catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
+                    _afxExceptionLink.m_pException = e2;
+                    THROW_LAST();
+                    AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                    AfxAbort();                            //      (docs/engine-bugs.md #7)
+                }
+                }              // closes the TRY macro's outer (link-scope) brace
+                pNew->pTile = pTile;
+                pNew->name = pTile->name;
+                inventory.SetAtGrow(inventory.GetSize(), pNew);
+                i++;
+            } while (nInv > i);
+        }
+        short nZone;
+        pFile->Read(&nZone, 2);
+        pView->nTargetZoneId = nZone;
+        pView->unk118 = 0;
+        pFile->Read(&playerX, 4);
+        pFile->Read(&playerY, 4);
+        short nWeapon;
+        pFile->Read(&nWeapon, 2);
+        if (nWeapon < 0)
+        {
+            currentWeapon = NULL;
+        }
+        else
+        {
+            currentWeapon = (Character *)characters.GetAt(nWeapon);
+            short nAmmo;
+            pFile->Read(&nAmmo, 2);
+            currentWeapon->unk48 = nAmmo;
+        }
+        pFile->Read(&weaponState[0], 2);
+        pFile->Read(&weaponState[1], 2);
+        pFile->Read(&weaponState[2], 2);
+        pFile->Read(&cameraX, 4);
+        pFile->Read(&cameraY, 4);
+        pFile->Read(&healthLo, 4);
+        pFile->Read(&healthHi, 4);
+        pFile->Read(&difficulty, 4);
+        i = 0;
+        int nElapsed;
+        pFile->Read(&nElapsed, 4);
+        timeBase = time(NULL) - nElapsed;
+        pFile->Read(&totalZones, 4);
+        unk248.SetSize(0, -1);
+        short nCnt2;
+        short nSum;
+        pFile->Read(&nCnt2, 2);
+        pFile->Read(&nSum, 2);
+        if (nCnt2 > 0 && nSum > 0)
+        {
+            short nAvg = nSum / nCnt2;
+            unk248.SetSize(nCnt2, -1);
+            if (nCnt2 > 0)
+            {
+                do
+                {
+                    unk248.SetAt(i, nAvg);
+                    i++;
+                } while (i < nCnt2);
+            }
+        }
+        pFile->Read(&nCurrentGoalItem, 4);
+        pFile->Read(&goalItemTileId, 4);
+        pFile->Close();
+        if (pFile != NULL)
+            delete pFile;
+        if (pDlg != NULL)
+            delete pDlg;
+        MapZone *pCell = mapGrid;
+        i = 10;
+        do
+        {
+            j = 10;
+            do
+            {
+                if (pCell->id >= 0 && pCell->flagSolved == 0)
+                    PlaceZoneObjectTiles(pCell->id);
+                pCell++;
+                j--;
+            } while (j != 0);
+            i--;
+        } while (i != 0);
+        unsigned short vGoal;
+        CWordArray *pArr;
+        switch (currentPlanet)
+        {
+        case 1:
+        {
+            int bFound = 0;
+            i = 0;
+            int nSize = storyHistoryNevada.GetSize();
+            nCount = (short)nSize;
+            if (nCount > 0)
+            {
+                unsigned short *p = storyHistoryNevada.GetData();
+                do
+                {
+                    if (*p == (unsigned int)nCurrentGoalItem)
+                    {
+                        bFound = 1;
+                        break;
+                    }
+                    p++;
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound == 0)
+            {
+                vGoal = (unsigned short)nCurrentGoalItem;
+                pArr = &storyHistoryNevada;
+                pArr->SetAtGrow(nSize, vGoal);
+            }
+            break;
+        }
+        case 2:
+        {
+            int bFound = 0;
+            i = 0;
+            int nSize = storyHistoryAlaska.GetSize();
+            nCount = (short)nSize;
+            if (nCount > 0)
+            {
+                unsigned short *p = storyHistoryAlaska.GetData();
+                do
+                {
+                    if (*p == (unsigned int)nCurrentGoalItem)
+                    {
+                        bFound = 1;
+                        break;
+                    }
+                    p++;
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound == 0)
+            {
+                vGoal = (unsigned short)nCurrentGoalItem;
+                pArr = &storyHistoryAlaska;
+                pArr->SetAtGrow(nSize, vGoal);
+            }
+            break;
+        }
+        case 3:
+        {
+            int bFound = 0;
+            i = 0;
+            int nSize = storyHistoryOregon.GetSize();
+            nCount = (short)nSize;
+            if (nCount > 0)
+            {
+                unsigned short *p = storyHistoryOregon.GetData();
+                do
+                {
+                    if (*p == (unsigned int)nCurrentGoalItem)
+                    {
+                        bFound = 1;
+                        break;
+                    }
+                    p++;
+                    i++;
+                } while (i < nCount);
+            }
+            if (bFound == 0)
+            {
+                vGoal = (unsigned short)nCurrentGoalItem;
+                pArr = &storyHistoryOregon;
+                pArr->SetAtGrow(nSize, vGoal);
+            }
+            break;
+        }
+        }
+        pView->bBusy = 0;
+        abortFrame = 0;
+        bWorldInvalidMaybe = 1;
+        bWorldReadyMaybe = 1;
+        nFrameMode = 0xb;
+        bStartingGameMaybe = 0;
+        nMapChangeReason = 0;
+        g_bReplayMode = 0;
+    }
+}
+
+// FUNCTION: YODA 0x00425e10  (compiler-generated scalar-deleting destructor ??_GCProgressCtrl —
+// emitted into this TU by Load's local CProgressCtrl; body calls the lib ~CProgressCtrl)
+
 // FUNCTION: YODA 0x00425e30
 // Lay the (demo-hardcoded) quest into the 10x10 grid: pick one of the shipped goal zones by
 // rand()%4 (or forced by the goal item), place its content, tag the center 2x2 cells.

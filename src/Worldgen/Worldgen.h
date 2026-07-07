@@ -18,6 +18,10 @@ extern int gWorldgenGridOrderTable[100];
 // Free __stdcall bevel-border helper (0x00424010; Ghidra: Render::DrawRect), lives in this TU.
 void __stdcall DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness);
 
+// Replay-a-story globals (App TU sets them from the command line; Frame TU owns the CString).
+extern int g_bReplayMode;            // 0x00459e2c (defined in src/App/App.cpp)
+extern CString g_strReplayPath;      // 0x00459e20 (defined in src/Frame/Frame.cpp)
+
 // Tokens of the transient 10x10 short PLAN grid that Generate carves the quest into
 // (CarveQuestPath writes PATH/GOAL/forks/blockers; PlaceBlockades stamps LOCK/WALL;
 // BuildQuestPath assigns ORDERED markers; PlacePuzzles keys off ORDERED adjacency).
@@ -81,11 +85,13 @@ public:                              // +0x00 vftable (0x44b050)
     virtual ~MapZone();                                   // 0x00401180
 };
 
-// Inventory-entry stub: element type of World.inventory (only pTile is touched in this TU).
+// Inventory entry (element type of World.inventory): sizeof 0xc (OnLoadWorld: new(0xc)).
 class InvItem : public CObject
 {
 public:
-    Tile *pTile;                     // +0x04
+    Tile   *pTile;                   // +0x04
+    CString name;                    // +0x08  copied from pTile->name
+    InvItem();                                            // 0x004011d0 (first app TU)
 };
 
 // Canvas stub: only what this TU touches (real module: src/Canvas/, byte-matched).
@@ -113,6 +119,7 @@ public:
     int  soundSession;               // +0x0c4  0 until SoundInit opens the WAVMIX session
     char _padc8[0x4c];               // +0x0c8
     int  nTargetZoneId;              // +0x114
+    int  unk118;                     // +0x118  zeroed by OnLoadWorld with the target zone
     void SoundInit();                                     // 0x00411520 (GameView TU)
 };
 
@@ -216,7 +223,7 @@ public:
     Character  *pPlayerChar;         // +0x335c
     char        _pad3360[0x18];      // +0x3360
     int         unk3378;             // +0x3378  zeroed when STUP world-view state is entered
-    char        _pad337c[4];         // +0x337c
+    int         bWorldInvalidMaybe;  // +0x337c  (Ghidra name; OnLoadWorld sets 1)
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
     int         genCellQuestSlot5Scratch; // +0x3384
     int         genCellItemAScratch;      // +0x3388
@@ -306,6 +313,7 @@ public:
     void UpdateCamera();                                 // 0x00423f50
     afx_msg void OnNewWorld();                           // 0x00424450
     afx_msg void OnSaveWorld();                          // 0x00424540
+    afx_msg void OnLoadWorld();                          // 0x00424fc0 (0x424fb0 = a jmp thunk)
     afx_msg void OnToggleSound();                        // 0x004242a0
     afx_msg void OnUpdateToggleSound(CCmdUI *pCmdUI);    // 0x004242f0
     afx_msg void OnToggleMusic();                        // 0x00424310
@@ -327,7 +335,7 @@ public:
     int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
     void SaveZoneRecursive(CFile *pFile, short zoneId);  // 0x004033b0 (GameData TU)
-    void LoadZoneRecursive(CFile *pFile, short zoneId);  // 0x00403450 (GameData TU)
+    void LoadZoneRecursive(CFile *pFile, short zoneId, int nArg); // 0x00403450 (GameData TU)
     int  StartGame(unsigned int nSeed, int bSkipGenerate); // 0x004037a0 (GameData TU)
     int  FindTile(Tile *pTile);                          // 0x00403aa0 (GameData TU)
     Tile *GetTileData(int idx);                          // 0x00403a40 (GameData TU)

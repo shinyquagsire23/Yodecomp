@@ -287,94 +287,69 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   after D, ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v12 FINAL — Phase D: 67 markers; 13.78% exact + 45.77% partial = 59.54% transcribed; quest-path layer + Generate DONE)
-**State: src/Worldgen = 67 markers. Session commits: 6be5438 (PlaceQuestNode hub), 786f695
-(SelectPuzzle + PuzzleType enum), 0d6f9f1 (CarveQuestPath + PlanToken enum), 7ce3492
-(PlaceBlockades), 5c8a451 (Generate 6.6KB), c23310c (docs). The exact-count breathes with the
-dial (25-29 range this session) — per-function EFFECTIVE annotations carry all autopsies; do
-NOT grind them. Ghidra fully synced (do not redo): Maybe dropped on the four quest-path
-functions; Zone.zoneUnk846→planet; PuzzleType + PlanToken enums in the DB; Puzzle.nType typed
-(the modify_struct_field_type name-clobber was restored); plate comments on all five.**
+### ⏭ NEXT SESSION PICKUP (2026-07-06 v13 — Phase D: 76 markers; 13.70% exact + 52.64% partial = 66.33% transcribed; World-half of the TU COMPLETE)
+**State: src/Worldgen = 76 markers (75 verify-scored + the 0x425e10 ??_G). The ENTIRE World::
+half of the doc TU (0x41bee0–0x426c40) is transcribed — save/load monsters included. Session
+commits: LoadWorldStateFile+Serialize (EFFECTIVE DIFF-2 each), DrawLocatorMap+DrawRect
+(EFFECTIVE), OnNewWorld (EXACT), OnSaveWorld (EFFECTIVE-WIP), OnLoadWorld (EFFECTIVE-WIP),
+??_GCProgressCtrl 0x425e10 (MATCH — our TU already emitted it; marker with the ??_G hint).
+Exact-count breathes 27-30 as always; per-function annotations carry all autopsies.**
 
-**▶ START HERE — the World-half of the TU is nearly done; remaining in .text order:**
-LoadWorldStateFile 0x423850 + Serialize 0x423b30 (CArchive+CATCH_ALL — WorldDoc OnOpenDocument
-recipe), DrawLocatorMap 0x423df0 + DrawRect 0x424010 (NOT yet declared in Worldgen.h),
-OnNewWorld 0x424450, **OnSaveWorld 0x424540 (~2.5KB)**, Serialize#2 0x424fb0 (16B stub),
-**OnLoadWorld 0x424fc0 (~3.6KB)** — these two are the save/load monsters. 0x425e10
-ProgressCtrlScalarDtorMaybe and 0x41e8b0 ScalarDeletingDtor2 are likely TU-emitted MFC COMDAT
-copies (verify.py LIB_OWNERS family — check before writing source). THEN the GameView block
-0x426c40-0x429150 (OnInitialUpdate, DrawDirectionArrows, ShowTextDialog, DrawHealthDial/
-Needle, AddHealth, UseWeapon, DetonateAdjacentTiles, OnCmdMinimize, DrawWeaponBox/Icon,
-BlitViewportDither, PreCreateWindow, AddItemToInv) — needs the GameView struct grown
-(Phase-E prep; grow the Worldgen.h stub one REAL field at a time like World was). After that
-the TU is fully transcribed → ONE joint residual pass (parked reg/cmp/arm tie-breaks), then
-retire src/Dta (its 3 addresses are now matched here) and consider WorldStub.h→Worldgen.h
-consolidation (dial re-verification across GameData/Iact).
+**▶ START HERE — Phase-E prep, the GameView block 0x426c40–0x429150 (last of the TU):**
+OnInitialUpdate, DrawDirectionArrows, ShowTextDialog, DrawHealthDial/Needle, AddHealth,
+UseWeapon, DetonateAdjacentTiles, OnCmdMinimize, DrawWeaponBox/Icon, BlitViewportDither,
+PreCreateWindow, AddItemToInv — grow the GameView stub in Worldgen.h one REAL field at a
+time (unk118@0x118 added this session). ⚠ 0x41e8b0 is a thin ??_G for an UNMODELED APP
+class (vftable 0x44c4f0, explicit ??1 at 0x40a1a0 in the GameView-TU head, ctor inside a
+WorldDoc-TU function at ~0x41af9a — CBitmap-ish per Ghidra guess): model that class during
+the GameView block, then our TU should emit its ??_G for free (Dlg explicit-dtor lesson).
+0x424fb0 is a bare `jmp OnLoadWorld` thunk called by GameView::OnTimer — NOT producible
+from source (ILT remnant?); it's a Phase-G whole-image item (note in Worldgen.cpp). After
+the GameView block: ONE joint residual pass over the TU, retire src/Dta, consider
+WorldStub.h→Worldgen.h consolidation (dial re-verification across GameData/Iact).
 
-**v11+v12 net-new (5 functions, ~13KB transcribed — the whole worldgen algorithm layer):**
-- **PlaceQuestNode 0x41f120** (EFFECTIVE-WIP ~97%): true sig ALL-SHORT 7 params (a2/a3 proven
-  by movsx-word reads; header decl fixed). **Engine bug #12** (docs/engine-bugs.md): case-1's
-  teleporter scan discards its result — only object-FREE ENEMY_TERRITORY zones are accepted
-  when genSkipTeleCheck is on.
-- **WorldgenSelectPuzzle 0x41eab0** (EFFECTIVE-WIP): zone-type→PuzzleType map (10→GOAL_PRIZE
-  15→TRADE 16→TRANSACTION 9999→WORLD_MISSION); 9999 screens per-planet storyHistory +
-  hardcoded demo goal-id whitelists (Nevada 55/73/B9/C7/C9, Alaska 67/6C/87/BD/C5, Oregon
-  83-86/C6). nItem2/bFirst params never read. Residual = i-vs-nPlanet homing (switch(nPlanet)
-  probe SPILLS `this` — worse; its planet dispatch is a LADDER unlike Generate's switches).
-- **WorldgenCarveQuestPath 0x41d940** (structurally 100%): residual = one reg rotation whose
-  AX→CX scratch pick costs 1 byte and alignment-shifts the four switch byte-tables.
-- **WorldgenPlaceBlockades 0x41e350** (structurally converged, all four REP-STOS fills):
-  south/east arms require run>=4 leaving their 3-run corner logic DEAD (copy-paste, kept sic).
-- **Generate 0x41f960** (TRANSCRIBED-WIP ~90% row-aligned, 2018/2032 insns): full driver
-  pipeline mirrored (see the long in-source annotation). Dead-ish original structures kept:
-  the A-retry do-while (nRetry<0xc9), the never-true B-goal arm (nStepsB==nStepB), the
-  !bFoundStep fallbacks reading the STALE stray-pass `x` (function-scoped on purpose).
-  Residuals for joint pass: this=EBX rotation, dx/dy homing, completionCount arm flip,
-  mapGrid walker .id-anchor, A/B scratch interleave, CarveQuestPath arg-push scheduling.
-- **PlanToken semantics CONFIRMED from Generate** (enum in Worldgen.h + Ghidra): START(0xc9)
-  = the planted seed → MAP_START zone; FORK_W/E/N/S(0x12d-0x130) → transit zone types
-  5/4/2/3 (ITEM_TO_PASS/FIND_USEFUL_NPC/FINAL_DESTINATION/ITEM_FOR_ITEM); GOAL(0x65) cells
-  → FROM/TO_ANOTHER_MAP vehicle pairs; LOCK/WALL(0x66/0x68) = blockades; BLOCKED=0x131;
-  ORDERED=0x132; CORRIDOR=300.
-- New World facts: nCurrentGoalItem@0x33a0; 10 GameData cross-TU decls added to Worldgen.h
-  (LoadStoryHistory×3, SaveStoryHistory×3, Nop1/Nop2, RemoveEmptyZonesFromPlacedList,
-  BuildQuestPathMaybe); Zone.planet@0x846 (== World.currentPlanet, renamed everywhere).
+**Ghidra sync PENDING (needs YodaDemo ACTIVE in the GUI for writes):** World vtable base is
+**0x44c438** (NOT 0x44c440 — GetFirstViewPosition=+0x68 anchor; fix Serialize's plate);
+slot +0x84 = OnCloseDocument (OnNewWorld's "mystery" 0-arg vcall — NO bug; the GetFile
+theory was wrong, retracted); World fields: lpszSaveDirMaybe@0x33bc (save/open dialogs'
+m_ofn.lpstrInitialDir), unk2e58 (nonzero skips OnNewWorld's confirm), unk3378 (zeroed on
+STUP world-view entry); InvItem struct 0xc {vptr, Tile* pTile@4, CString name@8}, ctor
+0x4011d0 (rename Mfc::FUN_004011d0→InvItem::InvItem); LoadZoneRecursive is 3-arg
+(CFile*, short, int); GameView.unk118@0x118; 0x425e10→??_GCProgressCtrl.
 
-**⭐ NEW CODEGEN CRACKS (v11+v12 — add to instincts):**
-- **Callee param widths are caller-visible**: an `int` param decl on a method whose caller
-  pushes a cached short register forces a movsx the original lacks — PopulateGoalZone.a5 and
-  PlaceItemForLockChain.nOrder were int in our decls, SHORT in truth (both UNREAD in their
-  bodies; the caller's un-widened push is the only evidence). Audit decls against callers.
-- **REP-STOS wall fills**: VC4.2 rep-izes ONLY indexed for-loops over a FRESH variable
-  (`for (j = a; j < b; j++) p[j] = C;`); a reused/live counter or explicit-count do-while
-  defeats the idiom. Expression-style bounds (`nWid + nStart - 1`) FOLD the trip count to a
-  constant; a materialized `i = nWid + nStart - 1` keeps it runtime. Success-flag stores must
-  sit INSIDE each arm or the compiler cross-jumps the two rep tails into one (orig has both).
-- **Grid addressing: inline the FULL `x + y * 10` expression at every use.** CSE then emits
-  ONE pre-doubled offset (`lea ecx,[x+y*10... ]; add ecx,ecx`) with `[esp+ecx+base±k]`
-  scale-1 accesses. A named `int nCell` gives per-use scale-2; a `short *pCell` folds the
-  base into the register. All three forms are distinguishable — probe battery proven
-  (idxprobe*.cpp, disposable; conclusions here). 2D-array indexing is byte-identical to the
-  inline-flat form.
-- **Ternary vs two-statement conditional assign**: `x = rand() % 2 != 0 ? base : opp;` emits
-  load/cond-overwrite/single-store (polarity picks which arm loads first — `!= 0 ? base :`
-  gives JNE/base-first); the two-statement form on a memory-homed var emits store-store.
-  Adjacent-constant ternaries (`? 9 : 0`, `? 0x10 : 0xf`) go branchless (sbb/and, adc).
-- **`<= 0` (test/jg) vs `< 1` (cmp 1/jge)** — hit three times this session; always mirror.
-- **Switch-vs-ladder is READABLE from layout**: compares-up-front with JE→out-of-line arms =
-  switch; inline arms with JNE-next = if/else-if. Generate's planet/worldSize dispatches are
-  ALL switches; SelectPuzzle's planet dispatch is a ladder. Both exist — read the disasm.
-- **A `default:` that only bumps a counter still materializes the JA target** (PlaceBlockades'
-  `default: nTries++;` — without it the JA would land on the switch join).
-- **Two flags, not one bool**: Generate's pick sets bHoriz/bVert=1 INSIDE each arm (store-0s
-  at top + store-1 in-arm); writing `int b = cond;` materializes cmp/sbb/neg the orig lacks.
-- **`int nZone = (short)Call();` movsx-IMMEDIATELY** — keeping the ushort and casting at each
-  use defers the movsx and re-orders the dataflow.
-- MFC notes: CWordArray::m_pData is protected — GetData()/SetAt()/GetAt() inline to the same
-  bytes. `delete pEntry;` emits its own null-check (matches the guarded vcall+4 shape).
-- **Chaotic dial sensitivity warning**: structure probes can flip UNRELATED register
-  assignments TU-wide (SelectPuzzle's switch probe spilled `this`; PlaceQuestNode's SetAt
-  probe fixed reg_pen while breaking structure). Judge probes by ALIGN first, regs second.
+**v13 net-new cracks (fold into instincts):**
+- **The .wld save format** (docs-worthy): "YODASAV44" magic; seed/planet/unk33b8; quest-item
+  word lists (last element re-seeds nCurrentGoalItem/startItem from Puzzle.itemA/B on load);
+  center-2x2 quest cells from mapScratch or mapGrid[44..] per unk33b8 (0 = swapped out);
+  full 10x10 (mapGrid vs mapGridBackup per unk33b8) with 15-field cell dumps; -1,-1
+  sentinel-terminated SaveZoneRecursive/LoadZoneRecursive record streams; inventory as tile
+  ids (re-NEWed as InvItems on load); player/weapon/camera/health/difftime-elapsed tail;
+  unk248 saved as count+SUM, rebuilt as count×average.
+- **&field pointer locals are REAL source** (int *pHealth = &healthLo — the lea+spill+deref
+  pattern; OnSave/OnLoad are full of them: gameState/nFrameMode/bStartingGame/etc. caches).
+- **Read(&i,4) on a loop counter memory-homes it TU-wide** — the original uses SEPARATE
+  x/y locals for sentinel reads; never take the address of a counter you want in a reg.
+- **Early-return guard chains in EH functions**: first guard's fall-through IS the shared
+  dtor+epilogue; write `if (...) return;` sequences, not nested-if wraps (v10 lesson,
+  reconfirmed on OnLoadWorld — align 1222→718 from that one restructure).
+- **DoModal success arm = fall-through** (`== 1` if-body, cancel in else); **unk33b8
+  selectors are `!= 0` grid-arm-first** at all four OnSaveWorld sites; recursive-save
+  blocks materialize `MapZone *pCell` (base-folded [reg+4] id reads).
+- **Story-history planet dispatch is a SWITCH** (compares up front, out-of-line arms, arms
+  ending in per-arm vGoal/pArr temp assigns + ONE cross-jumped SetAtGrow tail) — but
+  SelectPuzzle's is a ladder: READ THE DISASM, both exist in this binary.
+- **CFileDialog**: needs <afxdlgs.h> (afxwin only fwd-declares); m_ofn.lpstrInitialDir
+  stored BEFORE the pDlg null check in both dialogs (sic, #8 family — kept verbatim);
+  Flags &= ~0x10 (OFN_SHOWHELP) on the open dialog; save=0x80006, open=0x1006.
+- **inc-vs-add-with-CSE'd-reg** is a new 2-byte instruction-selection tie-break family
+  (LoadWorldStateFile/Serialize STUP arms: orig `add [nDone],ecx` reusing ECX=1; ++/+=1/
+  n=n+1 all inert).
+- **DrawRect edge loops**: per-use strength-reduced IVs (`top+i` twice = TWO lockstep regs)
+  = copy-variable named locals in source; y1-declared-LAST aligned the pRect reload (edge
+  4); free __stdcall function like Log_Write.
+- **asmscore best-fit traps**: free functions (no Class::) fall back to global best-fit and
+  can mispair — score by explicit COMDAT name via match.coff_functions; OnToggleSound
+  stole DrawRect's slot silently.
 
 ### ⏮ PRIOR (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
 **State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
