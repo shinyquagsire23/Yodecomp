@@ -7,6 +7,7 @@
 #include <afxwin.h>
 #include <afxcoll.h>
 #include <afxcmn.h>
+#include <afxdlgs.h>
 #include "../Records/RecordClasses.h"
 #include "../IactScript/IactScriptClasses.h"
 #include "../App/App.h"
@@ -78,6 +79,13 @@ public:                              // +0x00 vftable (0x44b050)
                                      // sizeof 0x34
     MapZone();                                            // 0x004010b0 (first app TU)
     virtual ~MapZone();                                   // 0x00401180
+};
+
+// Inventory-entry stub: element type of World.inventory (only pTile is touched in this TU).
+class InvItem : public CObject
+{
+public:
+    Tile *pTile;                     // +0x04
 };
 
 // Canvas stub: only what this TU touches (real module: src/Canvas/, byte-matched).
@@ -153,7 +161,9 @@ public:
     MapZone     mapScratch[4];       // +0x2d50
     int         playerX;             // +0x2e20
     int         playerY;             // +0x2e24
-    char        _pad2e28[0xc];       // +0x2e28
+    char        _pad2e28[4];         // +0x2e28
+    Character  *currentWeapon;       // +0x2e2c
+    char        _pad2e30[4];         // +0x2e30
     int         unk2e34;             // +0x2e34
     short       startItem;           // +0x2e38  (Ghidra names)
     short       startItem2Maybe;     // +0x2e3a
@@ -198,7 +208,10 @@ public:
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
-    char        _pad3338[0x20];      // +0x3338
+    char        _pad3338[0x14];      // +0x3338
+    short       weaponState[4];      // +0x334c  (Ghidra name; OnSaveWorld writes [0..2])
+    short       nCurrentAmmoMaybe;   // +0x3354
+    char        _pad3356[2];         // +0x3356
     Tile       *pPlayerFrameTile;    // +0x3358
     Character  *pPlayerChar;         // +0x335c
     char        _pad3360[0x18];      // +0x3360
@@ -214,7 +227,8 @@ public:
     int         genZoneTypeScratch;       // +0x339c
     int         nCurrentGoalItem;   // +0x33a0  Generate: = the goal puzzle id (demo hardcode 0x6c)
     char        _pad33a4[0x14];      // +0x33a4
-    int         unk33b8;             // +0x33b8
+    int         unk33b8;             // +0x33b8  0 = quest cells swapped out (save reads mapScratch)
+    char       *lpszSaveDirMaybe;    // +0x33bc  save dialog's m_ofn.lpstrInitialDir
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
     int  ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel); // 0x0041bfa0
@@ -291,6 +305,7 @@ public:
     void DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt); // 0x00423df0
     void UpdateCamera();                                 // 0x00423f50
     afx_msg void OnNewWorld();                           // 0x00424450
+    afx_msg void OnSaveWorld();                          // 0x00424540
     afx_msg void OnToggleSound();                        // 0x004242a0
     afx_msg void OnUpdateToggleSound(CCmdUI *pCmdUI);    // 0x004242f0
     afx_msg void OnToggleMusic();                        // 0x00424310
@@ -311,7 +326,10 @@ public:
     int            CalcSolvedScore();                    // 0x00401780 (scorers TU)
     int            CalcTimeScore();                      // 0x004019c0 (scorers TU)
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
+    void SaveZoneRecursive(CFile *pFile, short zoneId);  // 0x004033b0 (GameData TU)
+    void LoadZoneRecursive(CFile *pFile, short zoneId);  // 0x00403450 (GameData TU)
     int  StartGame(unsigned int nSeed, int bSkipGenerate); // 0x004037a0 (GameData TU)
+    int  FindTile(Tile *pTile);                          // 0x00403aa0 (GameData TU)
     Tile *GetTileData(int idx);                          // 0x00403a40 (GameData TU)
     Zone *GetZoneById(short id);                         // 0x00403a70 (GameData TU)
     unsigned int GetLocatorIconMaybe(int x, int y, int bAlt); // 0x0041a1c0 (WorldDoc TU)

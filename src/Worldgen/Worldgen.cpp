@@ -5095,6 +5095,327 @@ void World::OnNewWorld()
     }
 }
 
+// FUNCTION: YODA 0x00424540
+// [EFFECTIVE-WIP: insns 892/900, align=352 mostly echo; len 2670/2672. Residual autopsy:
+// (1) this-reload reg color (orig ECX, ours EAX) — single consistent bijection, cascades
+// into the pDlg test-eax + FindTile/SaveZoneRecursive push colors; (2) the open-fail
+// switch's arm tails each carry a duplicated `cmp pDlg,0/je` join head — the OPEN
+// tail-duplication family (same as Load's m_cause switch / dispatcher exit-block); (3)
+// GetPathName chain: ours pushes GetBuffer's 0xc8 before the GetPathName call (arg-push
+// scheduling family); (4) EH-state-store placement in the cancel tail (PlaceZone family);
+// (5) state-constant CSE: orig keeps 1 in EBX, ours 3; (6) the shared short nCount slot
+// rank (-0xe vs -0x26, ParseSnds family). Cracked here: unk33b8 selectors are `!= 0`
+// grid/backup-arm-FIRST at all four sites; the 2x2 recursive block materializes
+// MapZone *pCell (base-folded [ebx+4] id reads); pView=NULL declared AFTER the
+// GetFirstViewPosition call.]
+// ON_COMMAND(ID_FILE_SAVE 0xE103 File>Save World) [msgmap @0x44c348]: no-op in cutscene/world
+// frame modes, after a win, or at full health/lives; save dialog (filter 0xE006,
+// "savegame.wld") then write the "YODASAV44" .wld state: seed/planet + quest-item lists +
+// the center 2x2 quest cells (mapScratch or live grid per unk33b8) + the 10x10 grid dump +
+// recursive zone records + inventory/player/weapon/camera/health/elapsed-time tail.
+void World::OnSaveWorld()
+{
+    CString strPath;
+    CString strFilter;
+    strFilter.LoadString(0xe006);
+    if (nFrameMode == 1 || nFrameMode == 7 || nFrameMode == 6 || nFrameMode == 0xb
+        || gameState != 0)
+        return;
+    int *pHealth = &healthLo;
+    if (*pHealth > 99 && healthHi >= 3)
+        return;
+    POSITION pos = GetFirstViewPosition();
+    GameView *pView = NULL;
+    if (pos != NULL)
+        pView = (GameView *)GetNextView(pos);
+    int nSavedMode = nFrameMode;
+    nFrameMode = 0;
+    CFileDialog *pDlg = new CFileDialog(0, "wld", "savegame", 0x80006, strFilter, (CWnd *)pView);
+    CString strTitle;
+    strTitle.LoadString(0xe032);
+    pDlg->m_ofn.lpstrInitialDir = lpszSaveDirMaybe;  // sic: dereferences pDlg BEFORE the null
+                                                     // check below (engine-bugs.md #13)
+    if (pDlg == NULL)
+    {
+        AfxMessageBox(9, 0, (UINT)-1);
+        return;
+    }
+    if (pDlg->DoModal() == 1)
+    {
+        strPath = pDlg->GetPathName().GetBuffer(200);
+        CFile *pFile = new CFile;
+        CFileException e;
+        if (pFile->Open(strPath, CFile::modeCreate | CFile::modeReadWrite, &e) == 0)
+        {
+            switch (e.m_cause)
+            {
+            case CFileException::generic:
+            case CFileException::fileNotFound:
+            case CFileException::badPath:
+            case CFileException::tooManyOpenFiles:
+            case CFileException::invalidFile:
+            case CFileException::removeCurrentDir:
+            case CFileException::badSeek:
+            case CFileException::hardIO:
+            case CFileException::sharingViolation:
+            case CFileException::lockViolation:
+            case CFileException::endOfFile:
+                AfxMessageBox(9, 0, (UINT)-1);
+                break;
+            case CFileException::accessDenied:
+            case CFileException::directoryFull:
+            case CFileException::diskFull:
+                AfxMessageBox(7, 0, (UINT)-1);
+                break;
+            default:
+                AfxMessageBox(9, 0, (UINT)-1);
+                break;
+            }
+            if (pDlg != NULL)
+                delete pDlg;
+            nFrameMode = nSavedMode;
+            pView->bBusy = 0;
+            return;
+        }
+        pFile->Write("YODASAV44", 9);
+        pFile->Write(&worldSeed, 4);
+        pFile->Write(&currentPlanet, 4);
+        pFile->Write(&unk33b8, 4);
+        short nCount = (short)questItemsA.GetSize();
+        pFile->Write(&nCount, 2);
+        int i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                short v = questItemsA.GetAt(i);
+                pFile->Write(&v, 2);
+                i++;
+            } while (i < nCount);
+        }
+        nCount = (short)questItemsB.GetSize();
+        pFile->Write(&nCount, 2);
+        i = 0;
+        if (nCount > 0)
+        {
+            do
+            {
+                short v = questItemsB.GetAt(i);
+                pFile->Write(&v, 2);
+                i++;
+            } while (i < nCount);
+        }
+        int j;
+        i = 0;
+        do
+        {
+            j = 0;
+            do
+            {
+                MapZone *pCell;
+                if (unk33b8 != 0)
+                    pCell = &mapGrid[i * 10 + j + 0x2c];
+                else
+                    pCell = &mapScratch[i * 2 + j];
+                pFile->Write(&pCell->flagSolved, 4);
+                pFile->Write(&pCell->flagA, 4);
+                pFile->Write(&pCell->flagC, 4);
+                pFile->Write(&pCell->flagB, 4);
+                pFile->Write(&pCell->flagD, 4);
+                pFile->Write(&pCell->id, 2);
+                pFile->Write(&pCell->cellQuestSlot0, 2);
+                pFile->Write(&pCell->cellItemA, 2);
+                pFile->Write(&pCell->cellItemC, 2);
+                pFile->Write(&pCell->cellQuestSlot1, 2);
+                pFile->Write(&pCell->cellItemB, 2);
+                pFile->Write(&pCell->cellQuestSlot5, 2);
+                pFile->Write(&pCell->cellQuestSlot6, 2);
+                pFile->Write(&pCell->zoneType, 4);
+                pFile->Write(&pCell->field30, 2);
+                j++;
+            } while (j < 2);
+            i++;
+        } while (i < 2);
+        if (unk33b8 != 0)
+        {
+            i = 4;
+            do
+            {
+                j = 4;
+                do
+                {
+                    MapZone *pCell = &mapGrid[i * 10 + j];
+                    if (pCell->id >= 0)
+                    {
+                        pFile->Write(&i, 4);
+                        pFile->Write(&j, 4);
+                        SaveZoneRecursive(pFile, pCell->id);
+                    }
+                    j++;
+                } while (j < 6);
+                i++;
+            } while (i < 6);
+        }
+        else
+        {
+            i = 0;
+            do
+            {
+                j = 0;
+                do
+                {
+                    MapZone *pCell = &mapScratch[i * 2 + j];
+                    if (pCell->id >= 0)
+                    {
+                        pFile->Write(&i, 4);
+                        pFile->Write(&j, 4);
+                        SaveZoneRecursive(pFile, pCell->id);
+                    }
+                    j++;
+                } while (j < 2);
+                i++;
+            } while (i < 2);
+        }
+        int nEnd = -1;
+        pFile->Write(&nEnd, 4);
+        pFile->Write(&nEnd, 4);
+        i = 0;
+        do
+        {
+            j = 0;
+            do
+            {
+                MapZone *pCell;
+                if (unk33b8 != 0)
+                    pCell = &mapGridBackup[i * 10 + j];
+                else
+                    pCell = &mapGrid[i * 10 + j];
+                pFile->Write(&pCell->flagSolved, 4);
+                pFile->Write(&pCell->flagA, 4);
+                pFile->Write(&pCell->flagC, 4);
+                pFile->Write(&pCell->flagB, 4);
+                pFile->Write(&pCell->flagD, 4);
+                pFile->Write(&pCell->id, 2);
+                pFile->Write(&pCell->cellQuestSlot0, 2);
+                pFile->Write(&pCell->cellItemA, 2);
+                pFile->Write(&pCell->cellItemC, 2);
+                pFile->Write(&pCell->cellQuestSlot1, 2);
+                pFile->Write(&pCell->cellItemB, 2);
+                pFile->Write(&pCell->cellQuestSlot5, 2);
+                pFile->Write(&pCell->cellQuestSlot6, 2);
+                pFile->Write(&pCell->zoneType, 4);
+                pFile->Write(&pCell->field30, 2);
+                j++;
+            } while (j < 10);
+            i++;
+        } while (i < 10);
+        i = 0;
+        do
+        {
+            j = 0;
+            do
+            {
+                MapZone *pCell;
+                if (unk33b8 != 0)
+                    pCell = &mapGridBackup[i * 10 + j];
+                else
+                    pCell = &mapGrid[i * 10 + j];
+                if (pCell->id >= 0)
+                {
+                    pFile->Write(&i, 4);
+                    pFile->Write(&j, 4);
+                    SaveZoneRecursive(pFile, pCell->id);
+                }
+                j++;
+            } while (j < 10);
+            i++;
+        } while (i < 10);
+        nEnd = -1;
+        pFile->Write(&nEnd, 4);
+        pFile->Write(&nEnd, 4);
+        int nInv = inventory.GetSize();
+        pFile->Write(&nInv, 4);
+        i = 0;
+        if (nInv > 0)
+        {
+            do
+            {
+                short v = (short)FindTile(((InvItem *)inventory.GetAt(i))->pTile);
+                pFile->Write(&v, 2);
+                i++;
+            } while (i < nInv);
+        }
+        short nZone = (short)GetZoneIndex(currentZone);
+        pFile->Write(&nZone, 2);
+        pFile->Write(&playerX, 4);
+        pFile->Write(&playerY, 4);
+        if (currentWeapon == NULL)
+        {
+            short v = -1;
+            pFile->Write(&v, 2);
+        }
+        else
+        {
+            i = 0;
+            nCount = (short)characters.GetSize();
+            if (nCount > 0)
+            {
+                do
+                {
+                    if ((Character *)characters.GetAt(i) == currentWeapon)
+                    {
+                        short vi = (short)i;
+                        pFile->Write(&vi, 2);
+                        short va = currentWeapon->unk48;
+                        pFile->Write(&va, 2);
+                        break;
+                    }
+                    i++;
+                } while (i < nCount);
+            }
+        }
+        pFile->Write(&weaponState[0], 2);
+        pFile->Write(&weaponState[1], 2);
+        pFile->Write(&weaponState[2], 2);
+        pFile->Write(&cameraX, 4);
+        pFile->Write(&cameraY, 4);
+        pFile->Write(pHealth, 4);
+        pFile->Write(&healthHi, 4);
+        pFile->Write(&difficulty, 4);
+        int nElapsed = (int)difftime(timeBase, time(NULL));
+        pFile->Write(&nElapsed, 4);
+        pFile->Write(&totalZones, 4);
+        short nCnt2 = (short)unk248.GetSize();
+        pFile->Write(&nCnt2, 2);
+        short nSum = 0;
+        if (nCnt2 > 0)
+        {
+            unsigned short *p = unk248.GetData();
+            int n = nCnt2;
+            do
+            {
+                nSum += *p;
+                p++;
+                n--;
+            } while (n != 0);
+        }
+        pFile->Write(&nSum, 2);
+        pFile->Write(&nCurrentGoalItem, 4);
+        pFile->Write(&goalItemTileId, 4);
+        pFile->Close();
+        if (pFile != NULL)
+            delete pFile;
+        if (pDlg != NULL)
+            delete pDlg;
+        nFrameMode = nSavedMode;
+        return;
+    }
+    if (pDlg != NULL)
+        delete pDlg;
+    nFrameMode = nSavedMode;
+    pView->bBusy = 0;
+}
+
 // FUNCTION: YODA 0x00425e30
 // Lay the (demo-hardcoded) quest into the 10x10 grid: pick one of the shipped goal zones by
 // rand()%4 (or forced by the goal item), place its content, tag the center 2x2 cells.
