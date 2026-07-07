@@ -21,6 +21,7 @@ extern "C" {
     int  WINAPI WaveMixOpenChannel(int hMixSession, int iChannel, DWORD dwFlags);
     int  WINAPI WaveMixFreeWave(int hMixSession, int lpMixWave);
     int  WINAPI WaveMixCloseChannel(int hMixSession, int iChannel, DWORD dwFlags);
+    int  WINAPI WaveMixFlushChannel(int hMixSession, int iChannel, DWORD dwFlags);
     int  WINAPI WaveMixCloseSession(int hMixSession);
     int  WINAPI WaveMixPlay(void *lpMixPlayParams);
 }
@@ -5912,4 +5913,1102 @@ void GameView::OnLButtonUp(UINT nFlags, CPoint point)
     }
     }
     Default();
+}
+
+// FUNCTION: YODA 0x00412cc0
+// [EFFECTIVE-WIP: align=130/reg_pen=6 over 413/411 insns — ONE allocator decision + its fallout.
+//  (a) The >8bpp pixel loop: orig assigns i=EDI/x2=ESI/y2=EBX and calls SetPixel through the
+//      import slot each iteration; ours caches the import in EDI, kicking i->EBX and homing y2
+//      to a frame slot (inc/cmp dword [ebp-x]) — the v24 "import-pointer caching flips with the
+//      restructure" family. Decl-order probes (i/y2/x2 hoists) ALL inert (usage-count-driven).
+//  (b) The first guard loads x->EAX/y->ECX vs orig x->ECX/y->EAX (rank tie-break); downstream
+//      the first SetBitmapBits reloads pBitmap from its slot in orig vs our live-reg reuse, and
+//      `cmp [ebp+8],0` schedules one insn earlier. Value-local probe (x0=*pX) WORSE (reg_pen 14),
+//      cmp-flip inert. Minimal-TU probe: IDENTICAL score solo => header-dial/tie-break, not
+//      TU-position — G1 fodder.
+//  ⭐ SOLVED here: field-to-field memcpy => LONE `rep movsb` (see the in-body comment).]
+// Rebuilds the drag-cursor overlay. Restores the 32x32 screen block saved at the previous
+// drag position (paDragSaveBits blitted back via a 1-plane DDB), records the new position
+// (mouse - 16,16), then unless bClear grabs the screen under the new position and composites
+// the dragged tile over it — Canvas::BlitMasked at <=8bpp (palette path), or a
+// GetPaletteEntries+SetPixel per-pixel loop at hi-color (paDragSaveBits2 path). TRY/CATCH
+// guards the `new CBitmap` (fatal 0xE01E box + AfxAbort on OOM, no THROW_LAST here).
+// sic: pBitmap leaks when CBitmap::Attach fails (early return skips the delete).
+void GameView::UpdateDragCursor(int bClear)
+{
+    ::SetCursor(NULL);
+    HWND *phWnd = &m_hWnd;
+    CDC *pDC = CDC::FromHandle(::GetDC(*phWnd));
+    if (pDC == NULL)
+        return;
+    World **ppWorld = &pWorld;
+    CPalette *pOldPal = pDC->SelectPalette((*ppWorld)->pPalette, 0);
+    CDC dcMem;
+    if (!dcMem.Attach(::CreateCompatibleDC(NULL)))
+        return;
+    CBitmap *pBitmap;
+    TRY {
+        pBitmap = new CBitmap;
+    }
+    }              // closes the try block the TRY macro opened
+    catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+        _afxExceptionLink.m_pException = e;
+        AfxMessageBox(0xe01e, 0, (UINT)-1);
+        AfxAbort();
+    }
+    }              // closes the TRY macro's outer (link-scope) brace
+    int nBpp = dcMem.GetDeviceCaps(BITSPIXEL);
+    if (!pBitmap->Attach(::CreateBitmap(32, 32, 1, nBpp, NULL)))
+        return;
+    CBitmap *pOldBmp = dcMem.SelectObject(pBitmap);
+    int *pX = &nDragLastScreenX;
+    if (*pX >= 0)
+    {
+        int *pY = &nDragLastScreenY;
+        if (*pY >= 0 && *pX < 509 && *pY < 314)
+        {
+            ::SetBitmapBits((HBITMAP)pBitmap->m_hObject, (nBpp / 8) << 10, paDragSaveBits);
+            ::BitBlt(pDC->m_hDC, *pX, *pY, 32, 32, dcMem.m_hDC, 0, 0, SRCCOPY);
+        }
+    }
+    int x = nMouseX - 16;
+    int y = nMouseY - 16;
+    *pX = x;
+    nDragLastScreenY = y;
+    if (bClear == 0)
+    {
+        Tile **ppTile = &draggedTile;
+        if (*ppTile != NULL)
+        {
+            int cx = x;
+            if (x < 0)
+                cx = 0;
+            int cy = y;
+            if (y < 0)
+                cy = 0;
+            if (x >= 0 && y >= 0 && x < 509 && y < 314)
+            {
+                if (nBpp <= 8)
+                {
+                    Canvas **ppCanvas = &pDragTileCanvas;
+                    (*ppCanvas)->SetPalette(0, 0x100, (RGBQUAD *)(*ppWorld)->pSysColorTable);
+                    ::BitBlt(dcMem.m_hDC, 0, 0, 32, 32, pDC->m_hDC, cx, cy, SRCCOPY);
+                    void *pData = (*ppCanvas)->GetData();
+                    int nPP = nBpp / 8;
+                    int nSize = nPP << 10;
+                    ::GetBitmapBits((HBITMAP)pBitmap->m_hObject, nSize, pData);
+                    memcpy(paDragSaveBits, (*ppCanvas)->GetData(), nSize);
+                    (*ppCanvas)->BlitMasked((char *)(*ppTile)->pixels, 32, 32, 0, 0, 0);
+                    ::SetBitmapBits((HBITMAP)pBitmap->m_hObject, nPP << 10, (*ppCanvas)->GetData());
+                }
+                else
+                {
+                    int y2 = 0;
+                    if (paDragSaveBits2 != NULL)
+                    {
+                        ::BitBlt(dcMem.m_hDC, 0, 0, 32, 32, pDC->m_hDC, cx, cy, SRCCOPY);
+                        int nSize = (nBpp / 8) << 10;
+                        ::GetBitmapBits((HBITMAP)pBitmap->m_hObject, nSize, paDragSaveBits2);
+                        // field-to-field memcpy → VC4.2 emits the LONE rep movsb form
+                        // (call-result/param/global operands get the movsd+movsb split —
+                        //  proven by probe battery 2026-07-07; see CLAUDE.md v25 notes)
+                        memcpy(paDragSaveBits, paDragSaveBits2, nSize);
+                        int i = 0;
+                        do
+                        {
+                            int x2 = 0;
+                            do
+                            {
+                                BYTE b = (*ppTile)->pixels[i];
+                                i++;
+                                if (b != 0)
+                                {
+                                    PALETTEENTRY pe;
+                                    ::GetPaletteEntries((HPALETTE)(*ppWorld)->pPalette->m_hObject, b, 1, &pe);
+                                    ::SetPixel(dcMem.m_hDC, x2, y2, RGB(pe.peRed, pe.peGreen, pe.peBlue));
+                                }
+                                x2++;
+                            } while (x2 < 32);
+                            y2++;
+                        } while (y2 < 32);
+                    }
+                }
+                ::BitBlt(pDC->m_hDC, cx, cy, 32, 32, dcMem.m_hDC, 0, 0, SRCCOPY);
+            }
+        }
+    }
+    dcMem.SelectObject(pOldBmp);
+    pDC->SelectPalette(pOldPal, 0);
+    ::ReleaseDC(*phWnd, pDC->m_hDC);
+    delete pBitmap;
+}
+
+// FUNCTION: YODA 0x004131a0
+// [EFFECTIVE: align=30/reg_pen=10 over 278/273 insns — two residuals, both tie-break family:
+//  (1) arm-1's `if (nFrameMode == 4) {=3; return;}`: orig emits jne->0x41354a (the !=4 return
+//      cross-jumped into the FUNCTION-END shared return-1) with the store arm inline
+//      (store folded INTO its epilogue after pop edi); ours defers the arm (je) and inlines
+//      the fall-through return copy (+5 insns). Probed: inner trailing return / if-else /
+//      plain-if (arm-2's shape) all WORSE (60/60/40) — the nested fall-out form (30) is the
+//      local optimum. Note arm-2's IDENTICAL logic uses the plain-if LOCAL-jne shape — the
+//      two arms provably differ in source shape.
+//  (2) nHitTest rides EAX vs orig ECX from the first load (this vacates ECX to ESI either
+//      way), cascading r-swaps through the nFrameMode compare chain (reg_pen 10).
+//  ⭐ Crack that got it from 98->30: PtInRect takes *(POINT *)&nMouseX — the adjacent
+//     nMouseX/nMouseY fields ARE the POINT (a `POINT pt` local costs 8 frame bytes + stores).]
+// WM_SETCURSOR: picks the cursor by game state. Suppresses it during drags outside the
+// client (HTNOWHERE/HTERROR), forces the arrow while busy/map-view/modes 5+7, the wand at
+// mode 9, hides it at mode 6, cancels a drag when the mouse leaves the play area (both
+// cancel arms are REAL duplicated dev code — their nFrameMode 4->3 tails differ in shape),
+// and otherwise picks one of 8 direction cursors from (nMoveDX,nMoveDY), updating the
+// player's facing frame tile through the Character GetFrameTile/GetWalkFrameTile pair.
+BOOL GameView::OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message)
+{
+    if (bViewActive == 0)
+    {
+        Default();
+        return TRUE;
+    }
+    if ((nHitTest == HTNOWHERE || nHitTest == (UINT)HTERROR) && bDragActive != 0)
+        return FALSE;
+    if (pWorld->bWorldReadyMaybe != 0 || bMapViewOpen != 0 ||
+        pWorld->nFrameMode == 5 || pWorld->nFrameMode == 7)
+    {
+        ::SetCursor(hCursor);
+        return TRUE;
+    }
+    if (pWorld->nFrameMode == 9)
+    {
+        ::SetCursor(hCursor11);
+        return TRUE;
+    }
+    if (pWorld->nFrameMode == 6)
+    {
+        ::SetCursor(NULL);
+        return TRUE;
+    }
+    if (nHitTest != HTCLIENT && bMouseCaptured == 0)
+    {
+        if (bDragActive == 1)
+        {
+            bDragActive = 0;
+            UpdateDragCursor(0);
+            UpdateDragCursor(1);
+            nDragSlot = -1;
+            DrawText(NULL);
+            ::SetCursor(hCursor);
+            if (pWorld->nFrameMode == 4)
+            {
+                pWorld->nFrameMode = 3;
+                return TRUE;
+            }
+        }
+        return TRUE;
+    }
+    if (bDragActive == 1)
+    {
+        if ((nMouseX <= 0x1da || nMouseY >= 0xf0) && nMouseY > 0xe &&
+            nMouseX > 0xe && nMouseY < 0x124 && nMouseX < 0x1fa)
+        {
+            UpdateDragCursor(0);
+            ::SetCursor(NULL);
+            return TRUE;
+        }
+        bDragActive = 0;
+        UpdateDragCursor(0);
+        UpdateDragCursor(1);
+        nDragSlot = -1;
+        DrawText(NULL);
+        ::SetCursor(hCursor);
+        if (pWorld->nFrameMode == 4)
+            pWorld->nFrameMode = 3;
+        return TRUE;
+    }
+    if (bKeyboardMoveActive == 1)
+    {
+        ::SetCursor(NULL);
+        return TRUE;
+    }
+    RECT rc;
+    rc.left = pWorld->rectUnk3274.left - 12;
+    rc.right = pWorld->rectUnk3274.right + 12;
+    rc.top = pWorld->rectUnk3274.top - 12;
+    rc.bottom = pWorld->rectUnk3274.bottom + 12;
+    if (!::PtInRect(&rc, *(POINT *)&nMouseX) && bMouseCaptured == 0)
+    {
+        if (bDragActive == 1)
+            UpdateDragCursor(1);
+        ::SetCursor(hCursor);
+        return TRUE;
+    }
+    HCURSOR h;
+    if (nMoveDX == -1 && nMoveDY == -1)
+        h = hCursor2;
+    else if (nMoveDX == -1 && nMoveDY == 0)
+        h = hCursor3;
+    else if (nMoveDX == -1 && nMoveDY == 1)
+        h = hCursor4;
+    else if (nMoveDX == 0 && nMoveDY == -1)
+        h = hCursor5;
+    else if (nMoveDX == 0 && nMoveDY == 1)
+        h = hCursor6;
+    else if (nMoveDX == 1 && nMoveDY == -1)
+        h = hCursor7;
+    else if (nMoveDX == 1 && nMoveDY == 1)
+        h = hCursor8;
+    else if (nMoveDX == 1 && nMoveDY == 0)
+        h = hCursor9;
+    else
+        h = hCursor10;
+    ::SetCursor(h);
+    Character *pChar = pWorld->pPlayerChar;
+    if (pChar != NULL)
+    {
+        if (pWorld->nFrameMode == 2)
+        {
+            pWorld->pPlayerFrameTile = (Tile *)pChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+            return TRUE;
+        }
+        pWorld->pPlayerFrameTile = (Tile *)pChar->GetWalkFrameTile(nMoveDX, nMoveDY, &pWorld->tiles);
+    }
+    return TRUE;
+}
+
+
+// FUNCTION: YODA 0x00413580
+// [EFFECTIVE: align=130/reg_pen=14 over 424/423 insns (~91% bytes identical) — four known
+//  parked families: (a) prologue scheduling (orig loads point.x BEFORE the reg pushes and
+//  keeps `this` in ECX for the first store); (b) the nMoveDX/DY=0 zero stores: orig uses
+//  imm-0 stores + xor for nEdges, ours reuses the zeroed reg (v3 imm-vs-reg store batching);
+//  (c) rcOuter.bottom's init wedged INTO the PtInRect arg pushes in orig; (d) one extra
+//  epilogue copy at the nEdges!=0 exit + the x/y load-order swap in the rcView copy wedge.
+//  ⭐ Cracks that got it 344k->132k: pMouse POINT* pointer local over nMouseX/Y (role pin),
+//  y-then-x decl order BEFORE the rcView struct copy, and the POSITIVE PtInRect nesting
+//  `if (P_out) { if (!P_in) { if (P_cell) A else B } } else C` — then-arms inline,
+//  else-arms deferred (C emitted last, its final edge falls into the epilogue).]
+// WM_MOUSEMOVE: records the mouse position, computes the walk direction (nMoveDX/nMoveDY).
+// Outside the play rect (uncaptured) it defers to DefWindowProc. At the play-rect edges
+// (16px bands) it sets edge-scroll directions and bails. Otherwise it classifies the mouse
+// 8-ways against three concentric rects around the camera/player cell (cell 32x32, inner
+// inset 4, outer outset 8). The three classify blocks are copy-paste dev code — the CELL
+// block's (-1,-1) and (1,1) corners store nMoveDY BEFORE nMoveDX (hand-edited copies);
+// every arm returns except the OUTER block's final edge (falls off into the epilogue).
+void GameView::OnMouseMove(UINT nFlags, CPoint point)
+{
+    POINT *pMouse = (POINT *)&nMouseX;
+    nMovePending = 0;
+    pMouse->x = point.x;
+    nMoveCommand = -1;
+    pMouse->y = point.y;
+    if (bKeyboardMoveActive == 1 && pWorld->nFrameMode == 2)
+        pWorld->nFrameMode = 3;
+    bKeyboardMoveActive = 0;
+    if (!::PtInRect(&pWorld->rectUnk3274, *pMouse) && bMouseCaptured == 0)
+    {
+        bMouseCaptured = 0;
+        Default();
+        return;
+    }
+    bMouseCaptured = 1;
+    if ((nFlags & MK_LBUTTON) == 0)
+        bMouseCaptured = 0;
+    bShiftHeld = 1;
+    if ((nFlags & MK_SHIFT) == 0)
+        bShiftHeld = 0;
+    int y = nMouseY;
+    int x = nMouseX;
+    RECT rcView = *(RECT *)&pWorld->nViewLeft;
+    RECT rcPlay = pWorld->rectUnk3274;
+    nMoveDY = 0;
+    int nEdges = 0;
+    nMoveDX = 0;
+    if (rcPlay.left + 0x10 > x)
+    {
+        nMoveDX = -1;
+        nEdges = 1;
+    }
+    else if (rcPlay.right - 0x10 < x)
+    {
+        nEdges = 1;
+        nMoveDX = 1;
+    }
+    if (rcPlay.top + 0x10 > y)
+    {
+        nMoveDY = -1;
+        nEdges++;
+    }
+    else if (rcPlay.bottom - 0x10 < y)
+    {
+        nMoveDY = 1;
+        nEdges++;
+    }
+    if (nEdges == 0)
+    {
+        RECT rcCell;
+        RECT rcInner;
+        RECT rcOuter;
+        rcCell.left = pWorld->cameraX - rcView.left + rcPlay.left;
+        rcCell.top = pWorld->cameraY - rcView.top + rcPlay.top;
+        rcCell.right = rcCell.left + 0x20;
+        rcCell.bottom = rcCell.top + 0x20;
+        rcInner.left = rcCell.left + 4;
+        rcInner.right = rcCell.right - 4;
+        rcInner.top = rcCell.top + 4;
+        rcInner.bottom = rcCell.bottom - 4;
+        rcOuter.left = rcCell.left - 8;
+        rcOuter.right = rcCell.right + 8;
+        rcOuter.top = rcCell.top - 8;
+        rcOuter.bottom = rcCell.bottom + 8;
+        if (::PtInRect(&rcOuter, *pMouse))
+        {
+            if (!::PtInRect(&rcInner, *pMouse))
+            {
+                if (::PtInRect(&rcCell, *pMouse))
+                {
+                    if (x < rcInner.left && y < rcInner.top)
+                    {
+                        nMoveDX = -1;
+                        nMoveDY = -1;
+                        return;
+                    }
+                    if (x < rcInner.left && y > rcInner.bottom)
+                    {
+                        nMoveDX = -1;
+                        nMoveDY = 1;
+                        return;
+                    }
+                    if (x > rcInner.right && y < rcInner.top)
+                    {
+                        nMoveDX = 1;
+                        nMoveDY = -1;
+                        return;
+                    }
+                    if (x > rcInner.right && y > rcInner.bottom)
+                    {
+                        nMoveDX = 1;
+                        nMoveDY = 1;
+                        return;
+                    }
+                    if (x < rcInner.left)
+                    {
+                        nMoveDX = -1;
+                        return;
+                    }
+                    if (x > rcInner.right)
+                    {
+                        nMoveDX = 1;
+                        return;
+                    }
+                    if (y < rcInner.top)
+                    {
+                        nMoveDY = -1;
+                        return;
+                    }
+                    if (y > rcInner.bottom)
+                    {
+                        nMoveDY = 1;
+                        return;
+                    }
+                }
+                else
+                {
+                    if (x < rcCell.left && y < rcCell.top)
+                    {
+                        nMoveDY = -1;
+                        nMoveDX = -1;
+                        return;
+                    }
+                    if (x < rcCell.left && y > rcCell.bottom)
+                    {
+                        nMoveDX = -1;
+                        nMoveDY = 1;
+                        return;
+                    }
+                    if (x > rcCell.right && y < rcCell.top)
+                    {
+                        nMoveDX = 1;
+                        nMoveDY = -1;
+                        return;
+                    }
+                    if (x > rcCell.right && y > rcCell.bottom)
+                    {
+                        nMoveDY = 1;
+                        nMoveDX = 1;
+                        return;
+                    }
+                    if (x < rcCell.left)
+                    {
+                        nMoveDX = -1;
+                        return;
+                    }
+                    if (x > rcCell.right)
+                    {
+                        nMoveDX = 1;
+                        return;
+                    }
+                    if (y < rcCell.top)
+                    {
+                        nMoveDY = -1;
+                        return;
+                    }
+                    if (y > rcCell.bottom)
+                    {
+                        nMoveDY = 1;
+                        return;
+                    }
+                }
+            }
+        }
+        else
+        {
+            if (x < rcOuter.left && y < rcOuter.top)
+            {
+                nMoveDX = -1;
+                nMoveDY = -1;
+                return;
+            }
+            if (x < rcOuter.left && y > rcOuter.bottom)
+            {
+                nMoveDX = -1;
+                nMoveDY = 1;
+                return;
+            }
+            if (x > rcOuter.right && y < rcOuter.top)
+            {
+                nMoveDX = 1;
+                nMoveDY = -1;
+                return;
+            }
+            if (x > rcOuter.right && y > rcOuter.bottom)
+            {
+                nMoveDX = 1;
+                nMoveDY = 1;
+                return;
+            }
+            if (x < rcOuter.left)
+            {
+                nMoveDX = -1;
+                return;
+            }
+            if (x > rcOuter.right)
+            {
+                nMoveDX = 1;
+                return;
+            }
+            if (y < rcOuter.top)
+            {
+                nMoveDY = -1;
+                return;
+            }
+            if (y > rcOuter.bottom)
+                nMoveDY = 1;
+        }
+    }
+}
+
+// FUNCTION: YODA 0x00413b20
+// [EFFECTIVE: align=20/reg_pen=0 — ONLY the two end stubs are swapped: orig emits the EH
+//  handler thunk (mov eax,FuncInfo; jmp __CxxFrameHandler) BEFORE the ~CBrush call stub
+//  (lea ecx; jmp ??1CBrush); ours emits dtor-stub-then-handler. Identical bytes, block
+//  order only — funclet-ordering axis, not source-steerable (UpdateDragCursor's stubs
+//  aligned with the same source patterns). Crack: h/w as locals (h FIRST) so both
+//  subtractions batch before the PATCOPY push.]
+// WM_ERASEBKGND: fills the clip box with the 3D-face system color via a PatBlt.
+// `this` is never read — everything goes through the passed CDC.
+BOOL GameView::OnEraseBkgnd(CDC *pDC)
+{
+    CBrush br(::GetSysColor(COLOR_BTNFACE));
+    CBrush *pOldBrush = pDC->SelectObject(&br);
+    RECT rc;
+    pDC->GetClipBox(&rc);
+    int h = rc.bottom - rc.top;
+    int w = rc.right - rc.left;
+    ::PatBlt(pDC->m_hDC, rc.left, rc.top, w, h, PATCOPY);
+    pDC->SelectObject(pOldBrush);
+    return TRUE;
+}
+
+// FUNCTION: YODA 0x00413be0
+// Genuinely empty method, called from OnTimer each frame (a stubbed-out per-frame hook).
+void GameView::EmptyFrameHookMaybe()
+{
+}
+
+// FUNCTION: YODA 0x00413bf0
+// Flushes channel 0 of the WAVMIX session (stops the currently queued sound effects).
+void GameView::SoundFlush()
+{
+    if (soundSession != 0)
+        WaveMixFlushChannel(soundSession, 0, 1);
+}
+
+// FUNCTION: YODA 0x00413dd0
+// Redraws the zone cell at the camera position. NOTE the <<5: DrawZoneCell takes CELL
+// coords and multiplies by 32 itself — passing camera*32 here draws a far-off cell unless
+// camera is 0 (sic? name keeps Maybe).
+void GameView::RedrawPlayerCellMaybe()
+{
+    int x = pWorld->cameraX << 5;
+    int y = pWorld->cameraY << 5;
+    DrawZoneCell(x, y);
+}
+
+// FUNCTION: YODA 0x00413df0
+// [EFFECTIVE-WIP: align=1066/reg_pen=126, byte_diff 730/4635 (~84% bytes) — first-pass. Solved
+//  on the way (2.02M->1.08M): all GetTile/GetZoneCell results route through INT locals with
+//  (short) casts (movsx-immediately, incl. `int nT/nCell` per edge case); case arms are
+//  `if (nCell >= 0) {big} else PlaySound(6);` (else lands at case end); `UINT nFlags =
+//  pTile->flags` is a REAL two-use register local (character + push tests — the
+//  FireWeaponStep flags-test axis CONFIRMED as two-use); the push guard is FLAT
+//  (`if (bPush && (nFlags&8)) {..} if (bPush) break;` — one-deep test elimination jumps
+//  the JZ past the second if); char arm = guard-style breaks with the enemy test FIRST;
+//  pickup arm stores bPush=1 INSIDE the if; pull block uses negated int locals (ndx/ndy)
+//  + (short) casts at the DrawZoneCell site; DrawZoneCell player-cell sites take (cx,cy)
+//  ints (NO short locals — Ghidra's sVar4/y are phantom).
+//  REMAINING (parked): (a) this rides EDI vs orig ESI from the prologue (push-order swap,
+//  global r-fallout); (b) the (nMask & 0x2a) dialog arm inlines in ours vs deferred-to-end
+//  in orig — the arm owns the shared DrawPlayer/DrawGameArea tail in orig (the v24
+//  "merge-partner not steerable" family); (c) six GetFrameTile sites have 1-insn
+//  mov/push order swaps; (d) scattered store-batching. G1 fodder.]
+// The bump/walk handler (IACT event 2 = BumpTile): moves the player one cell in (dx,dy),
+// running the whole interaction pipeline — zone-edge transitions (4 duplicated arms, one per
+// direction), bump-object dispatch (pickup/vehicle/door/lock/teleporter/xwing), bump scripts
+// via Zone::IactRun, enemy contact damage, shift-push (straight) and shift-pull (diagonal)
+// of TILE_PUSH_PULL_BLOCK tiles, and the IactProbeMove auto-slide retry loop (cases 2-5
+// adjust the delta and loop). Arms end with their own duplicated DrawPlayer/DrawGameArea
+// tails (cl cross-jumps them into the 0x414f5b/0x414f63 shared blocks).
+void GameView::OnBumpTile(int dx, int dy)
+{
+    int dx2 = dx;
+    int dy2 = dy;
+    if (bInputLocked == 0 && bBlockBumpUntilClick == 0)
+    {
+        bInputLocked = 1;
+        bBusy = 1;
+        if (pWorld->nFrameMode != 6 && pWorld->nFrameMode != 1)
+        {
+            if (bRearmHotspotsMaybe == 1)
+            {
+                ReenableHotspotObjects();
+                bRearmHotspotsMaybe = 0;
+            }
+            int cx = pWorld->cameraX / 32;
+            int cy = pWorld->cameraY / 32;
+            for (;;)
+            {
+                int tx = dx2 + cx;
+                int ty = dy2 + cy;
+                int bPush = 0;
+                if (pWorld->unk3378 != 0)
+                {
+                    if (pWorld->currentZone->GetEdgeCode(tx, ty) == 0)
+                    {
+                        if (pWorld->bHidePlayerMaybe == 0)
+                            DrawZoneCell(cx, cy);
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->UpdateCamera();
+                        pWorld->DrawPlayer();
+                        DrawGameArea(NULL);
+                    }
+                    else
+                    {
+                        if (pWorld->bHidePlayerMaybe == 0)
+                            DrawZoneCell(cx, cy);
+                        UpdatePlayerWalkFrame();
+                    }
+                    break;
+                }
+                if (bShiftHeld != 0)
+                {
+                    if (dx == 0 || dy == 0)
+                        bPush = 1;
+                    else
+                        bPush = 0;
+                }
+                UpdateItemObjectsMaybe();
+                if (dx2 == 0 && dy2 == 0)
+                {
+                    UpdatePlayerWalkFrame();
+                    bBusy = 0;
+                    bInputLocked = 0;
+                    return;
+                }
+                if (pWorld->bHidePlayerMaybe == 0)
+                    DrawZoneCell(cx, cy);
+                int t = (short)pWorld->currentZone->GetTile(tx, ty, 1);
+                if (t == -1)
+                {
+                    int nEdge = pWorld->currentZone->GetEdgeCode(tx, ty);
+                    if (nEdge > 0)
+                    {
+                        switch (nEdge)
+                        {
+                        case 1:
+                            PlaySound(6);
+                            pWorld->DrawPlayer();
+                            DrawGameArea(NULL);
+                            break;
+                        case 2:
+                        {
+                            int px = pWorld->playerX;
+                            int py = pWorld->playerY - 1;
+                            int nCell = (short)pWorld->GetZoneCell(px, py);
+                            if (nCell >= 0)
+                            {
+                                Zone *pZone = pWorld->GetZoneById(nCell);
+                                int nT = (short)pZone->GetTile(tx, pZone->height - 1, 1);
+                                if (nT == -1)
+                                {
+                                    nTransitionStep = 0;
+                                    pWorld->currentZone = pZone;
+                                    pWorld->RefreshZone();
+                                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                                    pWorld->DrawPlayer();
+                                    pWorld->cameraX = tx * 32;
+                                    pWorld->cameraY = (pZone->height - 1) * 32;
+                                    pWorld->UpdateCamera();
+                                    pWorld->scrollDirX = 0;
+                                    pWorld->scrollDirY = -1;
+                                    pWorld->nFrameMode = 6;
+                                    pWorld->nMapChangeReason = 5;
+                                    pWorld->playerX = px;
+                                    pWorld->playerY = py;
+                                    if (bKeyboardMoveActive == 0)
+                                    {
+                                        pWorld->nQueuedMoveDYMaybe = 0;
+                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                    }
+                                    ScrollZoneTransition();
+                                }
+                                else
+                                {
+                                    PlaySound(6);
+                                }
+                            }
+                            else
+                            {
+                                PlaySound(6);
+                            }
+                            break;
+                        }
+                        case 3:
+                        {
+                            int px = pWorld->playerX;
+                            int py = pWorld->playerY + 1;
+                            int nCell = (short)pWorld->GetZoneCell(px, py);
+                            if (nCell >= 0)
+                            {
+                                Zone *pZone = pWorld->GetZoneById(nCell);
+                                int nT = (short)pZone->GetTile(tx, 0, 1);
+                                if (nT == -1)
+                                {
+                                    nTransitionStep = 0;
+                                    pWorld->currentZone = pZone;
+                                    pWorld->RefreshZone();
+                                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                                    pWorld->DrawPlayer();
+                                    pWorld->cameraX = tx * 32;
+                                    pWorld->cameraY = 0;
+                                    pWorld->UpdateCamera();
+                                    pWorld->scrollDirX = 0;
+                                    pWorld->scrollDirY = 1;
+                                    pWorld->nFrameMode = 6;
+                                    pWorld->nMapChangeReason = 5;
+                                    pWorld->playerX = px;
+                                    pWorld->playerY = py;
+                                    if (bKeyboardMoveActive == 0)
+                                    {
+                                        pWorld->nQueuedMoveDYMaybe = 0;
+                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                    }
+                                    ScrollZoneTransition();
+                                }
+                                else
+                                {
+                                    PlaySound(6);
+                                }
+                            }
+                            else
+                            {
+                                PlaySound(6);
+                            }
+                            break;
+                        }
+                        case 4:
+                        {
+                            int py = pWorld->playerY;
+                            int px = pWorld->playerX - 1;
+                            int nCell = (short)pWorld->GetZoneCell(px, py);
+                            if (nCell >= 0)
+                            {
+                                Zone *pZone = pWorld->GetZoneById(nCell);
+                                int nT = (short)pZone->GetTile(pZone->width - 1, ty, 1);
+                                if (nT == -1)
+                                {
+                                    nTransitionStep = 0;
+                                    pWorld->currentZone = pZone;
+                                    pWorld->RefreshZone();
+                                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                                    pWorld->DrawPlayer();
+                                    pWorld->cameraX = (pZone->width - 1) * 32;
+                                    pWorld->cameraY = ty * 32;
+                                    pWorld->UpdateCamera();
+                                    pWorld->scrollDirX = -1;
+                                    pWorld->scrollDirY = 0;
+                                    pWorld->nFrameMode = 6;
+                                    pWorld->nMapChangeReason = 5;
+                                    pWorld->playerX = px;
+                                    pWorld->playerY = py;
+                                    if (bKeyboardMoveActive == 0)
+                                    {
+                                        pWorld->nQueuedMoveDYMaybe = 0;
+                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                    }
+                                    ScrollZoneTransition();
+                                    pWorld->scrollDirX = 0;
+                                }
+                                else
+                                {
+                                    PlaySound(6);
+                                }
+                            }
+                            else
+                            {
+                                PlaySound(6);
+                            }
+                            break;
+                        }
+                        case 5:
+                        {
+                            int py = pWorld->playerY;
+                            int px = pWorld->playerX + 1;
+                            int nCell = (short)pWorld->GetZoneCell(px, py);
+                            if (nCell >= 0)
+                            {
+                                Zone *pZone = pWorld->GetZoneById(nCell);
+                                int nT = (short)pZone->GetTile(0, ty, 1);
+                                if (nT == -1)
+                                {
+                                    nTransitionStep = 0;
+                                    pWorld->currentZone = pZone;
+                                    pWorld->RefreshZone();
+                                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                                    pWorld->DrawPlayer();
+                                    pWorld->cameraX = 0;
+                                    pWorld->cameraY = ty * 32;
+                                    pWorld->UpdateCamera();
+                                    pWorld->scrollDirX = 1;
+                                    pWorld->scrollDirY = 0;
+                                    pWorld->nFrameMode = 6;
+                                    pWorld->nMapChangeReason = 5;
+                                    pWorld->playerX = px;
+                                    pWorld->playerY = py;
+                                    if (bKeyboardMoveActive == 0)
+                                    {
+                                        pWorld->nQueuedMoveDYMaybe = 0;
+                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                    }
+                                    ScrollZoneTransition();
+                                }
+                                else
+                                {
+                                    PlaySound(6);
+                                }
+                            }
+                            else
+                            {
+                                PlaySound(6);
+                            }
+                            break;
+                        }
+                        default:
+                            break;
+                        }
+                        break;
+                    }
+                    ZoneObj *pObj = pWorld->currentZone->FindObjectAt(tx, ty);
+                    if (pObj == NULL || pObj->type == OBJ_LOCK)
+                    {
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        pWorld->UpdateCamera();
+                        if (bPush)
+                        {
+                            int ndx = -dx;
+                            int ndy = -dy;
+                            int sy = cy + ndy;
+                            int sx = ndx + cx;
+                            int tSide = (short)pWorld->currentZone->GetTile(sx, sy, 1);
+                            int tHere = (short)pWorld->currentZone->GetTile(cx, cy, 1);
+                            if (tSide >= 0 && tHere < 0 &&
+                                (pWorld->GetTileData(tSide)->flags & TILE_PUSH_PULL_BLOCK) != 0)
+                            {
+                                pWorld->currentZone->SetTile(sx, sy, 1, -1);
+                                pWorld->currentZone->SetTile(cx, cy, 1, tSide);
+                                PlaySound(1);
+                                DrawZoneCell((short)ndx + (short)cx, (short)ndy + (short)cy);
+                                DrawZoneCell(cx, cy);
+                            }
+                        }
+                        DrawGameArea(NULL);
+                        break;
+                    }
+                    switch (pObj->type)
+                    {
+                    case OBJ_QUEST_ITEM_SPOT:
+                    case OBJ_THE_FORCE:
+                    case OBJ_LOCATOR:
+                    case OBJ_ITEM:
+                    case OBJ_WEAPON:
+                    case OBJ_UNKNOWN:
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        DrawGameArea(NULL);
+                        if (pObj->arg >= 0)
+                        {
+                            nPickupX = tx;
+                            nPickupY = ty;
+                            nPickupTileId = pObj->arg;
+                            pPickupObj = pObj;
+                            nTransitionStep = 0;
+                            bBlinkState = 0;
+                            pWorld->nFrameMode = 9;
+                            bMouseCaptured = 0;
+                        }
+                    default:
+                        break;
+                    case OBJ_VEHICLE_TO:
+                    case OBJ_VEHICLE_FROM:
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        pWorld->UpdateCamera();
+                        DrawGameArea(NULL);
+                        ApplyHotspotCamera(pObj);
+                        break;
+                    case OBJ_DOOR_IN:
+                    case OBJ_DOOR_OUT:
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        pWorld->UpdateCamera();
+                        DrawGameArea(NULL);
+                        TransitionZoneDoor(pObj);
+                        break;
+                    case OBJ_LOCK:
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        pWorld->UpdateCamera();
+                        DrawGameArea(NULL);
+                        break;
+                    case OBJ_TELEPORTER:
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->UpdateCamera();
+                        pWorld->DrawPlayer();
+                        DrawGameArea(NULL);
+                        if (pWorld->inventory.GetSize() > 0 &&
+                            (pWorld->inventory.GetAt(0) == NULL ||
+                             pWorld->tiles.GetAt(0x1a5) == (CObject *)((InvItem *)pWorld->inventory.GetAt(0))->pTile))
+                        {
+                            bMapTeleportEnabled = 1;
+                            PlaySound(0x31);
+                            CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+                            CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+                            pMapReturnZone = pWorld->currentZone;
+                            bMapViewOpen = 1;
+                            pWorld->DrawLocatorMap(pDC, bBlinkState, bMapTeleportEnabled);
+                            pDC->SelectPalette(pOldPal, 0);
+                            ::ReleaseDC(m_hWnd, pDC->m_hDC);
+                            bMouseCaptured = 0;
+                            pWorld->nFrameMode = 7;
+                            pWorld->nMapChangeReason = 4;
+                        }
+                        break;
+                    case OBJ_XWING_FROM:
+                    case OBJ_XWING_TO:
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        pWorld->UpdateCamera();
+                        DrawGameArea(NULL);
+                        break;
+                    }
+                    break;
+                }
+                Tile *pTile = pWorld->GetTileData(t);
+                if (pTile == NULL)
+                    break;
+                pWorld->DrawPlayer();
+                UINT nMask = pWorld->currentZone->IactRun(2, cx, cy, dx2, dy2, 0, NULL, pWorld, this);
+                if ((pWorld->currentZone->type == 6 || pWorld->currentZone->type == 7 ||
+                     pWorld->currentZone->type == 11) && TriggerHotspotsMaybe() == 1)
+                    break;
+                if ((nMask & 0x2a) != 0)
+                {
+                    if ((nMask & 2) != 0 && (nMask & 0x808) == 0)
+                    {
+                        pWorld->nFrameMode = 3;
+                        bMouseCaptured = 0;
+                        bTextDialogShown = 1;
+                        if (bDialogClickDismissMaybe == 0)
+                        {
+                            bInputLocked = 1;
+                            return;
+                        }
+                        bInputLocked = 0;
+                        return;
+                    }
+                    if (pWorld->nFrameMode == 2)
+                        pWorld->nFrameMode = 3;
+                    pWorld->DrawPlayer();
+                    DrawGameArea(NULL);
+                    break;
+                }
+                UINT nFlags = pTile->flags;
+                if ((nFlags & TILE_CHARACTER) != 0)
+                {
+                    if ((pTile->flags & 0x20000) != 0)
+                    {
+                        short nChar = FindEntityAt(cx + dx2, dy2 + cy);
+                        if (nChar < 0)
+                            break;
+                        Character *pChar = (Character *)pWorld->characters.GetAt(nChar);
+                        if (pChar == NULL)
+                            break;
+                        if (pChar->damage < 0)
+                            break;
+                        PlaySound(4);
+                        AddHealth(-pChar->damage);
+                        break;
+                    }
+                    pWorld->unk3370 = 1;
+                    pWorld->equippedItem = pTile;
+                    ShowWinMessage(cx, cy, dx2, dy2);
+                    break;
+                }
+                if (bPush && (nFlags & TILE_PUSH_PULL_BLOCK) != 0)
+                {
+                    int bx = dx + tx;
+                    int by = dy + ty;
+                    if ((short)pWorld->currentZone->GetTile(bx, by, 1) >= 0)
+                        break;
+                    if ((short)pWorld->currentZone->GetTile(bx, by, 0) < 0)
+                        break;
+                    pWorld->currentZone->SetTile(tx, ty, 1, -1);
+                    DrawZoneCell(tx, ty);
+                    DrawZoneCell(cx, cy);
+                    pWorld->currentZone->SetTile(bx, by, 1, t);
+                    DrawZoneCell(bx, by);
+                    PlaySound(1);
+                    UpdateItemObjectsMaybe();
+                    ZoneObj *pAt = pWorld->currentZone->FindObjectAt(tx, ty);
+                    if (pAt == NULL || pAt->type == OBJ_LOCK)
+                    {
+                        pWorld->cameraX = tx * 32;
+                        pWorld->cameraY = ty * 32;
+                    }
+                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                    pWorld->DrawPlayer();
+                    pWorld->UpdateCamera();
+                    DrawGameArea(NULL);
+                    break;
+                }
+                if (bPush)
+                    break;
+                bPush = 0;
+                ZoneObj *pObj2 = pWorld->currentZone->FindObjectAt(tx, ty);
+                if (pObj2 != NULL && (pTile->flags & TILE_MIDDLE_LAYER_COLLIDING) == 0)
+                {
+                    switch (pObj2->type)
+                    {
+                    case OBJ_QUEST_ITEM_SPOT:
+                    case OBJ_THE_FORCE:
+                    case OBJ_LOCATOR:
+                    case OBJ_ITEM:
+                    case OBJ_WEAPON:
+                    case OBJ_UNKNOWN:
+                        pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                        pWorld->DrawPlayer();
+                        if (pObj2->arg >= 0)
+                        {
+                            bPush = 1;
+                            nPickupX = tx;
+                            nPickupY = ty;
+                            pWorld->currentZone->SetTile(tx, ty, 1, -1);
+                            DrawZoneCell(tx, ty);
+                            nPickupTileId = pObj2->arg;
+                            pPickupObj = pObj2;
+                            nTransitionStep = 0;
+                            bBlinkState = 0;
+                            pWorld->nFrameMode = 9;
+                            bMouseCaptured = 0;
+                        }
+                        DrawGameArea(NULL);
+                    }
+                }
+                if (bPush || (nMask & 4) != 0)
+                    break;
+                switch (pWorld->currentZone->IactProbeMove(cx, cy, dx2, dy2, (int)&pWorld->tiles, 0))
+                {
+                case 0:
+                    UpdatePlayerWalkFrame();
+                    break;
+                case 1:
+                    pWorld->cameraX = tx * 32;
+                    pWorld->cameraY = ty * 32;
+                    pWorld->pPlayerFrameTile = (Tile *)pWorld->pPlayerChar->GetFrameTile(nMoveDX, nMoveDY, &pWorld->tiles, nWalkFramePhase);
+                    pWorld->DrawPlayer();
+                    DrawGameArea(NULL);
+                    break;
+                case 2:
+                    dx2 = dx2 + 1;
+                    continue;
+                case 3:
+                    dx2 = dx2 - 1;
+                    continue;
+                case 4:
+                    dy2 = dy2 + 1;
+                    continue;
+                case 5:
+                    dy2 = dy2 - 1;
+                    continue;
+                default:
+                    UpdatePlayerWalkFrame();
+                    break;
+                }
+                break;
+            }
+            pWorld->nQueuedMoveDYMaybe = 0;
+            pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+            if (bKeyboardMoveActive == 0)
+            {
+                nMoveDY = 0;
+                nMoveDX = 0;
+            }
+            if (bKeyboardMoveActive == 0)
+            {
+                OnMouseMove(bShiftHeld == 0 ? 1 : 5, CPoint(nMouseX, nMouseY));
+            }
+            OnSetCursor(this, HTCLIENT, 0);
+            bBusy = 0;
+            bInputLocked = 0;
+            return;
+        }
+        bBusy = 0;
+        bInputLocked = 0;
+    }
 }

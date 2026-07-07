@@ -189,7 +189,8 @@ public:
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
-    char        _pad3338[8];         // +0x3338
+    int         nQueuedMoveDXMaybe;  // +0x3338  pending bump/walk delta (OnBumpTile tail zeroes,
+    int         nQueuedMoveDYMaybe;  // +0x333c   zone-transition arms chain nMoveDX=nMoveDY=DX)
     int         nWalkTargetXMaybe;   // +0x3340  OnLButtonDown mode-3 click target (fine coords, *32)
     int         nWalkTargetYMaybe;   // +0x3344
     short       ammoTheForceMaybe;   // +0x3348  saved charge for weapon tile 0x1fe (The Force)

@@ -371,6 +371,10 @@ Written to be followable without prior context: each phase lists concrete steps 
   **15.93 % exact / 85.60 % coverage — v24: SoundInit EXACT + OnDragItem/OnLButtonDown/
   OnLButtonUp effective (29/57 markers); nFrameMode@0x5c identified; per-case
   trailing-copy + &field-pointer refill recipes (2026-07-07 v24)**;
+  **16.02 % exact / 90.95 % coverage — v25: UpdateDragCursor/OnSetCursor/OnMouseMove/
+  OnBumpTile(4.6KB) effective + SoundFlush/RedrawPlayerCell/EmptyFrameHook EXACT
+  (33/65 markers); ⭐ memcpy operand-provenance rule (field-to-field ⇒ lone rep movsb)
+  (2026-07-07 v25)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -408,7 +412,75 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v24 — mouse handlers; 15.93% exact / 85.60% coverage)
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v25 — UpdateDragCursor→OnBumpTile; 16.02% exact / 90.95% coverage)
+**▶ v25 RESULTS: GameView.cpp = 33/65 markers (3971B exact); 90.95% coverage / 16.02% exact
+globally. New EXACT: SoundFlush 0x413bf0, RedrawPlayerCellMaybe 0x413dd0 (int temps for the
+<<5 args — a plain expr narrows to 16-bit `shl dx,5`), EmptyFrameHookMaybe 0x413be0, + one
+GameData flip-in (13/27). New EFFECTIVE (autopsies in-source): UpdateDragCursor 0x412cc0
+(align 130), OnSetCursor 0x4131a0 (align 30), OnMouseMove 0x413580 (align 130, ~91% bytes),
+OnEraseBkgnd 0x413b20 (align 20 — ONLY the two end stubs swapped: handler-thunk vs dtor-stub
+emission order, not source-steerable), OnBumpTile 0x413df0 (4635B monster, first pass ~84%
+bytes, align 1066).**
+- **⭐ MEMCPY OPERAND-PROVENANCE RULE (probe-proven, the UpdateDragCursor crack):** the
+  intrinsic emits the LONE `rep movsb` form when BOTH args are struct-FIELD loads (any
+  pointed type; a value-local copied from a field keeps field-ness); any param/global/
+  call-result/deref-of-&field-local operand ⇒ the movsd+movsb split. SEPARATELY, the
+  count expression is value-tracked: provably 4-aligned count ((n/8)<<10, n*1024) drops
+  the movsb tail ⇒ LONE movsd; tracking dies when the value crosses a call/spill. `n&3`
+  does NOT drop the movsd phase (no range analysis, only low-bit zeros).
+- **⭐ Bare `return CONST` cross-jumps into the function-end epilogue ONLY as a BRANCH
+  TARGET** (OnSetCursor crack): write `if (==) {store; return TRUE;} return TRUE;` — the
+  guard's false-jump lands on the bare return and merges with the end block; NESTED
+  fall-out of two scopes = a FALL-THROUGH return = inline epilogue copy (not mergeable).
+- **⭐ PtInRect/POINT overlay:** adjacent int fields ARE the POINT — pass
+  `*(POINT *)&nMouseX` (a `POINT pt` local costs 8 frame bytes + stores); in OnMouseMove a
+  `POINT *pMouse = (POINT *)&nMouseX` pointer local also pins the x/y reg roles.
+- **⭐ Positive-test nesting defers else-arms** (OnMouseMove): `if (P_out) { if (!P_in) {
+  if (P_cell) A else B } } else C` — then-arms inline, else-arms (B, C) deferred to the
+  end in discovery order; C's final no-return edge falls into the shared epilogue.
+- **FireWeaponStep flags-test axis CONFIRMED in OnBumpTile:** `UINT nFlags = pTile->flags;`
+  with TWO uses (character + push tests) keeps flags in EAX (test ah,1 / test al,8);
+  single-use tests narrow to byte-mem. Also: ALL GetTile/GetZoneCell results route through
+  INT locals with (short) casts (`int t = (short)zone->GetTile(...)`); edge-case arms are
+  `if (nCell >= 0) {big} else PlaySound(6);` (else lands at case end); flat push guard
+  `if (bPush && (nFlags&8)) {..} if (bPush) break;` (one-deep test elimination); pull
+  block uses NEGATED int locals (ndx=-dx) + (short) casts at the DrawZoneCell site.
+- OnEraseBkgnd: h/w as locals (h FIRST) batches both subtractions before the PATCOPY push.
+- New Worldgen.h fields (Ghidra synced+saved): nQueuedMoveDXMaybe@0x3338,
+  nQueuedMoveDYMaybe@0x333c (OnBumpTile tail zeroes DY→copies to DX; transition arms chain
+  `nMoveDX = nMoveDY = queuedDX`). asmscore GOTCHA: its want-name regex greps the first
+  `Class::Method(` AFTER the marker — a comment like "Character::Get(Walk)FrameTile"
+  mispairs the COMDAT (returns None) — keep :: out of marker comments.
+- **Parked (autopsies in-source):** UpdateDragCursor's >8bpp pixel-loop import-caching
+  (ours caches SetPixel in EDI, demotes y2 to memory — v24 reg-pressure family; minimal-TU
+  probe: identical solo ⇒ header-dial); OnBumpTile's this=EDI-vs-ESI prologue swap + the
+  (nMask&0x2a) dialog arm inline-vs-deferred (orig's arm owns the shared DrawPlayer/
+  DrawGameArea tail — merge-partner family) + six 1-insn GetFrameTile site swaps;
+  OnMouseMove imm-vs-reg zero stores + rcOuter.bottom wedge; OnEraseBkgnd stub order.
+
+**▶ START HERE (v26): remaining ~14KB of GameView TU, .text order:**
+1. **0x413c10 (445B — UNIDENTIFIED, between SoundFlush and RedrawPlayerCell — decompile
+   + name it first)**, then OnKeyDown 0x4150f0 (1538B, body healed v16), UpdatePlayerWalkFrame
+   0x4150a0 check, CheckCheat 0x415820 (552B), CyclePalette 0x415af0 (1280B), ConfirmExit
+   0x416030, TextDialog::Ctor 0x416b90 + Run 0x416c40 (2022B, plain class NOT CDialog),
+   0x4176f0 (1419B, identify), options dialogs 0x417ec0–0x4186e0 (three mini CDialog
+   classes — model per v16 notes).
+2. **OnBumpTile second pass (optional):** the remaining align-1066 is mostly the parked
+   families; do NOT grind — G1.
+3. **Open items (carried):** InvScrollBar ??_G/??1 (0x408690/0x4086b0) PARKED;
+   World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); MapZone.field30 →
+   quest-list selector rename candidate (1=listA, else listB — ShowWinMessage).
+4. **G1 dial axes (carried):** ZTS↔WES + AHC/XWing arms parity crossings;
+   DrawZoneCellRect/DrawWholeZone rotations; FireWeaponStep erase-block;
+   Tick cmp-direction/fire-block/reg-roles; OnTimer + ScrollZoneTransition
+   this-reload/import-caching; UpdateItemObjects this/pO swap; DrawText pTile-EBX
+   CSE; ShowWinMessage tx/ty homing; plain-helper param widths; AFX_MSG map-order;
+   v24/v25 parked lists above.
+5. **Re-verify ALL TUs after ANY Worldgen.h/GameView.h/RecordClasses.h edit** (v25 sweep:
+   GameView 33/65, Worldgen 33/90, WorldDoc 7/13, Records 24/33, GameData 13/27,
+   World 6/8, Iact 2/10).
+
+### ⏮ PRIOR (2026-07-07 v24 — mouse handlers, condensed)
 **▶ v24 RESULTS (2026-07-07, commits e9caa34+): GameView.cpp = 29/57 markers; 85.60%
 marker coverage / 15.93% exact globally. SoundInit 0x411520 EXACT FIRST COMPILE (527B —
 WaveMix session + strcpy/strcat intrinsics over World.soundNames[64] + g_waveHandles
@@ -442,28 +514,6 @@ OnDragItem 0x4102d0 EFFECTIVE-WIP (945/924 insns), OnLButtonDown 0x411730 EFFECT
   #6 canonicalization); load/TEST/store drift in the 0x12/0x1fe arms; walk-target X/Y
   chain interleave (int locals were +36 insns — TZD family); import-pointer caching
   flips WITH the restructure (reg-pressure-coupled).
-
-**▶ START HERE (v25): remaining ~25KB of GameView TU, .text order:**
-1. **UpdateDragCursor 0x412cc0** (~1240B — EH + CDC/AFX_EXCEPTION_LINK TRY/CATCH,
-   CreateCompatibleDC + bitmap compositing + SetCursor; use the WorldDoc OnOpenDocument
-   CATCH_ALL recipe); then OnMouseMove-ish 0x4131a0?, 0x413580 (1447B, identify),
-   EmptyFrameHookMaybe 0x413be0, **0x413df0 (4635B — likely OnBumpTile, biggest left)**,
-   OnKeyDown 0x4150f0 (1538B), TextDialog::Ctor 0x416b90 + Run 0x416c40 (2022B),
-   options dialogs 0x417ec0–0x4186e0 (three mini CDialog classes), 0x4176f0 (1419B).
-2. **FireWeaponStep flags-test theory (carried):** orig loads flags into a reg —
-   probe a TWO-use spelling / check whether pTile has another use keeping it in EAX.
-   (OnDragItem's weapon/health/harmful chain kept flags in EAX via 3 uses — supports it.)
-3. **Open items (carried):** InvScrollBar ??_G/??1 (0x408690/0x4086b0) PARKED;
-   World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); MapZone.field30 →
-   quest-list selector rename candidate (1=listA, else listB — ShowWinMessage).
-4. **G1 dial axes (carried):** ZTS↔WES + AHC/XWing arms parity crossings;
-   DrawZoneCellRect/DrawWholeZone rotations; FireWeaponStep flags-test + erase-block;
-   Tick cmp-direction/fire-block/reg-roles; OnTimer + ScrollZoneTransition
-   this-reload/import-caching; UpdateItemObjects this/pO swap; DrawText pTile-EBX
-   CSE; ShowWinMessage tx/ty homing; plain-helper param widths; AFX_MSG map-order;
-   v24's parked list above (PS+DT merge partner, ladder cluster, OnDragItem rotation).
-5. **Re-verify ALL TUs after ANY Worldgen.h/GameView.h/RecordClasses.h edit** (the v24
-   enum/field adds flipped GameView 28→29, Worldgen 31→33, Records 25→24, GameData 13→12).
 
 
 ### ⏮ PRIOR (2026-07-07 v22+v23 — hotspot/inventory block + ClassifyTile, kept verbatim)
