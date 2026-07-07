@@ -5737,7 +5737,7 @@ void World::OnLoadWorld()
         short nZone;
         pFile->Read(&nZone, 2);
         pView->nTargetZoneId = nZone;
-        pView->unk118 = 0;
+        pView->nTransitionStep = 0;
         pFile->Read(&playerX, 4);
         pFile->Read(&playerY, 4);
         short nWeapon;
@@ -6342,3 +6342,212 @@ Zone *World::ReadZone(CFile *pFile, int idx)
     }
     return pZone;
 }
+
+// ============================== GameView methods (TU tail) ==============================
+// The doc TU ends with a block of GameView (CDeskcppView) methods, 0x426c40-0x429150.
+
+// FUNCTION: YODA 0x00426c40
+// [EFFECTIVE: DIFF~31, insns 351/351, align residual = two 1-insn scheduling rotations
+// (the &nGameSpeed/&bInitialized cache loads vs neighboring pushes — arg-push scheduling
+// family; SetTimer temp form inert) + one small reg pair. First compile was already
+// structurally exact; the &field pointer caches emerge from plain field accesses here.]
+// CView::OnInitialUpdate override (vft +0xe8), one-shot via bInitialized: load the 11 game
+// cursors, wire pWorld/nGameSpeed, create the inventory scrollbar + 0x1d1d game timer +
+// 32x32 drag-tile canvas, and create (hidden) the 3 dialog balloon CBitmapButtons and the
+// MS-Sans-Serif-8 dialog text CEdit.
+void GameView::OnInitialUpdate()
+{
+    if (bInitialized == 0)
+    {
+        AfxGetInstanceHandle();
+        hCursor3 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6a));
+        hCursor9 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6b));
+        hCursor = LoadCursor(NULL, IDC_ARROW);
+        hCursor2 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x71));
+        hCursor4 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x73));
+        hCursor5 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6c));
+        hCursor7 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x72));
+        hCursor8 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x74));
+        hCursor6 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6d));
+        hCursor10 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x76));
+        hCursor11 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc2));
+        unkB8_always1 = 1;
+        nMoveDY = 0;
+        nMoveDX = 0;
+        bShiftHeld = 0;
+        bMapViewOpen = 0;
+        bRearmHotspotsMaybe = 0;
+        bFireKeyLatchMaybe = 0;
+        draggedTile = NULL;
+        bDragActive = 0;
+        nDragLastScreenY = -1;
+        nDragLastScreenX = -1;
+        unk154 = 0;
+        bBlinkState = 0;
+        pWorld = (World *)m_pDocument;
+        nGameSpeed = pWorld->gameSpeed;
+        TRY {
+            pInvScrollBar = new InvScrollBar(this, &pWorld->rectInvScrollMaybe);
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+            _afxExceptionLink.m_pException = e;
+            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            AfxAbort();
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
+        nTimerId = ::SetTimer(m_hWnd, 0x1d1d, nGameSpeed, NULL);
+        bInputLocked = 0;
+        TRY {
+            pDragTileCanvas = new Canvas(0x20, 0x20);
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
+            _afxExceptionLink.m_pException = e2;
+            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            AfxAbort();
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
+        if (pDragTileCanvas != NULL)
+            pDragTileCanvas->SetPalette(0, 0x100, (RGBQUAD *)pWorld->pSysColorTable);
+        WPARAM wFont = 0;
+        nWalkFramePhase = 0;
+        bMouseCaptured = 0;
+        nMovePending = 0;
+        bInitialized++;
+        bSkipEntryIactMaybe = 0;
+        CRect rc(0, 0, 0, 0);
+        btnDialogClose.Create("", 0x5000000b, rc, this, 0x1389);
+        btnDialogDown.Create("", 0x5000000b, rc, this, 0x138a);
+        btnDialogUp.Create("", 0x5000000b, rc, this, 0x138b);
+        btnDialogClose.LoadBitmaps("CLOSEU", "CLOSED", "CLOSEF", "CLOSEX");
+        btnDialogDown.LoadBitmaps("DNAU", "DNAD", "DNAF", "DNAX");
+        btnDialogUp.LoadBitmaps("UPAU", "UPAD", "UPAF", "UPAX");
+        btnDialogClose.ShowWindow(0);
+        btnDialogDown.ShowWindow(0);
+        btnDialogUp.ShowWindow(0);
+        CRect rcText(0, 0, 0x82, 0xd);
+        wndDialogText.Create(0x50000504, rcText, this, 0x138c);
+        HFONT hFont = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
+        CFont *pFont = CFont::FromHandle(hFont);
+        if (pFont != NULL)
+            wFont = (WPARAM)pFont->m_hObject;
+        ::SendMessage(wndDialogText.m_hWnd, WM_SETFONT, wFont, 1);
+        wndDialogText.ShowWindow(0);
+    }
+}
+
+// FUNCTION: YODA 0x004270f0
+// [EFFECTIVE: insns 168/168, align=12. Residual = ECX/EDX 2-cycle on the pWorld reload +
+// x/y temps in arrow blocks 2-3 (1 and 4 land exact) + the pDC param-load slot. Cracks:
+// each arrow is a DUPLICATED full LoadIcon call per arm (cross-jumped tails), `== 0`
+// disabled-icon-first arm order (VC4.2 jumps TO the then-arm here), per-call x/y int
+// locals ahead of DrawIcon (block 1 x-first, blocks 2-4 y-first), rectArrowBox is a
+// struct-copied RECT, dirs mask held as a char local.]
+// Fill the arrow panel (rectArrowBox widened 4px left/bottom, COLOR_3DFACE) and draw the
+// four zone-exit arrows from pWorld->GetExitDirections()'s bitmask (bits 1/2/4/8 =
+// N/S/E/W), enabled/disabled icon pairs 0xcb/0xca, 0xc5/0xc4, 0xc9/0xc8, 0xc7/0xc6. A NULL
+// pDC means draw to our own window DC under the world palette (released at the end).
+void GameView::DrawDirectionArrows(CDC *pDC)
+{
+    int bReleaseDC = 0;
+    if (pWorld == NULL)
+        pWorld = (World *)m_pDocument;
+    CPalette *pOldPal;
+    if (pDC == NULL)
+    {
+        pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
+    }
+    RECT rc = pWorld->rectArrowBox;
+    rc.left -= 4;
+    rc.bottom += 4;
+    char nDirs = (char)pWorld->GetExitDirections();
+    AfxGetInstanceHandle();
+    CBrush br(GetSysColor(COLOR_3DFACE));
+    ::FillRect(pDC->m_hDC, &rc, (HBRUSH)br.m_hObject);
+    HICON hIcon;
+    if ((nDirs & 1) == 0)
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xca));
+    else
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xcb));
+    {
+        int x = pWorld->rectArrowBox.left + 0xb;
+        int y = pWorld->rectArrowBox.top;
+        ::DrawIcon(pDC->m_hDC, x, y, hIcon);
+    }
+    if ((nDirs & 8) == 0)
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc6));
+    else
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc7));
+    {
+        int y = pWorld->rectArrowBox.top + 0xe;
+        int x = pWorld->rectArrowBox.left - 3;
+        ::DrawIcon(pDC->m_hDC, x, y, hIcon);
+    }
+    if ((nDirs & 2) == 0)
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc4));
+    else
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc5));
+    {
+        int y = pWorld->rectArrowBox.top + 0x1d;
+        int x = pWorld->rectArrowBox.left + 0xb;
+        ::DrawIcon(pDC->m_hDC, x, y, hIcon);
+    }
+    if ((nDirs & 4) == 0)
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc8));
+    else
+        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc9));
+    {
+        int y = pWorld->rectArrowBox.top + 0xe;
+        int x = pWorld->rectArrowBox.left + 0x1a;
+        ::DrawIcon(pDC->m_hDC, x, y, hIcon);
+    }
+    if (bReleaseDC != 0)
+    {
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+}
+
+// FUNCTION: YODA 0x00427310
+// Run the modal in-game text dialog: mark shown/busy, build a stack TextDialog carrying the
+// text + 3 args + the sound session, park the world in frame-mode 5 (mode 3 on failure),
+// and on success reset the drag/move interaction state and restore the saved frame mode.
+int GameView::ShowTextDialog(CString &strText, int a, int b, int c)
+{
+    bTextDialogShown = 1;
+    bBusy = 1;
+    TextDialog dlg(this);
+    pTextDialog = &dlg;
+    dlg.strText = strText;
+    dlg.unk10 = a;
+    dlg.unk14 = b;
+    dlg.soundSession = soundSession;
+    dlg.unk54 = c;
+    int nSavedMode = pWorld->nFrameMode;
+    ReleaseCapture();
+    pWorld->nFrameMode = 5;
+    int nRet = dlg.Run();
+    if (nRet == 0)
+    {
+        pWorld->nFrameMode = 3;
+        bBusy = 0;
+        return 0;
+    }
+    pTextDialog = NULL;
+    bMouseCaptured = 0;
+    bShiftHeld = 0;
+    nMovePending = 0;
+    nMoveCommand = -1;
+    bKeyboardMoveActive = 1;
+    pWorld->nFrameMode = nSavedMode;
+    bBusy = 0;
+    if (nRet != 0)      // sic: dead re-test (nRet != 0 always here), still emitted (no DCE)
+        return 1;
+    return 0;
+}
+
+// FUNCTION: YODA 0x00427440  (compiler-generated implicit destructor ??1TextDialog — destroys
+// only strText; emitted into this TU by ShowTextDialog's stack TextDialog)
