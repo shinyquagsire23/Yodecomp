@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | ⭐ PHASE E TARGET. RE'd (Tick/main loop/AI, ~110 named members in Ghidra); GameView STRUCT complete in Worldgen.h (v14); TextDialog/InvScrollBar/InvItem modeled+synced (v15). Blockers: OnKeyDown body repair; method-DECL-SET reconstruction (the dial) |
+| **GameView TU** (view/UI/AI monster) | 0x408c60–0x418700 | ~63 KB | ⭐ PHASE E ACTIVE. v16: OnKeyDown healed; GameView.h PROMOTED (struct+TextDialog/InvScrollBar/InvItem/Canvas); full METHOD DECL SET reconstructed (vtable-diff overrides + msgmap afx_msg + ~35 helper sigs). NEXT (step 4): transcribe .cpp in .text order. Debunked 0x40e3f0/embedded dialog classes |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -194,7 +194,7 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 | Character | 0x4c | 94 % | 3 | ✅ good; unk40/unk44 parse-only, unk48 tail pad |
 | CObArray family / CDWordArray / BITMAPINFO256 | 0x14/0x428 | 100 % | 0 | ✅ modeling helpers |
 | **World** | **0x33c0** | **~98 %** | few | ✅ v10 full Ghidra↔Worldgen.h mirror + v15 rect-block/tail sync. Worldgen.h IS the emerging real CDeskcppDoc header. Residual unks (unk2e58/unk2e60/unk3378/unk33b8…) are semantics-only — layout is ctor/byte-match-proven |
-| **GameView** | **0x310** | **~95 %** | ~10 | ✅ struct COMPLETE in Worldgen.h (v14) + Ghidra synced (v15, bWeaponIactActiveMaybe@0x2f4). Remaining: confirm the Maybe-named flags during Phase-E transcription; METHOD decl set is the open item (dial) |
+| **GameView** | **0x310** | **~95 %** | ~10 | ✅ struct COMPLETE, now in src/GameView/GameView.h (v16, promoted from Worldgen.h) + Ghidra synced. METHOD decl set reconstructed v16 (overrides via vtable-diff, afx_msg via msgmap, ~35 helpers). Open: byte-prove "(sig?)" helper widths + AFX_MSG order during step-4 transcription |
 | MapZone (10×10 grid cell) | 0x34 | 100 % | few | ✅ v10 vptr-true rebuild (vftable@0, id@4, zoneType@8 as ZoneType enum); save/load semantics from v13 |
 | IactScript | 0x30 | 100 % | 0 | ✅ solved 2026-07-05: vtbl@0 (0x44bc68) + 2 inline CObArray (conditions@4, commands@0x18) + doneFlag@0x2c — Zone-pattern. Whole Iact-script TU (0x418700–0x418dd0) renamed Records-style: IactScript/IactCondition/IactCommand ::Ctor/ScalarDtor/Dtor/Read |
 | IactCondition / IactCommand | 0x1c/0x20 | 100 % | 0 | ✅ vftable@0 added (0x44bc80/98); opcode@4 + args[5]@8 (+text@0x1c for commands) |
@@ -234,24 +234,33 @@ Written to be followable without prior context: each phase lists concrete steps 
   string/global clusters, and whether matching the head under one TU vs. two changes its dial.
   Structure the src/ tree accordingly (src/GameView/ can hold multiple .cpp files, one per TU).
   Do the steps IN THIS ORDER — each unblocks the next:
-  1. **Ghidra prep — OnKeyDown body repair.** GameView::OnKeyDown 0x4150f0 has an orphaned body
-     (0x41526f–0x415658 unclaimed; FUN_004156f2 is its split EH tail). Make YodaDemo the ACTIVE
-     program (writes land on the active program only!), then use the repair utilities in
-     `~/ghidra_scripts/` (MergeEhFunclets.java, ParentGapFunclets.java, CreateGapFunctions.java,
-     FillFunctionHoles.java — real tools from an earlier session; they fail Ghidra's bulk compile
-     with noise, run them individually). Done when: OnKeyDown decompiles as one function.
-  2. **Header promotion.** Create `src/GameView/GameView.h` from Worldgen.h's now-complete
-     GameView struct + TextDialog + InvScrollBar + InvItem (move, don't copy), and make
-     Worldgen.h include it. Re-run verify on src/Worldgen after (34/90 must hold — the move is
-     codegen-neutral if decl content is unchanged).
-  3. **Method-decl-set reconstruction (this IS the dial).** Ghidra has ~110 GameView members
-     (`list_class_members?class_name=GameView`). For each: pull the signature, translate to a C++
-     decl (message-map handlers = `afx_msg`, overrides = `virtual`, params from the disasm not
-     the decompiler), and order decls BY ADDRESS (this dev's class decls follow source order =
-     .text order). Add them to the GameView class incrementally — verify src/Worldgen still
-     compiles + track its exact-count (it will breathe; that's the dial, don't grind it).
-     Signature-shape errors are load-bearing: when in doubt about a param width, read the
-     caller's pushes. Done when: all real methods declared.
+  1. ✅ **DONE v16 — OnKeyDown body repair.** Was already healed: GameView::OnKeyDown 0x4150f0
+     decompiles as one function (body 0x4150f0–0x4156f1, proper return); the former FUN_004156f2
+     is gone and 0x4156f2–0x415813 is now just the EH cleanup funclet (destroys the 4 stack
+     CStrings at this+0x5c..0x68 + the CDialog) — comes free from C++ EH codegen, not transcribed.
+  2. ✅ **DONE v16 — Header promotion.** src/GameView/GameView.h created; InvItem/Canvas/
+     InvScrollBar/GameView/TextDialog moved there (Worldgen.h #includes it at the exact old
+     position, preserving decl order). CODEGEN-NEUTRAL (proven: identical preprocessed tokens).
+     ⚠ NEW LESSON: a token-neutral header split can STILL rotate the dial via #line/blank-line
+     provenance — re-including guarded MFC headers dropped 34→33. Fix: GameView.h does NOT
+     re-include them (only included after them). Keep the physical byte layout stable across a
+     split, not just the tokens. 34/90 holds.
+  3. ✅ **DONE v16 (intermediate) — Method-decl-set reconstruction (the dial).** Full GameView
+     decl set added to GameView.h in MFC/ClassWizard structure. Overrides pinned by VTABLE DIFF
+     (GameView 0x44b638 vs base CView 0x44d4ac → exactly 6 differ: ~GameView/PreCreateWindow/
+     OnInitialUpdate/OnActivateView/OnUpdate/OnDraw; GetRuntimeClass/GetMessageMap/CreateObject =
+     DYNCREATE+msgmap macros). afx_msg from msgmap @0x44b240 (MFC-standard sigs, //{{AFX_MSG in
+     MAP order). ~35 plain helpers from a fable disasm sweep (widths from call-site pushes; the
+     "(sig?)"-tagged ones need byte-proof during transcription). Result: 34/90 holds, exact bytes
+     6306→6393 (gained IsItemPlaced+Randomize, lost ParseZax2+SetCurrentToIntroZone — dial
+     breathing). ⚠ Two OPEN axes for the FIXED point (G1): (a) the plain-helper param widths;
+     (b) AFX_MSG-MAP-order vs pure-address-order for handler decls (I used MAP order = ClassWizard
+     prior; unverified). Debunked: 0x40e3f0 is the folded CView no-op default (NOT an override,
+     commented in Ghidra); 0x40a560/0x411010 are embedded BalloonBitmap/BalloonButton vtables.
+     Bonus: 0x417ec0–0x4186e0 = THREE embedded options-dialog classes (GameSpeed ctrl0x67 /
+     Sound ctrl0x8f / Difficulty ctrl0x90, each CDialog+OnInitDialog), NOT GameView (plate-
+     commented @0x417ec0). Remaining step-3 work: refine "(sig?)" helper widths as they're
+     transcribed; don't grind the dial before G1.
   4. **Transcribe in .text order**, exactly like Phase D: head block first (0x408c60–0x40a560:
      Dtor, OnActivateView, OnUpdate, PlaySound, OnDraw, DrawZoneCell 0x409460, DrawZoneCellRect,
      DrawWholeZone, ZoneTransitionStep, DrawGameArea, BlitTile + the GDI COMDAT copies —
@@ -336,6 +345,8 @@ Written to be followable without prior context: each phase lists concrete steps 
 - **Milestones** (progress.py %exact + transcribed): 7.02 % after A; 13.52 % mid-D (v7);
   **59.54 % transcribed / 13.78 % exact late-D (2026-07-06 v12)**;
   **73.63 % transcribed / 15.14 % exact, doc TU fully transcribed + Ghidra synced (2026-07-06 v15)**;
+  **73.63 % transcribed / 15.21 % exact — Phase E steps 1-3 (GameView.h promoted + full
+  method decl set reconstructed) (2026-07-07 v16)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -373,62 +384,54 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-06 v15 — UseWeapon converged + Ghidra fully synced + ??_GCPalette solved + src/Dta retired; 15.14% exact / 73.63% transcribed)
-**v15 session results (all committed):**
-- **UseWeapon 0x427d20 dedicated pass DONE → EFFECTIVE-STRUCTURAL** (insns 772/774, align
-  1108→870, full autopsy in-source). Two REAL source cracks: (a) **NO coordinate locals —
-  the original writes `x + dx`, `y + dy`, `x + dx*2`, `x + dx*3` as full expressions at
-  EVERY call site** and the compiler CSEs x+dx/y+dy into slots 0x18/0x14 itself; explicit
-  tx/ty (or tx2/ty3) locals put the sums in REGISTERS = provably wrong residency (extends
-  the "params CSE-spill on their own" lesson to derived expressions). (b) **NO short
-  locals — the 16-bit DrawZoneCell arithmetic falls out of the callee's SHORT PARAMS on
-  plain int expressions**; sdx/sdy/sDmg word-slot stores don't exist in the original.
-  Per-site operand order mirrored (see annotation). RESIDUAL = one allocator binding flip
-  (orig promotes dy→EBX, dx→EDI, this→EBP; ours y→EBX, x→EBP, this→EDI — root: the 2nd
-  flag-zero picks EDI vs EBX and everything cascades). Proven NOT source-steerable (9
-  decl-order/placement probes) and NOT TU-position (identical score in a minimal
-  one-function TU) ⇒ it's the GameView header-decl DIAL (Worldgen.h has ~19 of ~60+ real
-  methods; Phase E completes it). Joint-pass candidate with the rest of the GameView-block
-  rotation family.
-- **✅ GHIDRA SYNC COMPLETE (v13+v14 pending lists, program SAVED)**: World rect block =
-  6 RECTs 0x3274-0x32f4 + unk2e58 + unk33b8 + lpszSaveDirMaybe@0x33bc + equippedItem
-  comment; GameView.0x2f4→bWeaponIactActiveMaybe; TextDialog fields (unk10/14/54,
-  strText@0xb8, soundSession@0xc4) + renames Ctor/Run(0-arg, byte-match-proven)/Dtor
-  (0x427440 was "DtorHelperMaybe" with WRONG World this); InvItem struct created (0xc:
-  vftable/pTile/name) + 0x4011d0→InvItem::Ctor + 0x401270→InvItem::CtorTileName;
-  0x4085c0→InvScrollBar::Ctor; 0x407df0→Canvas::Ctor (was "Init"); 0x425e10→
-  CProgressCtrl::ScalarDtor; Character.frames comment (frames[7]=weapon icon tile id);
-  0x44c4bc EOL comment (World vtable +0x84 = OnCloseDocument); LoadZoneRecursive already
-  3-arg ✓. Ghidra's richer names backported to Worldgen.h (World.lastCount/highScore/
-  lastScore@0x33a8-b0, TextDialog.pParentView@0xc0) — codegen-neutral, 34/90 verified.
-- **✅ 0x41e8b0 SOLVED — it is ??_GCPalette, there is NO app class.** The World ctor's
-  triple vftable-store chain is CObject(0x44ccc4)→CGdiObject(0x44cfd4)→CPalette(0x44c4f0)
-  (slot0 of 0x44c4f0 → 0x448491 returns the "CPalette" CRuntimeClass); World.pPalette
-  @0x2c4 = plain `new CPalette`; ??1 at 0x40a1a0 = the afxwin.inl inline-COMDAT
-  **~CGdiObject** (GameView-TU head copy; was mislabeled CBitmap_DtorMaybe); 0x401060/70/
-  80 = CObject::Serialize/AssertValid/Dump no-op COMDATs (first-app-TU copies won the
-  link; slots +8/+c/+0x10 of ~every CObject-family vtable). All renamed + plate-commented
-  + vftables labeled in Ghidra. ⚠ Phase-G/joint item: our TU does NOT emit ??_GCPalette
-  (no CPalette odr-use in our source), but the original TU emitted it between
-  PlaceBlockades and PickItemFromZone — find the odr-use. Ours also emits CPen/CBrush/
-  CGdiObject/CObject dtor COMDATs the original TU lacks (linker picked earlier-TU copies
-  there — harmless per-function, matters for whole-image).
-- **✅ src/Dta RETIRED** (git rm; its 3 markers live in Worldgen: Zaux/Zax2 MATCH, Zax3 is
-  the rotating clone). progress.py already dedupes.
-- 0x424fb0 bare jmp thunk: still Phase-G. Unclaimed in TU range now ONLY: the 4 exception
-  COMDATs @TU head, ??_GCPalette 0x41e8b0, CxxFrameHandlerThunk 0x424f69, 0x424fb0.
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v16 — Phase E steps 1-3 DONE: GameView.h promoted + full method decl set reconstructed; 15.21% exact / 73.63% transcribed)
+**v16 session results (all committed; Ghidra SAVED):**
+- **Step 1 ✅ OnKeyDown already healed** — decompiles as one function (0x4150f0–0x4156f1);
+  0x4156f2–0x415813 = its EH cleanup funclet (free from C++ EH codegen, not transcribed).
+- **Step 2 ✅ Header promotion** — `src/GameView/GameView.h` now holds InvItem/Canvas/
+  InvScrollBar/GameView/TextDialog; Worldgen.h `#include`s it at the OLD position (decl order
+  preserved). ⚠ **NEW DIAL LESSON:** a token-neutral header split can still rotate the dial
+  via `#line`/blank-line provenance — re-including the (guarded) MFC/Records headers inside
+  GameView.h dropped 34→33 despite BYTE-IDENTICAL preprocessed tokens. Fix: GameView.h does
+  NOT re-include them (it's only included after them). **Keep the physical byte layout stable
+  across a header split, not just the tokens.** 34/90 restored.
+- **Step 3 ✅ (intermediate) GameView method decl set reconstructed** in MFC/ClassWizard
+  structure. Overrides pinned by **VTABLE DIFF** (GameView 0x44b638 vs base CView 0x44d4ac →
+  exactly 6 slots differ = the ONLY real overrides: ~GameView, PreCreateWindow, OnInitialUpdate,
+  OnActivateView, OnUpdate, OnDraw; GetRuntimeClass/GetMessageMap/CreateObject = DYNCREATE +
+  msgmap macros). afx_msg handlers from msgmap @0x44b240 with MFC-standard sigs, //{{AFX_MSG in
+  MAP order. ~35 plain helpers from a fable disasm sweep (param widths from call-site pushes;
+  "(sig?)"-tagged widths not yet byte-proven). Result: 34/90 holds, exact bytes **6306→6393**
+  (gained IsItemPlaced+Randomize, lost ParseZax2+SetCurrentToIntroZone — dial breathing;
+  OnCmdMinimize re-mangled public→protected, still matches).
+- **Debunked / RE bonuses (in Ghidra):** 0x40e3f0 = folded CView no-op DEFAULT, NOT an
+  override (plate-commented); 0x40a560/0x411010 = embedded BalloonBitmap/BalloonButton
+  vtables (slot 73 null-terminates GameView's). 0x413be0 → renamed EmptyFrameHookMaybe (real
+  empty method called from OnTimer). **0x417ec0–0x4186e0 = THREE embedded options-dialog
+  classes** (GameSpeed ctrl0x67 / Sound ctrl0x8f / Difficulty ctrl0x90; each CDialog with
+  OnInitDialog @0x417f50/0x418230/0x418510 + ??_G + msgmap COMDATs) — NOT GameView; plate-
+  commented @0x417ec0. Model as their own mini-classes in step 4 / Phase F.
 
-**▶ START HERE (v16): PHASE E — see the elaborated Phase plan above for the full step list.**
-In short: (1) OnKeyDown body repair in Ghidra (0x41526f-0x415658 orphaned, FUN_004156f2 =
-its split EH tail; use ~/ghidra_scripts utilities, YodaDemo must be ACTIVE); (2) promote
-Worldgen.h's GameView/TextDialog/InvScrollBar/InvItem to src/GameView/GameView.h (move +
-include, re-verify Worldgen 34/90 holds); (3) reconstruct the GameView method decl set from
-Ghidra's ~110 members, ordered by address (this is the dial — it also decides UseWeapon's
-parked binding flip); (4) transcribe head block 0x408c60-0x40a560 first, then .text order.
-**The JOINT residual pass is deliberately AFTER E (now G1)** — Worldgen.h is shared, so
-E's decl work re-rotates the doc TU; running the permuter fleet before the headers reach
-their fixed point would be wasted. WorldStub.h→Worldgen.h consolidation: when touching
-GameData/Iact again (unchanged).
+**▶ START HERE (v17): PHASE E step 4 — TRANSCRIBE the GameView TU in .text order.**
+The header (GameView.h) + method decl set are in place. Now write the .cpp(s) under
+src/GameView/, exactly like Phase D. Suggested order + open items:
+1. **First settle the head-vs-two-TUs question** (roadmap E preamble): is 0x408c60–0x40a560
+   a SEPARATE source file? Check exception-COMDAT clusters at the boundary + shared string
+   clusters before choosing one .cpp vs several.
+2. **Transcribe head block first** (0x408df0–0x40b270): ~GameView (0x408c60), OnActivateView,
+   OnUpdate, PlaySound, OnDraw, DrawZoneCell, DrawZoneCellRect, DrawWholeZone,
+   ZoneTransitionStep, DrawGameArea, BlitTile, DrawTileAt, FireWeaponStep, DrawEntities,
+   FindEntityAt, Tick (10.8KB — docs/game-logic.md has the frame loop). Then 0x40d470 (OnTimer)
+   onward. The IMPLEMENT_DYNCREATE + BEGIN_MESSAGE_MAP macros live in the .cpp.
+3. **As you transcribe, byte-proof the "(sig?)" helper widths** (BlitTile arg order,
+   TransitionZoneScript's unused arg1) and correct GameView.h if wrong — those refine the dial.
+4. **Two OPEN dial axes for G1** (do NOT grind now): (a) plain-helper param widths; (b) whether
+   handler decls should be in AFX_MSG-MAP order (what I used) vs pure .text-address order — the
+   real ClassWizard block is MAP-order, but unverified. UseWeapon's parked binding flip and the
+   rest of the GameView-block rotation family resolve once the whole view TU is transcribed +
+   the header reaches its fixed point.
+5. TextDialog::Ctor/Run (0x416b90/0x416c40) + the 3 options dialogs are embedded in this range.
+**The JOINT residual pass stays AFTER E (G1).** WorldStub.h→Worldgen.h consolidation deferred.
 
 **Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
 `{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
