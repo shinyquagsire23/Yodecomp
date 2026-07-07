@@ -154,7 +154,7 @@ See PLAN_COMPLETED.md
   contiguity + the dispatcher's call set delimit the unit. Edges to refine: functions <0x401450 are MFC
   ctor/dtor boilerplate (may be a separate class TU); 0x401ac0+ switches to MFC `CWinApp`/`CString` code.
 
-## 🗺 LONG-TERM ROADMAP (written 2026-07-05, after the Records TU — keep this current)
+## 🗺 LONG-TERM ROADMAP (written 2026-07-05; revised 2026-07-06 v15 with Phase E/F/G elaborated — keep this current)
 
 **The unit of completion is the TRANSLATION UNIT, not the function.** Lesson #7 + the Records coupling
 matrix prove codegen state flows forward through a TU (and through class decls in its header): functions
@@ -172,15 +172,16 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **IactScript** (3 script record classes) | 0x418700–0x418dd0 | ~1.7 KB | ✅ 11/12 exact (src/IactScript/) |
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
-| ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | RE'd (Tick/main loop/AI); struct partial. InvScrollBar/option-dialogs embedded here |
+| ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
+| **GameView TU** (view/UI/AI monster) | 0x40a560–0x418700 | ~57 KB | ⭐ PHASE E TARGET. RE'd (Tick/main loop/AI, ~110 named members in Ghidra); GameView STRUCT complete in Worldgen.h (v14); TextDialog/InvScrollBar/InvItem modeled+synced (v15). Blockers: OnKeyDown body repair; method-DECL-SET reconstruction (the dial) |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
-| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | ⭐ NEW 07-06 (src/WorldDoc/): 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; "Settings::Save" was World::~World! ctor/OnNew/OnOpen/GetLocatorIcon WIP |
-| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429000 | ~52 KB | ⭐ PHASE D LATE: src/Worldgen 67 markers incl. the ENTIRE worldgen algorithm layer + Generate (dial-breathing ~25-29 exact); left: save/load monsters + GameView block 0x426c40+ (see v12 pickup); TU start 0x41bee0 (exception-COMDAT head); docs complete, zero FUN_* |
+| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
+| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
 
-The two monsters (GameView ~57 KB + World ~52 KB) are ~85 % of the remaining bytes. Everything before
-them is deliberately sequenced to FILL THEIR STRUCTS as a side effect, so the monsters become
-transcription rather than research.
+With the doc TU transcribed (v14), the untranscribed remainder is essentially ONE monster: the
+GameView TU + its mislabeled head (~63 KB ≈ 26 % of the app region). Its struct is complete and its
+runtime behavior documented (docs/game-logic.md) — Phase E is transcription plus the method-decl-set
+reconstruction, not research. After E: mop-up minis (F), then joint passes + whole-image (G).
 
 ### Struct status board (audited 2026-07-05 — regen with the run_script_inline coverage dump)
 Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…Maybe.
@@ -192,19 +193,21 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 | Puzzle | 0x2c | 95 % | 3 | ✅ good; unk2/unk3/unk14 parse-only (unknown in DA too) |
 | Character | 0x4c | 94 % | 3 | ✅ good; unk40/unk44 parse-only, unk48 tail pad |
 | CObArray family / CDWordArray / BITMAPINFO256 | 0x14/0x428 | 100 % | 0 | ✅ modeling helpers |
-| **World** | **0x33c0** | **42 %** | 12 | ⚠ the big one — asset half being filled by the Phase-A GameData sweep NOW; script/frame-mode fields in Phase B; worldgen/save fields in Phase D. Strategy: never grind it in the abstract — each TU match pulls its fields in. |
-| **GameView** | **0x310** | **31 %** | 19 | ⚠ second big one — cursor/paint fields mapped this week; the rest is Phase-E prep (entity-loop, inventory, dialog fields). 19 Maybe-fields to confirm. |
-| MapZone (10×10 grid cell) | 0x34 | 73 % | 5 | Phase D (worldgen semantics decide the 5 unks) |
+| **World** | **0x33c0** | **~98 %** | few | ✅ v10 full Ghidra↔Worldgen.h mirror + v15 rect-block/tail sync. Worldgen.h IS the emerging real CDeskcppDoc header. Residual unks (unk2e58/unk2e60/unk3378/unk33b8…) are semantics-only — layout is ctor/byte-match-proven |
+| **GameView** | **0x310** | **~95 %** | ~10 | ✅ struct COMPLETE in Worldgen.h (v14) + Ghidra synced (v15, bWeaponIactActiveMaybe@0x2f4). Remaining: confirm the Maybe-named flags during Phase-E transcription; METHOD decl set is the open item (dial) |
+| MapZone (10×10 grid cell) | 0x34 | 100 % | few | ✅ v10 vptr-true rebuild (vftable@0, id@4, zoneType@8 as ZoneType enum); save/load semantics from v13 |
 | IactScript | 0x30 | 100 % | 0 | ✅ solved 2026-07-05: vtbl@0 (0x44bc68) + 2 inline CObArray (conditions@4, commands@0x18) + doneFlag@0x2c — Zone-pattern. Whole Iact-script TU (0x418700–0x418dd0) renamed Records-style: IactScript/IactCondition/IactCommand ::Ctor/ScalarDtor/Dtor/Read |
 | IactCondition / IactCommand | 0x1c/0x20 | 100 % | 0 | ✅ vftable@0 added (0x44bc80/98); opcode@4 + args[5]@8 (+text@0x1c for commands) |
-| InvScrollBar | 0x44 | 17 % | 0 | Phase E/F (MFC CScrollBar-derived — model like Records did with CObject) |
-| TextDialog | 0xc8 | 4 % | 0 | Phase E/F (MFC CDialog-derived) |
+| InvScrollBar | 0x44 | good | 0 | ✅ v14/v15: CScrollBar-derived, scrollMax@0x3c, scrollPos@0x40; Ctor=0x4085c0 (its own mini-TU) |
+| TextDialog | 0xc8 | good | 3 | ✅ v14/v15: NOT CDialog-derived (plain class). unk10/unk14/unk54 (ShowTextDialog args a/b/c), strText@0xb8 (CString), pParentView@0xc0, soundSession@0xc4; Ctor 0x416b90 / Run() 0x416c40 / ??1 0x427440 (Run is 0-arg, byte-match-proven) |
+| InvItem | 0xc | 100 % | 0 | ✅ v15: CObject-derived (vftable/pTile/name); Ctor 0x4011d0 + CtorTileName 0x401270 (first app TU); element of World.inventory@0xa8 |
 | CFile (stub) | 0x40 | 6 % | 0 | intentional — DB stub only pins Read@vtbl+0x3c; real MFC used at compile time |
 
-**Classes with methods but NO struct yet (void\* this)** — modeling TODOs: `Frame` (CFrameWnd-derived,
-21 funcs), `App` (CWinApp-derived, 57), `Dlg` (dialogs), `InvScrollBar`/`TextDialog` bodies beyond the
-thin structs, plus the module namespaces that may be free-function TUs (`Settings`, `Log`, `Render`,
-`Iact`, `GameData` — Phase-A agent is settling whether GameData is a class or World methods + free funcs).
+**Class-modeling status (updated v15):** the old TODO list is largely resolved — `Frame`/`App`/`Dlg`
+were matched from real MFC class decls in their src/ TUs (Ghidra structs never needed); "Settings" and
+"GameData" were proven to be doc-TU source files (this=World), `Log_Write` a CTheApp member; `Render`
+= GameView-TU methods; `TextDialog`/`InvScrollBar`/`InvItem` modeled+synced (v15). Remaining void*-this
+in Ghidra is Phase-E incidental (GameView-TU helpers get typed as they're transcribed).
 MFC-derived modeling recipe proven in src/Records: real base class + real members ⇒ ctor/dtor codegen free.
 **Type-identity findings (2026-07-05, backported to Ghidra + Records.h): Zone.cobArray4/5 are `CWordArray`
 (NOT CDWordArray — ReadZaux calls CWordArray::SetAtGrow; identical 0x14 layout so Zone::Ctor still
@@ -213,42 +216,90 @@ Seek = slot +0x30 (ReadIzon seeks past mismatched records), Read = +0x3c. The Ia
 0x418700–0x418dd0 is a Records-clone (3 CObject classes, ctor/??_G/dtor/Read each) — likely quick match
 in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle::Read.**
 
-### Phase plan
-- **A — GameData CU ✅ DONE (2026-07-06, commit d5925d8).** Final: src/GameData/ 27 markers, 11 exact
-  (incl. Nevada+Alaska story loaders, 990B each), savers/BQP/Place/FindZC = effective or PHASE-DISPLACED
-  (annotated in-source); progress 7.02%. The TU-phase dial (see standing rules) was discovered here.
-  Original notes: The `.dta` chunk handlers + asset accessors write `World` fields directly
-  (tile/zone/character/sound/puzzle arrays @ +0x80..+0xc0 region, name lists, counts). Matching it
-  forces the World struct's ASSET half to be modeled correctly — this is the cheapest way to fill World
-  (user insight: don't grind the World struct in the abstract; let GameData matching pull it in).
-  GameData sweep DONE (2026-07-05): planet tables = per-planet story-replay histories (registry keys
-  Nevada/Alaska/Oregon = Indy-engine US-state slots for Tatooine/Hoth/Endor; demo-limited: goal=108
-  hardcode, pre-seeded Alaska list, grayed Save/Load/Replay). 7 message-map handlers recovered from the
-  0x4035xx gap (OnNewWorld/OnReplayStory/...). StartGame(nSeed,bSkipGenerate) RET-8 fix. CU = a SECOND
-  doc-TU source file (all this=World; "GameData" stays a docs label). Remaining Maybe: BuildQuestPathMaybe
-  (behavior documented — 10x10 plan-grid order assignment; purpose label = Phase-D confirm).
-  Original steps were: (1) identify/rename the ~70 funcs non-Maybe (reader sweep, agent-able), (2) model the touched
-  World fields + any GameData-local structs in Ghidra & docs/structs.md, (3) src/GameData/ TU in .text
-  order, iterate with verify/asmscore. Watch for the TU boundary: 0x401ac0 start (after CWinApp block)
-  and the 0x4042b0 end (Records).
-- **B — Iact TU ⭐ NEXT.** Zone deserializers (ReadZaux/Zax2/3/4) + IactScript/commands + the RunCommands
-  interpreter (big mechanical switch; scrdoc.txt in ~/workspace/DesktopAdventures is the opcode bible).
-  Fills Zone/IACT runtime structs + more World fields (script state @ +0x5c/frame modes).
-- **C — Warm-up sweep: Core utils + Settings + Logging (+ World scorers cleanup).** Small, mostly
-  leaf/string-anchored, high exact-rate; finishes tool confidence and clears the map around the monsters.
-  Include the two parked World scorers (CalcTimeScore needs `time`/`__ftol` externs).
-- **D — World/doc TU.** By now its struct should be largely filled (A: assets, B: script state, plus
-  existing worldgen/save docs). Transcribe in .text order; the Dta chunk dispatch + worldgen + serialize
-  sub-modules are documentation sections, ONE TU for matching. Biggest single payoff (~52 KB).
-- **E — GameView TU.** Last monster: needs GameView struct completion (cursor/paint fields already
-  mapped this week) + all cross-TU stubs accumulated in A–D. Contains the 10.8 KB window-proc/Tick.
-- **F — Small MFC TUs + message maps/vtables.** Frame/App/Dlg/InvScrollBar/TextDialog/PaletteDlg etc.
-  `toolchain/vc42/MFC/SRC` makes message-map/vtable codegen nearly free once class decls are right.
-- **G — Endgame.** (1) JOINT residual pass per TU: the annotated effective-matches (Canvas 3, Records 8,
-  World scorers 1, …) are allocator/scheduler tie-breaks that shift with TU context — resolve them with
-  full-TU permuter runs (parallel wine workers TODO) once each TU is otherwise complete. (2) Whole-image
-  build: real link order (app .objs in address order, then LIBCMT/NAFXCW), .rdata/.data layout, linker
-  3.10-vs-4.20 flag question (toolchain/README), PE timestamp/checksum masking, reccmp-style final diff.
+### Phase plan (revised 2026-07-06 v15 — A–D done; E is the active phase)
+Written to be followable without prior context: each phase lists concrete steps + done-criteria.
+
+- **A — GameData ✅ / B — Iact ✅ / C — warm-ups ✅ / D — World/doc TU ✅ (transcription).**
+  History in the PRIOR blocks + git log. What matters going forward: every TU up to and including
+  the 54 KB doc TU is transcribed with per-function EFFECTIVE annotations where not exact; the
+  World struct and Worldgen.h are essentially the real CDeskcppDoc header; the TU-phase dial
+  (standing rules) is the dominant residual mechanism everywhere. D's non-exact functions are
+  NOT open work — they re-resolve in G1's joint pass; do not re-litigate them piecemeal.
+
+- **E — GameView TU (0x408c60–0x418700 incl. the mislabeled "Core utils" head; ~63 KB) ⭐ ACTIVE.**
+  The last monster. ⚠ Open question to settle early: the head (0x408c60–0x40a560) may be a
+  SEPARATE source file of the view class (the doc class had three: WorldDoc/GameData/Worldgen —
+  all this=World, distinct TUs for phase purposes). Signals to check: exception-COMDAT clusters
+  at candidate boundaries (each TU emits its own copies — the proven boundary marker), shared
+  string/global clusters, and whether matching the head under one TU vs. two changes its dial.
+  Structure the src/ tree accordingly (src/GameView/ can hold multiple .cpp files, one per TU).
+  Do the steps IN THIS ORDER — each unblocks the next:
+  1. **Ghidra prep — OnKeyDown body repair.** GameView::OnKeyDown 0x4150f0 has an orphaned body
+     (0x41526f–0x415658 unclaimed; FUN_004156f2 is its split EH tail). Make YodaDemo the ACTIVE
+     program (writes land on the active program only!), then use the repair utilities in
+     `~/ghidra_scripts/` (MergeEhFunclets.java, ParentGapFunclets.java, CreateGapFunctions.java,
+     FillFunctionHoles.java — real tools from an earlier session; they fail Ghidra's bulk compile
+     with noise, run them individually). Done when: OnKeyDown decompiles as one function.
+  2. **Header promotion.** Create `src/GameView/GameView.h` from Worldgen.h's now-complete
+     GameView struct + TextDialog + InvScrollBar + InvItem (move, don't copy), and make
+     Worldgen.h include it. Re-run verify on src/Worldgen after (34/90 must hold — the move is
+     codegen-neutral if decl content is unchanged).
+  3. **Method-decl-set reconstruction (this IS the dial).** Ghidra has ~110 GameView members
+     (`list_class_members?class_name=GameView`). For each: pull the signature, translate to a C++
+     decl (message-map handlers = `afx_msg`, overrides = `virtual`, params from the disasm not
+     the decompiler), and order decls BY ADDRESS (this dev's class decls follow source order =
+     .text order). Add them to the GameView class incrementally — verify src/Worldgen still
+     compiles + track its exact-count (it will breathe; that's the dial, don't grind it).
+     Signature-shape errors are load-bearing: when in doubt about a param width, read the
+     caller's pushes. Done when: all real methods declared.
+  4. **Transcribe in .text order**, exactly like Phase D: head block first (0x408c60–0x40a560:
+     Dtor, OnActivateView, OnUpdate, PlaySound, OnDraw, DrawZoneCell 0x409460, DrawZoneCellRect,
+     DrawWholeZone, ZoneTransitionStep, DrawGameArea, BlitTile + the GDI COMDAT copies —
+     ~CGdiObject 0x40a1a0 etc. come free from MFC usage). Then 0x40a560 onward. The 10.8 KB
+     window-proc/game-loop FUN_0040b270 (OnTimer/Tick) and the enemy-AI switch (Character+0x36)
+     are documented in docs/game-logic.md — transcription, not research. TextDialog::Ctor/Run
+     (0x416b90/0x416c40, ~2.3 KB) and the option dialogs are embedded in this TU. Use
+     `// FUNCTION: YODA 0xADDR` markers + verify.py/asmscore.py per function; annotate
+     EFFECTIVE with an autopsy instead of grinding reg/slot tie-breaks (standing rule).
+  5. Done when: every function in 0x408c60–0x418700 has a marker (exact or annotated), zero
+     FUN_* left in the range. Expect ~90 % transcribed globally at that point.
+
+- **F — Mop-up sweep + coverage audit (~1 week of small wins).**
+  1. **Audit:** list all 534 app-region functions (Ghidra) minus every `// FUNCTION: YODA`
+     marker across src/**. Everything unclaimed is either an unowned mini-TU or a Phase-G
+     artifact. Known unclaimed today: the FIRST app TU (0x401000–0x401450: InvItem ctors,
+     CObject no-op COMDATs 0x401060/70/80, FUN_00401090…) — likely the app's utility/collection
+     source file; the InvScrollBar mini-TU (0x4085c0–0x408710, between Canvas and GameView);
+     IactScript's last function if any; anything the audit surfaces.
+  2. Transcribe each mini-TU Records-style (real MFC base class + real members = ctor/dtor
+     codegen free; `toolchain/vc42/MFC/SRC` for message-map/vtable reference).
+  3. Done when: the audit lists only lib-owned/COMDAT/thunk addresses (verify.py LIB_OWNERS).
+
+- **G — Endgame (two sub-phases, IN THIS ORDER).**
+  - **G1 — JOINT residual passes (moved here from ad-hoc; run ONLY after E).** Rationale:
+    Worldgen.h is shared by the doc TU and (via the E header work) the GameView TU — every decl
+    added in E re-rotates the doc TU's tie-breaks, so any joint pass run before the headers are
+    final gets invalidated. After E, the decl sets are at their fixed points and the parked
+    EFFECTIVE functions (doc TU 56, Records 8, Iact 8, Canvas 3, WorldDoc 6, GameData, scorers…)
+    get one systematic pass each: (a) build the parallel-permuter loop (N wine workers around
+    tools/permute.py --mode all, asmscore as oracle — the TODOs are listed in the permuter
+    section); (b) for dial-suspect functions, the probe is cheap: extract the function into a
+    one-function probe TU (see the minimal-TU recipe in tooling) — if its score is identical
+    solo, the residual is header-dial, so search over REAL-decl-order variations, not function
+    source. (c) UseWeapon's binding flip, the loader/saver clone rotations, and the
+    imm-store-batching family are the expected big wins here. Track: effective-match bytes
+    converting to exact.
+  - **G2 — Whole-image build.** (1) Reproduce the link: app .objs in address order, then
+    LIBCMT/NAFXCW (link 3.10-vs-4.20 flag question — notes in toolchain/README). (2) COMDAT
+    geography: map which COMDATs FOLD to one copy (CObject::Serialize/AssertValid/Dump →
+    first-app-TU 0x401060/70/80, referenced by every vtable) vs SURVIVE per-TU (the
+    CException/CFileException dtor family at each TU head) — unresolved WHY; both behaviors are
+    proven in-binary. Our TUs currently over-emit (CPen/CBrush/CGdiObject/CObject dtors in
+    Worldgen that the original TU lacks) and under-emit (??_GCPalette 0x41e8b0 — find the
+    CPalette odr-use between PlaceBlockades and PickItemFromZone in the original source order).
+    (3) .rdata/.data layout, vtables, message maps, string pools. (4) Loose ends: 0x424fb0 bare
+    jmp thunk, 0x424f69 CxxFrameHandlerThunk, PE timestamp/checksum masking. (5) reccmp-style
+    final whole-image diff; progress.py → 100 %.
 
 ### Standing rules that make this work
 - **Original engine bugs go in `docs/engine-bugs.md`** (verified-against-disasm defects in the
@@ -287,6 +338,40 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
   **73.63 % transcribed / 15.14 % exact, doc TU fully transcribed + Ghidra synced (2026-07-06 v15)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
+
+### 📋 SESSION PROTOCOL (follow this shape every session)
+1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f <TU>.obj &&
+   ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS <TU>.cpp`
+   then `python3 tools/verify.py src/<TU>/<TU>.cpp` from repo root — confirm the recorded
+   exact-count reproduces BEFORE changing anything (if not, a header drifted; bisect first).
+2. **Ghidra check:** `curl -s localhost:8089/list_open_programs` → `current_program` must be
+   `YodaDemo.exe` before ANY write (renames/comments/struct edits hit the ACTIVE program, and
+   `program=` is honored only for reads). If not active, queue the writes in the pickup block
+   instead of writing.
+3. **Work loop per function:** read the ORIGINAL disasm first (Ghidra `disassemble_function`,
+   dump to a tmp file); transcribe idiomatically; compile fresh; `tools/asmscore.py <TU>.cpp
+   0xADDR [--dump]` (dump columns: LEFT = original, RIGHT = ours). `align>0` ⇒ structural — hunt
+   the source construct (the lessons lists). `align=0, reg_pen>0` ⇒ allocator tie-break — do NOT
+   grind; annotate `// EFFECTIVE` with a short autopsy and move on (standing rule). Never trust
+   a raw byte-diff once lengths diverge.
+4. **Triaging a stubborn residual:** (a) probe source knobs CHEAPLY (decl order, operand order,
+   guard shapes — one compile each, revert losers); (b) the minimal-TU probe: copy the one
+   function + `#include "<TU>.h"` into a probe .cpp, asmscore it — identical score solo means
+   the residual is header-dial/intrinsic, different means TU-position; (c) then park with the
+   probe results in the annotation. ~30 min per function max before parking.
+5. **Session end (do ALL of these):** update the ⏭ pickup block (new findings → instincts,
+   done items removed, next steps concrete); demote the old pickup to a condensed ⏮ PRIOR;
+   update the TU/struct tables + milestone line if they changed; sync any new struct
+   fields/renames to Ghidra if it's ACTIVE (else list them as PENDING in the pickup);
+   `save_program`; commit with a descriptive message. Run `python3 tools/progress.py` for the
+   milestone number.
+6. **Agents:** use them for read-only RE sweeps (naming/xref surveys); keep matching iterations
+   in the main thread (they're serial compile-and-look loops).
+7. **Escalation:** if running on a smaller model and a function resists after the step-4 triage
+   (e.g. a novel codegen mechanism, an EH/switch-layout open, or a suspected new dial axis),
+   spawn a `fable`-model agent (Agent tool, `model: "fable"`) with the disasm + current source +
+   the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
+   codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
 ### ⏭ NEXT SESSION PICKUP (2026-07-06 v15 — UseWeapon converged + Ghidra fully synced + ??_GCPalette solved + src/Dta retired; 15.14% exact / 73.63% transcribed)
 **v15 session results (all committed):**
@@ -333,15 +418,30 @@ in Phase B. ReadIzon uses the same `tag[4]=0` + intrinsic-strcmp idiom as Puzzle
 - 0x424fb0 bare jmp thunk: still Phase-G. Unclaimed in TU range now ONLY: the 4 exception
   COMDATs @TU head, ??_GCPalette 0x41e8b0, CxxFrameHandlerThunk 0x424f69, 0x424fb0.
 
-**▶ START HERE (v16):** (1) **the JOINT TU residual pass** — the TU is fully transcribed
-and every parked EFFECTIVE annotation is a reg/slot/dial tie-break; build the parallel
-wine-worker permuter loop (tools/permute.py --mode all over the whole TU, or a dial search
-over GameView/World decl sets) and burn down the 56 partials. (2) Phase E proper (GameView
-TU 0x408c60-0x418700, ~57 KB): promote Worldgen.h's now-complete GameView struct to a
-shared header; reconstruct the real GameView class decl set (also unblocks UseWeapon's
-binding flip); OnKeyDown body-repair first (0x41526f-0x415658 orphaned, FUN_004156f2 = its
-split EH tail; ~/ghidra_scripts has MergeEhFunclets.java etc. for exactly this). (3)
-WorldStub.h→Worldgen.h consolidation when touching GameData/Iact again.
+**▶ START HERE (v16): PHASE E — see the elaborated Phase plan above for the full step list.**
+In short: (1) OnKeyDown body repair in Ghidra (0x41526f-0x415658 orphaned, FUN_004156f2 =
+its split EH tail; use ~/ghidra_scripts utilities, YodaDemo must be ACTIVE); (2) promote
+Worldgen.h's GameView/TextDialog/InvScrollBar/InvItem to src/GameView/GameView.h (move +
+include, re-verify Worldgen 34/90 holds); (3) reconstruct the GameView method decl set from
+Ghidra's ~110 members, ordered by address (this is the dial — it also decides UseWeapon's
+parked binding flip); (4) transcribe head block 0x408c60-0x40a560 first, then .text order.
+**The JOINT residual pass is deliberately AFTER E (now G1)** — Worldgen.h is shared, so
+E's decl work re-rotates the doc TU; running the permuter fleet before the headers reach
+their fixed point would be wasted. WorldStub.h→Worldgen.h consolidation: when touching
+GameData/Iact again (unchanged).
+
+**Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
+`{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
+parser); NO import statements — fully-qualify every Ghidra class in the Java snippet;
+struct field over an existing named field: `replaceAtOffset` works 1-for-1, but growing a
+RECT over four ints needs `getComponentAt(off)` + `clearComponent(ordinal)` for each byte
+range FIRST (it won't consume neighbors); renames into class namespaces:
+`f.getSymbol().setName(...)` + `f.setParentNamespace(symbolTable.getNamespace/createClass)`
+— this also auto-retypes `this` when a same-named Structure exists; clear stray params with
+`f.replaceParameters(DYNAMIC_STORAGE_ALL_PARAMS, true, USER_DEFINED, new Parameter[0])`;
+finish with POST `save_program`. The compile-error noise from old *.java files in
+~/ghidra_scripts is expected — those 4 scripts (MergeEhFunclets/ParentGapFunclets/
+CreateGapFunctions/FillFunctionHoles) are REAL body-repair tools kept for Phase E step 1.
 ### ⏮ PRIOR (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers, condensed)
 **src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc TU
 including the whole GameView tail block (OnInitialUpdate, DrawDirectionArrows,
@@ -885,6 +985,20 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
      vs `return 1;` (const) is visible as `mov eax,reg` vs `mov eax,1`. A `pNew = NULL` init
      the original lacks emits extra zero-reg stores — new-expression nullchecks are compiler-
      generated; don't add source inits the flow doesn't need.
+  13. **Repeated expressions vs. locals decide slot-vs-register residency (UseWeapon v15).**
+     When the original reloads a derived value (`x+dx`, `y+dy`) from a STACK SLOT at every
+     use, the source had NO local — the full expression is written at every site and the
+     compiler CSEs it into a slot itself. Writing `int tx = x + dx;` instead puts the value
+     in a REGISTER (and demotes something else to memory) — provably different code. Corollary
+     of the "params used at 2+ sites CSE-spill on their own" lesson, extended to expressions:
+     match the original's residency (slot-reload ⇒ repeat the expression; register ⇒ local).
+  14. **16-bit call-site arithmetic comes from the CALLEE's short params, not source casts.**
+     `DrawZoneCell(x + nAX, nAY + y)` with `DrawZoneCell(short, short)` emits the 16-bit
+     forms (`add ax, word ptr [y]`, `imul bx,bx,3`) on PLAIN INT expressions. Explicit
+     `(short)` locals/casts create word-slot stores/loads the original lacks. Fingerprints:
+     dword-load + 16-bit-add-from-mem = int vars narrowed by the param; word-load = a real
+     short local. Site operand order is mirrored: mem-first (`x + dx*2`) folds to a 32-bit
+     LEA; mul-first (`dx*3 + x`) goes 16-bit IMUL+ADD.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
@@ -921,6 +1035,15 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
   pure register allocation (decl-order / full-TU territory). Handles integer, x87, and MMX code (verified on
   Canvas/World/Zone/Dta). Sub-register names (AL/AX/EAX) canonicalize to one slot. This is the technique
   decomp.me / simonlindholm's decomp-permuter use to make randomized search converge.
+  **`--dump` columns: LEFT = original, RIGHT = ours** (r = pure reg diff, S = substituted,
+  +/- = insn only on that side). NOTE: asmscore RECOMPILES the TU itself (rm .obj + cl) — don't
+  run it concurrently with your own compile of the same TU.
+  **Minimal-TU probe (v15, cheap + decisive):** to test whether a residual is intrinsic vs
+  TU-position, extract the one function + its `#include "<TU>.h"` into a probe .cpp and asmscore
+  that. Identical score solo (UseWeapon: 870 both ways) ⇒ the residual comes from the function
+  itself or the HEADER DECL SET (the dial), not from neighboring functions — so search over real
+  header decls, not per-function source. Different score ⇒ TU-position-sensitive (lesson #7),
+  park for the joint pass. Delete the probe file after (it double-claims the marker).
   **Permuter status + TODOs:**
   - ✅ *Statement reordering* — DONE (2026-07-04). Dependency-safe hill-climb over adjacent independent
     statement swaps; declaration order untouched (offsets stay put for the `_emit`-asm funcs). Auto-found the
