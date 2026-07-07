@@ -211,9 +211,8 @@ public:
     int  WorldgenPickItemFromZone(short zoneId, short a2, int sel); // 0x0041e920
     void WorldgenShuffleList(CWordArray *pList);         // 0x0041ef90
     int  WorldgenSelectPuzzle(short nItem, short nItem2, short nType,
-                              int bFirst);           // 0x0041eab0 (this TU, later; Ghidra:
-                                                     // WorldgenSelectPuzzleMaybe. nItem2/bFirst
-                                                     // unread in the body; widths = caller-side guess)
+                              int bFirst);           // 0x0041eab0 (Ghidra: WorldgenSelectPuzzleMaybe;
+                                                     // nItem2/bFirst unread in the body)
     unsigned short PlaceQuestNode(short nType, short a2, short a3, short a4,
                                   short a5, short nOrder, short a7);  // 0x0041f120
     int  CheckZoneItemsAvailable(short zoneId);          // 0x0041f830

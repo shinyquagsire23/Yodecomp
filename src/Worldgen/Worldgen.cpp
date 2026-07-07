@@ -1232,6 +1232,175 @@ int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
     return result;
 }
 
+// FUNCTION: YODA 0x0041eab0
+// [EFFECTIVE-WIP ~97% insn-identical: residual = the i-vs-nPlanet homing contest (orig memory-
+// homes the short i and keeps nPlanet in EDX with compares-up-front arm layout; ours registers
+// i in DI and memory-homes nPlanet). switch(nPlanet) probed: it spills `this` — chaotic, worse.
+// The scan-local pair (n,p) x3 vs i for the callee-saved regs is the same usage-count contest
+// as the Iact slot cycles. Raw scores inflated by the two whitelist byte tables. Joint pass.]
+// Pick a puzzle for a quest node: phase 1 collects every puzzle whose PuzzleType matches the
+// requested worldgen zone type (10->GOAL_PRIZE, 15->TRADE, 16->TRANSACTION, 9999->WORLD_MISSION)
+// and is not already in the goal-tile list; the 9999 arm additionally screens against the
+// current planet's story-replay history and a hardcoded per-planet goal-id whitelist. Phase 2
+// shuffles the candidates and returns the first whose itemA matches (any WORLD_MISSION for
+// 9999), or -1. nItem2/bFirst are accepted but never read (demo leftovers?).
+int World::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, int bFirst)
+{
+    short bDone = 0;
+    short nCount = (short)puzzles.GetSize();
+    CWordArray list;
+    list.SetSize(0, -1);
+    short i = 0;
+    if (nCount > 0)
+    {
+        int nT = nType;
+        do
+        {
+            Puzzle *pPuz = (Puzzle *)puzzles.GetAt(i);
+            switch (nT)
+            {
+            case ZONE_TYPE_FINAL_ITEM:
+                if (pPuz->nType == PUZZLE_TYPE_GOAL_PRIZE && IsTileInGoalList(i) == 0)
+                    list.SetAtGrow(list.GetSize(), i);
+                break;
+            case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:
+                if (pPuz->nType == PUZZLE_TYPE_TRADE && IsTileInGoalList(i) == 0)
+                    list.SetAtGrow(list.GetSize(), i);
+                break;
+            case ZONE_TYPE_FIND_USEFUL_DROP:
+                if (pPuz->nType == PUZZLE_TYPE_TRANSACTION && IsTileInGoalList(i) == 0)
+                    list.SetAtGrow(list.GetSize(), i);
+                break;
+            case 9999:
+                if (pPuz->nType == PUZZLE_TYPE_WORLD_MISSION)
+                {
+                    int bFound = 0;
+                    int nPlanet = currentPlanet;
+                    if (nPlanet == 1)
+                    {
+                        int n = storyHistoryNevada.GetSize();
+                        if (n > 0)
+                        {
+                            unsigned short *p = storyHistoryNevada.GetData();
+                            do
+                            {
+                                if (*p == i)
+                                    bFound = 1;
+                                p++;
+                                n--;
+                            } while (n != 0);
+                        }
+                    }
+                    else if (nPlanet == 2)
+                    {
+                        int n = storyHistoryAlaska.GetSize();
+                        if (n > 0)
+                        {
+                            unsigned short *p = storyHistoryAlaska.GetData();
+                            do
+                            {
+                                if (*p == i)
+                                    bFound = 1;
+                                p++;
+                                n--;
+                            } while (n != 0);
+                        }
+                    }
+                    else if (nPlanet == 3)
+                    {
+                        int n = storyHistoryOregon.GetSize();
+                        if (n > 0)
+                        {
+                            unsigned short *p = storyHistoryOregon.GetData();
+                            do
+                            {
+                                if (*p == i)
+                                    bFound = 1;
+                                p++;
+                                n--;
+                            } while (n != 0);
+                        }
+                    }
+                    if (bFound == 0 || nRequestedGoalItem >= 0)
+                    {
+                        // demo goal-puzzle id whitelists, one per planet (same family as
+                        // ReadZone's demo zone-id whitelist)
+                        if (nPlanet == 1)
+                        {
+                            switch (i)
+                            {
+                            case 0x55:
+                            case 0x73:
+                            case 0xb9:
+                            case 0xc7:
+                            case 0xc9:
+                                list.SetAtGrow(list.GetSize(), i);
+                            }
+                        }
+                        else if (nPlanet == 2)
+                        {
+                            switch (i)
+                            {
+                            case 0x67:
+                            case 0x6c:
+                            case 0x87:
+                            case 0xbd:
+                            case 0xc5:
+                                list.SetAtGrow(list.GetSize(), i);
+                            }
+                        }
+                        else if (nPlanet == 3)
+                        {
+                            if (i >= 0x83 && (i <= 0x86 || i == 0xc6))
+                                list.SetAtGrow(list.GetSize(), i);
+                        }
+                    }
+                }
+                break;
+            }
+            i++;
+        } while (nCount > i);
+    }
+    if (list.GetSize() <= 0)
+        return -1;
+    WorldgenShuffleList(&list);
+    i = 0;
+    int nSize = list.GetSize();
+    do
+    {
+        unsigned short id = list.GetAt(i);
+        Puzzle *pPuz = (Puzzle *)puzzles.GetAt(id);
+        if (IsTileInGoalList(id) == 0)
+        {
+            switch (nType)
+            {
+            case ZONE_TYPE_FINAL_ITEM:
+                if (pPuz->nType == PUZZLE_TYPE_GOAL_PRIZE && pPuz->itemA == nItem)
+                    return list.GetAt(i);
+                break;
+            case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:
+                if (pPuz->nType == PUZZLE_TYPE_TRADE && pPuz->itemA == nItem)
+                    return list.GetAt(i);
+                break;
+            case ZONE_TYPE_FIND_USEFUL_DROP:
+                if (pPuz->nType == PUZZLE_TYPE_TRANSACTION && pPuz->itemA == nItem)
+                    return list.GetAt(i);
+                break;
+            case 9999:
+                if (pPuz->nType == PUZZLE_TYPE_WORLD_MISSION)
+                    return list.GetAt(i);
+                break;
+            }
+        }
+        if (bDone != 0)     // sic: dead — bDone is only ever set below, and the while()
+            break;          // already exits; kept verbatim from the original control flow
+        i++;
+        if (i >= nSize)
+            bDone++;
+    } while (bDone == 0);
+    return -1;
+}
+
 // FUNCTION: YODA 0x0041ef90
 // [PARKED reg-alloc: the {bAnyEmpty, nMoved, k*2-offset} register contest + the unrotated
 // init loop; structure fully converged (122/122 insns). Joint TU pass territory.]

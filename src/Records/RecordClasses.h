@@ -12,10 +12,21 @@ class World;
 class GameView;
 
 // PUZ2 record (0x2c). 5 CStrings + item ids.
+// Puzzle.nType — the puzzle's worldgen class (WorldgenSelectPuzzle maps zone types onto these:
+// ZONE_TYPE_FIND_USEFUL_DROP->TRANSACTION, MAP_TO_ITEM_FOR_LOCK->TRADE, FINAL_ITEM->GOAL_PRIZE,
+// and the 9999 request picks a WORLD_MISSION goal).
+enum PuzzleType
+{
+    PUZZLE_TYPE_TRANSACTION   = 0,
+    PUZZLE_TYPE_TRADE         = 1,
+    PUZZLE_TYPE_GOAL_PRIZE    = 2,
+    PUZZLE_TYPE_WORLD_MISSION = 3,
+};
+
 class Puzzle : public CObject
 {
 public:                              // +0x00 CObject vtable (0x44b148)
-    int      nType;                  // +0x04  ctor: 0; 0=transaction 1=trade 2=goal-prize 3=world-mission-goal
+    int      nType;                  // +0x04  ctor: 0; a PuzzleType value (int: Records TU byte-matched)
     int      unk2;                   // +0x08  ctor: 0
     int      unk3;                   // +0x0c  ctor: 0
     short    itemA;                  // +0x10  ctor: -1
