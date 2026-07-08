@@ -654,19 +654,25 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v51) — ⚠ the project is at a GENUINE PLATEAU; do NOT manufacture low-value work. Read this first.**
-The decomp is thoroughly done on every front we CAN advance: 211/534 byte-exact + rest effective; runnable
-/OPT:REF image; ref-graph 22→5; ALL .rdata content (vtables, msgmaps, DYNCREATE sizes/names) validated against
-the original; classes named as the original. **The two remaining frontiers each need something we do not have,
-proven exhaustively (v37-v40, v42, docs/g2-layout.md):** (a) 212+ byte-exact needs a DIFFERENT period-correct
-cl.exe (the intrinsic reg-alloc wall — NOT source-fixable), (b) absolute whole-image layout needs that same wall
-cracked (everything shifts after the first .text length divergence). **Recommended: SURFACE this to the user** —
-ask whether to (i) call the content phase complete and stop, (ii) hunt a period-correct MSVC 4.2 cl.exe build
-(the only thing that could raise 211 or enable absolute layout), or (iii) pursue non-byte-goals (a clean buildable
-source tree / documentation / the DesktopAdventures engine cross-port). Only if the user wants more incremental
-work, the low-value options remain: the 5 hard-tail REF-drops (each ≤2 funcs, risks a regression — AppWnd
-OnPaint/OnTimer cross-TU msgmap, AppWnd Disable/Enable ICF-fold, ??_H CRT helper), or PE timestamp/checksum mask +
-EH-funclet/thunk cosmetics (only matter once the wall breaks). Do NOT grind the reg-coloring functions.
+**▶ START HERE (v51) — ⭐ THE COMPILER HUNT is the live high-leverage path (v50, USER-directed). Read docs/compiler-hunt.md.**
+CORRECTION to the old "plateau/unobtainable cl" framing: **we HAVE a genuine VC++ 4.2 — cl `10.20.6166`
+(CL.EXE + C1XX.EXE + C2.EXE codegen backend) at `toolchain/vc42/`, and use it** (211 exact PROVES it's the
+right major compiler). The ~48 reg-coloring residuals are most likely because the original was built with a
+slightly DIFFERENT 4.2 sub-build. Evidence: the binary is dated 1997-02-18 (between VC 4.2/1996 and VC 5.0/
+1997-04-28), linker 3.10 pins it to the 4.2 family, and multiple 4.2 cl builds exist — base 4.2 = `10.20.6166`
+(ours), **VC 4.2b = `10.20.6312`** (KB Q164951). LucasArts (bleeding-edge, hand-MMX) plausibly ran a later 4.2
+subscription/SP build. **INFRA IS READY (v50):** `toolchain/bin/{cl,link,lib}` now honor a `VCDIR` env override
+(default toolchain/vc42). DECISIVE A/B TEST from repo root:
+`VCDIR=/abs/path/to/candidate python3 tools/progress.py` → exact **>211** means CLOSER (if it's the exact build,
+many reg-coloring funcs flip at once — they share the ESI/EDI wall). Fast focused probe: `VCDIR=<cand> python3
+tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680` (DetonateAdjacentTiles, the 60-byte ESI↔EDI bellwether) —
+reg_pen/identity_miss→0 = allocator matches. **v51 job: help the user obtain/test candidate 4.2 builds (4.2b,
+MSDN 1996-97 subscription refreshes) from Internet Archive; drop at `toolchain/vc42b/`; A/B via VCDIR.** If a
+better build is found, re-baseline everything (exact jumps, g2 absolute layout likely unblocks too — same wall).
+If none is ever found, 211 + effective + runnable image is the standing deliverable.
+Low-value fallbacks only if the user declines the hunt: the 5 hard-tail REF-drops (each ≤2 funcs, risks a
+regression), PE timestamp/checksum + EH-funclet cosmetics. Do NOT grind reg-coloring funcs by hand (source-side
+exhausted v37-v40); the compiler build IS the lever now.
 - **PARKED / blocked (unchanged):** AppData CObject-trio -0x30 + WorldgenZoneEntry ??_G (self-correct).
   **Canvas-gap mini** BLOCKED on owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6**
   (World, ~102 fields) — docs/dedup-plan.md.

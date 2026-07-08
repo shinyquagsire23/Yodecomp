@@ -3,7 +3,7 @@
 # Mirrors bin/cl: sets LIB to the VC + MFC lib dirs, converts existing-file args to Z:\ paths.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-VC="$HERE/vc42"
+VC="${VCDIR:-$HERE/vc42}"        # VCDIR env override lets us A/B-test a candidate VC 4.2 build
 export WINEDEBUG="${WINEDEBUG:--all}"
 export WINEPREFIX="${WINEPREFIX:-$HOME/.wine}"
 winp(){ printf 'Z:%s' "$(printf '%s' "$1" | sed 's#/#\\#g')"; }
