@@ -59,33 +59,9 @@ public:
     virtual ~WorldgenZoneEntry();                 // vtable 0x44b080; delete = vcall slot +4
 };                                   // sizeof 0x08
 
-// A 10x10 world-map grid cell (0x34 bytes) — CObject-DERIVED (vftable 0x44b050; ctor 0x4010b0 /
-// dtor 0x401180 live in the first app TU). Layout is ctor-proven — see src/WorldDoc/WorldDoc.h.
-class MapZone : public CObject
-{
-public:                              // +0x00 vftable (0x44b050)
-    short id;                        // +0x04  zone id; -1 = empty cell
-    char  _pad06[2];                 // +0x06
-    int   zoneType;                  // +0x08
-    short cellQuestSlot0;            // +0x0c
-    short cellQuestSlot1;            // +0x0e
-    short cellItemA;                 // +0x10
-    short cellItemB;                 // +0x12
-    short cellItemC;                 // +0x14
-    short cellQuestSlot5;            // +0x16
-    short cellQuestSlot6;            // +0x18
-    char  _pad1a[2];                 // +0x1a
-    int   flagSolved;                // +0x1c
-    int   flagC;                     // +0x20
-    int   flagA;                     // +0x24
-    int   flagB;                     // +0x28
-    int   flagD;                     // +0x2c
-    short field30;                   // +0x30
-    char  _pad32[2];                 // +0x32
-                                     // sizeof 0x34
-    MapZone();                                            // 0x004010b0 (first app TU)
-    virtual ~MapZone();                                   // 0x00401180
-};
+// A 10x10 world-map grid cell — canonical definition promoted to MapZone.h (de-dup step 2);
+// included HERE (not at file top) to preserve the original declaration order (dial rule).
+#include "MapZone.h"
 
 // InvItem, Canvas, InvScrollBar, GameView, TextDialog were promoted to this shared header in
 // Phase E (v16). It is included HERE (not at file top) to preserve the original declaration

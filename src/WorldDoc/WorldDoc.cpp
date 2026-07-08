@@ -458,9 +458,9 @@ World::World()
 }
 
 // FUNCTION: YODA 0x0041b2d0  (scalar deleting dtor ??_G — emitted by the compiler)
-// FUNCTION: YODA 0x0041b2f0  [PHASE-DISPLACED: byte-matched 1441B under the dial at commit
-//   854fba2; the GetLocatorIcon/DrawPlayer rewrites rotated one esi/edi 2-cycle in the tiles
-//   free-loop (DIFF(6), align=0). Source proven correct; resolve at the TU joint pass.]
+// FUNCTION: YODA 0x0041b2f0  [EXACT again since the MapZone.h de-dup (2026-07-07) — the
+//   esi/edi 2-cycle from the GetLocatorIcon/DrawPlayer-era dial un-rotated. History: matched
+//   at 854fba2, PHASE-DISPLACED DIFF(6) for a while (align=0), now back. Dial breathing.]
 // World destructor: write the options back to the registry, then destroy all assets.
 World::~World()
 {

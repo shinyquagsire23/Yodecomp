@@ -65,28 +65,10 @@ public:
     int  TransitionZoneScript(int a1, int nZoneId);  // 0x0040e750
 };
 
-// A 10x10 world-map grid cell (0x34 bytes).
-struct MapZone
-{
-    short id;                    // +0x00  zone id; -1 = empty cell
-    char  _pad02[2];             // +0x02
-    int   zoneType;              // +0x04  (StartGame clears as dword -1)
-    short cellQuestSlot0;        // +0x08
-    short cellQuestSlot1;        // +0x0a
-    short cellItemA;             // +0x0c
-    short cellItemB;             // +0x0e
-    short cellItemC;             // +0x10
-    short cellQuestSlot5;        // +0x12
-    short cellQuestSlot6;        // +0x14
-    char  _pad16[2];             // +0x16
-    int   flagSolved;            // +0x18
-    int   flagC;                 // +0x1c
-    int   flagA;                 // +0x20
-    int   flagB;                 // +0x24
-    int   flagD;                 // +0x28
-    short field2c;               // +0x2c
-    char  _pad2e[6];             // +0x2e
-};                               // sizeof 0x34
+// A 10x10 world-map grid cell — canonical vptr-true definition (de-dup step 2). The old
+// local struct here was the SAME layout shifted -4 (id@+0, no vptr), compensated by
+// zones@0x4b4 and a 121-int pointer array swallowing cell 0's vptr; retired 2026-07-07.
+#include "../Worldgen/MapZone.h"
 
 class World : public CDocument          // sizeof(CDocument) == 0x50 in MFC 4.2
 {
@@ -133,11 +115,13 @@ public:
     char       *palette;                 // +0x02c4
     char        _pad2c8[4];              // +0x02c8
     int         worldSeed;               // +0x02cc
-    int         paZonePtrGrid[0x79];     // +0x02d0  (10x10 used; region is 121 ints)
-    MapZone     zones[200];              // +0x04b4  [0..99] active 10x10 grid, [100..199] the
-                                         //          backup grid (RestoreGridFromBackup copies
-                                         //          100..199 -> 0..99); ends +0x2d54
-    char        _pad2d54[0xcc];          // +0x2d54
+    int         paZonePtrGrid[0x78];     // +0x02d0  really apZoneGrid Zone*[100] + apUiTiles
+                                         //          Tile*[20] (the old [0x79] swallowed cell 0's
+                                         //          vptr for the shifted MapZone)
+    MapZone     zones[200];              // +0x04b0  [0..99] active 10x10 grid (=mapGrid),
+                                         //          [100..199] backup (RestoreGridFromBackup
+                                         //          copies 100..199 -> 0..99); ends +0x2d50
+    char        _pad2d50[0xd0];          // +0x2d50  really mapScratch MapZone[4]
     int         playerX;                 // +0x2e20
     int         playerY;                 // +0x2e24
     char        _pad2e28[4];             // +0x2e28

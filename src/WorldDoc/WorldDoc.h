@@ -41,34 +41,9 @@ public:
                     short destX, short destY, char key);                   // 0x00408240
 };
 
-// A 10x10 world-map grid cell (0x34 bytes) — CObject-DERIVED (vftable 0x44b050;
-// ctor 0x4010b0 / dtor 0x401180 live in the first app TU, 0x401010–0x401450).
-// Field names carried over from the GameData work, shifted +4 for the vptr.
-class MapZone : public CObject
-{
-public:                              // +0x00 vftable (0x44b050)
-    short id;                        // +0x04  ctor: -1 (zone id; -1 = empty cell)
-    char  _pad06[2];                 // +0x06
-    int   zoneType;                  // +0x08  ctor: 0 (GetLocatorIcon switches on this)
-    short cellQuestSlot0;            // +0x0c  ctor: -1
-    short cellQuestSlot1;            // +0x0e
-    short cellItemA;                 // +0x10  ctor: -1
-    short cellItemB;                 // +0x12
-    short cellItemC;                 // +0x14  ctor: -1
-    short cellQuestSlot5;            // +0x16
-    short cellQuestSlot6;            // +0x18  ctor: -1
-    char  _pad1a[2];                 // +0x1a
-    int   flagSolved;                // +0x1c  ctor: 0
-    int   flagC;                     // +0x20
-    int   flagA;                     // +0x24  ctor: 0
-    int   flagB;                     // +0x28  ctor: 0
-    int   flagD;                     // +0x2c
-    short field30;                   // +0x30
-    char  _pad32[2];                 // +0x32
-                                     // sizeof 0x34
-    MapZone();                                           // 0x004010b0
-    virtual ~MapZone();                                  // 0x00401180
-};
+// A 10x10 world-map grid cell — canonical definition promoted to ../Worldgen/MapZone.h
+// (de-dup step 2); included HERE to preserve the original declaration order (dial rule).
+#include "../Worldgen/MapZone.h"
 
 class World : public CDocument       // CDeskcppDoc; sizeof(CDocument) == 0x50 in MFC 4.2
 {

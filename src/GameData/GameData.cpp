@@ -83,7 +83,9 @@ void World::LoadStoryHistoryNevada()
         storyHistoryNevada.RemoveAt(0, 1);
 }
 
-// FUNCTION: YODA 0x00401ea0
+// FUNCTION: YODA 0x00401ea0  [PHASE-DISPLACED by the MapZone.h de-dup (2026-07-07): was
+//   exact; DIFF(2) — the vptr-true MapZone's ctor/dtor decls entered this TU's dial and
+//   rotated one 2-byte tie-break. Source proven correct; resolves at G1.]
 // Load the planet-2 story history from registry [GameData] Alaska0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.
@@ -733,9 +735,10 @@ void World::OnReplayStory()
     nFrameMode = savedMode;
 }
 
-// FUNCTION: YODA 0x004037a0  [WIP: DIFF(254) at exact length 666 — structure ~97% (172/178 insns
-//   aligned); residuals: grid-store increment placement ([edx-0x34] pattern), gen-loop layout,
-//   early-out jcc direction. Probes: c-pointer grid (+22B worse), decl swaps inert.]
+// FUNCTION: YODA 0x004037a0  [WIP: DIFF(79), align=34, insns 178/178 — was DIFF(254) under the
+//   old SHIFTED MapZone stub, whose off-by-4 grid displacements were silently poisoning every
+//   cell store; the vptr-true MapZone.h de-dup (2026-07-07) fixed those. Remaining residuals:
+//   grid-store increment placement, gen-loop layout, early-out jcc direction (as before).]
 // Begin a game session: reset player state, walk-in animation, camera/inventory reset, clear both
 // map grids, load assets, then (unless restoring a save) generate + populate the world.
 int World::StartGame(unsigned int nSeed, int bSkipGenerate)
@@ -805,7 +808,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
             mz->flagB = 0;
             mz->flagC = 0;
             mz->flagD = 0;
-            mz->field2c = -1;
+            mz->field30 = -1;
             mz[100].id = -1;
             mz[100].cellQuestSlot0 = -1;
             mz[100].cellQuestSlot1 = -1;
@@ -820,7 +823,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
             mz[100].flagB = 0;
             mz[100].flagC = 0;
             mz[100].flagD = 0;
-            mz[100].field2c = -1;
+            mz[100].field30 = -1;
             mz++;
         }
     }
