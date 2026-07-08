@@ -28,8 +28,8 @@ public:
 // stub's `~Canvas() 0x408400` was a stale comment error — the dtor is 0x407eb0.
 #include "../Canvas/Canvas.h"
 
-class World;
-class GameView;
+class CDeskcppDoc;
+class CDeskcppView;
 class TextDialog;                    // defined after GameView (needs the fwd decl)
 
 // InvScrollBar stub (sizeof 0x44 = CScrollBar 0x3c + 8; its little TU sits at 0x4085c0,
@@ -39,7 +39,7 @@ class InvScrollBar : public CScrollBar
 public:
     int  scrollMax;                  // +0x3c
     int  scrollPos;                  // +0x40
-    InvScrollBar(GameView *pView, RECT *pRect); virtual ~InvScrollBar(); // ctor 0x4085c0; dtor ??1 0x4086b0 + thin ??_G 0x408690
+    InvScrollBar(CDeskcppView *pView, RECT *pRect); virtual ~InvScrollBar(); // ctor 0x4085c0; dtor ??1 0x4086b0 + thin ??_G 0x408690
     void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409340 (fwd->OnVScroll)
     //{{AFX_MSG(InvScrollBar)
     afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409360
@@ -52,11 +52,11 @@ public:
 // bulk of the class lives in the GameView TU (0x408c60-0x418700). The declaration set below is
 // the Phase-E dial: it rotates allocator/cmp tie-breaks across BOTH TUs, so it grows only with
 // REAL methods, ordered by .text address.
-class GameView : public CView        // sizeof(CView) == 0x40 (m_pDocument @ +0x3c)
+class CDeskcppView : public CView        // sizeof(CView) == 0x40 (m_pDocument @ +0x3c)
 {
 public:
     InvScrollBar *pInvScrollBar;     // +0x040
-    World       *pWorld;             // +0x044
+    CDeskcppDoc       *pWorld;             // +0x044
     TextDialog  *pTextDialog;        // +0x048
     int          bBusy;              // +0x04c
     int          bOneShotStubMaybe;  // +0x050
@@ -174,9 +174,9 @@ public:
     // count in src/Worldgen WILL breathe as this set fills in — that's expected
     // (roadmap G1 resolves it). Do not grind per-function residuals against this.
     // ============================================================================
-    DECLARE_DYNCREATE(GameView)                           // CreateObject 0x4084f0 / GetRuntimeClass 0x408560
+    DECLARE_DYNCREATE(CDeskcppView)                           // CreateObject 0x4084f0 / GetRuntimeClass 0x408560
 protected:
-    GameView();                                           // 0x00408710 (protected, DYNCREATE ctor)
+    CDeskcppView();                                           // 0x00408710 (protected, DYNCREATE ctor)
 
 public:
     // ---- Operations / view helpers (GameView TU, in .text order) ----
@@ -242,7 +242,7 @@ public:
 
     // ---- Implementation ----
 protected:
-    virtual ~GameView();                                  // 0x00408c60 (ScalarDtor 0x408c40)
+    virtual ~CDeskcppView();                                  // 0x00408c60 (ScalarDtor 0x408c40)
 
     // ---- Message handlers (//{{AFX_MSG order == BEGIN_MESSAGE_MAP @0x44b240) ----
     //{{AFX_MSG(GameView)
@@ -320,13 +320,13 @@ public:
     RECT     rectText;               // +0x9c  child CEdit rect
     int      nTotalLines;            // +0xac  EM_GETLINECOUNT
     int      nScrollLine;            // +0xb0  current top line (starts at 5)
-    GameView *pView2;                // +0xb4  ctor: pView (second copy)
+    CDeskcppView *pView2;                // +0xb4  ctor: pView (second copy)
     CString  strText;                // +0xb8
     int      bTimerActive;           // +0xbc  a repeat-scroll timer is running
-    GameView *pParentView;           // +0xc0  ctor arg (the owning view)
+    CDeskcppView *pParentView;           // +0xc0  ctor arg (the owning view)
     int      soundSession;           // +0xc4  copied from GameView.soundSession
                                      // sizeof 0xc8
-    TextDialog(GameView *pView);                          // 0x00416b90
+    TextDialog(CDeskcppView *pView);                          // 0x00416b90
     int  Run();                                           // 0x00416c40
     void Position();                                      // 0x00417570
     void Layout(int x, int y);                            // 0x004176f0

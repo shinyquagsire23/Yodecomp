@@ -533,7 +533,7 @@ void Zone::FlagQuestObjects()
 //   allocator tie-break — same parked class as Puzzle/MapEntity ctors.]
 // Apply weapon damage to the entity at (x,y). On kill: clear the projectile tile, then drop
 // the carried item (or the zone's quest item) as a new type-6 ZoneObj on layer 1.
-int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *pWorld, GameView *pView)
+int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, CDeskcppDoc *pWorld, CDeskcppView *pView)
 {
     int n = entities.GetSize();
     int nChars = paChars->GetSize();
@@ -601,7 +601,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
 //   stmt+cmp) not source-reachable. Cracked to this point by: nested `int id = e->charId` (single
 //   movsx serving both range tests), int timerVal, SetTile(short val) => push -1.]
 // Non-lethal hit: stun the entity at (x,y) (timer), and clear its in-flight projectile tile.
-int Zone::HitEntityAt(int x, int y, CObArray *paChars, int timerVal, World *pWorld, GameView *pView)
+int Zone::HitEntityAt(int x, int y, CObArray *paChars, int timerVal, CDeskcppDoc *pWorld, CDeskcppView *pView)
 {
     int n = entities.GetSize();
     int nChars = paChars->GetSize();

@@ -60,12 +60,12 @@ class StatsDlg : public CDialog
 {
 public:
     int      unk5c;                  // +0x5c
-    World   *pWorld;                 // +0x60  ctor arg (the doc)
+    CDeskcppDoc   *pWorld;                 // +0x60  ctor arg (the doc)
     CString  m_str0;                 // +0x64  DDX 0x98 <- World.lastCount
     CString  m_str1;                 // +0x68  DDX 0x97 <- World.completionCount
     CString  m_str2;                 // +0x6c  DDX 0x95 <- World.highScore
     CString  m_str3;                 // +0x70  DDX 0x96 <- World.lastScore
-    StatsDlg(CWnd *pParent, World *pDoc);                // 0x00416810
+    StatsDlg(CWnd *pParent, CDeskcppDoc *pDoc);                // 0x00416810
     virtual void DoDataExchange(CDataExchange *pDX);     // 0x004169e0
     virtual BOOL OnInitDialog();                         // 0x00416a40
     DECLARE_MESSAGE_MAP()
@@ -107,16 +107,14 @@ public:
 // =============================================================================
 // DYNCREATE + message maps (macro-generated: CreateObject 0x4084f0,
 // GetRuntimeClass 0x408560, GameView::GetMessageMap 0x408570,
-// InvScrollBar::GetMessageMap 0x408580). Class string is "GameView" not the
-// original "CDeskcppView"; that lives in .rdata (not checked by per-function
-// verify), same accepted mismatch as WorldDoc's IMPLEMENT_DYNCREATE(World,...).
+// InvScrollBar::GetMessageMap 0x408580).
 // =============================================================================
 // FUNCTION: YODA 0x004084f0
 // FUNCTION: YODA 0x00408560 (GetRuntimeClass)
-IMPLEMENT_DYNCREATE(GameView, CView)
+IMPLEMENT_DYNCREATE(CDeskcppView, CView)
 
 // FUNCTION: YODA 0x00408570
-BEGIN_MESSAGE_MAP(GameView, CView)
+BEGIN_MESSAGE_MAP(CDeskcppView, CView)
     //{{AFX_MSG_MAP(GameView)
     // v49: entry ORDER reconciled to the original AFX_MSGMAP_ENTRY array (msgcheck-verified) —
     // #11 WM_VSCROLL (was the ON_WM_HSCROLL bug), the difficulty ON_UPDATE moved after worldsize,
@@ -163,7 +161,7 @@ END_MESSAGE_MAP()
 // FUNCTION: YODA 0x00408590
 // Music pump worker thread (AfxBeginThread proc): keeps WAVMIX32 fed until the
 // stop flag is set. __cdecl (static member).
-UINT GameView::MusicThreadProcMaybe(void *pParam)
+UINT CDeskcppView::MusicThreadProcMaybe(void *pParam)
 {
     while (g_bStopMusicThread == 0)
     {
@@ -177,7 +175,7 @@ UINT GameView::MusicThreadProcMaybe(void *pParam)
 // FUNCTION: YODA 0x004085c0
 // InvScrollBar::InvScrollBar — build the inventory scroll bar as a child of the
 // view, at World's inventory-scrollbar rect (@0x3294), control id 0x65.
-InvScrollBar::InvScrollBar(GameView *pView, RECT *pRect)
+InvScrollBar::InvScrollBar(CDeskcppView *pView, RECT *pRect)
 {
     Create(0x50000001, *pRect, pView, 0x65);
     ::SetScrollRange(m_hWnd, SB_CTL, 0, 1, FALSE);
@@ -206,7 +204,7 @@ InvScrollBar::InvScrollBar(GameView *pView, RECT *pRect)
 //       is constructed inline in the original but the compiler chose differently here — a
 //       TU-context inlining-threshold artifact (lesson #7/#8), expected to settle as the
 //       rest of the TU lands.
-GameView::GameView()
+CDeskcppView::CDeskcppView()
 {
     unk178 = 0;
     bInvincibleCheat = 0;
@@ -263,7 +261,7 @@ GameView::GameView()
 // GameView::~GameView — stop the music pump, tear down the WAVMIX32 session and all
 // loaded waves, free the drag save-bit buffers + drag-tile canvas. The CString /
 // CBitmapButton x3 / CEdit members are destroyed by the compiler-generated epilogue.
-GameView::~GameView()
+CDeskcppView::~CDeskcppView()
 {
     g_bStopMusicThread = 1;
     if (soundSession != 0)
@@ -294,7 +292,7 @@ GameView::~GameView()
 // FUNCTION: YODA 0x00408df0
 // GameView::OnActivateView — on deactivate, cancel any in-progress inventory drag
 // (only while in play mode, nFrameMode==4); track the active flag; chain to base.
-void GameView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeactiveView)
+void CDeskcppView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeactiveView)
 {
     switch (bActivate)
     {
@@ -328,7 +326,7 @@ void GameView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *pDeac
 //   to it, while our compile emits the epilogue right after case 0 and cross-jumps the rest —
 //   which also shifts how the shared ReleaseDC tail is materialized. Same unmapped mechanism as
 //   WorldDoc::GetLocatorIcon; not source-steerable (flat if/else-if vs nested both ~285). G1.
-void GameView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
+void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
 {
     if (lHint == 0)
     {
@@ -368,7 +366,7 @@ void GameView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
             if (lHint != 399)
                 return;
             if (pWorld == 0)
-                pWorld = (World *)m_pDocument;
+                pWorld = (CDeskcppDoc *)m_pDocument;
             if (soundSession == 0)
             {
                 SoundInit();
@@ -411,10 +409,10 @@ void GameView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
 //   else-branch sound gate) and pWorld in EDX; our compile assigns them the opposite registers,
 //   a consistent bijection that propagates (identity_miss=9). Not source-steerable (goto/epilogue
 //   variants gave the identical score); a TU-phase reg-alloc residual, G1 fodder.
-void GameView::PlaySound(int nSoundId)
+void CDeskcppView::PlaySound(int nSoundId)
 {
     MIXPLAYPARAMS mix;
-    World *pW = pWorld;
+    CDeskcppDoc *pW = pWorld;
     if (pW->nSoundEnabled == 0 && pW->nMusicEnabled == 0)
         return;
     if (nSoundId == 3 && bSuppressWalkSound != 0)
@@ -454,11 +452,11 @@ void GameView::PlaySound(int nSoundId)
 //   callee-saved register (`push ebp`) and cascades a register-rename through the middle. The
 //   original pushes 0 immediates and uses only EBX/ESI/EDI. Pure enregistration-heuristic
 //   tie-break (lesson #7/#8) — not source-steerable; expected to settle in G1.
-void GameView::OnDraw(CDC *pDC)
+void CDeskcppView::OnDraw(CDC *pDC)
 {
     CRect rc;
     if (pWorld == 0)
-        pWorld = (World *)m_pDocument;
+        pWorld = (CDeskcppDoc *)m_pDocument;
     if (pWorld == 0)
         return;
     if (pWorld->bStateFileLoaded == 0)
@@ -604,7 +602,7 @@ skip:
         ::GetScrollPos(m_hWnd, SB_CTL);
         ::GetScrollRange(m_hWnd, SB_CTL, &scrl[0], &scrl[1]);
         ::SetScrollPos(m_hWnd, SB_CTL, scrollPos, TRUE);
-        GameView *pView = (GameView *)CWnd::FromHandle(::GetParent(m_hWnd));
+        CDeskcppView *pView = (CDeskcppView *)CWnd::FromHandle(::GetParent(m_hWnd));
         if (pView != 0)
             pView->DrawText(0);
     }
@@ -625,7 +623,7 @@ skip:
 // pWorld->currentZone fresh — hence pZone-> for layer 0 vs pWorld->currentZone-> for
 // 1 & 2. x<<5 / y<<5 (the destination pixel coords, 16-bit because destX/destY are
 // short) are hoisted once into ESI/EBX and shared across all three layers' blits.
-void GameView::DrawZoneCell(short x, short y)
+void CDeskcppView::DrawZoneCell(short x, short y)
 {
     Tile *pTile;
     short sx, sy;
@@ -676,7 +674,7 @@ void GameView::DrawZoneCell(short x, short y)
 //   MSVC selects internally (lesson #6, proven not source-steerable). No source shape
 //   flips `this` out of the last-choice register here; a G1 permuter/dial pass resolves
 //   it. Decl order x,y↔y,x only trades reg_pen (both stay align=22).
-void GameView::DrawZoneCellRect(int x1, int y1, int x2, int y2)
+void CDeskcppView::DrawZoneCellRect(int x1, int y1, int x2, int y2)
 {
     int y, x;
 
@@ -698,7 +696,7 @@ void GameView::DrawZoneCellRect(int x1, int y1, int x2, int y2)
 //   the very edit that made DrawZoneCell exact (they can't both be exact under one
 //   global dial; the 361-byte DrawZoneCell wins). Decl-order permutations (x,y / y,x /
 //   m-first) only trade reg_pen; none re-flip it. G1 joint pass resolves it.
-void GameView::DrawWholeZone()
+void CDeskcppView::DrawWholeZone()
 {
     int x, y;
     int m = pWorld->currentZone->width - 1;
@@ -757,7 +755,7 @@ void GameView::DrawWholeZone()
 //  * 1-insn scheduling drift of `xor di,di` (nMask = 0 emitted before vs after the
 //    unk50 store), nSavedMode in DX vs AX, and the 4B-smaller frame (ours packs the
 //    cnt/sx2 word slots where the orig dword-spaces them).
-int GameView::ZoneTransitionStep(short nZoneId, short nStep)
+int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
 {
     Tile *pTile;
     TRY {
@@ -936,7 +934,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
 // reproduce, on the wrong functions. Same TU-phase drift family as the original's
 // own loader jg/jl/jg triplet; almost certainly one dial state with the
 // DrawZoneCellRect/DrawWholeZone rotations. Do not grind — G1 joint pass.
-int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
+int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
 {
     Tile *pTile;
     TRY {
@@ -1085,7 +1083,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
 // with the map open, mode 7, or the map open at all — the last || term makes the
 // mode-5 check redundant, faithful dev code) blit the canvas from its origin
 // (the map is composited at 0,0); play modes blit the camera window (nViewLeft/Top).
-void GameView::DrawGameArea(CDC *pDC)
+void CDeskcppView::DrawGameArea(CDC *pDC)
 {
     CPalette *pOldPal = 0;
     if (pDC == 0)
@@ -1124,7 +1122,7 @@ void GameView::DrawGameArea(CDC *pDC)
 //   `cmp x,w; jge` — `w > x` and `x < w` spellings compile identically, lesson #6).
 //   Crack that mattered: sx/sy MUST be locals — written at the call sites the
 //   x<<5/y<<5 pair gets re-emitted per arm instead of hoisted above the flags test.
-void GameView::BlitTile(short y, short x, int nUnused, Tile *pTile)
+void CDeskcppView::BlitTile(short y, short x, int nUnused, Tile *pTile)
 {
     Canvas *pCanvas = pWorld->pCanvas;
     if (pCanvas != 0 && pTile != 0)
@@ -1157,7 +1155,7 @@ void GameView::BlitTile(short y, short x, int nUnused, Tile *pTile)
 //   pCell→EBX; ours the reverse) + the same cmp mirror as BlitTile + a 1-insn
 //   entry scheduling shuffle. Structure, both arms, the 3-layer countdown loop and
 //   every call site are insn-identical. DrawZoneCellRect rotation family — G1.
-void GameView::DrawTileAt(short x, short y, short frame)
+void CDeskcppView::DrawTileAt(short x, short y, short frame)
 {
     Canvas *pCanvas = pWorld->pCanvas;
     if (pCanvas != 0)
@@ -1208,7 +1206,7 @@ void GameView::DrawTileAt(short x, short y, short frame)
 // cases after range folding) — VC4.2 builds the balanced comparison tree with
 // per-subtree copies of the default `return 1` epilogue (the ReadZone whitelist
 // pattern, lesson #11).
-int GameView::IsUsableTileMaybe(short tileId)
+int CDeskcppView::IsUsableTileMaybe(short tileId)
 {
     switch (tileId)
     {
@@ -1281,7 +1279,7 @@ int GameView::IsUsableTileMaybe(short tileId)
 //  * 1-insn scheduling drifts at the cleanup GetDC head and the two scan-loop
 //    heads; backedge cmp directions (jl vs jg — canonicalization, both source
 //    spellings identical); jump-table byte differences from reloc masking.
-void GameView::FireWeaponStep(int nStep)
+void CDeskcppView::FireWeaponStep(int nStep)
 {
     int x = pWorld->cameraX / 32;
     int y = pWorld->cameraY / 32;
@@ -1649,7 +1647,7 @@ cleanup:
 // layer 1 of the current zone and redraw its cell. Entities with charId < 0
 // (empty slot) or active != 1 (dead/hidden) are skipped. GetWalkFrameTile
 // refreshes pChar->currentFrame from the facing dir before the SetTile.
-void GameView::DrawEntities()
+void CDeskcppView::DrawEntities()
 {
     Zone *pZone = pWorld->currentZone;
     int nCount = pZone->entities.GetSize();
@@ -1686,7 +1684,7 @@ void GameView::DrawEntities()
 // Decl order pZone/nCharId/n/i is load-bearing (probed all 12 permutations:
 // three tie at align=0, the rest align 20-34). Removing the pEnt local (CSE-temp
 // theory) is WORSE (align 42) — pEnt is a real local. Allocator tie-break; G1.
-short GameView::FindEntityAt(int x, int y)
+short CDeskcppView::FindEntityAt(int x, int y)
 {
     Zone *pZone = pWorld->currentZone;
     short nCharId = -1;
@@ -1758,7 +1756,7 @@ short GameView::FindEntityAt(int x, int y)
 // 2/3/6/7/8/9/10's zeros+break cross-jump into ONE shared block (case 12's
 // body); the probe-result switches keep their comparison TREE only when
 // case -1/0 and default have SEPARATE (duplicated) bodies.
-void GameView::Tick()
+void CDeskcppView::Tick()
 {
     Zone *pZone = pWorld->currentZone;
     frameCounter++;
@@ -2998,7 +2996,7 @@ void GameView::Tick()
 // reg here (function-scope decl probe was WORSE); IactRun arg-push scheduling;
 // our 3 ::SetScrollRange calls cache the import pointer in EBX (orig calls
 // through the import each time — inverse of the v19 ZTS GetDC quirk).
-void GameView::OnTimer(UINT nIDEvent)
+void CDeskcppView::OnTimer(UINT nIDEvent)
 {
     if (pWorld->difficulty != pWorld->counter)
         pWorld->counter = (pWorld->difficulty + pWorld->counter) / 2;
@@ -3409,7 +3407,7 @@ void GameView::OnTimer(UINT nIDEvent)
 // blits 0x433 then DetonateAdjacentTiles, phase 4 restores the zone cell.
 // [dial-breather: EXACT v22 -> out at the Canvas.h de-dup (2026-07-07), swapped with
 //  ReenableHotspotObjects/UpdatePlayerWalkFrame flipping in. Tie-break only; G1.]
-void GameView::StepDetonatorEffect()
+void CDeskcppView::StepDetonatorEffect()
 {
     int x = nDetonatorX;
     int y = nDetonatorY;
@@ -3458,7 +3456,7 @@ void GameView::StepDetonatorEffect()
 // vx-before/after-pZone (after = -20 align, kept). Structure cracks that
 // landed: Find-fail arm as else-of-(!=0) (fail body sunk after the then-arm),
 // vx=0 declared right after the pZone call (folds into call setup).
-int GameView::ApplyHotspotCamera(ZoneObj *pObj)
+int CDeskcppView::ApplyHotspotCamera(ZoneObj *pObj)
 {
     int cellX;
     int cellY;
@@ -3571,7 +3569,7 @@ int GameView::ApplyHotspotCamera(ZoneObj *pObj)
 // activate the target zone's objects if needed, then start the mode-6
 // transition with nMapChangeReason 8. arg1 is pushed by callers but never
 // read (sig byte-proven: ret 8, plain dword loads).
-int GameView::TransitionZoneScript(int nUnused, int nZoneId)
+int CDeskcppView::TransitionZoneScript(int nUnused, int nZoneId)
 {
     bBusy = 1;
     Zone *pZone = pWorld->GetZoneById((short)nZoneId);
@@ -3605,7 +3603,7 @@ int GameView::TransitionZoneScript(int nUnused, int nZoneId)
 // Probes: identical-clone decls (align=24, reg_pen=3 — the plausible true
 // source, G1 candidate), i-after-pZone + vx/vy inside (kept, align=22),
 // vx-before-nCount (32k), i-before-pZone (43k).
-int GameView::TransitionZoneXWing(ZoneObj *pObj)
+int CDeskcppView::TransitionZoneXWing(ZoneObj *pObj)
 {
     if (pObj->state == 0)
         return 0;
@@ -3715,7 +3713,7 @@ int GameView::TransitionZoneXWing(ZoneObj *pObj)
 // currentZone deref); ours emits it at pDoor(EBX)'s death 3 insns earlier.
 // vx-decl before/after the call statement both inert. Every register/slot
 // identical. Scheduling family, G1.
-void GameView::TransitionZoneDoor(ZoneObj *pDoor)
+void CDeskcppView::TransitionZoneDoor(ZoneObj *pDoor)
 {
     if (pDoor->state != 0)
     {
@@ -3803,7 +3801,7 @@ void GameView::TransitionZoneDoor(ZoneObj *pDoor)
 // FUNCTION: YODA 0x0040ebe0
 // GameView::ReenableHotspotObjects — re-arm all vehicle hotspots in the
 // current zone (state=1) so they can be triggered again.
-void GameView::ReenableHotspotObjects()
+void CDeskcppView::ReenableHotspotObjects()
 {
     int n = pWorld->currentZone->objects.GetSize();
     if (n > 0)
@@ -3834,7 +3832,7 @@ void GameView::ReenableHotspotObjects()
 // inert (CSE identical); n/i decl order inert. Countdown recipe (separate
 // nCount guard + n counter) and per-arm duplicated calls (vehicle pair kept
 // separate, xwing pair cross-jumped by cl) both required.
-int GameView::TriggerHotspotsMaybe()
+int CDeskcppView::TriggerHotspotsMaybe()
 {
     int nResult = 0;
 
@@ -3911,7 +3909,7 @@ int GameView::TriggerHotspotsMaybe()
 // Other cracks: int t = (short)GetTile(...) temps (movsx-immediately),
 // DRAW tail (DrawTileAt+DrawGameArea) textually duplicated per arm
 // (cross-jumped), i decl AFTER ty (xor interleaves into ty's division).
-void GameView::UpdateItemObjectsMaybe()
+void CDeskcppView::UpdateItemObjectsMaybe()
 {
     if (pWorld->nFrameMode == 6 || pWorld->nFrameMode == 7)
         return;
@@ -4046,7 +4044,7 @@ void GameView::UpdateItemObjectsMaybe()
 // scroll<<2 byte walker) while the bounds tests spell nScroll + i.
 // (c) windows.h renames DrawText->DrawTextA: marker carries the mangled
 // hint, asmscore now parses it.
-void GameView::DrawText(CDC *pDC)
+void CDeskcppView::DrawText(CDC *pDC)
 {
     int bReleaseDC = 0;
     CPalette *pOldPal;
@@ -4152,7 +4150,7 @@ void GameView::DrawText(CDC *pDC)
 // in arm C (both bodies), per-arm duplicated dismiss-flag if/else,
 // str += " " via the 0x456108 literal (adjacent to the yen/cent
 // placeholder glyphs in this TU's literal pool).
-void GameView::ShowWinMessage(int x, int y, int dx, int dy)
+void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
 {
     int tx = dx + x;
     int ty = dy + y;
@@ -4366,7 +4364,7 @@ void GameView::ShowWinMessage(int x, int y, int dx, int dy)
 // PHASE-DISPLACED (v24): byte-EXACT under the v23 dial (1569B, first compile);
 // the OnDragItem+SoundInit additions rotated it to align=240 (pure reg/schedule
 // tie-breaks). Source proven correct — G1.
-int GameView::ClassifyTile(int x, int y)
+int CDeskcppView::ClassifyTile(int x, int y)
 {
     if (pWorld->gameState == 1)
         return 9;
@@ -4555,7 +4553,7 @@ int GameView::ClassifyTile(int x, int y)
 // load/store/test (1-insn scheduling drift); i+8 hoist + bFound=1 placement
 // (imm-store-batching family); detonator clock-wait c/end reg swap; sx/sy
 // SI/DI swap.
-void GameView::OnDragItem(int x, int y, Tile *pTile)
+void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 {
     CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
@@ -4940,7 +4938,7 @@ void GameView::OnDragItem(int x, int y, Tile *pTile)
                                 {
                                     if (bFound)
                                         break;
-                                    World *pW = pWorld;
+                                    CDeskcppDoc *pW = pWorld;
                                     ZoneObj *pObj = (ZoneObj *)pW->currentZone->objects.GetAt(i);
                                     if (pObj->x == tx && pObj->y == ty
                                         && pObj->state != 0 && pObj->type == OBJ_LOCK)
@@ -4965,7 +4963,7 @@ void GameView::OnDragItem(int x, int y, Tile *pTile)
                                     int j = 0;
                                     do
                                     {
-                                        World *pW = pWorld;
+                                        CDeskcppDoc *pW = pWorld;
                                         ZoneObj *pObj = (ZoneObj *)pW->currentZone->objects.GetAt(j);
                                         if (pObj->x == tx && pObj->y == ty
                                             && pObj->state != 0
@@ -5063,7 +5061,7 @@ void GameView::OnDragItem(int x, int y, Tile *pTile)
 // call), GetSafeHdc() for the BitBlt src hdc, one test-eax three-way
 // dispatch (dirX >0 / <0 / else dirY), clock()+50 busy-wait, per-arm
 // duplicated Canvas::BitBlt calls cross-jumping into one tail.
-void GameView::ScrollZoneTransition()
+void CDeskcppView::ScrollZoneTransition()
 {
     CDC *pDC = GetDC();
     if (bMidiProfileInitMaybe == 0)
@@ -5144,7 +5142,7 @@ void GameView::ScrollZoneTransition()
 // opens channel 8 and activates; on any failure frees the loaded waves, closes
 // the session and turns sound+music off. On success spawns the music pump
 // thread (MusicThreadProcMaybe) with its tick event.
-void GameView::SoundInit()
+void CDeskcppView::SoundInit()
 {
     if (soundSession != 0)
         return;
@@ -5233,7 +5231,7 @@ void GameView::SoundInit()
 // CString balloon arms live in INNER SCOPES so the dtor runs BEFORE
 // bMouseCaptured = 0 (dtor-vs-store order is source-visible); the four buzz-
 // close blocks are verbatim copies with per-copy statement order.
-void GameView::OnLButtonDown(UINT nFlags, CPoint point)
+void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
 {
     bInvClickPending = 0;
     if (bInputLocked != 0)
@@ -5612,7 +5610,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
 // 0x12/0x1fe arms load/TEST/store drift; the MK_SHIFT store sink; case-9/
 // arrow-box reg roles; cmp-direction on the loop backedge (both spellings
 // canonicalize).
-void GameView::OnLButtonUp(UINT nFlags, CPoint point)
+void CDeskcppView::OnLButtonUp(UINT nFlags, CPoint point)
 {
     bBlockBumpUntilClick = 0;
     if (bTextDialogShown != 0)
@@ -5997,14 +5995,14 @@ void GameView::OnLButtonUp(UINT nFlags, CPoint point)
 // GetPaletteEntries+SetPixel per-pixel loop at hi-color (paDragSaveBits2 path). TRY/CATCH
 // guards the `new CBitmap` (fatal 0xE01E box + AfxAbort on OOM, no THROW_LAST here).
 // sic: pBitmap leaks when CBitmap::Attach fails (early return skips the delete).
-void GameView::UpdateDragCursor(int bClear)
+void CDeskcppView::UpdateDragCursor(int bClear)
 {
     ::SetCursor(NULL);
     HWND *phWnd = &m_hWnd;
     CDC *pDC = CDC::FromHandle(::GetDC(*phWnd));
     if (pDC == NULL)
         return;
-    World **ppWorld = &pWorld;
+    CDeskcppDoc **ppWorld = &pWorld;
     CPalette *pOldPal = pDC->SelectPalette((*ppWorld)->pPalette, 0);
     CDC dcMem;
     if (!dcMem.Attach(::CreateCompatibleDC(NULL)))
@@ -6125,7 +6123,7 @@ void GameView::UpdateDragCursor(int bClear)
 // cancel arms are REAL duplicated dev code — their nFrameMode 4->3 tails differ in shape),
 // and otherwise picks one of 8 direction cursors from (nMoveDX,nMoveDY), updating the
 // player's facing frame tile through the Character GetFrameTile/GetWalkFrameTile pair.
-BOOL GameView::OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message)
+BOOL CDeskcppView::OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message)
 {
     if (bViewActive == 0)
     {
@@ -6256,7 +6254,7 @@ BOOL GameView::OnSetCursor(CWnd *pWnd, UINT nHitTest, UINT message)
 // inset 4, outer outset 8). The three classify blocks are copy-paste dev code — the CELL
 // block's (-1,-1) and (1,1) corners store nMoveDY BEFORE nMoveDX (hand-edited copies);
 // every arm returns except the OUTER block's final edge (falls off into the epilogue).
-void GameView::OnMouseMove(UINT nFlags, CPoint point)
+void CDeskcppView::OnMouseMove(UINT nFlags, CPoint point)
 {
     POINT *pMouse = (POINT *)&nMouseX;
     nMovePending = 0;
@@ -6478,7 +6476,7 @@ void GameView::OnMouseMove(UINT nFlags, CPoint point)
 //  subtractions batch before the PATCOPY push.]
 // WM_ERASEBKGND: fills the clip box with the 3D-face system color via a PatBlt.
 // `this` is never read — everything goes through the passed CDC.
-BOOL GameView::OnEraseBkgnd(CDC *pDC)
+BOOL CDeskcppView::OnEraseBkgnd(CDC *pDC)
 {
     CBrush br(::GetSysColor(COLOR_BTNFACE));
     CBrush *pOldBrush = pDC->SelectObject(&br);
@@ -6493,13 +6491,13 @@ BOOL GameView::OnEraseBkgnd(CDC *pDC)
 
 // FUNCTION: YODA 0x00413be0
 // Genuinely empty method, called from OnTimer each frame (a stubbed-out per-frame hook).
-void GameView::EmptyFrameHookMaybe()
+void CDeskcppView::EmptyFrameHookMaybe()
 {
 }
 
 // FUNCTION: YODA 0x00413bf0
 // Flushes channel 0 of the WAVMIX session (stops the currently queued sound effects).
-void GameView::SoundFlush()
+void CDeskcppView::SoundFlush()
 {
     if (soundSession != 0)
         WaveMixFlushChannel(soundSession, 0, 1);
@@ -6510,7 +6508,7 @@ void GameView::SoundFlush()
 // fire direction from the current movement delta (diagonals snap to up/left/right), bails if
 // firing would leave the visible zone, else latches a shot (nFrameMode 8). When in the map
 // overlay (nFrameMode 7) with the game running, closes the map and restores the play zone.
-void GameView::OnRButtonDown(UINT nFlags, CPoint point)
+void CDeskcppView::OnRButtonDown(UINT nFlags, CPoint point)
 {
     switch (pWorld->nFrameMode) {
     case 3:
@@ -6577,7 +6575,7 @@ void GameView::OnRButtonDown(UINT nFlags, CPoint point)
 // Redraws the zone cell at the camera position. NOTE the <<5: DrawZoneCell takes CELL
 // coords and multiplies by 32 itself — passing camera*32 here draws a far-off cell unless
 // camera is 0 (sic? name keeps Maybe).
-void GameView::RedrawPlayerCellMaybe()
+void CDeskcppView::RedrawPlayerCellMaybe()
 {
     int x = pWorld->cameraX << 5;
     int y = pWorld->cameraY << 5;
@@ -6608,7 +6606,7 @@ void GameView::RedrawPlayerCellMaybe()
 // of TILE_PUSH_PULL_BLOCK tiles, and the IactProbeMove auto-slide retry loop (cases 2-5
 // adjust the delta and loop). Arms end with their own duplicated DrawPlayer/DrawGameArea
 // tails (cl cross-jumps them into the 0x414f5b/0x414f63 shared blocks).
-void GameView::OnBumpTile(int dx, int dy)
+void CDeskcppView::OnBumpTile(int dx, int dy)
 {
     int dx2 = dx;
     int dy2 = dy;
@@ -7146,7 +7144,7 @@ void GameView::OnBumpTile(int dx, int dy)
 
 // FUNCTION: YODA 0x004150a0
 // Recomputes the player's sprite tile for the current facing (nMoveDX,nMoveDY) and repaints.
-void GameView::UpdatePlayerWalkFrame()
+void CDeskcppView::UpdatePlayerWalkFrame()
 {
     bBusy = 1;
     pWorld->pPlayerFrameTile =
@@ -7176,7 +7174,7 @@ void GameView::UpdatePlayerWalkFrame()
 //      CPoint — LEA &nMouseX + deref); `CPoint(nMouseX,nMouseY)` spills a temp and
 //      `*(POINT*)&nMouseX` adds a conversion copy (both worse). Switch is a jump table over
 //      keys 0x20..0x77; VK_F8 has no break (falls through, matching the orig's last-case flow).]
-void GameView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+void CDeskcppView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
     int bMoved = 0;
 
@@ -7365,7 +7363,7 @@ void GameView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 // &strCheatBuffer into a callee-saved reg (this -> edi). That reallocation cascades
 // (playerX/Y coord LEA-vs-shl+add scheduling). Minimal-TU-probe / G1 dial territory.
 // ---------------------------------------------------------------------------
-void GameView::CheckCheat()
+void CDeskcppView::CheckCheat()
 {
     CString str = "goyoda";
     if (strcmp(str, strCheatBuffer) == 0)
@@ -7400,7 +7398,7 @@ void GameView::CheckCheat()
 // but the GetAsyncKeyState test/`xor ecx,ecx` schedule 1-2 slots later than the original
 // (the v26 OnKeyDown GetAsyncKeyState `& 0x8000` scheduling family). Parked for G1.
 // ---------------------------------------------------------------------------
-void GameView::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
+void CDeskcppView::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
     bLocatorKeyLatchMaybe = 0;
     int nShift = GetAsyncKeyState(VK_SHIFT);
@@ -7425,7 +7423,7 @@ void GameView::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
 // GameView::OnDestroy (WM_DESTROY): kill the frame timer and destroy the inventory
 // scroll bar, then chain to the base.
 // ---------------------------------------------------------------------------
-void GameView::OnDestroy()
+void CDeskcppView::OnDestroy()
 {
     ::KillTimer(m_hWnd, 0x1d1d);
     if (pInvScrollBar != NULL)
@@ -7448,7 +7446,7 @@ void GameView::OnDestroy()
 // FIRST ::AnimatePalette's setup only — the orig's two IDENTICAL statements get OPPOSITE
 // allocations by position (the ZTS<->WES parity-crossing family, not source-steerable). G1.
 // ---------------------------------------------------------------------------
-void GameView::CyclePalette()
+void CDeskcppView::CyclePalette()
 {
     if (pWorld->bPaletteAnimEnabled == 0)
         return;
@@ -7568,7 +7566,7 @@ void GameView::CyclePalette()
 // original map entry #11 is WM_VSCROLL (0x115) pointing at THIS function (0x415ff0, byte-exact).
 // The body (CView::OnHScroll / InvScrollBar::OnHScroll reflection) is the original's, unchanged.
 // ---------------------------------------------------------------------------
-void GameView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+void CDeskcppView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
     if (pInvScrollBar != NULL)
     {
@@ -7588,7 +7586,7 @@ void GameView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 // (AfxGetModuleState()->m_pCurrentWinApp) scheduling relative to the pMusicThread load
 // - the original hoists the AfxGetModuleState call earlier. Scheduling tie-break, G1.
 // ---------------------------------------------------------------------------
-void GameView::ConfirmExit()
+void CDeskcppView::ConfirmExit()
 {
     if (pWorld->nFrameMode == 4)
     {
@@ -7624,7 +7622,7 @@ void GameView::ConfirmExit()
 // Identical body: cancel drag, confirm, then shut down.
 // EFFECTIVE: shares ConfirmExit's AfxGetApp()-inline scheduling residual (twin body).
 // ---------------------------------------------------------------------------
-void GameView::OnAppExit()
+void CDeskcppView::OnAppExit()
 {
     if (pWorld->nFrameMode == 4)
     {
@@ -7663,7 +7661,7 @@ void GameView::OnAppExit()
 // this<->nSavedMode esi/edi allocator swap under the pre-DDX dial — the dial fixed it,
 // vindicating the fixed-point rule).
 // ---------------------------------------------------------------------------
-void GameView::OnCmdDifficulty()
+void CDeskcppView::OnCmdDifficulty()
 {
     DifficultyDlg dlg(this);
     bBusy = 1;
@@ -7682,7 +7680,7 @@ void GameView::OnCmdDifficulty()
 // bank the elapsed time into timeOffset; on resume, restore the zone/camera and reset
 // timeBase so the game clock continues.
 // ---------------------------------------------------------------------------
-void GameView::OnTogglePause()
+void CDeskcppView::OnTogglePause()
 {
     int nMode = pWorld->nFrameMode;
     int *pMode = &pWorld->nFrameMode;
@@ -7707,7 +7705,7 @@ void GameView::OnTogglePause()
 // GameView::OnUpdatePauseUi (ON_UPDATE_COMMAND_UI 0x8002): enable the Pause item unless
 // mid-transition (modes 1/4/5/6/7/9); check it while paused (mode 0).
 // ---------------------------------------------------------------------------
-void GameView::OnUpdatePauseUi(CCmdUI *pCmdUI)
+void CDeskcppView::OnUpdatePauseUi(CCmdUI *pCmdUI)
 {
     switch (pWorld->nFrameMode)
     {
@@ -7732,7 +7730,7 @@ void GameView::OnUpdatePauseUi(CCmdUI *pCmdUI)
 // value is un-inverted (clamped 0x60..0xb9) into nGameSpeed, mirrored to World.gameSpeed,
 // and the frame timer is restarted at the new interval.
 // ---------------------------------------------------------------------------
-void GameView::OnCmdGameSpeed()
+void CDeskcppView::OnCmdGameSpeed()
 {
     GameSpeedDlg dlg(this);
     dlg.m_nValue = 0xba - nGameSpeed;
@@ -7759,7 +7757,7 @@ void GameView::OnCmdGameSpeed()
 // GameView::OnUpdateGameSpeedUi (ON_UPDATE_COMMAND_UI 0x800c): disable mid-transition
 // (modes 1/4/5/6/8/0xb), else enable only when not busy.
 // ---------------------------------------------------------------------------
-void GameView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
+void CDeskcppView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
 {
     switch (pWorld->nFrameMode)
     {
@@ -7783,7 +7781,7 @@ void GameView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
 // GameView::OnCmdWorldSizeMaybe (WM_COMMAND 0x800d): run the world-size slider dialog
 // seeded from World.worldSize; read it back on OK. Demo-disabled via the UI handler.
 // ---------------------------------------------------------------------------
-void GameView::OnCmdWorldSizeMaybe()
+void CDeskcppView::OnCmdWorldSizeMaybe()
 {
     WorldSizeDlg dlg(this);
     dlg.m_nValue = pWorld->worldSize;
@@ -7798,7 +7796,7 @@ void GameView::OnCmdWorldSizeMaybe()
 // for the vcall (the unused GameView `this` stays in ecx a beat longer); ours loads
 // pCmdUI straight to ecx. Allocation artifact of a `this`-ignoring member. G1.
 // ---------------------------------------------------------------------------
-void GameView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
+void CDeskcppView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
 {
     pCmdUI->Enable(0);
 }
@@ -7807,7 +7805,7 @@ void GameView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
 // FUNCTION: YODA 0x004165b0
 // GameView::OnUpdateDifficultyUi (ON_UPDATE_COMMAND_UI 0x8005): same gate as GameSpeed.
 // ---------------------------------------------------------------------------
-void GameView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
+void CDeskcppView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
 {
     switch (pWorld->nFrameMode)
     {
@@ -7834,7 +7832,7 @@ void GameView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
 // result ignored (display-only). The stack StatsDlg makes this TU emit ??1StatsDlg —
 // the binary's copy is at 0x416750 (marker on the class dtor comes free).
 // ---------------------------------------------------------------------------
-void GameView::OnCmdStats()
+void CDeskcppView::OnCmdStats()
 {
     StatsDlg dlg(this, pWorld);
     CString str;
@@ -7855,7 +7853,7 @@ void GameView::OnCmdStats()
 // GameView::OnUpdateStatsUi (ON_UPDATE_COMMAND_UI 0x800e): always disabled (demo).
 // EFFECTIVE (6B, 13/13): same unused-`this` eax-hop as OnUpdateWorldSizeUi. G1.
 // ---------------------------------------------------------------------------
-void GameView::OnUpdateStatsUi(CCmdUI *pCmdUI)
+void CDeskcppView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 {
     pCmdUI->Enable(0);
 }
@@ -7870,7 +7868,7 @@ void GameView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 // StatsDlg::StatsDlg — CDialog(template 0xe1); store the doc pointer and empty the 4
 // DDX strings (the //{{AFX_DATA_INIT block).
 // ---------------------------------------------------------------------------
-StatsDlg::StatsDlg(CWnd *pParent, World *pDoc) : CDialog(0xe1, pParent)
+StatsDlg::StatsDlg(CWnd *pParent, CDeskcppDoc *pDoc) : CDialog(0xe1, pParent)
 {
     pWorld = pDoc;
     //{{AFX_DATA_INIT(StatsDlg)
@@ -7920,18 +7918,18 @@ BOOL StatsDlg::OnInitDialog()
 // GameView::OnDialogCloseBtn (BN 0x1389): the in-game text balloon's CLOSE button
 // just sets the "close was clicked" flag; the frame loop tears the dialog down.
 // ---------------------------------------------------------------------------
-void GameView::OnDialogCloseBtn()
+void CDeskcppView::OnDialogCloseBtn()
 {
     bDialogCloseClicked = 1;
 }
 
 // FUNCTION: YODA 0x00416a70
-void GameView::OnDialogUpBtnNop()
+void CDeskcppView::OnDialogUpBtnNop()
 {
 }
 
 // FUNCTION: YODA 0x00416a80
-void GameView::OnDialogDownBtnNop()
+void CDeskcppView::OnDialogDownBtnNop()
 {
 }
 
@@ -7945,7 +7943,7 @@ void GameView::OnDialogDownBtnNop()
 // slot BEFORE SetTextColor (+0x38). The disasm `CALL [EAX+0x34]` pins it to SetBkColor; the
 // old "DIFF 1 benign byte" was that vtable-slot displacement — a real semantic bug, not noise.
 // ---------------------------------------------------------------------------
-HBRUSH GameView::OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
+HBRUSH CDeskcppView::OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
 {
     HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
     if (nCtlColor == 1)
@@ -7962,7 +7960,7 @@ HBRUSH GameView::OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
 // (mode 7 / reason 4), accumulate the cheat-code letters (only the chars used by
 // "goyoda"/"gojedi") into strCheatBuffer, then run CheckCheat.
 // ---------------------------------------------------------------------------
-void GameView::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
+void CDeskcppView::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
     if (pWorld->nFrameMode == 7 && pWorld->nMapChangeReason == 4)
     {
@@ -7991,7 +7989,7 @@ void GameView::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
 // FUNCTION: YODA 0x00416b90
 // TextDialog::TextDialog — store the parent view (twice: pView2 + pParentView), clear the
 // scalar state and empty the text. unk08 = -1.
-TextDialog::TextDialog(GameView *pView)
+TextDialog::TextDialog(CDeskcppView *pView)
 {
     pParentView = pView;
     unk00 = 0;
@@ -8066,7 +8064,7 @@ int TextDialog::Run()
     pParentView->bDialogCloseClicked = 0;
     if (pParentView->bShowEmptyDialogOnceMaybe == 1)
         pParentView->bDialogCloseClicked = 1;
-    GameView *pGV = pParentView;
+    CDeskcppView *pGV = pParentView;
     RECT rc;
     rc.top = rectBox.top - pGV->pWorld->nViewTop;
     rc.left = rectBox.left - pGV->pWorld->nViewLeft;
@@ -8250,7 +8248,7 @@ done_paint:
 void TextDialog::Position()
 {
     int halfW = nBoxW / 2;
-    World *pW = pParentView->pWorld;
+    CDeskcppDoc *pW = pParentView->pWorld;
     int x;
     if (pW->currentZone->width < 10 || nMode != 0)
     {

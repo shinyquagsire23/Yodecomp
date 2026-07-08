@@ -30,7 +30,7 @@ static __inline void DemoDisable(CCmdUI *p)
 // Load the planet-1 story history from registry [GameData] Nevada0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.
-void World::LoadStoryHistoryNevada()
+void CDeskcppDoc::LoadStoryHistoryNevada()
 {
     char buf[32];
     CWinApp *pApp = AfxGetApp();
@@ -89,7 +89,7 @@ void World::LoadStoryHistoryNevada()
 // Load the planet-2 story history from registry [GameData] Alaska0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.
-void World::LoadStoryHistoryAlaska()
+void CDeskcppDoc::LoadStoryHistoryAlaska()
 {
     char buf[32];
     CWinApp *pApp = AfxGetApp();
@@ -146,7 +146,7 @@ void World::LoadStoryHistoryAlaska()
 // Load the planet-3 story history from registry [GameData] Oregon0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.
-void World::LoadStoryHistoryOregon()
+void CDeskcppDoc::LoadStoryHistoryOregon()
 {
     char buf[32];
     CWinApp *pApp = AfxGetApp();
@@ -200,7 +200,7 @@ void World::LoadStoryHistoryOregon()
 }
 
 // FUNCTION: YODA 0x00402660
-void World::Nop1()
+void CDeskcppDoc::Nop1()
 {
 }
 
@@ -218,7 +218,7 @@ void World::Nop1()
 //   in the original binary too; don't chase per-function.]
 // Write storyHistoryNevada back to registry [GameData] Nevada0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
-void World::SaveStoryHistoryNevada()
+void CDeskcppDoc::SaveStoryHistoryNevada()
 {
     char buf[32];
     int fullLines;
@@ -296,7 +296,7 @@ void World::SaveStoryHistoryNevada()
 // FUNCTION: YODA 0x004029c0
 // Write storyHistoryAlaska back to registry [GameData] Alaska0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
-void World::SaveStoryHistoryAlaska()
+void CDeskcppDoc::SaveStoryHistoryAlaska()
 {
     char buf[32];
     int fullLines;
@@ -374,7 +374,7 @@ void World::SaveStoryHistoryAlaska()
 // FUNCTION: YODA 0x00402d10
 // Write storyHistoryOregon back to registry [GameData] Oregon0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
-void World::SaveStoryHistoryOregon()
+void CDeskcppDoc::SaveStoryHistoryOregon()
 {
     char buf[32];
     int fullLines;
@@ -450,14 +450,14 @@ void World::SaveStoryHistoryOregon()
 }
 
 // FUNCTION: YODA 0x00403060
-void World::Nop2()
+void CDeskcppDoc::Nop2()
 {
 }
 
 // FUNCTION: YODA 0x00403070  [EFFECTIVE MATCH: DIFF(24) — i/n register 2-cycle (ebx/edi) in both
 //   loops + funclet-window skew (len 206 incl. our EH stubs vs Ghidra body 188). Probes inert.]
 // Rebuild placedZoneIds in place, dropping zones whose type is Empty(1).
-void World::RemoveEmptyZonesFromPlacedList()
+void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
 {
     int n = placedZoneIds.GetSize();
     CWordArray keep;
@@ -477,7 +477,7 @@ void World::RemoveEmptyZonesFromPlacedList()
 //   TU dial. Proven correct; settles at G1.]
 // Stamp a zone's visible objects into tile layer 1. Types 0/1/2/5/6/7/8 place their tile if
 // active and the cell is empty; type 0xb forces tile 0x1cb.
-void World::PlaceZoneObjectTiles(short zoneId)
+void CDeskcppDoc::PlaceZoneObjectTiles(short zoneId)
 {
     if (zoneId >= 0) {
         Zone *z = zoneObjects[zoneId];
@@ -517,7 +517,7 @@ void World::PlaceZoneObjectTiles(short zoneId)
 //   decl set; DIFF(16) again since the real-GameView.h de-dup (step 5, 2026-07-07). Proven
 //   correct; settles at G1.]
 // Locate the world-map cell holding zone `id`; outputs grid coords.
-int World::FindZoneCellById(short id, int *pX, int *pY)
+int CDeskcppDoc::FindZoneCellById(short id, int *pX, int *pY)
 {
     if (id >= 0 && id < zoneCount) {
         for (int y = 0; y < 10; y++)
@@ -536,7 +536,7 @@ int World::FindZoneCellById(short id, int *pX, int *pY)
 // FUNCTION: YODA 0x004032c0
 // Bitmask of map exits from the player's cell: W=8 E=4 N=1 S=2. Indoor/special zone types
 // (8/9/0xd/0xe) have no map exits. Consumed by GameView::DrawDirectionArrows.
-unsigned char World::GetExitDirections()
+unsigned char CDeskcppDoc::GetExitDirections()
 {
     if (currentZone == 0)
         return 0;
@@ -561,7 +561,7 @@ unsigned char World::GetExitDirections()
 
 // FUNCTION: YODA 0x004033b0  [EFFECTIVE MATCH: DIFF(6) — walker/counter ebx<->ebp 2-cycle.]
 // .wld save: zone id + full flag + Zone::WriteSavedState, recursing into door-linked rooms.
-void World::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
+void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 {
     Zone *z = zoneObjects[zoneId];
     f->Write(&zoneId, 2);
@@ -579,7 +579,7 @@ void World::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 // FUNCTION: YODA 0x00403450  [EFFECTIVE MATCH: DIFF(6) at exact length — residual register roles;
 //   the child-local (o->arg cached across the Reads) was the structural crack, cf. HitEntityAt.]
 // .wld load mirror: read + verify each door child id before recursing.
-void World::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
+void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 {
     short savedId;
     int savedFull;
@@ -604,13 +604,13 @@ void World::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 // [EFFECTIVE MATCH: DIFF(6) x3 for the grayed trio — the original stages pCmdUI through EAX
 //  (mov eax,[esp+4]; mov ecx,eax; mov edx,[eax]) where ours loads ECX directly. Local-copy,
 //  inline-helper, and cast forms all fold to ours. 18 bytes total; park.]
-void World::OnUpdateFileSave(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateFileSave(CCmdUI *pCmdUI)
 {
     DemoDisable(pCmdUI);
 }
 
 // FUNCTION: YODA 0x00403520
-void World::OnUpdateAppExit(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateAppExit(CCmdUI *pCmdUI)
 {
     if (nFrameMode != 1 && nFrameMode != 6 && nFrameMode != 5)
         pCmdUI->Enable(1);
@@ -619,7 +619,7 @@ void World::OnUpdateAppExit(CCmdUI *pCmdUI)
 }
 
 // FUNCTION: YODA 0x00403550
-void World::OnUpdateHideMe(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateHideMe(CCmdUI *pCmdUI)
 {
     if (nFrameMode != 1 && nFrameMode != 6)
         pCmdUI->Enable(1);
@@ -628,7 +628,7 @@ void World::OnUpdateHideMe(CCmdUI *pCmdUI)
 }
 
 // FUNCTION: YODA 0x00403580
-void World::OnUpdateNewWorld(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateNewWorld(CCmdUI *pCmdUI)
 {
     switch (nFrameMode) {
     case 1:
@@ -653,14 +653,14 @@ void World::OnUpdateNewWorld(CCmdUI *pCmdUI)
 
 // FUNCTION: YODA 0x00403600
 // File>Load World: permanently grayed in the demo.
-void World::OnUpdateLoadWorld(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateLoadWorld(CCmdUI *pCmdUI)
 {
     DemoDisable(pCmdUI);
 }
 
 // FUNCTION: YODA 0x00403610
 // File>Replay Story: permanently grayed in the demo (the handler is still linked).
-void World::OnUpdateReplayStory(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateReplayStory(CCmdUI *pCmdUI)
 {
     DemoDisable(pCmdUI);
 }
@@ -668,7 +668,7 @@ void World::OnUpdateReplayStory(CCmdUI *pCmdUI)
 // FUNCTION: YODA 0x00403620
 // File>Replay Story: confirm if a game is in progress, pick the story to replay (current goal or
 // the planet history's most recent), then rebuild the world around it with a fresh seed.
-void World::OnReplayStory()
+void CDeskcppDoc::OnReplayStory()
 {
     int answer = 6;
     int savedMode = nFrameMode;
@@ -742,7 +742,7 @@ void World::OnReplayStory()
 //   grid-store increment placement, gen-loop layout, early-out jcc direction (as before).]
 // Begin a game session: reset player state, walk-in animation, camera/inventory reset, clear both
 // map grids, load assets, then (unless restoring a save) generate + populate the world.
-int World::StartGame(unsigned int nSeed, int bSkipGenerate)
+int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
 {
     bHidePlayer = 1;
     healthHi = 1;
@@ -758,7 +758,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
     nFrameMode = 7;
     nCurrentAmmo = 0;
     POSITION pos = GetFirstViewPosition();
-    GameView *v = (GameView *)GetNextView(pos);
+    CDeskcppView *v = (CDeskcppView *)GetNextView(pos);
     if (v != 0) {
         for (int i = 0; i < 5; i++) {
             v->ZoneTransitionStep(0x5d, (short)i);
@@ -852,7 +852,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
 }
 
 // FUNCTION: YODA 0x00403a40
-Tile *World::GetTileData(int idx)
+Tile *CDeskcppDoc::GetTileData(int idx)
 {
     if (idx >= 0 && idx < tileCount)
         return tileArray[idx];
@@ -860,7 +860,7 @@ Tile *World::GetTileData(int idx)
 }
 
 // FUNCTION: YODA 0x00403a70
-Zone *World::GetZoneById(short id)
+Zone *CDeskcppDoc::GetZoneById(short id)
 {
     if (id >= 0 && id < zoneCount)
         return zoneObjects[id];
@@ -869,7 +869,7 @@ Zone *World::GetZoneById(short id)
 
 // FUNCTION: YODA 0x00403aa0  [EFFECTIVE MATCH: DIFF(4) — orig reuses dead ECX (this) for the
 //   walk pointer; ours colors it EDX. cmp-flip inert. Allocator tie-break.]
-int World::FindTile(void *pTile)
+int CDeskcppDoc::FindTile(void *pTile)
 {
     int r = -1;
     int n = tileCount;
@@ -894,7 +894,7 @@ int World::FindTile(void *pTile)
 //   + push/mov scheduling at the blit sites.]
 // Redraw the whole current zone into the offscreen canvas: 3 layers per cell; layers 1/2 use the
 // masked blit for game-object tiles.
-void World::RefreshZone()
+void CDeskcppDoc::RefreshZone()
 {
     if (currentZone == 0) {
         pCanvas->Clear();
@@ -955,7 +955,7 @@ void World::RefreshZone()
 // gate-adjacent (0x66/0x68) 300-cells into 0x132 quest steps with sequential order ids,
 // tops up with random ring-3+ placements, then swaps the final step out of the start ring.
 // Returns the number of quest steps placed.
-int World::BuildQuestPathMaybe(short *paGrid, short *paOrder)
+int CDeskcppDoc::BuildQuestPathMaybe(short *paGrid, short *paOrder)
 {
     int nItems = 0;
     int nGates = 0;

@@ -50,7 +50,7 @@ CMainFrame::~CMainFrame()
 // on restore; intercept SC_CLOSE to route through the game's exit confirmation.
 void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
 {
-    GameView *pView = (GameView *)GetActiveView();
+    CDeskcppView *pView = (CDeskcppView *)GetActiveView();
     switch (nID & 0xfff0) {
     case SC_MINIMIZE:
         pView->bBusy = 1;
@@ -199,7 +199,7 @@ BOOL CMainFrame::OnQueryNewPalette()
 // restore the parked mode + clock and resume music.
 void CMainFrame::OnActivate(UINT nState, CWnd *pWndOther, BOOL bMinimized)
 {
-    GameView *pView = (GameView *)GetActiveView();
+    CDeskcppView *pView = (CDeskcppView *)GetActiveView();
     if (nState == 0) {
         if (pView != NULL) {
             FrameWorld *pWorld = pView->pWorld;
@@ -254,7 +254,7 @@ void CMainFrame::OnShowWindow(BOOL bShow, UINT nStatus)
 // FUNCTION: YODA 0x004196c0
 BOOL CMainFrame::OnQueryEndSession()
 {
-    GameView *pView = (GameView *)GetActiveView();
+    CDeskcppView *pView = (CDeskcppView *)GetActiveView();
     if (pView->pWorld->nFrameMode != 0xc)
         pView->ConfirmExit();
     return FALSE;

@@ -8,8 +8,8 @@
 #include <afxcoll.h>
 
 class Character;
-class World;
-class GameView;
+class CDeskcppDoc;
+class CDeskcppView;
 
 // PUZ2 record (0x2c). 5 CStrings + item ids.
 // Puzzle.nType — the puzzle's worldgen class (WorldgenSelectPuzzle maps zone types onto these:
@@ -237,9 +237,9 @@ public:                              // +0x00 = CObject vtable
     ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330
     void           FlagQuestObjects();                      // 0x004056d0
     int            DamageEntityAt(int x, int y, CObArray *paChars, short damage,
-                                  World *pWorld, GameView *pView);       // 0x00405710
+                                  CDeskcppDoc *pWorld, CDeskcppView *pView);       // 0x00405710
     int            HitEntityAt(int x, int y, CObArray *paChars, int timerVal,
-                               World *pWorld, GameView *pView);          // 0x004059d0
+                               CDeskcppDoc *pWorld, CDeskcppView *pView);          // 0x004059d0
     void           ReadSavedState(CFile *pFile, int bFull);              // 0x00405bd0 (Iact .obj)
     void           WriteSavedState(CFile *pFile, int bFull);             // 0x00405f30 (Iact .obj)
     // Iact .obj (src/Iact/Iact.cpp) — .dta chunk readers + the IACT interpreter:
@@ -250,9 +250,9 @@ public:                              // +0x00 = CObject vtable
     void           ReadZax4(CFile *pFile);                               // 0x00406510 (Iact .obj, this unused)
     int            IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce); // 0x00406550 (Iact .obj)
     int            IactRun(int event, int x, int y, int dx, int dy, int a5,
-                           CDC *pDC, World *pWorld, GameView *pView);              // 0x00406780 (Iact .obj)
-    unsigned int   IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld,
-                                   GameView *pView);                               // 0x004070e0 (Iact .obj)
+                           CDC *pDC, CDeskcppDoc *pWorld, CDeskcppView *pView);              // 0x00406780 (Iact .obj)
+    unsigned int   IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
+                                   CDeskcppView *pView);                               // 0x004070e0 (Iact .obj)
 };
 
 #endif

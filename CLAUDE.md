@@ -8,7 +8,13 @@ In general, you can adhere to patterns found in `OpenJKDF2`, located at `~/works
 
 ## Naming Convention and Decompiling Tips
 
-In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat'). Name a pointer after the **struct it points to**, not its MFC role: the `World`(`CDeskcppDoc`) pointer is **`pWorld`**, NOT `doc`/`pDoc` (e.g. `GameView.pWorld@0x44`); a `GameView` pointer is `pView`, etc.
+In general, variable names should follow a loose-Hungarian Notation, where pointers start with `p` (ie, `pThing`), pointers to arrays are prefixed with `pa` (ie `paIndices`), booleans are prefixed with `b` (ie, 'Main_bMotsCompat'). Name a pointer after the **struct it points to**, not its MFC role. **⭐ v50: the doc and view classes were
+RENAMED to their ORIGINAL names — `CDeskcppDoc` (was aliased `World`) and `CDeskcppView` (was `GameView`) —
+known with certainty from the binary's `CRuntimeClass.m_lpszClassName` strings ("CDeskcppDoc"/"CDeskcppView";
+the original MFC project was "Deskcpp" = Desktop Adventures). Source + Ghidra struct + Ghidra namespace all
+renamed.** VARIABLE names keep the readable game-concept form (we don't know the original's variable names):
+the `CDeskcppDoc` pointer is still **`pWorld`**, NOT `doc`/`pDoc`/`pCDeskcppDoc` (e.g. `CDeskcppView.pWorld@0x44`);
+a `CDeskcppView` pointer is `pView`, etc. (So class = original `CDeskcppDoc`; pointer = readable `pWorld`.)
 
 **Function naming = C++ `Namespace::Method`.** This is a C++/MFC app, so group
 functions by their **class** as a Ghidra namespace and give the method a bare name — **do NOT repeat the
@@ -570,7 +576,19 @@ Written to be followable without prior context: each phase lists concrete steps 
   original is WM_VSCROLL (the vertical inventory scrollbar's messages went unhandled); renamed OnHScroll→OnVScroll
   (0x415ff0 body byte-matches, reflects to InvScrollBar) + ON_WM_VSCROLL + reordered entries to original → all 11
   maps CLEAN. Codegen-neutral because a non-empty msgmap's reorder/completion is .rdata data (contrast v45's
-  empty→full World map that displaced ~World). lesson #33. link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN.**
+  empty→full World map that displaced ~World). lesson #33. link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN.** →
+  **211 exact / 99.17 % coverage — v50 (2026-07-08): DYNCREATE CRuntimeClass verification + CLASS RENAME to
+  original names (USER-directed source fidelity; CODEGEN-NEUTRAL, 211 held). (1) Verified the 3 DYNCREATE
+  CRuntimeClass object SIZES match (World 0x33c0, GameView 0x310, CMainFrame 0xd8 — no mis-sized-allocation
+  bug). (2) Found the class-name STRINGS differ: original CRuntimeClass.m_lpszClassName = 'CDeskcppDoc'/
+  'CDeskcppView' (the real MFC names; project was "Deskcpp"=Desktop Adventures) but we'd renamed them World/
+  GameView. (3) ⭐ RENAMED the classes to their ORIGINAL names throughout: `World`→`CDeskcppDoc`,
+  `GameView`→`CDeskcppView` — 323 tokenizer-based code-only edits across 16 files (comments/strings/#includes
+  skipped), + Ghidra STRUCT rename + Ghidra NAMESPACE rename (thiscall `this` now types as CDeskcppDoc*/
+  CDeskcppView*). The rename makes the DYNCREATE macro emit the correct .rdata strings NATURALLY (no
+  hand-expansion). Byte-match unaffected (symbol names are masked relocs): 211 held, link 0/0/exit0, bugscan
+  0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN. VARIABLES keep pWorld/pView (game-concept readable; original var
+  names unknown).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -612,46 +630,43 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v49 — PHASE G2: msgmap oracle + GameView VSCROLL bug fixed; 211 exact)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v49** commit (msgcheck +
-CTheApp/GameView msgmap fixes); below: b6bb67e v48 (vtcheck auto), e961bf9 v47, ec4015c v46, 4f56b58 v45. Tree
-CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
-`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2
-/D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh` which
-compiles all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **211 exact funcs / 99.17%
-coverage** (⚠ was 212 through v44 — v45 traded ~World for the essential msgmap; v46-v49 neutral); `bugscan.py
---all` → **0/0/0**; **`vtcheck.py` → 10 CLEAN**; **`msgcheck.py` → 11 maps CLEAN** (all exit 0). Per-TU exact:
-AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**,
-IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 7/13**, Worldgen 34/91. ⚠ verify.py per-TU can UNDERCOUNT
-~10 (lesson #30): trust progress.py's 211. **G2 baseline: `g2_link.sh && g2_diff.py` → LAYOUT 39/378, CONTENT
-225/378, BOTH 32/378.** **REF-drop oracle (lesson #32): 5 dropped (was 22 at v45 start).** Ghidra:
-current=YodaDemo.exe (nothing pending). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (main-thread).
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v50 — PHASE G2: DYNCREATE verify + CLASS RENAME to CDeskcppDoc/CDeskcppView; 211 exact)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v50** commit (class rename +
+CRuntimeClass); below: bea006a v49 (msgcheck), b6bb67e v48, e961bf9 v47, ec4015c v46, 4f56b58 v45. Tree CLEAN
+(USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). ⭐ **v50 RENAMED the doc/view classes to
+their ORIGINAL names: `World`→`CDeskcppDoc`, `GameView`→`CDeskcppView`** (in source AND Ghidra struct+namespace) —
+known from the binary's CRuntimeClass strings. So the CLASS is now `CDeskcppDoc`/`CDeskcppView` everywhere;
+VARIABLES stay `pWorld`/`pView` (readable). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> &&
+rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or `tools/link_exe.sh`): `link_exe.sh` → **0/0/exit 0**;
+`progress.py` → **211 exact / 99.17%** (⚠ was 212 through v44 — v45 traded ~World for the msgmap; v46-v50
+neutral); `bugscan.py --all` → **0/0/0**; **`vtcheck.py` → 10 CLEAN**; **`msgcheck.py` → 11 CLEAN**. Per-TU exact:
+AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, GameData 13/27, GameView(now CDeskcppView TU) 73/124,
+Iact 2/10, IactScript 11/12, Records 26/33, World 6/8, WorldDoc 7/13, Worldgen 34/91. ⚠ verify.py per-TU can
+UNDERCOUNT ~10 (lesson #30): trust progress.py's 211. **G2: `g2_link.sh && g2_diff.py` → LAYOUT 39/378, CONTENT
+225/378.** **REF-drop oracle (lesson #32): 5 dropped.** Ghidra: current=YodaDemo.exe, SAVED (struct+namespace
+rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (main-thread).
 
-**▶ v45–v49 RESULTS — ref graph 22→5 + ALL .rdata vtables & msgmaps validated (2 real bugs fixed):**
-- **v45 World msgmap** (22→7 REF-drops; cost ~World PHASE-DISPLACED 212→211). **v46 World vtable overrides**
-  IsModified/SetModifiedFlag (7→5, neutral). **v47/48 vtcheck** — 10 classes' vtables CLEAN, no missing overrides.
-- **v49 msgcheck** (tools/msgcheck.py): all 11 maps CLEAN after fixing **CTheApp** (incomplete 1→8, AppWizard
-  standard block) and **GameView #11** (ON_WM_HSCROLL→WM_VSCROLL — the vertical inventory scrollbar was
-  unhandled; renamed OnHScroll→OnVScroll, body byte-matches; + reordered entries). Both codegen-neutral (211).
+**▶ v45–v50 RESULTS — ref graph 22→5 + ALL .rdata content validated + classes renamed to original:**
+- **v45 World msgmap** (22→7; cost ~World 212→211). **v46 vtable overrides** (7→5). **v47/48 vtcheck** — 10
+  vtables CLEAN. **v49 msgcheck** — 11 maps CLEAN (fixed CTheApp incomplete + GameView WM_HSCROLL→VSCROLL bug).
+- **v50** — DYNCREATE CRuntimeClass sizes verified (World 0x33c0 / GameView 0x310 / CMainFrame 0xd8, no heap
+  bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
+  namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v50) — PHASE G2, main-thread. Content correctness is now THOROUGHLY covered (vtables + msgmaps +
-call-sites via bugscan, all CLEAN). The .rdata CONTENT sweep is essentially DONE. What remains is genuinely the
-hard tail or wall-blocked layout — there is no more cheap high-value content work. Options, best-first:**
-1. **String-pool / DYNCREATE-name / other .rdata const-data content checks (diminishing returns).** The remaining
-   unchecked .rdata is string literals + CRuntimeClass name strings + DDX field tables. Low bug-probability
-   (strings mismatch loudly at runtime). Only worth a quick spot-check, not a full tool.
-2. **The 5 REMAINING REF-drops = hard tail — documented in docs/g2-layout.md, do NOT force (each ≤2 funcs, each
-   risks a regression):** AppWnd `OnPaint`/`OnTimer` (real msgmap @0x44b008 but in a DIFFERENT original TU per
-   v42 — adding to AppData re-breaks the v42 layout), AppWnd `Disable`(0x401090)/`Enable`(0x4010a0) (ICF-folded,
-   19 vtable xrefs + a game caller), `??_H` __vector_constructor_iterator (CRT helper odr-use needle).
-3. **Absolute-LAYOUT frontier = the first length wall** (`g2_order.py --walls`): SaveStoryHistoryNevada 0x402670
-   (+0x10). ≤ that addr can be absolute-LAYOUT-correct; past it drift oscillates (reg-alloc wall, unobtainable
-   cl — do NOT grind). PE timestamp/checksum mask + EH funclets/thunks (0x424fb0, 0x424f69) are cosmetic endgame.
-4. **⚠ HONEST ASSESSMENT for the user:** after v49 the project is at a natural plateau — 211/534 byte-exact +
-   the rest effective, a runnable /OPT:REF image, ref-graph 22→5, and ALL .rdata content (vtables/msgmaps)
-   validated against the original. The two open frontiers both need things we don't have: the 212+ exact ceiling
-   needs a different period-correct cl.exe (reg-alloc wall, exhaustively proven v37-v40), and absolute whole-image
-   layout needs that same wall cracked. Consider surfacing this to the user rather than manufacturing low-value work.
+**▶ START HERE (v51) — ⚠ the project is at a GENUINE PLATEAU; do NOT manufacture low-value work. Read this first.**
+The decomp is thoroughly done on every front we CAN advance: 211/534 byte-exact + rest effective; runnable
+/OPT:REF image; ref-graph 22→5; ALL .rdata content (vtables, msgmaps, DYNCREATE sizes/names) validated against
+the original; classes named as the original. **The two remaining frontiers each need something we do not have,
+proven exhaustively (v37-v40, v42, docs/g2-layout.md):** (a) 212+ byte-exact needs a DIFFERENT period-correct
+cl.exe (the intrinsic reg-alloc wall — NOT source-fixable), (b) absolute whole-image layout needs that same wall
+cracked (everything shifts after the first .text length divergence). **Recommended: SURFACE this to the user** —
+ask whether to (i) call the content phase complete and stop, (ii) hunt a period-correct MSVC 4.2 cl.exe build
+(the only thing that could raise 211 or enable absolute layout), or (iii) pursue non-byte-goals (a clean buildable
+source tree / documentation / the DesktopAdventures engine cross-port). Only if the user wants more incremental
+work, the low-value options remain: the 5 hard-tail REF-drops (each ≤2 funcs, risks a regression — AppWnd
+OnPaint/OnTimer cross-TU msgmap, AppWnd Disable/Enable ICF-fold, ??_H CRT helper), or PE timestamp/checksum mask +
+EH-funclet/thunk cosmetics (only matter once the wall breaks). Do NOT grind the reg-coloring functions.
 - **PARKED / blocked (unchanged):** AppData CObject-trio -0x30 + WorldgenZoneEntry ??_G (self-correct).
   **Canvas-gap mini** BLOCKED on owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6**
   (World, ~102 fields) — docs/dedup-plan.md.

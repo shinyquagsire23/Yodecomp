@@ -395,8 +395,8 @@ int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
 // ~/workspace/DesktopAdventures. NOTE the original's COND_CheckCellItems reuses the SCRIPT loop
 // variable (idx) for its second inventory scan — a real bug (script iteration restarts from
 // nInv+1 after that condition); reproduced faithfully. Engine-bug inventory: docs/engine-bugs.md.
-int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, World *pWorld,
-                  GameView *pView)
+int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDeskcppDoc *pWorld,
+                  CDeskcppView *pView)
 {
     int          found;      // per-case scratch: HasItem found-flag / QuestSpot counter /
     int          count;      //   CheckCellItems found pair (function-level, C-style decls)
@@ -726,7 +726,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, Wor
 // 0x80=full-redraw 0x100=player 0x200=game-over 0x400=inventory 0x800=zone-warp). SayText/ShowText
 // substitute the current quest items' tile names for the \xa2/\xa5 placeholders, fixing the
 // "a"->"an" article when the name starts with a vowel.
-unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld, GameView *pView)
+unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld, CDeskcppView *pView)
 {
     unsigned int result;
     int          dispX;      // MoveCamera: cell to redraw behind the camera step

@@ -14,14 +14,14 @@
 class Character;
 
 // Cross-TU stubs: layout only where offsets are touched; called methods are extern relocs.
-class GameView
+class CDeskcppView
 {
 public:
     void PlaySound(int nSoundId);               // 0x00409060 (sound/feedback tick)
     void DrawZoneCell(short x, short y);        // 0x00409460 (redraw one map cell)
 };
 
-class World
+class CDeskcppDoc
 {
 public:
     char        _pad0[0x80];         // +0x000

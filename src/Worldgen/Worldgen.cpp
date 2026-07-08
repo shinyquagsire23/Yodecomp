@@ -38,7 +38,7 @@ int gNeedleTable[26] = {
 // with the identical source shape → TU-phase tie-break, joint pass.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in cobArray4 (sel==0)
 // or cobArray5? Boolean twin of ZoneFindInIzxList.
-int World::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
+int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
 {
     int found = 0;
     Zone *pZone = GetZoneById(zoneId);
@@ -105,7 +105,7 @@ int World::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
 // [EFFECTIVE: align=0, pure reg tie-break (8-reg bijection slots) — may flip exact as the
 // TU fills; do not grind.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateA (IZAX)?
-int World::ZoneRequiresItemMaybe(short zoneId, short itemId)
+int CDeskcppDoc::ZoneRequiresItemMaybe(short zoneId, short itemId)
 {
     int found = 0;
     Zone *pZone = GetZoneById(zoneId);
@@ -154,7 +154,7 @@ int World::ZoneRequiresItemMaybe(short zoneId, short itemId)
 // `nAvail <= 0` (TEST/JG), j declared inside the guard. Tie-break family, joint pass.]
 // Pick a random item from zoneId's genCandidateB (IZX3) that IsItemPlaced hasn't seen yet;
 // falls back to DOOR_IN-linked child zones. Returns the item id or -1.
-int World::PickUnplacedItemMaybe(short zoneId)
+int CDeskcppDoc::PickUnplacedItemMaybe(short zoneId)
 {
     int nResult = -1;
     Zone *pZone = GetZoneById(zoneId);
@@ -210,7 +210,7 @@ int World::PickUnplacedItemMaybe(short zoneId)
 // allocates the reverse. Structure/insn-count converged; joint TU pass territory.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateB (IZX3)?
 // itemId == -1 means "any": the list just has to be non-empty.
-int World::ZoneProvidesItem(short zoneId, short itemId)
+int CDeskcppDoc::ZoneProvidesItem(short zoneId, short itemId)
 {
     int found = 0;
     Zone *pZone = GetZoneById(zoneId);
@@ -265,7 +265,7 @@ int World::ZoneProvidesItem(short zoneId, short itemId)
 // FUNCTION: YODA 0x0041c490
 // Recursive lookup of itemId in cobArray4 (sel==0) or cobArray5 (sel!=0); returns the stored
 // value or -1, descending DOOR_IN child zones.
-int World::ZoneFindInIzxList(short zoneId, short itemId, int sel)
+int CDeskcppDoc::ZoneFindInIzxList(short zoneId, short itemId, int sel)
 {
     short v;
     int result = -1;
@@ -337,7 +337,7 @@ int World::ZoneFindInIzxList(short zoneId, short itemId, int sel)
 // Place a required item into a random OBJ_QUEST_ITEM_SPOT (type 0) of the zone whose
 // genCandidateA (IZAX) list names itemId; marks the spot visible=itemId/state=1. Falls back
 // to recursing into DOOR_IN-linked child zones. Returns the placed item id or -1.
-int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
+int CDeskcppDoc::WorldgenFillQuestItemSpot(short zoneId, short itemId)
 {
     int nResult = -1;
     CWordArray paSpots;
@@ -408,7 +408,7 @@ int World::WorldgenFillQuestItemSpot(short zoneId, short itemId)
 // FUNCTION: YODA 0x0041c730
 // Clone of WorldgenFillQuestItemSpot for OBJ_SPAWN (type 1) via genCandidateB (IZX3);
 // also records the placed id in genCellQuestSlot6Scratch.
-int World::WorldgenFillSpawn(short zoneId, short itemId)
+int CDeskcppDoc::WorldgenFillSpawn(short zoneId, short itemId)
 {
     int nResult = -1;
     CWordArray paSpots;
@@ -488,7 +488,7 @@ int World::WorldgenFillSpawn(short zoneId, short itemId)
 // from BOTH quest chains — questItemsA[iA]/[iA+1] and questItemsB[iB] give the three puzzles
 // whose items must meet here. Two paths: if the zone still provides an unplaced IZX3 item,
 // spawn it; otherwise wire the A/B chain items into quest-item spots. Returns 1 on success.
-int World::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrder, short a5)
+int CDeskcppDoc::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrder, short a5)
 {
     Zone *pZone = (Zone *)zones.GetAt(zoneId);
     if (pZone == NULL)
@@ -569,7 +569,7 @@ int World::WorldgenPopulateGoalZone(short zoneId, short iA, short iB, short nOrd
 // Build one USEFUL-DROP chain node (Zone.type==0x10): resolve the quest item (and the next
 // chain item, if any) from the questItemsA/B list picked by sel, spawn a fresh IZX3 item,
 // record the scratch block + AddZoneEntry. Returns 1 on success.
-int World::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, short nOrder, short sel)
+int CDeskcppDoc::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, short nOrder, short sel)
 {
     if (zoneId < 0)
         return 0;
@@ -642,7 +642,7 @@ int World::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, short nOrd
 // Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's cobArray4 (sel==0)
 // or cobArray5 lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
 // DOOR_IN children. nResult lives in EAX end-to-end (0 / 1 / last recursion result).
-int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
+int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
 {
     int nResult = 0;
     int bFound = 0;
@@ -733,7 +733,7 @@ int World::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId,
 // zoneId if its genCandidateA lists it; registers the item via WorldgenAddZoneEntry and
 // genCellItemCScratch. Recurses into DOOR_IN children (no null/negative-id guard — sic).
 // Returns 1 on success.
-int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, unsigned short itemId)
+int CDeskcppDoc::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, unsigned short itemId)
 {
     int bFound = 0;
     int bSpot = 0;
@@ -815,7 +815,7 @@ int World::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal, u
 // lock item on the zone's OBJ_LOCK, then the follow-up into a quest-item spot.
 // sic: on CheckZoneItemsAvailable failure it removes item1a TWICE and never removes item2
 // (docs/engine-bugs.md #11); the two `>= 0` guards on zero-extended WORDs are always true.
-int World::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, short nOrder, short sel)
+int CDeskcppDoc::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, short nOrder, short sel)
 {
     short item1a = -1;
     short item2 = -1;
@@ -882,7 +882,7 @@ int World::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, short nOr
 // flags (TILE_WEAPON -> OBJ_THE_FORCE, TILE_LOCATOR -> OBJ_LOCATOR, TILE_ITEM ->
 // OBJ_QUEST_ITEM_SPOT) and drop it on a random object of that type; else recurse into DOOR_IN
 // children. Returns 1 on success (nPlaced).
-int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrder)
+int CDeskcppDoc::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrder)
 {
     Zone *pZone;
     int bFound = 0;
@@ -979,7 +979,7 @@ int World::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, short nOrd
 // the zone's cobArray4 (sel==0) or cobArray5, push it onto the worklist (priority 5 for
 // Zone.type==6, else nOrder) and register it; if the zone's IZAX lists exactly ONE required
 // item, that item is deduped through uniqueRequiredItemsMaybe @0x234 — a repeat aborts with 0.
-int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
+int CDeskcppDoc::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
 {
     CWordArray paItems;
     if (zoneId < 0)
@@ -1063,7 +1063,7 @@ int World::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
 
 // FUNCTION: YODA 0x0041d670
 // Global item de-dup: is itemId already recorded in the worldgen ref-zone list?
-int World::IsItemPlaced(short itemId)
+int CDeskcppDoc::IsItemPlaced(short itemId)
 {
     int nCount = worldgenRefZones.GetSize();
     if (nCount > 0)
@@ -1082,7 +1082,7 @@ int World::IsItemPlaced(short itemId)
 
 // FUNCTION: YODA 0x0041d6b0
 // Push-front onto the pending-zone worklist.
-void World::WorldgenPushZoneEntry(short zoneId, short val)
+void CDeskcppDoc::WorldgenPushZoneEntry(short zoneId, short val)
 {
     WorldgenZoneEntry *pEntry = new WorldgenZoneEntry(zoneId, val);
     if (pEntry != NULL)
@@ -1091,7 +1091,7 @@ void World::WorldgenPushZoneEntry(short zoneId, short val)
 
 // FUNCTION: YODA 0x0041d740
 // Linear-search the pending-zone worklist by zoneId; RemoveAt + delete the entry.
-void World::RemoveZoneEntry(short zoneId)
+void CDeskcppDoc::RemoveZoneEntry(short zoneId)
 {
     int nCount = worldgenPendingZones.GetSize();
     int i = 0;
@@ -1113,7 +1113,7 @@ void World::RemoveZoneEntry(short zoneId)
 
 // FUNCTION: YODA 0x0041d7a0
 // Same as RemoveZoneEntry but on the ref-zone dedup set.
-void World::RemoveZoneEntry2(short zoneId)
+void CDeskcppDoc::RemoveZoneEntry2(short zoneId)
 {
     int nCount = worldgenRefZones.GetSize();
     int i = 0;
@@ -1135,7 +1135,7 @@ void World::RemoveZoneEntry2(short zoneId)
 
 // FUNCTION: YODA 0x0041d800
 // Dedup-append to the ref-zone set: scan for zoneId, append a new entry only if absent.
-void World::WorldgenAddZoneEntry(short zoneId, short val)
+void CDeskcppDoc::WorldgenAddZoneEntry(short zoneId, short val)
 {
     BOOL bFound = FALSE;
     int nCount = worldgenRefZones.GetSize();
@@ -1163,7 +1163,7 @@ void World::WorldgenAddZoneEntry(short zoneId, short val)
 // FUNCTION: YODA 0x0041d8d0  [dial-breather: exact -> out at the MapZone.h de-dup -> back
 //   EXACT at the Canvas.h de-dup (both 2026-07-07). Pure provenance/decl-set tie-break.]
 // Zone unavailable/already placed: no such zone, or its id is in placedZoneIds.
-int World::IsZoneUsed(short zoneId)
+int CDeskcppDoc::IsZoneUsed(short zoneId)
 {
     if (zones.GetAt(zoneId) == NULL)
         return 1;
@@ -1182,7 +1182,7 @@ int World::IsZoneUsed(short zoneId)
 
 // FUNCTION: YODA 0x0041d920
 // Record a zone id as placed this generation.
-void World::AddPlacedZoneId(short zoneId)
+void CDeskcppDoc::AddPlacedZoneId(short zoneId)
 {
     placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), zoneId);
 }
@@ -1201,7 +1201,7 @@ void World::AddPlacedZoneId(short zoneId)
 // (budgeted by rand()%forkDen<forkNum and the neighbor's grid order), continue a corridor
 // through the cell, or stamp a plain path room; freshly placed rooms may be promoted to goal
 // rooms. Runs until the room budget is spent or 145 attempts.
-void World::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid, int maxGoals,
+void CDeskcppDoc::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid, int maxGoals,
                                    int *pnGoals, int maxSplits, int *pnSplits, int *pnPlaced)
 {
     int xBase, xOpp, yBase, yOpp, span, forkDen, forkNum, goalNum;
@@ -1525,7 +1525,7 @@ void World::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGrid, in
 // PLAN_WALLs across the rest. Edge cases: 3-runs only qualify at the grid corners (and the
 // south/east arms require >= 4, leaving their 3-run corner logic dead - sic, kept verbatim);
 // up to 201 rolls per blockade.
-void World::WorldgenPlaceBlockades(int nCount, short *paPlanGrid)
+void CDeskcppDoc::WorldgenPlaceBlockades(int nCount, short *paPlanGrid)
 {
     if (nCount > 0)
     {
@@ -1780,7 +1780,7 @@ void World::WorldgenPlaceBlockades(int nCount, short *paPlanGrid)
 // FUNCTION: YODA 0x0041e920
 // Collect the zone's IZX2/IZX3 item ids not already placed, random-pick one; if none, recurse
 // into DOOR_IN child zones.
-int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
+int CDeskcppDoc::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
 {
     int result = -1;
     unsigned int n = 0;
@@ -1862,7 +1862,7 @@ int World::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
 // current planet's story-replay history and a hardcoded per-planet goal-id whitelist. Phase 2
 // shuffles the candidates and returns the first whose itemA matches (any WORLD_MISSION for
 // 9999), or -1. nItem2/bFirst are accepted but never read (demo leftovers?).
-int World::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, int bFirst)
+int CDeskcppDoc::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, int bFirst)
 {
     short bDone = 0;
     short nCount = (short)puzzles.GetSize();
@@ -2024,7 +2024,7 @@ int World::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, int bFir
 // init loop; structure fully converged (122/122 insns). Joint TU pass territory.]
 // Fisher-Yates-style shuffle of a CWordArray: scatter each element into a random empty slot of a
 // temp array (0xffff = empty sentinel), then copy back.
-void World::WorldgenShuffleList(CWordArray *pList)
+void CDeskcppDoc::WorldgenShuffleList(CWordArray *pList)
 {
     short nSize = (short)pList->GetSize();
     short i = 0;
@@ -2108,7 +2108,7 @@ void World::WorldgenShuffleList(CWordArray *pList)
 // The per-quest-step placement hub: collect all unloaded-slot-free zones of the requested worldgen
 // type on the current planet into a local list, shuffle it, then try each candidate with the
 // type-specific placer until one accepts. Returns the chosen zone id, or 0xffff if none accepts.
-unsigned short World::PlaceQuestNode(short nType, short a2, short a3, short a4, short a5,
+unsigned short CDeskcppDoc::PlaceQuestNode(short nType, short a2, short a3, short a4, short a5,
                                      short nOrder, short a7)
 {
     int bDone = 0;
@@ -2325,7 +2325,7 @@ unsigned short World::PlaceQuestNode(short nType, short a2, short a3, short a4, 
 // FUNCTION: YODA 0x0041f830
 // Recursively verify a quest sub-tree is satisfiable: object types 6-8 must reference items not
 // already placed; DOOR_IN (9) recurses into the child zone.
-int World::CheckZoneItemsAvailable(short zoneId)
+int CDeskcppDoc::CheckZoneItemsAvailable(short zoneId)
 {
     int ok = 1;
     Zone *pZone = (Zone *)zones.GetAt(zoneId);
@@ -2361,7 +2361,7 @@ int World::CheckZoneItemsAvailable(short zoneId)
 
 // FUNCTION: YODA 0x0041f8e0
 // Recursively gather all zones a quest branch references into the ref-zone dedup set.
-void World::WorldgenCollectZoneRefs(short zoneId)
+void CDeskcppDoc::WorldgenCollectZoneRefs(short zoneId)
 {
     Zone *pZone = (Zone *)zones.GetAt(zoneId);
     if (pZone != NULL)
@@ -2411,15 +2411,15 @@ void World::WorldgenCollectZoneRefs(short zoneId)
 // TRADE/DROP nodes), converts the goal cells to vehicle pairs, consumes the remaining plan
 // tokens (START->MAP_START, forks->transit types 2..5, else ENEMY_TERRITORY), and finishes
 // with the puzzle pass. Any placement failure resets everything and returns 0.
-int World::Generate(unsigned int nSeed)
+int CDeskcppDoc::Generate(unsigned int nSeed)
 {
     short aOrder[100];
     short aPlan[100];
     int x, y;
     POSITION pos = GetFirstViewPosition();
-    GameView *pView = NULL;
+    CDeskcppView *pView = NULL;
     if (pos != NULL)
-        pView = (GameView *)GetNextView(pos);
+        pView = (CDeskcppView *)GetNextView(pos);
     pView->bBusy = 1;
     worldSeed = nSeed;
     gameState = 0;
@@ -3443,7 +3443,7 @@ fail_b:
 
 // FUNCTION: YODA 0x00421460
 // Snapshot the active 10x10 MapZone grid into the backup grid (sparse-save baseline).
-void World::BackupZoneGrid()
+void CDeskcppDoc::BackupZoneGrid()
 {
     int n = 0;
     for (int i = 0; i < 10; i++)
@@ -3472,7 +3472,7 @@ void World::BackupZoneGrid()
 
 // FUNCTION: YODA 0x00421520
 // Restore the active 10x10 MapZone grid from the backup (replay/reset + sparse-save baseline).
-void World::RestoreGridFromBackup()
+void CDeskcppDoc::RestoreGridFromBackup()
 {
     int n = 0;
     for (int i = 0; i < 10; i++)
@@ -3501,7 +3501,7 @@ void World::RestoreGridFromBackup()
 
 // FUNCTION: YODA 0x004215e0
 // Contains-test on the goal tile list.
-int World::IsTileInGoalList(unsigned int tileId)
+int CDeskcppDoc::IsTileInGoalList(unsigned int tileId)
 {
     int result = 0;
     int i = 0;
@@ -3534,7 +3534,7 @@ int World::IsTileInGoalList(unsigned int tileId)
 // hold code 1/300 go to the isolated list (no 306/placed-puzzle neighbor) or the adjacent
 // list; cells past the cutoff holding 1 go to the far list. Pick randomly (isolated first,
 // then adjacent; far only when both are empty), return the cell in *pX/*pY.
-int World::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
+int CDeskcppDoc::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *pY)
 {
     CObArray paIsolated;
     CObArray paAdjacent;
@@ -3680,7 +3680,7 @@ cleanup:
 // be at least 2 (worldSize 1/2) or 3 (worldSize 3) cells from the previous teleporter — a
 // rejected zone id is banned (bRetry/nBanned) and re-rolled. If only ONE teleporter got
 // placed, force a partner zone at its recorded cell with the distance check disabled.
-int World::WorldgenPlacePuzzles(short *paPlanGrid)
+int CDeskcppDoc::WorldgenPlacePuzzles(short *paPlanGrid)
 {
     int x, y;
     WorldgenPushZoneEntry(0x1ff, 2);
@@ -3886,7 +3886,7 @@ place:
 
 // FUNCTION: YODA 0x00421e50
 // Worldgen grid-cell traversal/placement priority (static 10x10 dword table). `this` is unused.
-int World::GetZoneGridOrder(int x, int y)
+int CDeskcppDoc::GetZoneGridOrder(int x, int y)
 {
     return gWorldgenGridOrderTable[x + y * 10];
 }
@@ -3894,7 +3894,7 @@ int World::GetZoneGridOrder(int x, int y)
 // FUNCTION: YODA 0x00421e70
 // [EFFECTIVE: 17B — SetAtGrow call-site this-reg {EAX,ECX} swap (lea vs add) + one NOP.]
 // CHUNK chunk: allocate + read Character records, -1-terminated id list.
-int World::ParseChar(CFile *pFile)
+int CDeskcppDoc::ParseChar(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -3942,7 +3942,7 @@ int World::ParseChar(CFile *pFile)
 // New-game world loader (StartGame): re-pick the planet (demo then FORCES Hoth), free the old
 // zone list, open the .dta (theApp.m_str) and dispatch its FourCC chunk stream until ENDF.
 // VERS must be 0x200.
-int World::LoadWorld()
+int CDeskcppDoc::LoadWorld()
 {
     CTheApp *pApp = (CTheApp *)AfxGetApp();
     if (bStartingGame == 0)
@@ -4128,7 +4128,7 @@ int World::LoadWorld()
 // SNDS/PUZ2/ACTN/ENDF), then drive worldgen: Randomize+Generate until success, Populate.
 // Declaring the local CFileException also emits this TU's ~CFileException COMDAT — the
 // original's copy is the TU-opening function at 0x41c340.
-int World::Load()
+int CDeskcppDoc::Load()
 {
     int nRet = 1;
     CFile *pFile = new CFile;
@@ -4316,20 +4316,20 @@ int World::Load()
 }
 
 // FUNCTION: YODA 0x00422f40
-BOOL World::IsModified()
+BOOL CDeskcppDoc::IsModified()
 {
     return m_bModified;
 }
 
 // FUNCTION: YODA 0x00422f50
-void World::SetModifiedFlag(BOOL bModified)
+void CDeskcppDoc::SetModifiedFlag(BOOL bModified)
 {
     m_bModified = bModified;
 }
 
 // FUNCTION: YODA 0x00422f60
 // ZONE chunk: count + N zone records.
-int World::ParseZone(CFile *pFile)
+int CDeskcppDoc::ParseZone(CFile *pFile)
 {
     short nZones;
     pFile->Read(&nZones, 2);
@@ -4348,7 +4348,7 @@ int World::ParseZone(CFile *pFile)
 // [WIP: nDone++-arm layout family + SetAtGrow this-reg (lea vs add) + a stray NOP from the
 // TRY expansion; structure converged.]
 // CHUNK chunk: allocate + read Puzzle records, -1-terminated id list.
-int World::ParsePuz2(CFile *pFile)
+int CDeskcppDoc::ParsePuz2(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4385,7 +4385,7 @@ int World::ParsePuz2(CFile *pFile)
 
 // FUNCTION: YODA 0x00423110
 // ZAUX chunk: per-zone 8-byte header + IZAX payload.
-int World::ParseZaux(CFile *pFile)
+int CDeskcppDoc::ParseZaux(CFile *pFile)
 {
     short nCount = (short)zones.GetSize();
     char buf[8];
@@ -4402,7 +4402,7 @@ int World::ParseZaux(CFile *pFile)
 
 // FUNCTION: YODA 0x00423190
 // ZAX3 chunk.
-int World::ParseZax3(CFile *pFile)
+int CDeskcppDoc::ParseZax3(CFile *pFile)
 {
     short nCount = (short)zones.GetSize();
     char buf[8];
@@ -4419,7 +4419,7 @@ int World::ParseZax3(CFile *pFile)
 
 // FUNCTION: YODA 0x00423210
 // ZAX2 chunk.
-int World::ParseZax2(CFile *pFile)
+int CDeskcppDoc::ParseZax2(CFile *pFile)
 {
     short nCount = (short)zones.GetSize();
     char buf[8];
@@ -4438,7 +4438,7 @@ int World::ParseZax2(CFile *pFile)
 // [EFFECTIVE: block-layout — original parks the nDone++ arm at function end; ours inlines
 // it (arm-order/continue knobs proven inert). Plus one reg rotation.]
 // CAUX chunk: per-character damage words, -1-terminated id list.
-int World::ParseCaux(CFile *pFile)
+int CDeskcppDoc::ParseCaux(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4463,7 +4463,7 @@ int World::ParseCaux(CFile *pFile)
 // FUNCTION: YODA 0x00423300
 // [EFFECTIVE: same nDone++-arm layout family as ParseCaux; registers exact.]
 // CHWP chunk: per-character weapon id + health, -1-terminated id list.
-int World::ParseChwp(CFile *pFile)
+int CDeskcppDoc::ParseChwp(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4488,7 +4488,7 @@ int World::ParseChwp(CFile *pFile)
 
 // FUNCTION: YODA 0x00423380
 // TNAM chunk: short tile id + 24-byte name, -1-terminated.
-int World::ParseTnam(CFile *pFile)
+int CDeskcppDoc::ParseTnam(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4522,7 +4522,7 @@ int World::ParseTnam(CFile *pFile)
 // (and that build uses the SAME cl, so this 5B may be irreducible from the source side).]
 // SNDS chunk: NEGATED sound count, then per-sound a length-prefixed source path; only the
 // bare "fname.ext" is kept in soundNames[i].
-int World::ParseSnds(CFile *pFile)
+int CDeskcppDoc::ParseSnds(CFile *pFile)
 {
     short nCount;
     pFile->Read(&nCount, 2);
@@ -4550,7 +4550,7 @@ int World::ParseSnds(CFile *pFile)
 // FUNCTION: YODA 0x00423510
 // ACTN chunk: records of (zone id, script count, scripts...); -1 zone id terminates.
 // Each zone's IACT scripts (conditions + commands) land in zone->iactScripts.
-int World::ParseActn(CFile *pFile)
+int CDeskcppDoc::ParseActn(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4600,7 +4600,7 @@ int World::ParseActn(CFile *pFile)
 // FUNCTION: YODA 0x004236b0
 // HTSP chunk: records of (zone id, hotspot count, hotspots...); negative zone id terminates.
 // Replaces each zone's object list, then re-derives its quest-object flags.
-int World::ParseHtsp(CFile *pFile)
+int CDeskcppDoc::ParseHtsp(CFile *pFile)
 {
     int nDone = 0;
     do
@@ -4656,7 +4656,7 @@ int World::ParseHtsp(CFile *pFile)
 // Standalone .wld-state reader (invoked from OnDraw): open the doc path read/binary, read the
 // chunk stream VERS(==0x200)/STUP(->ReadStupCanvas)/ENDF, then enter the world-view state
 // (bWorldReady/bHidePlayer/nMapChangeReason=1/nFrameMode=7) and UpdateAllViews.
-void World::LoadWorldStateFile()
+void CDeskcppDoc::LoadWorldStateFile()
 {
     CFile *pFile = new CFile;
     CString strPath;
@@ -4725,7 +4725,7 @@ void World::LoadWorldStateFile()
 // CDocument::Serialize override: on load, the same VERS/STUP/ENDF chunk loop as
 // LoadWorldStateFile over ar.m_pFile (copy-paste source). Store path: empty (demo save
 // disabled).
-void World::Serialize(CArchive &ar)
+void CDeskcppDoc::Serialize(CArchive &ar)
 {
     if (ar.IsLoading())
     {
@@ -4788,7 +4788,7 @@ void World::Serialize(CArchive &ar)
 
 // FUNCTION: YODA 0x00423d20
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
-void World::SetCurrentToIntroZone()
+void CDeskcppDoc::SetCurrentToIntroZone()
 {
     int nCount = zones.GetSize();
     for (int i = 0; i < nCount; i++)
@@ -4805,7 +4805,7 @@ void World::SetCurrentToIntroZone()
 
 // FUNCTION: YODA 0x00423d60
 // Read the STUP chunk: a 288x288 8-bit canvas snapshot streamed row-by-row (dest stride 0x240).
-void World::ReadStupCanvas(CFile *pFile)
+void CDeskcppDoc::ReadStupCanvas(CFile *pFile)
 {
     if (pCanvas == NULL)
     {
@@ -4824,7 +4824,7 @@ void World::ReadStupCanvas(CFile *pFile)
 
 // FUNCTION: YODA 0x00423dc0
 // Index of a Zone* in the zone list, or -1. (Ghidra name: EnterZone.)
-int World::GetZoneIndex(Zone *pZone)
+int CDeskcppDoc::GetZoneIndex(Zone *pZone)
 {
     int i = 0;
     if (zones.GetSize() > 0)
@@ -4848,7 +4848,7 @@ int World::GetZoneIndex(Zone *pZone)
 // each cell; per-cell icon from GetLocatorIconMaybe; the 32x32 player marker apUiTiles[15]
 // over the player's cell when bDrawPlayer), then blit the 288x288 result to the DC at
 // rectUnk3274's origin. UI tile slots 1..15 fall back to slot 0 when unset.
-void World::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
+void CDeskcppDoc::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
 {
     pCanvas->Fill(0);
     for (short i = 1; i < 16; i++)
@@ -4885,7 +4885,7 @@ void World::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
 
 // FUNCTION: YODA 0x00423f50
 // Clamp the visible 288x288 window to the camera position (small zones pin to full window).
-void World::UpdateCamera()
+void CDeskcppDoc::UpdateCamera()
 {
     if (currentZone->width == 9)
     {
@@ -4921,7 +4921,7 @@ void World::UpdateCamera()
 // just inside pRect. bRaised==1 = raised (top/left highlight, bottom/right shadow), else
 // sunken. Top/left edges use the second pen, bottom/right the first; corners mitred by
 // pulling each line end in per ring.
-void World::DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
+void CDeskcppDoc::DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
 {
     DWORD dwShadow = GetSysColor(COLOR_BTNSHADOW);
     DWORD dwHilite = GetSysColor(COLOR_BTNHIGHLIGHT);
@@ -5022,34 +5022,34 @@ void World::DrawRect(CDC *pDC, RECT *pRect, int bRaised, int nThickness)
 
 // FUNCTION: YODA 0x004242a0
 // Audio menu: toggle sound; opening the first sound session lazily.
-void World::OnToggleSound()
+void CDeskcppDoc::OnToggleSound()
 {
     nSoundEnabled = (nSoundEnabled == 0);
     POSITION pos = GetFirstViewPosition();
-    GameView *pView = (GameView *)GetNextView(pos);
+    CDeskcppView *pView = (CDeskcppView *)GetNextView(pos);
     if (pView != NULL && nSoundEnabled != 0 && pView->soundSession == 0)
         pView->SoundInit();
 }
 
 // FUNCTION: YODA 0x004242f0
-void World::OnUpdateToggleSound(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateToggleSound(CCmdUI *pCmdUI)
 {
     pCmdUI->SetCheck(nSoundEnabled);
 }
 
 // FUNCTION: YODA 0x00424310
 // Audio menu: toggle music.
-void World::OnToggleMusic()
+void CDeskcppDoc::OnToggleMusic()
 {
     nMusicEnabled = (nMusicEnabled == 0);
     POSITION pos = GetFirstViewPosition();
-    GameView *pView = (GameView *)GetNextView(pos);
+    CDeskcppView *pView = (CDeskcppView *)GetNextView(pos);
     if (pView != NULL && nMusicEnabled != 0 && pView->soundSession == 0)
         pView->SoundInit();
 }
 
 // FUNCTION: YODA 0x00424360
-void World::OnUpdateToggleMusic(CCmdUI *pCmdUI)
+void CDeskcppDoc::OnUpdateToggleMusic(CCmdUI *pCmdUI)
 {
     pCmdUI->SetCheck(nMusicEnabled);
 }
@@ -5057,7 +5057,7 @@ void World::OnUpdateToggleMusic(CCmdUI *pCmdUI)
 // FUNCTION: YODA 0x00424380
 // Seed the RNG from cursor position + wall clock, then pack rand() bytes into the world seed
 // (one of 3 rotating byte layouts).
-unsigned int World::Randomize()
+unsigned int CDeskcppDoc::Randomize()
 {
     POINT pt;
     GetCursorPos(&pt);
@@ -5103,7 +5103,7 @@ unsigned int World::Randomize()
 // "...Build a New World anyway?") unless a game is over/not started, then
 // StartGame(Randomize(), 0) under a wait cursor; on failure show the 0xE01E fatal string
 // and FatalAppExit.
-void World::OnNewWorld()
+void CDeskcppDoc::OnNewWorld()
 {
     int nAnswer;
     if (bSkipNewWorldConfirm == 0 && gameState == 0)
@@ -5145,7 +5145,7 @@ void World::OnNewWorld()
 // "savegame.wld") then write the "YODASAV44" .wld state: seed/planet + quest-item lists +
 // the center 2x2 quest cells (mapScratch or live grid per bQuestCellsResident) + the 10x10 grid dump +
 // recursive zone records + inventory/player/weapon/camera/health/elapsed-time tail.
-void World::OnSaveWorld()
+void CDeskcppDoc::OnSaveWorld()
 {
     CString strPath;
     CString strFilter;
@@ -5157,9 +5157,9 @@ void World::OnSaveWorld()
     if (*pHealth > 99 && healthHi >= 3)
         return;
     POSITION pos = GetFirstViewPosition();
-    GameView *pView = NULL;
+    CDeskcppView *pView = NULL;
     if (pos != NULL)
-        pView = (GameView *)GetNextView(pos);
+        pView = (CDeskcppView *)GetNextView(pos);
     int nSavedMode = nFrameMode;
     nFrameMode = 0;
     CFileDialog *pDlg = new CFileDialog(0, "wld", "savegame", 0x80006, strFilter, (CWnd *)pView);
@@ -5475,7 +5475,7 @@ void World::OnSaveWorld()
 // apZoneGrid) + inventory (freeing and re-newing InvItems from tile ids) + player/weapon/
 // camera/health/time tail; then PlaceZoneObjectTiles over unsolved grid cells and append the
 // goal to the planet's story history.
-void World::OnLoadWorld()
+void CDeskcppDoc::OnLoadWorld()
 {
     CString strPath;
     CFileDialog *pDlg = NULL;
@@ -5510,10 +5510,10 @@ void World::OnLoadWorld()
         {
             strPath = g_strReplayPath;
         }
-        GameView *pView = NULL;
+        CDeskcppView *pView = NULL;
         POSITION pos = GetFirstViewPosition();
         if (pos != NULL)
-            pView = (GameView *)GetNextView(pos);
+            pView = (CDeskcppView *)GetNextView(pos);
         int nSavedMode = nFrameMode;
         if (nSavedMode == 1)
         {
@@ -5943,12 +5943,12 @@ void World::OnLoadWorld()
 // FUNCTION: YODA 0x00425e30
 // Lay the (demo-hardcoded) quest into the 10x10 grid: pick one of the shipped goal zones by
 // rand()%4 (or forced by the goal item), place its content, tag the center 2x2 cells.
-int World::Populate()
+int CDeskcppDoc::Populate()
 {
-    GameView *pView = NULL;
+    CDeskcppView *pView = NULL;
     POSITION pos = GetFirstViewPosition();
     if (pos != NULL)
-        pView = (GameView *)GetNextView(pos);
+        pView = (CDeskcppView *)GetNextView(pos);
     pView->bBusy = 1;
     BackupZoneGrid();
     SetupGrid();
@@ -6034,7 +6034,7 @@ int World::Populate()
 // found path; lengths/structure converged.]
 // Place a zone's quest content: find tileId in its IZX3 list and stamp it on a spawn object
 // (zone 0x217 hardcodes the object at (3,3)).
-int World::PlaceZone(short zoneId, unsigned short tileId)
+int CDeskcppDoc::PlaceZone(short zoneId, unsigned short tileId)
 {
     unsigned short v;
     int found = -1;
@@ -6154,7 +6154,7 @@ int World::PlaceZone(short zoneId, unsigned short tileId)
 
 // FUNCTION: YODA 0x00426380
 // Restore the center 2x2 quest cells (44,45,54,55) from mapScratch, re-tagging their ids.
-void World::RestoreRecords()
+void CDeskcppDoc::RestoreRecords()
 {
     mapGrid[44].id = 0x5e;
     mapGrid[44].cellQuestSlot0 = mapScratch[0].cellQuestSlot0;
@@ -6220,7 +6220,7 @@ void World::RestoreRecords()
 
 // FUNCTION: YODA 0x00426690
 // Snapshot the center 2x2 quest cells (44,45,54,55) into mapScratch, tagging the scratch ids.
-void World::BackupRecords()
+void CDeskcppDoc::BackupRecords()
 {
     mapScratch[0].id = 0x5e;
     mapScratch[0].cellQuestSlot0 = mapGrid[44].cellQuestSlot0;
@@ -6286,7 +6286,7 @@ void World::BackupRecords()
 
 // FUNCTION: YODA 0x004269a0
 // Reset the active 10x10 grid to empty cells.
-void World::SetupGrid()
+void CDeskcppDoc::SetupGrid()
 {
     int n = 0;
     for (int i = 0; i < 10; i++)
@@ -6315,7 +6315,7 @@ void World::SetupGrid()
 // FUNCTION: YODA 0x00426a00
 // Read one ZONE record: skip zones for other planets (demo whitelist forces a fixed id set);
 // returns the Zone, (Zone *)-1 for skipped, NULL on failure.
-Zone *World::ReadZone(CFile *pFile, int idx)
+Zone *CDeskcppDoc::ReadZone(CFile *pFile, int idx)
 {
     BOOL bForce = FALSE;
     switch (idx)
@@ -6390,7 +6390,7 @@ Zone *World::ReadZone(CFile *pFile, int idx)
 // cursors, wire pWorld/nGameSpeed, create the inventory scrollbar + 0x1d1d game timer +
 // 32x32 drag-tile canvas, and create (hidden) the 3 dialog balloon CBitmapButtons and the
 // MS-Sans-Serif-8 dialog text CEdit.
-void GameView::OnInitialUpdate()
+void CDeskcppView::OnInitialUpdate()
 {
     if (bInitialized == 0)
     {
@@ -6419,7 +6419,7 @@ void GameView::OnInitialUpdate()
         nDragLastScreenX = -1;
         unk154 = 0;
         bBlinkState = 0;
-        pWorld = (World *)m_pDocument;
+        pWorld = (CDeskcppDoc *)m_pDocument;
         nGameSpeed = pWorld->gameSpeed;
         TRY {
             pInvScrollBar = new InvScrollBar(this, &pWorld->rectInvScroll);
@@ -6486,11 +6486,11 @@ void GameView::OnInitialUpdate()
 // four zone-exit arrows from pWorld->GetExitDirections()'s bitmask (bits 1/2/4/8 =
 // N/S/E/W), enabled/disabled icon pairs 0xcb/0xca, 0xc5/0xc4, 0xc9/0xc8, 0xc7/0xc6. A NULL
 // pDC means draw to our own window DC under the world palette (released at the end).
-void GameView::DrawDirectionArrows(CDC *pDC)
+void CDeskcppView::DrawDirectionArrows(CDC *pDC)
 {
     int bReleaseDC = 0;
     if (pWorld == NULL)
-        pWorld = (World *)m_pDocument;
+        pWorld = (CDeskcppDoc *)m_pDocument;
     CPalette *pOldPal;
     if (pDC == NULL)
     {
@@ -6553,7 +6553,7 @@ void GameView::DrawDirectionArrows(CDC *pDC)
 // Run the modal in-game text dialog: mark shown/busy, build a stack TextDialog carrying the
 // text + 3 args + the sound session, park the world in frame-mode 5 (mode 3 on failure),
 // and on success reset the drag/move interaction state and restore the saved frame mode.
-int GameView::ShowTextDialog(CString &strText, int a, int b, int c)
+int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 {
     bTextDialogShown = 1;
     bBusy = 1;
@@ -6598,7 +6598,7 @@ int GameView::ShowTextDialog(CString &strText, int a, int b, int c)
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.
-void GameView::DrawHealthDial(CDC *pDC)
+void CDeskcppView::DrawHealthDial(CDC *pDC)
 {
     int bReleaseDC = 0;
     CPalette *pOldPal;
@@ -6645,7 +6645,7 @@ void GameView::DrawHealthDial(CDC *pDC)
 // Damage tiers -300/-200/-100 bump whole segments; heals reverse them. At the death
 // threshold: consume the life-force item (tile 0x598) if carried and survive at 1/1, else
 // (game not won) request the game-over frame via abortFrame = -1.
-void GameView::AddHealth(int nDelta)
+void CDeskcppView::AddHealth(int nDelta)
 {
     int nLo = pWorld->healthLo;
     int nHi = pWorld->healthHi;
@@ -6749,7 +6749,7 @@ void GameView::AddHealth(int nDelta)
     DrawHealthNeedle(NULL);
     if (nLo > 99 && nHi >= 3)
     {
-        World *pW = pWorld;
+        CDeskcppDoc *pW = pWorld;
         int bFound = 0;
         int i = 0;
         Tile *pTile = (Tile *)pW->tiles.GetAt(0x598);
@@ -6789,7 +6789,7 @@ void GameView::AddHealth(int nDelta)
 // the remaining-health slice from 12 o'clock to the needle in color B; the needle end
 // comes from the shared quarter-circle table, one quadrant per 25 points of healthLo.
 // NULL pDC = own window DC under the world palette (leaked when healthLo == 0 — sic).
-void GameView::DrawHealthNeedle(CDC *pDC)
+void CDeskcppView::DrawHealthNeedle(CDC *pDC)
 {
     int bReleaseDC = 0;
     CPalette *pOldPal;
@@ -6917,14 +6917,14 @@ void GameView::DrawHealthNeedle(CDC *pDC)
 // tile clear + redraw); no projectile tile degrades the class to the saved equipped item
 // (sic). Damage = weapon damage scaled by difficulty. equippedItem is swapped to the
 // weapon's tile around the swing, and IACT event 3 runs at the struck cell.
-void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
+void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
 {
     int nType = 0;
     int bRifle = 0;
     int bSaber = 0;
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-    World *pW = pWorld;
+    CDeskcppDoc *pW = pWorld;
     Tile *pSavedItem = pW->equippedItem;
     Character *pWeapon = pW->currentWeapon;
     pW->equippedItem = (Tile *)pW->tiles.GetAt(pWeapon->frames[7]);
@@ -6958,12 +6958,12 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 pW2->currentZone->HitEntityAt(x + dx, y + dy, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx, y + dy, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -6987,7 +6987,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(x + nAX, nAY + y, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -6997,7 +6997,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + nAX, nAY + y, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7008,7 +7008,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(x + dx, y + dy, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -7018,7 +7018,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx, y + dy, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7037,12 +7037,12 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 pW2->currentZone->HitEntityAt(x + dx * 2, y + dy * 2, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx * 2, y + dy * 2, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7065,7 +7065,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(nAX + x, y + nAY, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -7075,7 +7075,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, nAX + x, y + nAY, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7087,7 +7087,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx * 2, y + dy * 2, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(x + dx * 2, y + dy * 2, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -7097,7 +7097,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx * 2, y + dy * 2, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7117,12 +7117,12 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx * 3, y + dy * 3, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 pW2->currentZone->HitEntityAt(x + dx * 3, y + dy * 3, &pW2->characters, nDmg, pW2, this);
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx * 3, y + dy * 3, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7146,7 +7146,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(nAX + x, y + nAY, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -7156,7 +7156,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, nAX + x, y + nAY, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7169,7 +7169,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             nTile = pWorld->currentZone->GetTile(x + dx * 3, y + dy * 3, 1);
             if (nTile >= 0 && (pWorld->GetTileData(nTile)->flags & 0x20000) != 0)
             {
-                World *pW2 = pWorld;
+                CDeskcppDoc *pW2 = pWorld;
                 if (pW2->currentZone->DamageEntityAt(x + dx * 3, y + dy * 3, &pW2->characters,
                                                      nDmg, pW2, this) != 0)
                 {
@@ -7179,7 +7179,7 @@ void GameView::UseWeapon(int x, int y, int dx, int dy, int nStep)
             }
             bWeaponIactActiveMaybe = 1;
             {
-                World *pW3 = pWorld;
+                CDeskcppDoc *pW3 = pWorld;
                 pW3->currentZone->IactRun(3, x + dx * 3, y + dy * 3, 0, 0, 0, pDC, pW3, this);
             }
             bWeaponIactActiveMaybe = 0;
@@ -7217,7 +7217,7 @@ done:
 // Bomb blast: nine copy-pasted blocks, one per 3x3 cell around (x,y). Each reads the
 // layer-1 tile; if its data is destructible (flags & 0x20000), DamageEntityAt (6 corners,
 // 8 edges, 10 center) and on a hit clear the tile and redraw the cell.
-void GameView::DetonateAdjacentTiles(int x, int y)
+void CDeskcppView::DetonateAdjacentTiles(int x, int y)
 {
     {
         int nTile = (short)pWorld->currentZone->GetTile(x - 1, y - 1, 1);
@@ -7226,7 +7226,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x - 1, y - 1, &pW->characters, 6, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x - 1, y - 1, 1, (short)0xffff);
@@ -7242,7 +7242,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x, y - 1, &pW->characters, 8, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x, y - 1, 1, (short)0xffff);
@@ -7258,7 +7258,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x + 1, y - 1, &pW->characters, 6, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x + 1, y - 1, 1, (short)0xffff);
@@ -7274,7 +7274,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x - 1, y, &pW->characters, 8, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x - 1, y, 1, (short)0xffff);
@@ -7290,7 +7290,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x, y, &pW->characters, 10, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x, y, 1, (short)0xffff);
@@ -7306,7 +7306,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x + 1, y, &pW->characters, 8, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x + 1, y, 1, (short)0xffff);
@@ -7322,7 +7322,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x - 1, y + 1, &pW->characters, 6, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x - 1, y + 1, 1, (short)0xffff);
@@ -7338,7 +7338,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x, y + 1, &pW->characters, 8, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x, y + 1, 1, (short)0xffff);
@@ -7354,7 +7354,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
             Tile *pT = pWorld->GetTileData(nTile);
             if (pT->flags & 0x20000)
             {
-                World *pW = pWorld;
+                CDeskcppDoc *pW = pWorld;
                 if (pW->currentZone->DamageEntityAt(x + 1, y + 1, &pW->characters, 6, pW, this) != 0)
                 {
                     pWorld->currentZone->SetTile(x + 1, y + 1, 1, (short)0xffff);
@@ -7367,7 +7367,7 @@ void GameView::DetonateAdjacentTiles(int x, int y)
 
 // FUNCTION: YODA 0x00428aa0
 // WM_COMMAND 0x8001: minimize the main frame.
-void GameView::OnCmdMinimize()
+void CDeskcppView::OnCmdMinimize()
 {
     CFrameWnd *pFrame = GetParentFrame();
     ::PostMessage(pFrame->m_hWnd, WM_SYSCOMMAND, SC_MINIMIZE, 0);
@@ -7381,7 +7381,7 @@ void GameView::OnCmdMinimize()
 // Draw the current-weapon box: sunken 2px bevel around rectWeaponBox inflated by 2, the
 // weapon's icon tile (frames[7]) masked onto the drag canvas over a COLOR_3DFACE fill
 // (plain fill when unarmed), blitted at +3,+3, then a raised 1px bevel on the tight rect.
-void GameView::DrawWeaponBox(CDC *pDC)
+void CDeskcppView::DrawWeaponBox(CDC *pDC)
 {
     int bReleaseDC = 0;
     CPalette *pOldPal;
@@ -7427,7 +7427,7 @@ void GameView::DrawWeaponBox(CDC *pDC)
 // (green) full-height column then black covering the spent part (0x1e - ammo * per-shot
 // height from the weapon's icon tile id: blaster family 1, rifle 2, thermal 3), else a
 // COLOR_3DFACE fill; raised 1px bevel on the tight rect.
-void GameView::DrawWeaponIcon(CDC *pDC)
+void CDeskcppView::DrawWeaponIcon(CDC *pDC)
 {
     int bReleaseDC = 0;
     CPalette *pOldPal;
@@ -7498,7 +7498,7 @@ void GameView::DrawWeaponIcon(CDC *pDC)
 // is decompile-literal; the x*y%2 signed-mod dance comes from the prod-accumulator.]
 // Dim the 576x576 canvas with a multiplicative checkerboard (zero where x*y is even), blit
 // the visible 288x288 window to the screen at (8,7), then restore the palette.
-void GameView::BlitViewportDither()
+void CDeskcppView::BlitViewportDither()
 {
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
     if (pDC != NULL)
@@ -7529,7 +7529,7 @@ void GameView::BlitViewportDither()
 
 // FUNCTION: YODA 0x00428f30
 // CWnd::PreCreateWindow override: run the base without WS_BORDER, then force it on.
-BOOL GameView::PreCreateWindow(CREATESTRUCT &cs)
+BOOL CDeskcppView::PreCreateWindow(CREATESTRUCT &cs)
 {
     cs.style &= ~WS_BORDER;
     BOOL bRet = CView::PreCreateWindow(cs);
@@ -7545,7 +7545,7 @@ BOOL GameView::PreCreateWindow(CREATESTRUCT &cs)
 // item: new InvItem named after the tile, the locator (flags == 0x100081) inserts at the
 // front, others at slot 2 (or append while fewer than 2 items); then rescale the inventory
 // scrollbar (visible rows: 7) and repaint via OnUpdate(NULL, 1, NULL).
-void GameView::AddItemToInv(Tile *pTile)
+void CDeskcppView::AddItemToInv(Tile *pTile)
 {
     int bFound = 0;
     if (pTile != NULL)
@@ -7614,7 +7614,7 @@ void GameView::AddItemToInv(Tile *pTile)
 // RemoveAt + delete the matching InvItem, repaint the item text, and resize the inventory
 // scrollbar (max 0 while <8 items, else count-7). The TU's last function (was missed by the
 // "zero FUN_*" sweep — it sits just past the recorded 0x429150 end; found via the G0 link audit).
-void GameView::RemoveItem(Tile *pItem)
+void CDeskcppView::RemoveItem(Tile *pItem)
 {
     if (pWorld->tiles.GetAt(0x12) == (CObject *)pItem)
     {
@@ -7622,7 +7622,7 @@ void GameView::RemoveItem(Tile *pItem)
         DrawWeaponIcon(NULL);
         DrawWeaponBox(NULL);
     }
-    World *pW = pWorld;
+    CDeskcppDoc *pW = pWorld;
     int i = 0;
     int n = pW->inventory.GetSize();
     if (n > 0)

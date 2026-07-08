@@ -1273,3 +1273,13 @@ CAboutDlg, CTextDialog, CMainFrame, GameView, StatsDlg, DifficultyDlg, GameSpeed
 UI/dialog/frame/view/doc class). 13 single-??_E-dtor data classes skipped (un-anchorable). No missing-override
 bugs anywhere. Then v49 built the msgmap sibling (msgcheck.py) → found + fixed CTheApp incomplete map (1→8) and
 GameView #11 ON_WM_HSCROLL→WM_VSCROLL bug (inventory vertical scroll); all 11 maps CLEAN, both codegen-neutral.
+
+### ⏮ PRIOR PICKUP — v49 (2026-07-08, condensed; superseded by v50)
+PHASE G2: built tools/msgcheck.py (the vtcheck sibling — validates .rdata message maps: reads the original
+AFX_MSGMAP_ENTRY array via GetMessageMap→messageMap→lpEntries + ours from the obj's ?_messageEntries COMDAT,
+compares fixed fields + handler identity). Found + fixed 2 real issues (both codegen-neutral, 211 held): CTheApp
+map INCOMPLETE (1 vs orig 8 — the AppWizard File>New/Open + context-help block missing; this afxres.h has
+ID_CONTEXT_HELP=0xe145/ID_DEFAULT_HELP=0xe147 swapped), and GameView #11 ON_WM_HSCROLL where orig is WM_VSCROLL
+(vertical inventory scrollbar unhandled — renamed OnHScroll→OnVScroll, body byte-matches, + reordered entries).
+All 11 maps CLEAN. lesson #33. Then v50 verified DYNCREATE sizes + renamed World→CDeskcppDoc, GameView→
+CDeskcppView (source + Ghidra) to the original class names.

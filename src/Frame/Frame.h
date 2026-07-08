@@ -9,7 +9,7 @@
 class FrameWorld;
 
 // GameView (CDeskcppView) — only the fields/methods the frame touches. vftable elsewhere.
-class GameView
+class CDeskcppView
 {
 public:
     char        _pad00[0x44];

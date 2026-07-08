@@ -9,7 +9,7 @@ extern "C" long   time(long *);         // CRT _time  (0x0042a400)
 extern "C" double difftime(long, long); // CRT        (0x0042a3e0) — returns seconds
 
 // FUNCTION: YODA 0x00401450
-void World::UpdateScore()
+void CDeskcppDoc::UpdateScore()
 {
     score = 0;
     score = CalcTimeScore();
@@ -23,7 +23,7 @@ void World::UpdateScore()
 // structurally identical (same lea this+0x4b4 anchor, same +0x20/+0x24 disps) — residual is
 // a pure EAX/EDX/ESI rotation + one lea slot (align=12); the optimizer-made walker temp's
 // register rank is not source-steerable (decl-order probe inert). Joint pass.]
-int World::CalcCompletionScore()
+int CDeskcppDoc::CalcCompletionScore()
 {
     int   y, x;
     int   result = 0;
@@ -54,7 +54,7 @@ int World::CalcCompletionScore()
 }
 
 // FUNCTION: YODA 0x004016d0
-int World::CalcScoreFromCounter()
+int CDeskcppDoc::CalcScoreFromCounter()
 {
     int v = counter;
     int r = 0;
@@ -73,7 +73,7 @@ int World::CalcScoreFromCounter()
 
 // FUNCTION: YODA 0x00401780  [logic-complete; NOT byte-exact — x87 2-accumulator
 // register/slot allocation differs (~9 bytes). Permuter-immune park (see CLAUDE.md).]
-int World::CalcSolvedScore()
+int CDeskcppDoc::CalcSolvedScore()
 {
     int   x;
     int   y;
@@ -107,7 +107,7 @@ int World::CalcSolvedScore()
 
 // FUNCTION: YODA 0x004019c0  [logic-complete; NOT byte-exact — MSVC caches timeOffset
 // in EDI vs the original's re-read from memory (CMP [mem],0). Optimizer CSE choice.]
-int World::CalcTimeScore()
+int CDeskcppDoc::CalcTimeScore()
 {
     int v;
     if (timeOffset != 0) {
@@ -126,21 +126,21 @@ int World::CalcTimeScore()
 // FUNCTION: YODA 0x00401a40
 // World::GetVictoryZoneIndexMaybe — demo-hardcoded: zone 76 is the victory
 // screen; returns its index if it really has 13, else -1.
-int World::GetVictoryZoneIndexMaybe()
+int CDeskcppDoc::GetVictoryZoneIndexMaybe()
 {
     return ((Zone *)zones.GetAt(76))->type == ZONE_TYPE_VICTORY_SCREEN ? 76 : -1;
 }
 
 // FUNCTION: YODA 0x00401a60
 // World::GetLossZoneMaybe — demo-hardcoded: zone 77 is the loss screen.
-Zone *World::GetLossZoneMaybe()
+Zone *CDeskcppDoc::GetLossZoneMaybe()
 {
     Zone *pZone = (Zone *)zones.GetAt(77);
     return pZone->type == ZONE_TYPE_LOSS_SCREEN ? pZone : NULL;
 }
 
 // FUNCTION: YODA 0x00401a80
-unsigned short World::GetZoneCell(int x, int y)
+unsigned short CDeskcppDoc::GetZoneCell(int x, int y)
 {
     if (x >= 0 && y >= 0 && x <= 9 && y <= 9)
         return mapGrid[x + y * 10].id;

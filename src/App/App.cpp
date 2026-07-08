@@ -21,9 +21,9 @@ BYTE     g_bInstanceChecked;             // 0x00459e30  bit0: FindWindow done on
 // The doc-template CRuntimeClasses. IMPLEMENT_DYNCREATE(World/CMainFrame/GameView) in their own
 // TUs emits `World::classWorld` etc.; forward-declare just that static member so RUNTIME_CLASS
 // resolves to it (the addresses are masked relocations at the CSingleDocTemplate call site).
-class World      { public: static const CRuntimeClass classWorld; };
+class CDeskcppDoc      { public: static const CRuntimeClass classCDeskcppDoc; };
 class CMainFrame { public: static const CRuntimeClass classCMainFrame; };
-class GameView   { public: static const CRuntimeClass classGameView; };
+class CDeskcppView   { public: static const CRuntimeClass classCDeskcppView; };
 
 /////////////////////////////////////////////////////////////////////////////  CTheApp
 
@@ -167,7 +167,7 @@ BOOL CTheApp::InitInstance()
     }
 
     CSingleDocTemplate *pDocTemplate = new CSingleDocTemplate(
-        2, RUNTIME_CLASS(World), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(GameView));
+        2, RUNTIME_CLASS(CDeskcppDoc), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(CDeskcppView));
     AddDocTemplate(pDocTemplate);
     OnFileNew();
 

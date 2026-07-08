@@ -28,7 +28,7 @@
 // zones@0x4b4 and a 121-int pointer array swallowing cell 0's vptr; retired 2026-07-07.
 #include "../Worldgen/MapZone.h"
 
-class World : public CDocument          // sizeof(CDocument) == 0x50 in MFC 4.2
+class CDeskcppDoc : public CDocument          // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
     int         unk50;                   // +0x0050  (doc fields before totalZones)

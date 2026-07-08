@@ -75,18 +75,18 @@ extern "C" unsigned char YodaMasterPalette[1024] = {
     0,0,0,0,0,0,0,0,0,0,0,0,255,255,255,0,
 };
 
-World *gpWorld;                       // 0x004561dc — set by the ctor
+CDeskcppDoc *gpWorld;                       // 0x004561dc — set by the ctor
 
 // FUNCTION: YODA 0x00419ed0  (CreateObject)
 // FUNCTION: YODA 0x00419f40  (GetRuntimeClass)
-IMPLEMENT_DYNCREATE(World, CDocument)
+IMPLEMENT_DYNCREATE(CDeskcppDoc, CDocument)
 
 // FUNCTION: YODA 0x00419f50  (GetMessageMap)
 // The document's command/update-UI map (AFX_MSGMAP_ENTRY array @0x44c2d0, 14 entries + terminator).
 // Reconstructed byte-for-byte from the binary in v45: IDs read from the array (0xe103=ID_FILE_SAVE,
 // 0xe141=ID_APP_EXIT, the 0x800x are this app's menu-command IDs), handlers matched by pfn address.
 // Referencing these here keeps them alive under /OPT:REF (they were dropped as unreferenced before).
-BEGIN_MESSAGE_MAP(World, CDocument)
+BEGIN_MESSAGE_MAP(CDeskcppDoc, CDocument)
     ON_COMMAND(0x8000, OnToggleSound)
     ON_UPDATE_COMMAND_UI(0x8000, OnUpdateToggleSound)
     ON_COMMAND(0x8004, OnToggleMusic)
@@ -105,7 +105,7 @@ END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419f60
 // dir (1=W 3=E 2=N 4=S, 0=none) of the neighbor of (x,y) holding a 0x68 gate cell.
-int World::FindAdjacentGateDirMaybe(int x, int y, short *paGrid)
+int CDeskcppDoc::FindAdjacentGateDirMaybe(int x, int y, short *paGrid)
 {
     int bWest = 0;
     int bNorth = 0;
@@ -134,7 +134,7 @@ int World::FindAdjacentGateDirMaybe(int x, int y, short *paGrid)
 //   (orig cmp n,i;jg vs ours cmp i,n;jl), the GameData-loader jl/jg phase family; operand
 //   flip proven inert. 119/119 insns otherwise identical.]
 // TILE chunk parser: nBytes/0x404 records of (u32 flags + 0x400 pixel bytes).
-int World::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
+int CDeskcppDoc::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
 {
     Tile *pNew = NULL;
     int   n = nBytes / 0x404;
@@ -174,7 +174,7 @@ int World::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
 //   case bodies verified against the disasm; per-case codegen (sbb idioms) matches.]
 // Locator-map icon code for grid cell (x,y). Switches on the cell's zoneType;
 // 0x11 = unvisited, 0x12/0x13 = town variants, 0xe/0x10 = gateway, etc.
-unsigned int World::GetLocatorIconMaybe(int x, int y, int bAlt)
+unsigned int CDeskcppDoc::GetLocatorIconMaybe(int x, int y, int bAlt)
 {
     int   i = x + y * 10;
     short idw = mapGrid[i].id;
@@ -274,7 +274,7 @@ unsigned int World::GetLocatorIconMaybe(int x, int y, int bAlt)
 
 // FUNCTION: YODA 0x0041a5d0
 // Caches the fixed UI tile pointers (locator icons, arrows, cursor) out of the tile array.
-void World::CacheUiTilePtrsMaybe()
+void CDeskcppDoc::CacheUiTilePtrsMaybe()
 {
     apUiTiles[0]  = (Tile *)tiles[832];
     apUiTiles[1]  = (Tile *)tiles[829];
@@ -303,7 +303,7 @@ void World::CacheUiTilePtrsMaybe()
 //   (stmt/cmp/decl all inert — the parked contest family).]
 // Redraws the map cell under the player onto the Canvas at (cameraX,cameraY):
 // layer 0, layer 1 (masked if TILE_GAME_OBJECT), player frame, then layer 2.
-void World::DrawPlayer()
+void CDeskcppDoc::DrawPlayer()
 {
     if (bWorldReady == 0 && pCanvas != NULL && currentZone != NULL &&
         pPlayerChar != NULL && pPlayerFrameTile != NULL) {
@@ -346,7 +346,7 @@ void World::DrawPlayer()
 //   landing is order-invariant. Plus the member-ctor chain edx/ecx temp rename.]
 // World (CDeskcppDoc) constructor: members in EH-state order, registry options,
 // planet rotation, demo overrides, UI layout rects, palette object, install path.
-World::World()
+CDeskcppDoc::CDeskcppDoc()
 {
     gpWorld = this;
     nMusicEnabled = 1;
@@ -551,7 +551,7 @@ World::World()
 //   ceiling, NOT a source miss. Trade accepted: the correct map keeps 15 handlers alive under /OPT:REF
 //   + byte-matches the .rdata array (see the map comment), vs this one 6-byte .text displacement.]
 // World destructor: write the options back to the registry, then destroy all assets.
-World::~World()
+CDeskcppDoc::~CDeskcppDoc()
 {
     int i, n;
 
@@ -637,7 +637,7 @@ World::~World()
 
 // FUNCTION: YODA 0x0041b8a0
 // Modified copy of MFC's CDocument::OnOpenDocument (opens the CFile directly).
-BOOL World::OnOpenDocument(LPCTSTR lpszPathName)
+BOOL CDeskcppDoc::OnOpenDocument(LPCTSTR lpszPathName)
 {
     IsModified();               // MFC source: if (IsModified()) TRACE0(...) — call survives
 
@@ -684,7 +684,7 @@ BOOL World::OnOpenDocument(LPCTSTR lpszPathName)
 //   store order; pPalette loaded into a local BEFORE ::CreatePalette.]
 // OnNewDocument override: zero the zone-pointer grid, build the game palette from the
 // system palette + master table, create the offscreen Canvas.
-BOOL World::OnNewDocument()
+BOOL CDeskcppDoc::OnNewDocument()
 {
     int nFull = -1;
     if (!CDocument::OnNewDocument())

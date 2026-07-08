@@ -192,6 +192,18 @@ the known ~48 reg-coloring .text deltas until/unless the central open problem (a
    already displaced them, so fixing relative order is a health/correctness win, not an absolute-address
    one until the walls crack (= the reg-alloc ceiling, same as 212 content).
 
+## v50 — DYNCREATE CRuntimeClass verified + classes renamed to original names
+Read each DYNCREATE class's `CRuntimeClass` from the exe (GetRuntimeClass is `mov eax,&classXxx; ret`; the
+struct is `{LPCSTR m_lpszClassName, int m_nObjectSize, UINT m_wSchema, CreateObject, base}`). **Object SIZES all
+match ours** (World 0x33c0, GameView 0x310, CMainFrame 0xd8) — no mis-sized-allocation/heap bug (CreateObject
+allocates m_nObjectSize bytes). **Name STRINGS revealed the original class names: `CDeskcppDoc`/`CDeskcppView`**
+(the MFC project was "Deskcpp" = Desktop Adventures); CMainFrame already matched. Per USER direction (source
+fidelity), RENAMED the classes to their originals — `World`→`CDeskcppDoc`, `GameView`→`CDeskcppView` — via 323
+tokenizer-based code-only edits (comments/strings/#includes skipped) + Ghidra struct + Ghidra namespace renames
+(thiscall `this` now types CDeskcppDoc*/CDeskcppView*). The DYNCREATE macro now emits the correct m_lpszClassName
+string NATURALLY. CODEGEN-NEUTRAL — symbol names are masked relocs, so 211 held (link 0/0, all oracles CLEAN).
+Variables keep pWorld/pView (game-concept readable; original var names unknown).
+
 ## v49 — .rdata MESSAGE-MAP content oracle (tools/msgcheck.py); found + fixed 2 real issues
 The vtcheck sibling for message maps. `tools/msgcheck.py`: for each class with a `?GetMessageMap@Cls@@`, read
 the ORIGINAL entries (GetMessageMap is `mov eax,&messageMap; ret`; messageMap = {pBaseMap, lpEntries};

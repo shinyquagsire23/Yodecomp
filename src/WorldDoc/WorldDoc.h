@@ -37,7 +37,7 @@
 // (de-dup step 2); included HERE to preserve the original declaration order (dial rule).
 #include "../Worldgen/MapZone.h"
 
-class World : public CDocument       // CDeskcppDoc; sizeof(CDocument) == 0x50 in MFC 4.2
+class CDeskcppDoc : public CDocument       // CDeskcppDoc; sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
     int         unk50;               // +0x0050
@@ -174,8 +174,8 @@ public:
                                      // sizeof 0x33c0
 
     // ---- this TU's methods (markers in WorldDoc.cpp) ----
-    World();                                              // 0x0041a870
-    virtual ~World();                                     // 0x0041b2f0 (ScalarDtor 0x0041b2d0)
+    CDeskcppDoc();                                              // 0x0041a870
+    virtual ~CDeskcppDoc();                                     // 0x0041b2f0 (ScalarDtor 0x0041b2d0)
     int  FindAdjacentGateDirMaybe(int x, int y, short *paGrid);   // 0x00419f60
     int  ParseTilesMaybe(CFile *pFile, unsigned int nBytes);      // 0x0041a030 TILE chunk
     unsigned int GetLocatorIconMaybe(int x, int y, int bAlt);     // 0x0041a1c0
@@ -212,7 +212,7 @@ public:
     afx_msg void OnUpdateReplayStory(CCmdUI *pCmdUI);     // 0x00403610
 
 protected:
-    DECLARE_DYNCREATE(World)                              // CreateObject 0x00419ed0
+    DECLARE_DYNCREATE(CDeskcppDoc)                              // CreateObject 0x00419ed0
     DECLARE_MESSAGE_MAP()                                 // GetMessageMap 0x00419f50
 };
 

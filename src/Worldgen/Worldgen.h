@@ -71,7 +71,7 @@ public:
 
 // World facade for the functions transcribed so far (offsets from the ctor-derived layout in
 // src/WorldDoc/WorldDoc.h; grows toward the real CDeskcppDoc as the TU fills in).
-class World : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
+class CDeskcppDoc : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
     int         unk50;               // +0x0050
