@@ -113,6 +113,29 @@ void Character::Init(short nTypeFlags, short nMoveType, short nUnk40, int nUnk44
     unk44 = nUnk44;
 }
 
+// FUNCTION: YODA 0x004047a0
+// Parses one ICHA record body: 8B header, 16B name (discarded), 3 shorts + dword -> Init,
+// then the 24-short frame table.  (Defined here, right after Init, to match the original
+// AppData→Records .obj emission order: Init, Read, GetWalkFrameTile, ... — Phase G2 layout.)
+void Character::Read(CFile *pFile)
+{
+    short frameBuf[24];
+    char  name[16];
+    char  hdr[8];
+    int   dw;
+    short w1, w2, w3;
+
+    pFile->Read(hdr, 8);
+    pFile->Read(name, 0x10);
+    pFile->Read(&w1, 2);
+    pFile->Read(&w2, 2);
+    pFile->Read(&w3, 2);
+    pFile->Read(&dw, 4);
+    Init(w1, w2, w3, dw);
+    pFile->Read(frameBuf, 0x30);
+    memcpy(frames, frameBuf, 0x30);
+}
+
 // FUNCTION: YODA 0x00404830
 void *Character::GetWalkFrameTile(int dx, int dy, CObArray *paTiles)
 {
@@ -157,28 +180,6 @@ void *Character::GetFrameTile(int dx, int dy, CObArray *paTiles, int nAnimBank)
     }
     currentFrame = frames[idx];
     return paTiles->GetAt(frames[idx]);        // reload: the currentFrame store may alias frames[]
-}
-
-// FUNCTION: YODA 0x004047a0
-// Parses one ICHA record body: 8B header, 16B name (discarded), 3 shorts + dword -> Init,
-// then the 24-short frame table.
-void Character::Read(CFile *pFile)
-{
-    short frameBuf[24];
-    char  name[16];
-    char  hdr[8];
-    int   dw;
-    short w1, w2, w3;
-
-    pFile->Read(hdr, 8);
-    pFile->Read(name, 0x10);
-    pFile->Read(&w1, 2);
-    pFile->Read(&w2, 2);
-    pFile->Read(&w3, 2);
-    pFile->Read(&dw, 4);
-    Init(w1, w2, w3, dw);
-    pFile->Read(frameBuf, 0x30);
-    memcpy(frames, frameBuf, 0x30);
 }
 
 // FUNCTION: YODA 0x00404910
