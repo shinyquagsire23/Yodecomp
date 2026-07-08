@@ -417,8 +417,16 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v31 — PHASE F FIRST-APP-TU DONE; 99.09% coverage)
-**▶ v31 RESULTS (this commit): PHASE F — the FIRST APP TU (src/AppData/AppData.cpp,
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v31 — PHASE F DONE + PHASE G0 STOOD UP; 99.09% coverage)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` should top out at the G0
+commit ("Phase G0: link-to-complete audit … RemoveItem"). Baseline to reproduce before changing
+anything: `tools/link_exe.sh` → **0 duplicates, 34 unresolved** (10 WAVMIX); `python3
+tools/verify.py src/AppData/AppData.cpp` → **14/14 exact** (rm the .obj + recompile first, per
+protocol); `tools/verify.py src/Worldgen/Worldgen.cpp` → **35/91 exact**. Ghidra: confirm
+`list_open_programs` current=YodaDemo.exe before any write. If any baseline differs, a header
+drifted — bisect before proceeding.
+
+**▶ v31 RESULTS (committed): PHASE F — the FIRST APP TU (src/AppData/AppData.cpp,
 0x401000–0x401450), the LAST un-transcribed real source file, is DONE: 14/14 app funcs EXACT
 + 5 CObject lib COMDATs (0x401060/70/80/130/150) byte-match their folded addrs. Also fixed the
 Worldgen build (TextDialog field renames unk10/14/54→nArgX/nArgY/nMode broke ShowTextDialog).
@@ -433,7 +441,8 @@ plate on 0x401000, saved (YodaDemo ACTIVE). Coverage 98.47%→99.09%, exact 21.2
   groups same-value stores keeping source order per group (0-writes 0x28→0x08, -1-writes
   0x18→0x04). (b) InvItem needed an EXPLICIT out-of-line `~InvItem()` (added to GameView.h) so
   ??_GInvItem stays a thin 28B call-through instead of inlining CString destruction (implicit-
-  vs-explicit dtor shape). Verified dial-neutral: GameView 72/122, Worldgen 34/90 both ways.
+  vs-explicit dtor shape). Verified dial-neutral: GameView 72/122, Worldgen (was 34/90 at the
+  time; now 35/91 after the G0 RemoveItem add) both ways.
 - **AppWnd is PROVISIONAL:** the msgmap-0x44b000 CWnd class's exact identity is unknown (base
   msgmap 0x44c510). Its Disable/Enable overrides COMDAT-fold across ~15 UI classes (InvScrollBar
   vtable 0x44b578 slots 36/37 point at the folded copies). Bodies byte-match regardless; the
@@ -461,7 +470,7 @@ then add a `wavmix32.lib` stub + extract resources. Most of this is byte-neutral
 2. **G1 joint residual passes** (biggest exact-% wins): build the parallel permuter loop (N wine
    workers around tools/permute.py --mode all, asmscore oracle) and sweep the parked EFFECTIVE
    functions per TU (doc TU 56, Records 8, Iact 8, Canvas 3, WorldDoc 6, GameData, scorers).
-   The Worldgen "36→34" drift is a symptom the shared-header dials aren't at their fixed point yet
+   The Worldgen "36→35/91" drift is a symptom the shared-header dials aren't at their fixed point yet
    — the minimal-TU probe (extract a function + its `#include`, asmscore solo) tells header-dial
    vs TU-position per function. UseWeapon binding flip + loader/saver clone rotations are the big
    expected wins.
