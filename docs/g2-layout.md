@@ -192,6 +192,24 @@ the known ~48 reg-coloring .text deltas until/unless the central open problem (a
    already displaced them, so fixing relative order is a health/correctness win, not an absolute-address
    one until the walls crack (= the reg-alloc ceiling, same as 212 content).
 
+## v47 — .rdata vtable-content oracle (tools/vtcheck.py); World + GameView vtables VALIDATED
+Non-.text CONTENT verification (absolute .rdata LAYOUT stays wall-blocked — everything shifts after the first
+.text length wall — but content correctness is layout-independent and catches real bugs). Built `tools/vtcheck.py`:
+reads the ORIGINAL vtable from the exe (VA→file offset) + OUR vtable from `build/<TU>.obj` (the `??_7<Class>@@6B@`
+data COMDAT + its relocations → per-slot target symbol), and checks the two override the SAME slots with the SAME
+class methods. The data-side complement to bugscan.py — a MISSING override = a virtual we forgot to declare (the
+base runs — a runtime bug), exactly the class of `World::IsModified` before v46. Result: **World 8/8 and GameView
+8/8 override slots match — CLEAN.** (v45/v46's .rdata work confirmed correct.)
+- **World dtor slot (+0x04) `??_E` vs orig `??_G` — BENIGN (ICF).** Our vtable references `??_EWorld` (vector
+  deleting dtor) where the original slot → 0x41b2d0 (`??_G` scalar, disasm-confirmed `call ~World; test flag;
+  delete`). But `??_EWorld` and `??_GWorld` link to the SAME address (0x41b350) under BOTH /OPT:REF and NOREF —
+  identical bodies for a never-array-allocated class, folded — so the slot resolves to the same scalar dtor. No fix.
+- **Two tool gotchas baked in:** (a) ICF folds trivial BASE methods to app-region addresses that masquerade as
+  overrides — the FOLDED_BASE set (0x401060/70/80 CObject defaults, 0x401090/a0 DisableSelfWindow/Enable,
+  0x40e3f0 CView no-op) is whitelisted as base. (b) BOUND the compare to OUR vtable's real slot extent (max reloc
+  offset) — reading past the vtable end walks into adjacent .rdata (World +0xbc→??_GCPalette 0x41e8b0, GameView
+  +0x114/+0x12c→the embedded Balloon sub-vtables) and mis-reports MISSING overrides.
+
 ## v45 — the REF-DROP oracle + World document message map reconstructed (closes 15 of 22 gaps)
 The concrete way to find "which functions the original references that our partial call-graph doesn't":
 link the SAME obj set twice (`/OPT:REF` and `/OPT:NOREF`, each with `/MAP`), diff the app-obj symbol sets

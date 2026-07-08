@@ -1246,3 +1246,12 @@ World,CDocument) was an empty TODO stub. Rebuilt the 14-entry AFX_MSGMAP_ENTRY a
 decls in WorldDoc.h → all 14 fixed fields byte-match, REF-drops 22→7. COST: ~World 0x41b2f0 PHASE-DISPLACED
 (212→211, DIFF 6 align=0 intrinsic — the original .obj was built WITH the map). Then v46 closed 2 more
 (World vtable overrides IsModified/SetModifiedFlag, codegen-neutral, REF-drops 7→5).
+
+### ⏮ PRIOR PICKUP — v46 (2026-07-08, condensed; superseded by v47)
+PHASE G2: closed 2 more REF-drops via World vtable overrides (codegen-neutral). World::IsModified/
+SetModifiedFlag were dropped under /OPT:REF because WorldDoc.h's World class (the IMPLEMENT_DYNCREATE TU that
+emits the vtable) didn't declare them virtual → the emitted vtable pointed at CDocument's base versions.
+Declared both virtual → vtable slots target our overrides → kept. Overriding EXISTING base slots (no reorder/
+sizeof change) is codegen-inert (211 held). REF-drops 7→5 (running 22→5 across v45+v46). The 5 remaining are
+the hard tail (AppWnd OnPaint/OnTimer msgmap in a different TU; AppWnd Disable/Enable ICF-folded; ??_H CRT
+helper). Then v47 built tools/vtcheck.py and validated World+GameView vtable content (8/8 each, CLEAN).
