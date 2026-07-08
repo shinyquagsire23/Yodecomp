@@ -82,14 +82,20 @@ NOT persist. Passing `program=X` to a write is silently ignored → you will cor
 (open/focus it in the CodeBrowser). Confirm with `list_open_programs` → `current_program` must read
 `YodaDemo.exe` before any write. Then writes land correctly. ⚠ Other programs ARE open now (v50:
 libKOTOR.so/KOTOR2sub/libkotor2.so — the user's KOTOR project), so a mis-routed write corrupts THEIR work.
-- **A FIX EXISTS but is NOT yet live:** `~/workspace/ghidra-mcp` branch `feature/program-param-write-routing`
-  (built `target/GhidraMCP-5.15.0.zip`) makes `program=` authoritative on writes for annotation-based tools
-  (PROGRAM_PARAM_WRITE_CHANGE.md). **v50 TESTED it and it did NOT route** — a `program=libkotor2.so`
-  set_plate_comment landed on the ACTIVE YodaDemo (0x401000/OnTimer), libkotor2.so got nothing. So the
-  running plugin is still the OLD build; the new zip needs a **Ghidra restart** to take effect (quit Ghidra →
-  Install Extensions → the 5.15.0 zip → restart). AFTER the restart, RE-VERIFY with the cross-program comment
-  test (write to a non-current program via `program=`, confirm it lands THERE not in the active one, then
-  clear it) BEFORE weakening these warnings. Until then, the ACTIVE-program rule above is mandatory.
+- **⭐ v51 DIAGNOSIS — the PLUGIN is fixed, the BRIDGE is not.** Ghidra runs plugin **5.15.0** (verified:
+  `curl localhost:8089/get_version`) from `feature/program-param-write-routing`. v51 tested post-restart:
+  - **Direct HTTP with `program=` in the QUERY string ROUTES CORRECTLY** — `curl -s
+    "localhost:8089/set_plate_comment?program=libkotor2.so" -X POST -d '{"address":"0x400e70","comment":"..."}'`
+    lands on libkotor2.so and leaves the active YodaDemo untouched (proven: the call returned libkotor2.so's
+    own "No function at 0x401000" and YodaDemo's OnTimer comment was unchanged).
+  - **The `mcp__ghidra__*` tools STILL mis-route** — `mcp__ghidra__set_plate_comment(program="libkotor2.so",…)`
+    hit the ACTIVE YodaDemo. The Python MCP BRIDGE sends `program` where the plugin's regular @McpTools don't
+    read it (body vs the required QUERY), or the running bridge predates the fix. Restarting Ghidra did NOT fix
+    the bridge (separate process).
+  - **⇒ SAFE-WRITE RULES until the bridge is fixed/restarted:** (a) for a write to a NON-active program, use
+    **direct HTTP with `?program=<name>` in the query** (routes correctly); (b) for `mcp__ghidra__*` writes,
+    keep the TARGET program **ACTIVE** (`list_open_programs`→current) — they ignore `program=`. Re-test the
+    bridge (the cross-program comment test) after it's updated/restarted; then relax these warnings.
 
 ## Binary facts (established 2026-07-04)
 
@@ -665,17 +671,14 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
 **▶ START HERE (v51) — content phase is DONE; the two live threads are both PAUSED pending EXTERNAL action (the
 user is obtaining things). Don't manufacture busywork — check the two threads, else ask the user.**
 
-**THREAD 1 — Ghidra write-routing fix (verify after a Ghidra RESTART).** The user built ghidra-mcp branch
-`feature/program-param-write-routing` (`~/workspace/ghidra-mcp/target/GhidraMCP-5.15.0.zip`,
-PROGRAM_PARAM_WRITE_CHANGE.md) which makes `program=` authoritative on writes. **v50 TESTED it and it did NOT
-route** — a `program=libkotor2.so` set_plate_comment hit the ACTIVE YodaDemo (0x401000/OnTimer, restored fine),
-libkotor2.so got nothing → the RUNNING plugin is still the old build; the zip needs a Ghidra restart. FIRST
-THING v51: if the user says they restarted, RE-RUN the cross-program comment test (write a throwaway plate
-comment to a NON-current program via `program=`, read it back from that program AND from the current one, then
-clear it). If it now lands in the named program → the write-gotcha is RESOLVED: relax the WRITE GOTCHA block +
-the "make YodaDemo active first" rules in this file. If it still mis-routes → leave the gotcha, tell the user
-the restart didn't take. ⚠ The user's KOTOR programs are open in the same Ghidra — a mis-routed write corrupts
-THEIR work, so the active-program rule stands until proven fixed.
+**THREAD 1 — Ghidra write-routing: PLUGIN fixed, BRIDGE not (v51 diagnosed; see the WRITE GOTCHA block above).**
+Ghidra runs plugin 5.15.0 (`feature/program-param-write-routing`). v51 proved: **direct HTTP with `?program=`
+in the QUERY routes correctly** (write to a non-active program lands there, active untouched), but the
+**`mcp__ghidra__*` bridge still mis-routes** to the active program (it doesn't put `program` in the query the
+plugin reads). So until the BRIDGE is fixed/restarted: use direct HTTP `curl "localhost:8089/<ep>?program=<name>"`
+for cross-program writes, OR keep the target program ACTIVE for mcp writes. NEXT: if the user updates/restarts
+the MCP bridge, RE-RUN the cross-program comment test via the mcp tool; if it routes, relax the WRITE GOTCHA
+block. ⚠ KOTOR programs share this Ghidra — a mis-routed mcp write corrupts THEIR work.
 
 **THREAD 2 — the compiler hunt (PAUSED; waiting on a candidate build).** CORRECTION to the old "unobtainable cl"
 framing: **we HAVE + use a genuine VC++ 4.2, cl `10.20.6166` (CL.EXE + C1XX.EXE + C2.EXE) at `toolchain/vc42/`**
