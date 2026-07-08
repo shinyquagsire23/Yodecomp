@@ -47,11 +47,14 @@ reconciled. There are exactly TWO kinds of divergence, and only one is fixable:
    the TU becomes internally in-order and "prepared" to snap into place once upstream is resolved.
 2. **LENGTH divergences from INTRINSIC register allocation** — a non-exact function whose bytes differ in
    COUNT, not just register names. Proven root cause on the SaveStoryHistory clone family (0x402670/9c0/d10,
-   DIFF 611/858, +10 bytes each): the ORIGINAL cl allocated one MORE callee-saved register (pushes ebx/esi/
-   edi = 3; ours pushes esi/edi = 2), so it strength-reduces the frame-table index into EBX while ours
-   recomputes it — a different, LONGER instruction stream on identical IR. This is exactly the lesson-#29
+   DIFF 611/858, +10 bytes each): OUR cl allocates one MORE callee-saved register — ours pushes ebx/esi/edi
+   (3), the original pushes only esi/edi (2). Ours grabs EBX for the 2nd sprintf arm, which then FAILS to
+   cross-jump the shared `[lea buf; inc; push; call]` tail the original shares (lesson #18) → a LONGER
+   instruction stream on identical IR (the original is the more compact one). This is the lesson-#29
    ABI-pinned reg-coloring class, but here it changes LENGTH (not just same-length renames), so it SHIFTS
-   layout. Lessons #29/#30 proved this class is NOT per-TU/source/flag steerable. These are hard walls.
+   layout. Prior sessions EXHAUSTED the source knobs (decl order/position ×4, ternary-of-calls, arms
+   swapped, k++ placement, v-temp homing, loader-form phase sweep — see the in-source autopsy at
+   src/GameData/GameData.cpp:207); NOT per-TU/source/flag steerable (#29/#30). These are hard walls.
 
 **Consequence / corrected plan:** the byte-identical whole image (the ~100% goal) is bounded by the SAME
 cl register-allocation wall as the 212 content ceiling — not only in bytes but in LAYOUT, because reg-count
@@ -66,6 +69,34 @@ length divergence; (c) verify RELATIVE layout within same-length runs. Absolute 
 requires cracking the central open problem (a different/period-correct cl.exe build, or the exact original
 per-function source) — the standing wall. Do NOT grind the SaveStory/intrinsic-length funcs for layout;
 they are the same park as content. DO keep fixing order-scrambles (cheap, correct, content-neutral).
+
+### v43 — the length-wall ceiling, quantified (tools/g2_order.py)
+`tools/g2_order.py` (needs build/*.obj + the Ghidra addr cache toolchain/test/orig_func_addrs.txt):
+- `--walls` maps every function whose padded COMDAT length != the ORIGINAL's true slot (next Ghidra function
+  addr − addr, so non-marker lib/EH gaps don't confound; non-16-aligned orig slots = EH-funclet/clone
+  confound, auto-skipped). **~43 clean length walls**, ALL in non-exact functions (the reg-coloring class).
+  First wall = SaveStoryHistoryNevada 0x402670 (+0x10) ⇒ absolute LAYOUT is achievable only for the **26
+  markers before it**.
+- `--scramble` lists per-TU emission-ORDER inversions (our obj COMDAT order vs orig address order) — the
+  RELATIVE-layout metric. Reliable (unlike --walls, which has ±clone/funclet noise at TU boundaries).
+  Currently in-order: World, GameData, Records, Iact, Canvas, IactScript, Dlg, WorldDoc. Effectively
+  in-order: AppData (1 = the parked WorldgenZoneEntry ??_G quirk), GameView (1 = the deliberately
+  end-placed InvScrollBar dtor, lesson #23). Real scrambles left: **Frame (3 handlers), App (3), Worldgen
+  (3, the GameView-tail block)**.
+
+**⭐ Why LAYOUT is 39 not 26 — the cumulative drift OSCILLATES.** The walls have MIXED signs (some funcs +N,
+some −N; e.g. SaveStory +0x10 each but ReadZax2/3 −0x10, OnTimer −0x40, Tick +0x30…). The running cumulative
+drift wanders around 0 and passes THROUGH 0 at several points (e.g. it returns to +0x0 at OnHScroll 0x418560),
+so downstream functions COINCIDENTALLY re-align to their original address wherever cum==0. So absolute
+LAYOUT == (# markers where cumulative length-drift == 0), NOT a clean prefix. This is why fixing the FIRST
+wall would help but the true fix is eliminating ALL walls (cum stays 0 everywhere) — which needs the cl
+reg-allocation wall cracked (lessons #29/#30). Fixing an emission-ORDER scramble does NOT change any wall
+(order ≠ length); it only makes a TU internally correct so it snaps cleanly if/when the walls vanish.
+
+**Realistic G2 completion bar (this is the achievable deliverable):** every app TU internally emission-order
+correct (the --scramble metric → 0 real inversions) + a linkable/runnable image. ABSOLUTE whole-image
+byte-identity is gated by the ~43 intrinsic length walls == the same cl reg-allocation wall as the 212
+content ceiling; unobtainable without a period-correct/different cl.exe or exact original per-function source.
 
 ### AppData residuals (both self-correcting — do NOT cascade past 0x401450; ~5 local funcs)
 - **CObject trio position (-0x30):** Disable/Enable/MapZone-ctor land 0x30 low because the original emits

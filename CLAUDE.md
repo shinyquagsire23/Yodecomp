@@ -483,9 +483,9 @@ Written to be followable without prior context: each phase lists concrete steps 
   region collapses from a local scramble to a UNIFORM +0x50 (internally in-order, "prepared"). (3) ⭐ KEY
   FINDING (docs/g2-layout.md): G2 LAYOUT is GATED by per-function LENGTH, and the length divergences ARE the
   intrinsic reg-coloring wall — proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611, +10B each):
-  the ORIGINAL cl allocated one MORE callee-saved reg (pushes ebx/esi/edi vs our esi/edi) → longer stream on
-  identical IR = the lesson-#29 ABI-pinned class, but here it changes LENGTH not just reg-names, so it SHIFTS
-  everything downstream. ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
+  OUR cl allocates one MORE callee-saved reg (ours pushes ebx/esi/edi vs the original's esi/edi) → longer
+  stream on identical IR = the lesson-#29 ABI-pinned class, but here it changes LENGTH not just reg-names, so
+  it SHIFTS everything downstream. ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
   the 212 content ceiling. Productive G2 = fix emission-ORDER scrambles (cheap/content-neutral); ABSOLUTE
   layout caps at the first intrinsic length divergence (GameData SaveStory, +0x50). Two AppData residuals
   PARKED (CObject trio -0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk).**
@@ -563,12 +563,13 @@ America/Boise — check before spawning fable agents (G2 is all main-thread anyw
   upstream function N bytes longer/shorter shifts EVERYTHING downstream by N. Two divergence kinds:
   (1) **emission-ORDER scrambles** (GetMessageMap-at-head; Read-after-GetFrameTile) — FIXABLE by source
   reorder, CONTENT-neutral, the clean G2 wins; (2) **LENGTH divergences from intrinsic reg-allocation** —
-  proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611/858, +10B each): the ORIGINAL cl allocated
-  one MORE callee-saved register (pushes ebx/esi/edi=3 vs our esi/edi=2) → strength-reduces the frame-table
-  index into EBX while ours recomputes it = a LONGER stream on identical IR. This is the lesson-#29 ABI-
-  pinned class, but it changes LENGTH not just reg-names, so it SHIFTS layout. NOT per-TU/source/flag
-  steerable (#29/#30). ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
-  the 212 content ceiling — in LAYOUT too, not just bytes.
+  proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611/858, +10B each): OUR cl allocates one MORE
+  callee-saved register (ours pushes ebx/esi/edi=3 vs the original's esi/edi=2) — ours grabs EBX for the 2nd
+  sprintf arm, which then FAILS to cross-jump the shared tail the original shares (#18) = a LONGER stream on
+  identical IR (original is the compact one). Lesson-#29 ABI-pinned class, but it changes LENGTH not just
+  reg-names, so it SHIFTS layout. Source knobs EXHAUSTED (GameData.cpp:207 autopsy); NOT steerable (#29/#30).
+  ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as the 212 content ceiling
+  — in LAYOUT too, not just bytes.
 
 **▶ START HERE (v43) — PHASE G2, main-thread. The layout ceiling is now understood: ABSOLUTE-address match
 caps at the first intrinsic length divergence (GameData SaveStoryHistory, +0x50 by GameData's end). Do NOT
