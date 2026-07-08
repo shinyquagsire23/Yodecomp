@@ -443,60 +443,65 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v34 — static bug-oracle sweep + AfxGetResourceHandle fix)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v34** commit
-(below it: f2d3019 v33 CLAUDE.md finalize, 6a88217 v33 OnCtlColor fix). A dirty tree is EXPECTED and
-fine: `M run.sh` + `?? YodaDemoCopy/` are the USER's app-run script + test copy — do NOT commit or
-revert them. Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`):
-`tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py
-src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**;
-`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs**.
-Ghidra: `list_open_programs` current=YodaDemo.exe before any write. If a baseline differs, a header
-drifted — bisect first.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v35 — bug-oracle committed as tools/bugscan.py + clean sweep)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v35** commit
+(below it: e8ed6af "asdf" = USER's link_exe.sh comment tweak, 15472c2 v34, f2d3019 v33). A dirty tree is
+EXPECTED and fine: `?? YodaDemoCopy/` is the USER's test copy — do NOT commit or revert it. Baselines (rm
+obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` →
+**0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py src/AppData/AppData.cpp` → **14/14**;
+`src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/GameData.cpp` → **12/27**; `progress.py` →
+**209 exact funcs**; `python3 tools/bugscan.py` (needs ALL build/*.obj — compile every TU first) →
+**0 HIGH, 0 SHIFT, 0 SWAP** (exit 0 = clean). Ghidra: `list_open_programs` current=YodaDemo.exe before
+any write. If a baseline differs, a header drifted — bisect first.
 
-**▶ v34 RESULTS (committed):**
-- **⭐ STATIC BUG-ORACLE SWEEP (complement to v33's running-EXE oracle).** Built a scan (job tmp
-  vtscan*.py): decode both reloc-masked streams, Needleman-Wunsch align (asmscore._align), flag aligned
-  same-key pairs with a non-stack mem operand, matching base reg, DIFFERING disp. Address-keyed diffing
-  is UNRELIABLE for align>0 funcs (stream drift collides unrelated insns) — must gate on structural
-  identity OR use NW-alignment. Results: **ZERO remaining v33-class `call [reg+disp]` vtable-slot bugs**,
-  **zero field bugs in drift-free funcs**. Nearly all drifted-func mem-disp flags are reg-alloc noise
-  (same reg NAME, different pointer/loop-structure — e.g. StartGame [esi+0x4b4]/[esi+0x4b0] both write
-  the same absolute grid addr, NOT an off-by-4 bug).
-- **⭐ AfxGetResourceHandle fix (the one real find).** OnInitialUpdate 0x426c40 (11 LoadCursor) +
-  DrawDirectionArrows 0x4270f0 (8 LoadIcon) called `AfxGetInstanceHandle()` (AfxGetModuleState()->
-  m_hCurrentInstanceHandle @+0x8); orig reads @+0xc = m_hCurrentResourceHandle ⇒ **AfxGetResourceHandle()**
-  (AFX_MODULE_STATE:CNoTrackObject ⇒ WinApp@+4/Instance@+8/Resource@+0xc). Swapped all 19; closed 14
-  field bytes (OnInitialUpdate DIFF 31→21, DrawDirectionArrows −4). Both stay EFFECTIVE (scheduling
-  residual). NOT runtime-observable (static-MFC EXE: the two handles are equal), so ONLY byte-diff catches
-  it — lesson #25, memory [[afx-resource-vs-instance-handle]]. No regression: 209 exact / 34/91 / 0-0-exit0.
+**▶ v35 RESULTS (committed):**
+- **⭐ tools/bugscan.py — the static #24/#25 bug oracle, now a COMMITTED reusable tool** (was v34's
+  ephemeral job-tmp vtscan). Reuses match.coff_functions + asmscore._decode/_align. For every marker:
+  NW-aligns our stream vs the original (relocs masked), flags aligned same-mnemonic/same-opkind pairs
+  with matching base reg + index but DIFFERING mem-operand disp. Buckets: HIGH (align==0 drift-free =
+  the whole reg-alloc agrees ⇒ a disp diff is a real field/slot bug), LOW (drifted, same reg NAME may be
+  a different pointer ⇒ manual review, hidden unless --all), FRAME (ebp/esp = frame noise). Absolute
+  [disp32] (base=None) skipped (reloc/global). **⭐ Key discriminator = DIRECTIONALITY:** a SYSTEMATIC
+  group (same (func,mnem,base,dispA,dispB) ≥3×) is a `SHIFT(bug?)` only if one-directional (v34 Afx:
+  orig=0xc ours=0x8 ×14, no reverse); a BIDIRECTIONAL swap (orig=X ours=Y AND orig=Y ours=X) is
+  `SWAP(sched)` = two writes/reads REORDERED by the scheduler, NW pairs them crosswise (NOT a bug).
+- **Validated both ways:** on clean source → 0 HIGH / 0 SHIFT / exit 0. Reverting the v34 Afx fix →
+  correctly flags OnInitialUpdate 10× + DrawDirectionArrows 4× as `SHIFT(bug?)`, exit 1. ⇒ the codebase
+  is confirmed clean of #24 (wrong-vtable-slot) and #25 (wrong-inlined-accessor) bugs.
+- **One systematic hit investigated + dismissed:** ShowWinMessage 0x40f4b0 shows a bidirectional
+  0x1e8↔0x1fc swap (questItemsA@0x1e8 / questItemsB@0x1fc reads on ecx=pWorld) — this is the ALREADY-
+  DOCUMENTED field30 if/else arm-crossing scheduling artifact in its EFFECTIVE annotation, count is
+  align-sensitive (2–3×, unstable = noise), correctly classed `SWAP(sched)`. Not a bug.
+- **Canvas-gap mini (parked #2) SCOPED, still blocked:** 0x407d90/0x407dc0 are ONE dialog class's two
+  combo handlers (NOT two classes — both live in the same AFX_MSGMAP at head 0x44b1d8, entries 0x44b1e0,
+  base 0x44c510 = CDialog::messageMap; WM_COMMAND codes 1=CBN_SELCHANGE & 5=CBN_EDITCHANGE for combo
+  0x9e). Body: `m_field68 = ((CComboBox*)GetDlgItem(0x9e))->GetCurSel() + 1;` (m_hWnd@0x1c, ::SendMessageA
+  CB_GETCURSEL). **BLOCKER:** the class is unidentifiable — NOTHING in the whole binary references the
+  msgmap head 0x44b1d8 (search_byte_patterns "d8 b1 44 00" = 0 hits; control 0x9e pushed ONLY at these 2
+  sites), and the class's ctor/OnInitDialog/DoDataExchange are NOT in this mini-TU range (0x407d90–
+  0x407df0, before Canvas) — so its fields (0x5c/0x60/0x64 before m_field68@0x68) are unknown. Violates
+  "structs before transcription"; DON'T force a fabricated-field match. Needs finding the owning dialog
+  (try: which CDialog DoModal/ctor sets a vtable whose GetMessageMap returns 0x44b1d8; or resource-
+  template 0x9e combo). Note: the addrs at 0x40799c/0x407a40/… are switch-case labels INSIDE the already-
+  claimed IactRunCommands (0x4070e0–0x407cf6), NOT separate funcs; 0x407d60 is its jump table.
 - Ghidra: NO writes this session. Nothing pending.
 
-**▶ START HERE (v35):**
-1. **⭐ RUN THE EXE AS A BUG ORACLE (still high-value — v33 proved it; v34's static scan is the
-   complement, NOT a replacement).** v34 cleared the static byte-diff bug classes, but SEMANTIC bugs
-   with NO byte diff (right instruction, wrong constant that's reloc-masked; wrong logic that still
-   compiles identically to a DIFFERENT-but-plausible disasm; missing behavior) only show at runtime.
-   Play through yoda.exe: watch for wrong colors / missing glyphs / misplaced UI / wrong behavior, map
-   each symptom to its function, diff vs disasm (lone `CALL [reg+disp]` = wrong vtable method #24;
-   inlined mem-disp = wrong MFC accessor #25). Needs real WAVMIX32.DLL + YODADEMO.DTA under wine.
-2. **Re-run the static scan after any new transcription** (job tmp vtscan4.py = drift-free field/slot;
-   the NW-aligned variant = all funcs). Cheap regression guard for the #24/#25 bug classes.
-3. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine
-   workers around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED
-   funcs per TU (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Use
-   the minimal-TU probe to tell header-dial vs TU-position. **NOTE re v32-displaced trio:** the
-   Worldgen ParseZaux/ParseZax3/ParseZax2 clones (0x423110/190/210) are ALL align=0 pure-reg-swap now
-   but each got a DIFFERENT register allocation in the ORIGINAL (ParseZax3 uses a 3-reg EBP rotation,
-   ParseZaux 2-reg) — source-identical clones can't all match in a partial TU (lesson #7); they only
-   resolve at the joint fixed point / G2 whole-TU build, NOT individually. SetCurrentToIntroZone
-   (0x423d20) is align=12 (structural, harder). UseWeapon binding flip + loader/saver clones are the
-   better G1 targets.
-4. **Canvas-gap pair (parked mini #2):** 0x407d90/0x407dc0 — IDENTICAL 21-byte funcs, each
-   `field68 = SendMessage(GetDlgItem(0x9e)->m_hWnd, CB_GETCURSEL,0,0) + 1` (a combo-select handler).
-   They're message-map pfns (DATA-ref'd from AFX_MSGMAP entries @0x44b1f4/0x44b20c) for two small
-   dialog classes NOT yet in src/ (they sit just before Canvas TU, 0x407df0). Needs modeling the two
-   dialog classes + their message maps — a small untranscribed dialog TU.
+**▶ START HERE (v36):**
+1. **Re-run `python3 tools/bugscan.py` after ANY new transcription** — cheap regression guard; HIGH or
+   SHIFT>0 (exit 1) = a new #24/#25 bug to fix. `--all` shows LOW/FRAME buckets for manual review.
+2. **⭐ RUN THE EXE AS A BUG ORACLE (still highest-value; v33 proved it).** bugscan clears the static
+   byte-diff bug classes but SEMANTIC bugs with NO byte diff (right instruction, reloc-masked wrong
+   constant; wrong logic that compiles to a plausible-but-different disasm; missing behavior) only show
+   at runtime. Play through yoda.exe: wrong colors / missing glyphs / misplaced UI → map symptom to
+   function, diff vs disasm. Needs real WAVMIX32.DLL + YODADEMO.DTA under wine (USER's YodaDemoCopy/).
+3. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine workers
+   around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED funcs per TU
+   (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Minimal-TU probe tells
+   header-dial vs TU-position. v32-displaced trio (Worldgen ParseZaux/ParseZax3/ParseZax2 0x423110/190/210)
+   are align=0 pure-reg-swap clones that only resolve at the joint fixed point (lesson #7), NOT
+   individually. UseWeapon binding flip (0x427d20, align=226 — big) + loader/saver clones = better targets.
+4. **Canvas-gap mini (parked #2):** unblock by IDENTIFYING the owning dialog class (see v35 blocker above),
+   then model it + its message map. Small win (2×21B) but adds a modeled class.
 5. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
   thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
@@ -722,6 +727,21 @@ drifted — bisect first.
 - **`progress.py`** — completion dashboard: compiles every `src/**/*.cpp`, sums matched bytes ÷ 128158
   total app-region function bytes (534 funcs). One number to track progress.
 - **`bytematch.py --va 0x.. --obj ..`** — single-function reloc-masked compare (the original harness).
+- **`bugscan.py [src/TU/TU.cpp ...] [--all]`** — ⭐ the **static #24/#25 correctness-bug oracle** (v35;
+  the committed form of v34's job-tmp vtscan). Needs `build/<TU>.obj` built (compile every TU first, like
+  progress.py). For each `// FUNCTION: YODA` marker it NW-aligns our stream vs the original (relocs masked,
+  reuses asmscore._decode/_align) and flags aligned same-mnemonic/same-opkind pairs with matching base reg
+  + index but DIFFERING memory-operand disp — the fingerprint of #24 (wrong `call [reg+disp]` vtable slot)
+  and #25 (wrong inlined-accessor field, e.g. AfxGetInstanceHandle+0x8 vs AfxGetResourceHandle+0xc). Three
+  buckets: **HIGH** (align==0 drift-free ⇒ real field/slot bug), **LOW** (drifted, same reg NAME may be a
+  different pointer — manual review, `--all`), **FRAME** (ebp/esp stack = frame noise). **SYSTEMATIC**
+  section groups identical (func,mnem,base,dispA,dispB) ≥3×: one-directional = `SHIFT(bug?)` (real — every
+  call site mis-transcribed the same way); bidirectional = `SWAP(sched)` (two writes REORDERED, NW-crossed,
+  NOT a bug). Exit 1 iff HIGH or SHIFT>0. Absolute [disp32]/reloc operands skipped. ⚠ inherits
+  match.pair_by_name's positional-fallback mis-pairing when run over ALL TUs at once (a marker with no
+  name-matching COMDAT pairs against the wrong function) — for a specific finding, RE-RUN on the single
+  owning TU (bugscan.py src/<owner>/<owner>.cpp) to confirm. Validated: clean tree = 0 findings; reverting
+  the v34 Afx fix re-flags it 10×+4× as SHIFT.
 - **`permute.py <src.cpp> 0xADDR [--iters N] [--mode all|stmt|cmp|decl]`** — the **permuter**. Searches
   source variations of one function (statement order; comparison form; leading local-declaration order →
   register/x87-slot allocation), cl-compiles each, and uses the **graded `asmscore`** (below) as the oracle.

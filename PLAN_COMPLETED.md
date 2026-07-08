@@ -1105,3 +1105,15 @@ the long-standing "DIFF 1 benign byte" WAS this slot displacement (lesson #24: a
 (30B), byte-exact. #line-neutral placement (decl appended to ctor's line, def at end of GameView.cpp)
 avoided the mid-file dial rotation that had displaced 6 funcs 208→204 (lesson #23). Method: found by
 diffing our yoda.exe vs stock in the same wine env. Memory [[textbubble-render-lead]]. Ghidra: no writes.
+
+### ⏮ PRIOR PICKUP (v34, 2026-07-08 — static bug-oracle sweep + AfxGetResourceHandle fix)
+Built a static complement to v33's running-EXE oracle (job tmp vtscan*.py, ephemeral): decode both
+reloc-masked streams, NW-align (asmscore._align), flag aligned same-key non-stack mem pairs with matching
+base reg + differing disp. Proved ZERO remaining v33-class `call [reg+disp]` vtable-slot bugs and zero
+field bugs in drift-free funcs. Surfaced ONE real mis-transcription: OnInitialUpdate 0x426c40 (11
+LoadCursor) + DrawDirectionArrows 0x4270f0 (8 LoadIcon) used AfxGetInstanceHandle (AfxGetModuleState+0x8)
+where orig calls AfxGetResourceHandle (+0xc); AFX_MODULE_STATE:CNoTrackObject ⇒ WinApp@+4/Instance@+8/
+Resource@+0xc. Swapped all 19 → 14 field bytes closed (OnInitialUpdate DIFF 31→21). NOT runtime-observable
+(static-MFC EXE: the two handles are equal) so the EXE oracle MISSES it (lesson #25, memory
+[[afx-resource-vs-instance-handle]]). Both funcs stay EFFECTIVE ⇒ 209 exact / Worldgen 34/91 / link
+0/0/exit0 unchanged. Ghidra: no writes. (v35 committed the ephemeral scan as tools/bugscan.py.)
