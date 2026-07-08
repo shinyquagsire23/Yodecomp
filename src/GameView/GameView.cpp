@@ -118,34 +118,37 @@ IMPLEMENT_DYNCREATE(GameView, CView)
 // FUNCTION: YODA 0x00408570
 BEGIN_MESSAGE_MAP(GameView, CView)
     //{{AFX_MSG_MAP(GameView)
-    ON_COMMAND(0x8001, OnCmdMinimize)
-    ON_WM_LBUTTONDOWN()
-    ON_WM_LBUTTONUP()
-    ON_WM_SETCURSOR()
-    ON_WM_MOUSEMOVE()
-    ON_WM_ERASEBKGND()
-    ON_WM_RBUTTONDOWN()
-    ON_WM_KEYDOWN()
-    ON_WM_KEYUP()
-    ON_WM_TIMER()
-    ON_WM_DESTROY()
-    ON_WM_HSCROLL()
-    ON_COMMAND(ID_APP_EXIT, OnAppExit)
-    ON_COMMAND(0x8005, OnCmdDifficulty)
-    ON_UPDATE_COMMAND_UI(0x8005, OnUpdateDifficultyUi)
-    ON_COMMAND(0x8002, OnTogglePause)
-    ON_UPDATE_COMMAND_UI(0x8002, OnUpdatePauseUi)
-    ON_COMMAND(0x800c, OnCmdGameSpeed)
-    ON_UPDATE_COMMAND_UI(0x800c, OnUpdateGameSpeedUi)
-    ON_COMMAND(0x800d, OnCmdWorldSizeMaybe)
-    ON_UPDATE_COMMAND_UI(0x800d, OnUpdateWorldSizeUi)
-    ON_COMMAND(0x800e, OnCmdStats)
-    ON_UPDATE_COMMAND_UI(0x800e, OnUpdateStatsUi)
-    ON_BN_CLICKED(0x1389, OnDialogCloseBtn)
-    ON_BN_CLICKED(0x138a, OnDialogDownBtnNop)
-    ON_BN_CLICKED(0x138b, OnDialogUpBtnNop)
-    ON_WM_CTLCOLOR()
-    ON_WM_CHAR()
+    // v49: entry ORDER reconciled to the original AFX_MSGMAP_ENTRY array (msgcheck-verified) —
+    // #11 WM_VSCROLL (was the ON_WM_HSCROLL bug), the difficulty ON_UPDATE moved after worldsize,
+    // stats moved to the tail after WM_CHAR, and the dialog Up/Down buttons in original order.
+    ON_COMMAND(0x8001, OnCmdMinimize)                       // #0
+    ON_WM_LBUTTONDOWN()                                     // #1
+    ON_WM_LBUTTONUP()                                       // #2
+    ON_WM_SETCURSOR()                                       // #3
+    ON_WM_MOUSEMOVE()                                       // #4
+    ON_WM_ERASEBKGND()                                      // #5
+    ON_WM_RBUTTONDOWN()                                     // #6
+    ON_WM_KEYDOWN()                                         // #7
+    ON_WM_KEYUP()                                           // #8
+    ON_WM_TIMER()                                           // #9
+    ON_WM_DESTROY()                                         // #10
+    ON_WM_VSCROLL()                                         // #11 (inventory scrollbar is VERTICAL)
+    ON_COMMAND(ID_APP_EXIT, OnAppExit)                      // #12
+    ON_COMMAND(0x8005, OnCmdDifficulty)                     // #13
+    ON_COMMAND(0x8002, OnTogglePause)                       // #14
+    ON_UPDATE_COMMAND_UI(0x8002, OnUpdatePauseUi)           // #15
+    ON_COMMAND(0x800c, OnCmdGameSpeed)                      // #16
+    ON_UPDATE_COMMAND_UI(0x800c, OnUpdateGameSpeedUi)       // #17
+    ON_COMMAND(0x800d, OnCmdWorldSizeMaybe)                 // #18
+    ON_UPDATE_COMMAND_UI(0x800d, OnUpdateWorldSizeUi)       // #19
+    ON_UPDATE_COMMAND_UI(0x8005, OnUpdateDifficultyUi)      // #20 (difficulty update trails, not paired)
+    ON_BN_CLICKED(0x1389, OnDialogCloseBtn)                 // #21
+    ON_BN_CLICKED(0x138b, OnDialogUpBtnNop)                 // #22
+    ON_BN_CLICKED(0x138a, OnDialogDownBtnNop)               // #23
+    ON_WM_CTLCOLOR()                                        // #24
+    ON_WM_CHAR()                                            // #25
+    ON_COMMAND(0x800e, OnCmdStats)                          // #26
+    ON_UPDATE_COMMAND_UI(0x800e, OnUpdateStatsUi)           // #27
     //}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -7559,10 +7562,13 @@ void GameView::CyclePalette()
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00415ff0
-// GameView::OnHScroll (WM_HSCROLL): forward to the inventory scroll bar if present,
-// else the base handler.
+// GameView::OnVScroll (WM_VSCROLL): the vertical inventory scrollbar reflects its scroll
+// here; forward to the InvScrollBar (which reuses its horizontal handler), else the base.
+// v49: was mis-registered as ON_WM_HSCROLL + mis-named OnHScroll — msgcheck proved the
+// original map entry #11 is WM_VSCROLL (0x115) pointing at THIS function (0x415ff0, byte-exact).
+// The body (CView::OnHScroll / InvScrollBar::OnHScroll reflection) is the original's, unchanged.
 // ---------------------------------------------------------------------------
-void GameView::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+void GameView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
     if (pInvScrollBar != NULL)
     {

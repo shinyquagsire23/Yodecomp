@@ -28,8 +28,21 @@ class GameView   { public: static const CRuntimeClass classGameView; };
 /////////////////////////////////////////////////////////////////////////////  CTheApp
 
 // FUNCTION: YODA 0x00419720  (GetMessageMap)
+// The AppWizard standard CWinApp map (entries @0x44b??? — msgcheck-verified against the original's 8
+// AFX_MSGMAP_ENTRY records): OnAppAbout + the standard file/help commands routed to CWinApp's handlers.
+// v49: was just the About entry; the other 7 were missing (File>New/Open + the context-help block would
+// not dispatch in the recompiled app). IDs/order read from the binary; handlers are CWinApp lib methods.
 BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
-    ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
+    ON_COMMAND(ID_APP_ABOUT, OnAppAbout)                    // 0xe140
+    // Standard file based document commands
+    ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)             // 0xe100
+    ON_COMMAND(ID_FILE_OPEN, CWinApp::OnFileOpen)           // 0xe101
+    // Standard context-sensitive help block (AppWizard order)
+    ON_COMMAND(ID_HELP_INDEX, CWinApp::OnHelpIndex)         // 0xe142
+    ON_COMMAND(ID_HELP_USING, CWinApp::OnHelpUsing)         // 0xe144
+    ON_COMMAND(ID_HELP, CWinApp::OnHelp)                    // 0xe146
+    ON_COMMAND(ID_CONTEXT_HELP, CWinApp::OnContextHelp)     // 0xe145 (this afxres.h: CONTEXT_HELP=0xe145)
+    ON_COMMAND(ID_DEFAULT_HELP, CWinApp::OnHelpIndex)       // 0xe147 (DEFAULT_HELP=0xe147)
 END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419730

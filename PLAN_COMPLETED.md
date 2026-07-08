@@ -1265,3 +1265,11 @@ per-slot target) and checks both override the same slots with the same class met
 Then v48 made it FULLY AUTOMATIC (auto-locates each vtable by scanning .rdata for override addresses from our
 markers) and swept all modeled classes → 10 CLEAN (all UI/dialog/frame/view/doc), 13 single-dtor data classes
 skipped. No missing-override bugs anywhere.
+
+### ⏮ PRIOR PICKUP — v48 (2026-07-08, condensed; superseded by v49)
+PHASE G2: made tools/vtcheck.py fully automatic (auto-locates each original vtable by scanning .rdata for >=2
+override addresses from our markers, no hardcoded bases) and swept all modeled classes → 10 CLEAN (CTheApp,
+CAboutDlg, CTextDialog, CMainFrame, GameView, StatsDlg, DifficultyDlg, GameSpeedDlg, WorldSizeDlg, World — every
+UI/dialog/frame/view/doc class). 13 single-??_E-dtor data classes skipped (un-anchorable). No missing-override
+bugs anywhere. Then v49 built the msgmap sibling (msgcheck.py) → found + fixed CTheApp incomplete map (1→8) and
+GameView #11 ON_WM_HSCROLL→WM_VSCROLL bug (inventory vertical scroll); all 11 maps CLEAN, both codegen-neutral.

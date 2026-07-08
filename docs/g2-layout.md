@@ -192,6 +192,28 @@ the known ~48 reg-coloring .text deltas until/unless the central open problem (a
    already displaced them, so fixing relative order is a health/correctness win, not an absolute-address
    one until the walls crack (= the reg-alloc ceiling, same as 212 content).
 
+## v49 — .rdata MESSAGE-MAP content oracle (tools/msgcheck.py); found + fixed 2 real issues
+The vtcheck sibling for message maps. `tools/msgcheck.py`: for each class with a `?GetMessageMap@Cls@@`, read
+the ORIGINAL entries (GetMessageMap is `mov eax,&messageMap; ret`; messageMap = {pBaseMap, lpEntries};
+lpEntries → a 24-byte AFX_MSGMAP_ENTRY array terminated by a zero nMessage) and OUR entries (from the obj's
+`?_messageEntries@Cls@@` COMDAT), then compare the fixed fields (nMessage/nCode/nID/nLastID/nSig) AND handler
+identity (each pfn's original address, via the markers) entry-for-entry. A wrong/missing entry = a menu command
+or window message silently mis-dispatched — a functional bug the vtable check can't see. **All 11 maps now CLEAN
+after two fixes (both CODEGEN-NEUTRAL, 211 held):**
+- **CTheApp map was INCOMPLETE (1 entry, orig 8).** Only `ON_COMMAND(ID_APP_ABOUT,OnAppAbout)` was present; the
+  AppWizard standard block (File>New/Open + the 5-command context-help block) was missing → those commands would
+  not dispatch. Reconstructed all 8 from the binary (handlers are CWinApp lib methods; IDs/order read from the
+  array). ⚠ This MFC 4.2 `afxres.h` has `ID_CONTEXT_HELP`=0xe145 / `ID_DEFAULT_HELP`=0xe147 (opposite of the
+  usual assumption — the emitted values proved it).
+- **GameView entry #11 was a REAL BUG: `ON_WM_HSCROLL` where the original has `WM_VSCROLL` (0x115).** The
+  inventory scrollbar is VERTICAL; our build registered horizontal → its scroll messages went unhandled. The
+  target function (0x415ff0, byte-EXACT) is the original's WM_VSCROLL handler — we had mis-named it `OnHScroll`
+  and mis-registered it. Fix: rename `GameView::OnHScroll`→`OnVScroll` (body unchanged — it byte-matches; it
+  reflects to InvScrollBar::OnHScroll, the documented reuse) + `ON_WM_VSCROLL()`. Also reconciled the entry
+  ORDER to the original (difficulty ON_UPDATE trails after worldsize not paired; stats commands at the tail
+  after WM_CHAR; dialog Up/Down buttons swapped) → GameView 28/28 byte-match. All codegen-neutral (GameView
+  73/124 held; the msgmap is .rdata data, not code).
+
 ## v47 — .rdata vtable-content oracle (tools/vtcheck.py); World + GameView vtables VALIDATED
 Non-.text CONTENT verification (absolute .rdata LAYOUT stays wall-blocked — everything shifts after the first
 .text length wall — but content correctness is layout-independent and catches real bugs). Built `tools/vtcheck.py`:

@@ -257,7 +257,7 @@ protected:
     afx_msg void OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);   // 0x00415a50
     afx_msg void OnTimer(UINT nIDEvent);                   // 0x0040d470
     afx_msg void OnDestroy();                              // 0x00415ac0
-    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00415ff0
+    afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00415ff0 (WM_VSCROLL — v49)
     afx_msg void OnAppExit();                              // 0x00416110  ID_APP_EXIT
     afx_msg void OnCmdDifficulty();                        // 0x00416120  cmd 0x8005
     afx_msg void OnUpdateDifficultyUi(CCmdUI *pCmdUI);     // 0x004165b0
