@@ -3403,6 +3403,8 @@ void GameView::OnTimer(UINT nIDEvent)
 // GameView::StepDetonatorEffect — thermal-detonator explosion animation at
 // (nDetonatorX,nDetonatorY): phases 0..2 blit tiles 0x202/0x431/0x432, phase 3
 // blits 0x433 then DetonateAdjacentTiles, phase 4 restores the zone cell.
+// [dial-breather: EXACT v22 -> out at the Canvas.h de-dup (2026-07-07), swapped with
+//  ReenableHotspotObjects/UpdatePlayerWalkFrame flipping in. Tie-break only; G1.]
 void GameView::StepDetonatorEffect()
 {
     int x = nDetonatorX;

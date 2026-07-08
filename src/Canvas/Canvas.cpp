@@ -1,9 +1,14 @@
 // Canvas — DIBSection offscreen buffer.
 // Each function is annotated with its original address for the match harness
 // (tools/match.py). Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+#include <windows.h>
 #include "Canvas.h"
 #include <string.h>
 #pragma intrinsic(memset, memcpy)
+
+// Minimal MFC CDC surface, PRIVATE to this TU (the canonical Canvas.h only fwd-declares
+// CDC; MFC TUs see the real class) — only m_hDC (@+0x04, after the CObject vtable) is used.
+class CDC { public: void *_vfptr; HDC m_hDC; };
 
 // Set once at startup: 1 if the CPU supports MMX. Gates the accelerated blit path.
 extern int App_bCpuHasMMX;
@@ -11,7 +16,10 @@ extern int App_bCpuHasMMX;
 // EFFECTIVE MATCH (22B reg-alloc residual): scheduler places the `height` CSE-temp load ~2 stores earlier
 // than the original + a push-edi timing diff. Semantically identical; not source-steerable (see CLAUDE.md).
 // FUNCTION: YODA 0x00407df0
-Canvas* Canvas::Init(int width, int height)
+// The CTOR (modeled as `Canvas* Init(...)` until the de-dup; the guarded `new Canvas(w,h)`
+// call shape in GameView::OnInitialUpdate proves ctor-hood — v14). MSVC thiscall ctors
+// return `this` in EAX implicitly, so the old explicit `return this;` codegen is unchanged.
+Canvas::Canvas(int width, int height)
 {
     BITMAPINFOHEADER* h = &biHeader;
     biHeader.biCompression = 0;
@@ -33,18 +41,18 @@ Canvas* Canvas::Init(int width, int height)
         hDib = CreateDIBSection(hdc, (BITMAPINFO*)h, 0, &pData, 0, 0);
         if (hDib != 0) {
             hOldBitmap = SelectObject(hdc, hDib);
-            return this;
+            return;
         }
         DeleteDC(hdc);
         if (hPalette != 0)
             DeleteObject(hPalette);
         hdc = 0;
     }
-    return this;
 }
 
 // FUNCTION: YODA 0x00407eb0
-void Canvas::Free()
+// The non-virtual DTOR (was modeled as `void Free()`; identical codegen).
+Canvas::~Canvas()
 {
     HDC dc = hdc;
     if (dc != 0 && hOldBitmap != 0) {
@@ -127,8 +135,8 @@ int Canvas::BitBlt(CDC* dest, int destX, int destY, int width, int height, int s
 }
 
 
-// EFFECTIVE MATCH (2B reg-alloc residual): `y` (user var) vs the inlined-memset `width` CSE-temp get the
-// swapped EBX/ESI pair. Fill matches (its `value` param shifts reg pressure). Not source-steerable.
+// EXACT since the de-dup ctor/dtor re-model (2026-07-07): the old EBX/ESI swap between `y`
+// and the inlined-memset `width` CSE-temp un-rotated with the new decl set. Dial breathing.
 // FUNCTION: YODA 0x00408040
 void Canvas::Clear()
 {

@@ -20,26 +20,10 @@ public:
     InvItem(Tile *pTile, const char *pszName);            // 0x00401270 (first app TU)
 };
 
-// Canvas stub: only what the doc/view TUs touch (real module: src/Canvas/, byte-matched).
-class Canvas
-{
-public:
-    HDC  hdc;                        // +0x000  memory DC (CreateCompatibleDC)
-    char _pad[0x438];                // no vptr; sizeof == 0x43c
-    Canvas(int width, int height);                        // 0x00407df0 (Canvas TU's "Init" —
-                                                          //  the guarded new-expr shape in
-                                                          //  OnInitialUpdate proves ctor-hood)
-    ~Canvas();                                            // 0x00408400 (Canvas TU; non-virtual)
-    void *GetData();                                      // 0x00407f50 (Canvas TU)
-    UINT  SetPalette(UINT start, UINT count, RGBQUAD *colors); // 0x00407fd0 (Canvas TU)
-    int   BitBlt(CDC *dest, int destX, int destY,         // 0x00408000 (Canvas TU)
-                 int width, int height, int srcX, int srcY);
-    void  Fill(unsigned char value);                      // 0x004080a0 (Canvas TU)
-    void  BlitFast(void *src, int flags, short height,    // 0x00408110 (Canvas TU)
-                   unsigned short srcStride, short destX, short destY);
-    void  BlitMasked(char *src, unsigned short srcStride, short height, // 0x00408240
-                     short destX, short destY, char key);
-};
+// Canvas — canonical declaration promoted to ../Canvas/Canvas.h (de-dup steps 3+4);
+// included HERE to preserve the original declaration order (dial rule). The old local
+// stub's `~Canvas() 0x408400` was a stale comment error — the dtor is 0x407eb0.
+#include "../Canvas/Canvas.h"
 
 class World;
 class GameView;

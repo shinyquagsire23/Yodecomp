@@ -27,19 +27,9 @@
 // Canvas stub (real module: src/Canvas/, byte-matched). Modeled here with the ctor/dtor
 // forms this TU's codegen needs: `new Canvas(w,h)` emits new+nullcheck+ctor — the ctor IS
 // src/Canvas's `Init` (0x407df0, a __thiscall returning this; identical codegen either way).
-class Canvas
-{
-public:
-    char _pad[0x43c];                // no vptr; sizeof == 0x43c (operator_new size)
-    Canvas(int w, int h);                                 // 0x00407df0 (= Canvas::Init)
-    ~Canvas();                                            // 0x00408010 (= Canvas::Free)
-    void Clear();                                         // 0x00408040
-    void SetPalette(int nStart, int nCount, RGBQUAD *pRgb); // (src/Canvas SetPalette)
-    void BlitFast(void *src, int flags, short height,
-                  unsigned short srcStride, short destX, short destY);     // 0x00408110
-    void BlitMasked(char *src, unsigned short srcStride, short height,
-                    short destX, short destY, char key);                   // 0x00408240
-};
+// Canvas — canonical declaration (de-dup steps 3+4). The old local stub's `~Canvas()
+// 0x408010` was a stale comment error — the dtor is 0x407eb0.
+#include "../Canvas/Canvas.h"
 
 // A 10x10 world-map grid cell — canonical definition promoted to ../Worldgen/MapZone.h
 // (de-dup step 2); included HERE to preserve the original declaration order (dial rule).

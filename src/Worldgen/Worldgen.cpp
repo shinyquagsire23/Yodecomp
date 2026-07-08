@@ -1133,9 +1133,8 @@ void World::WorldgenAddZoneEntry(short zoneId, short val)
     }
 }
 
-// FUNCTION: YODA 0x0041d8d0  [PHASE-DISPLACED by the MapZone.h de-dup (2026-07-07): was
-//   exact; the include-indirection provenance alone rotated one tie-break (token-identical
-//   decl set). Source proven correct; resolves at G1.]
+// FUNCTION: YODA 0x0041d8d0  [dial-breather: exact -> out at the MapZone.h de-dup -> back
+//   EXACT at the Canvas.h de-dup (both 2026-07-07). Pure provenance/decl-set tie-break.]
 // Zone unavailable/already placed: no such zone, or its id is in placedZoneIds.
 int World::IsZoneUsed(short zoneId)
 {

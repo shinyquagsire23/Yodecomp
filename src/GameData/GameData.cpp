@@ -83,9 +83,9 @@ void World::LoadStoryHistoryNevada()
         storyHistoryNevada.RemoveAt(0, 1);
 }
 
-// FUNCTION: YODA 0x00401ea0  [PHASE-DISPLACED by the MapZone.h de-dup (2026-07-07): was
-//   exact; DIFF(2) — the vptr-true MapZone's ctor/dtor decls entered this TU's dial and
-//   rotated one 2-byte tie-break. Source proven correct; resolves at G1.]
+// FUNCTION: YODA 0x00401ea0  [dial-breather: exact -> DIFF(2) at the MapZone.h de-dup ->
+//   back EXACT at the Canvas.h de-dup (both 2026-07-07). FindTile 0x403aa0 took its place
+//   (its EFFECTIVE DIFF(4) note applies again). Pure tie-break rotation.]
 // Load the planet-2 story history from registry [GameData] Alaska0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.

@@ -9,16 +9,8 @@
 #include "../Records/RecordClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
                                         // Tile/ZoneObj/Zone — never stub matched modules
 
-// Canvas stub: blit entry points (full class in src/Canvas/Canvas.h).
-class Canvas
-{
-public:
-    void Clear();                                                          // 0x00408040
-    void BlitFast(void *src, int flags, short height,
-                  unsigned short srcStride, short destX, short destY);     // 0x00408110
-    void BlitMasked(char *src, unsigned short srcStride, short height,
-                    short destX, short destY, char key);                   // 0x00408240
-};
+// Canvas — canonical declaration (de-dup steps 3+4; was a 3-method blit stub).
+#include "../Canvas/Canvas.h"
 
 // Inventory entry (World.inventory CObArray element): CObject wrapper holding the item's Tile.
 class InvItem : public CObject
