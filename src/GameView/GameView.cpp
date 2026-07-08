@@ -7973,6 +7973,206 @@ void GameView::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
 }
 
 // ===========================================================================
+// TextDialog cluster (0x416b90-0x4186e0) — the in-game speech balloon (plain class,
+// sizeof 0xc8; see GameView.h). ShowTextDialog (doc TU) news it, seeds the args + text,
+// and calls Run(). Layout/Run (0x4176f0/0x416c40) transcribed below the helpers.
+// ===========================================================================
+
+// FUNCTION: YODA 0x00416b90
+// TextDialog::TextDialog — store the parent view (twice: pView2 + pParentView), clear the
+// scalar state and empty the text. unk08 = -1.
+TextDialog::TextDialog(GameView *pView)
+{
+    pParentView = pView;
+    unk00 = 0;
+    unk0c = 0;
+    soundSession = 0;
+    unk08 = -1;
+    unk04 = 0;
+    strText = "";
+    pView2 = pView;
+    nMode = 0;
+    bAtBottom = 0;
+}
+
+// FUNCTION: YODA 0x00417570
+// TextDialog::Position — clamp the requested anchor (nArgX,nArgY) so the bubble stays on
+// screen, decide whether its tail points up (2) or down (1), then hand the final top-left to
+// Layout. Two coordinate regimes: world-relative (nMode==0, big zone) subtracts the view
+// origin; screen-relative (nMode!=0 or a <10-wide zone) works in raw client pixels.
+// EFFECTIVE (align 152, 121/120 insns): the shared `goto do_layout` + tail-call to Layout
+// fixed the structure; residuals are the cmp-direction family (lesson #6 — several jl/jge vs
+// jle flips the C source can't steer; two clamp inversions helped, the nViewRight one didn't)
+// plus one edx/ebx/esi allocator rotation. G1.
+void TextDialog::Position()
+{
+    int halfW = nBoxW / 2;
+    World *pW = pParentView->pWorld;
+    int x;
+    if (pW->currentZone->width < 10 || nMode != 0)
+    {
+        int ax = nArgX;
+        x = ax - halfW;
+        if (x < 0x10)
+        {
+            x = 6;
+            if (ax < 0x20)
+                nBoxX = 0x10;
+            else
+                nBoxX = ax;
+        }
+        else
+        {
+            if (ax + halfW < 0x11d || (x = 0x11c - nBoxW, ax < 0x101))
+                nBoxX = ax;
+            else
+                nBoxX = 0x10c;
+        }
+    }
+    else
+    {
+        int ax = nArgX;
+        if ((ax - pW->nViewLeft) - halfW < 0x10)
+        {
+            x = pW->nViewLeft + 6;
+            if (ax < 0x20)
+                nBoxX = 0x10;
+            else
+                nBoxX = ax;
+        }
+        else if (nMode == 0)
+        {
+            if ((pW->nViewRight - ax) - halfW < 6)
+            {
+                x = (pW->nViewRight - nBoxW) - 6;
+                if (0x220 < ax)
+                    nBoxX = 0x230;
+                else
+                    nBoxX = ax;
+            }
+            else
+            {
+                nBoxX = ax;
+                x = ax - halfW;
+            }
+        }
+        else if (ax + halfW < 0x11d)
+        {
+            nBoxX = ax;
+            x = ax - halfW;
+        }
+        else
+        {
+            x = 0x11c - nBoxW;
+            if (0x100 < ax)
+                nBoxX = 0x10c;
+            else
+                nBoxX = ax;
+        }
+    }
+    int y;
+    if (nMode == 0)
+    {
+        int ay = nArgY;
+        if (nBoxH + 0x1e <= ay - pParentView->pWorld->nViewTop)
+        {
+            nTailDir = 1;
+            y = (ay - nBoxH) - 0x1e;
+            goto do_layout;
+        }
+        y = ay + 0x1e;
+    }
+    else
+    {
+        int ay = nArgY;
+        if (nBoxH + 0x1e <= ay)
+        {
+            nTailDir = 1;
+            y = (ay - nBoxH) - 0x1e;
+            goto do_layout;
+        }
+        if (ay == 0)
+            ay = 0x22;
+        y = ay;
+    }
+    nTailDir = 2;
+do_layout:
+    Layout(x, y);
+}
+
+// FUNCTION: YODA 0x00417c90
+// TextDialog::ScrollTextLine — scroll the child edit down one line (unless already at the
+// bottom), then re-enable/disable the up/down/close buttons for the new position.
+// EFFECTIVE (align 12, 43/43 insns): one instruction shift — cl schedules the pParentView
+// load ([esi+0xc0]) two bytes earlier than ours around the SendMessage arg pushes. A local
+// cache made it far worse (align 120); the original re-reads the field. G1.
+void TextDialog::ScrollTextLine()
+{
+    if (nScrollLine < nTotalLines)
+    {
+        ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_LINESCROLL, 0, 1);
+        nScrollLine++;
+    }
+    if (nTotalLines == nScrollLine)
+    {
+        pParentView->btnDialogUp.EnableWindow(0);
+        pParentView->btnDialogClose.EnableWindow(1);
+        pParentView->SetFocus();
+        bAtBottom = 1;
+    }
+    else
+    {
+        pParentView->btnDialogUp.EnableWindow(1);
+    }
+    if (5 < nScrollLine)
+        pParentView->btnDialogDown.EnableWindow(1);
+}
+
+// FUNCTION: YODA 0x00417d30
+// TextDialog::ScrollTextLine2 — scroll the child edit up one line (unless at the top, line 5).
+// EFFECTIVE (align 12, 37/37 insns): same one-instruction pParentView-load schedule shift as
+// ScrollTextLine. Removing the `line` local (compare nScrollLine in memory directly, dec [mem])
+// dropped the extra insns to a clean match-but-for-the-shift. G1.
+void TextDialog::ScrollTextLine2()
+{
+    if (5 < nScrollLine)
+    {
+        ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_LINESCROLL, 0, -1);
+        nScrollLine--;
+    }
+    if (nScrollLine == 5)
+    {
+        pParentView->btnDialogDown.EnableWindow(0);
+        pParentView->SetFocus();
+    }
+    else
+    {
+        pParentView->btnDialogDown.EnableWindow(1);
+    }
+    if (nScrollLine < nTotalLines)
+        pParentView->btnDialogUp.EnableWindow(1);
+}
+
+// FUNCTION: YODA 0x00417dc0
+// TextDialog::UpdateDialogButtons — on a scroll-button auto-repeat (BM_GETSTATE pushed),
+// step the text one line in that direction.
+// Takes an unused 4-byte stack arg (ret 4; callers push 1) — a __thiscall with a dead param,
+// so declared `(int nUnused)`. EFFECTIVE (align 12, 47/47 insns): the same pParentView-load
+// schedule shift as the scroll helpers. G1.
+void TextDialog::UpdateDialogButtons(int nUnused)
+{
+    UINT st = ::SendMessage(pParentView->btnDialogUp.m_hWnd, BM_GETSTATE, 0, 0);
+    if (pParentView->btnDialogUp.IsWindowEnabled() && (st & 4))
+    {
+        ScrollTextLine();
+        return;
+    }
+    st = ::SendMessage(pParentView->btnDialogDown.m_hWnd, BM_GETSTATE, 0, 0);
+    if (pParentView->btnDialogDown.IsWindowEnabled() && (st & 4))
+        ScrollTextLine2();
+}
+
+// ===========================================================================
 // Options-dialog cluster (0x417e50-0x4186e0). Three near-identical CDialog slider
 // dialogs. NOTE: in .text these follow StatsDlg (0x416810) and the game TextDialog
 // (0x416b90), which are transcribed separately — until those land above, these three

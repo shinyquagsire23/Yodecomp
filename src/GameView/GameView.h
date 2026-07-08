@@ -279,22 +279,57 @@ protected:
 // destroys only the text CString and calls no base dtor). Ctor/Run live in the GameView TU;
 // the implicit ~TextDialog is emitted per-TU (the doc TU's copy = 0x427440, used by
 // ShowTextDialog's stack instance).
+// The in-game speech balloon (plain non-CDialog class, sizeof 0xc8). ShowTextDialog
+// (0x427310, doc TU) news one, seeds nArgX/nArgY/nMode + strText, then Run() drives a modal
+// message loop that paints the bubble and its child controls (the CEdit + 3 CBitmapButtons
+// that live on the PARENT GameView, @0x184/0x1e0/0x23c/0x298). Layout uses the four RECTs for
+// hit-testing the close/up/down/text areas. ⚠ NOT the Dlg.h CTextDialog (that's CDialog, 0x6c).
 class TextDialog
 {
 public:
-    char    _pad00[0x10];            // +0x00
-    int     unk10;                   // +0x10  ShowTextDialog arg a
-    int     unk14;                   // +0x14  ShowTextDialog arg b
-    char    _pad18[0x3c];            // +0x18
-    int     unk54;                   // +0x54  ShowTextDialog arg c
-    char    _pad58[0x60];            // +0x58
-    CString strText;                 // +0xb8
-    char    _padbc[4];               // +0xbc
-    GameView *pParentView;           // +0xc0  (Ghidra name, backported v15)
-    int     soundSession;            // +0xc4  copied from GameView.soundSession
+    int      unk00;                  // +0x00  ctor: 0
+    int      unk04;                  // +0x04  ctor: 0
+    int      unk08;                  // +0x08  ctor: -1
+    int      unk0c;                  // +0x0c  ctor: 0
+    int      nArgX;                  // +0x10  ShowTextDialog arg a (anchor x)
+    int      nArgY;                  // +0x14  ShowTextDialog arg b (anchor y)
+    int      nBoxX;                  // +0x18  bubble left after edge clamping
+    int      nTailDir;               // +0x1c  1 = tail below, 2 = tail above
+    int      nVisibleLines;          // +0x20  min(totalLines, 5)
+    int      unk24;                  // +0x24  Run: 0
+    int      nLineHeight;            // +0x28  tmHeight
+    int      unk2c;                  // +0x2c
+    int      nCharWidth;             // +0x30  tmAveCharWidth
+    int      unk34;                  // +0x34
+    int      unk38;                  // +0x38
+    int      nTextW;                 // +0x3c  nCharWidth * 0x1a
+    int      nTextH;                 // +0x40  nLineHeight * nVisibleLines
+    int      nBoxH;                  // +0x44  nTextH + 10
+    int      nBoxW;                  // +0x48  nTextW + 0x28
+    int      unk4c;                  // +0x4c
+    int      unk50;                  // +0x50
+    int      nMode;                  // +0x54  ShowTextDialog arg c (0 = world-relative)
+    int      bAtBottom;              // +0x58  set once scrolled to the last line
+    RECT     rectBox;                // +0x5c  bubble outer frame
+    RECT     rectClose;              // +0x6c  close-button hit area
+    RECT     rectUp;                 // +0x7c  scroll-up hit area
+    RECT     rectDown;               // +0x8c  scroll-down hit area
+    RECT     rectText;               // +0x9c  child CEdit rect
+    int      nTotalLines;            // +0xac  EM_GETLINECOUNT
+    int      nScrollLine;            // +0xb0  current top line (starts at 5)
+    GameView *pView2;                // +0xb4  ctor: pView (second copy)
+    CString  strText;                // +0xb8
+    int      bTimerActive;           // +0xbc  a repeat-scroll timer is running
+    GameView *pParentView;           // +0xc0  ctor arg (the owning view)
+    int      soundSession;           // +0xc4  copied from GameView.soundSession
                                      // sizeof 0xc8
-    TextDialog(GameView *pView);                          // 0x00416b90 (GameView TU)
-    int Run();                                            // 0x00416c40 (GameView TU)
+    TextDialog(GameView *pView);                          // 0x00416b90
+    int  Run();                                           // 0x00416c40
+    void Position();                                      // 0x00417570
+    void Layout(int x, int y);                            // 0x004176f0
+    void ScrollTextLine();                                // 0x00417c90  (down one line)
+    void ScrollTextLine2();                               // 0x00417d30  (up one line)
+    void UpdateDialogButtons(int nUnused);                // 0x00417dc0 (ret 4; arg unused, always 1)
 };
 
 #endif
