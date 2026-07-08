@@ -1213,3 +1213,15 @@ ebx → longer stream on identical IR). ⇒ byte-identical whole image bounded b
 wall as the 212 content ceiling. Two divergence kinds: emission-ORDER scrambles (FIXABLE, content-neutral,
 the clean G2 wins) vs intrinsic LENGTH diffs (hard #29 park). Two AppData residuals PARKED (CObject trio
 -0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk). Full model + worklist: docs/g2-layout.md.
+
+### ⏮ PRIOR PICKUP — v43 (2026-07-08, condensed; superseded by v44)
+PHASE G2: layout ceiling quantified + Frame reorder + code cleanup. (1) tools/g2_order.py + toolchain/test/
+orig_func_addrs.txt: `--walls` = ~43 clean length walls (padded COMDAT len != orig Ghidra slot), all in
+non-exact reg-coloring funcs, first = SaveStoryHistoryNevada 0x402670 (+0x10, ours over-allocates EBX vs
+orig's 2 pushes); `--scramble` = per-TU emission-order metric. LAYOUT is 39 (not the naive 26) because
+cumulative length-drift OSCILLATES (mixed +/- walls cancel through 0 → coincidental re-alignments); absolute
+layout == #markers where cum-drift==0. (2) Reordered Frame's CMainFrame message handlers to original emission
+order → Frame internally in-order (14/18 holds). (3) Code cleanup (user req): promoted 24 World unk*/*Maybe
+fields (with usage comments) to proper names + synced Ghidra (created 6 missing fields, aligned 5 stale
+*Maybe); PlanToken enum → decimal. All codegen-neutral (212 stands, link 0/0/exit0, bugscan 0/0/0). Then v44
+closed the remaining App(3)+Worldgen-tail(3) scrambles and settled /OPT (original = /OPT:REF; lesson #31).

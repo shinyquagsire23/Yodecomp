@@ -3,6 +3,11 @@
 // line) + OnIdle; the CAboutDlg (IDD_ABOUTBOX=100) ctor/DoDataExchange/OnInitDialog + its
 // message map; App::OnAppAbout; and the lone debug logger Log::Write (c:\yodalog.txt).
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+//
+// v44 (G2): function definitions arranged in the ORIGINAL emission order (ascending .text
+// address within the TU) so the linked image lays this obj's COMDATs out to match the
+// original: msgmap → ctor → theApp → InitInstance → OnIdle → LogWrite → CAboutDlg ctor →
+// DoDataExchange → CAboutDlg msgmap → OnAppAbout → OnInitDialog. Codegen-neutral (212 stands).
 #include "App.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,17 +25,17 @@ class World      { public: static const CRuntimeClass classWorld; };
 class CMainFrame { public: static const CRuntimeClass classCMainFrame; };
 class GameView   { public: static const CRuntimeClass classGameView; };
 
-// FUNCTION: YODA 0x00419cb0
-// Debug logger — append one line to c:\yodalog.txt (fopen "at" + fputs + fflush + fclose per
-// call). Nearly all callers compiled out under NDEBUG; only WorldgenPlacePuzzle's survives.
-// The original is a CTheApp member (call sites load ECX = AfxGetApp()); the body never reads
-// `this`, so the thiscall codegen is byte-identical to a __stdcall free function (RET 4).
-void CTheApp::LogWrite(char *pszMsg)
+/////////////////////////////////////////////////////////////////////////////  CTheApp
+
+// FUNCTION: YODA 0x00419720  (GetMessageMap)
+BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
+    ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
+END_MESSAGE_MAP()
+
+// FUNCTION: YODA 0x00419730
+// FUNCTION: YODA 0x004197b0  (??_GCTheApp scalar-deleting dtor — compiler-generated)
+CTheApp::CTheApp()
 {
-    FILE *pFile = fopen("c:\\yodalog.txt", "at");
-    fputs(pszMsg, pFile);
-    fflush(pFile);
-    fclose(pFile);
 }
 
 // theApp — the one global application object (0x00459d58). Defining it at file scope makes the
@@ -40,25 +45,6 @@ void CTheApp::LogWrite(char *pszMsg)
 //   0x00419850  _$E122  atexit(dtor-thunk)
 //   0x00419860  _$E121  dtor thunk (SEH frame + CTheApp::~CTheApp)
 CTheApp theApp;
-
-/////////////////////////////////////////////////////////////////////////////  CTheApp
-
-// FUNCTION: YODA 0x00419730
-// FUNCTION: YODA 0x004197b0  (??_GCTheApp scalar-deleting dtor — compiler-generated)
-CTheApp::CTheApp()
-{
-}
-
-// FUNCTION: YODA 0x00419ca0
-BOOL CTheApp::OnIdle(LONG lCount)
-{
-    return CWinApp::OnIdle(lCount);
-}
-
-// FUNCTION: YODA 0x00419720  (GetMessageMap)
-BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
-    ON_COMMAND(ID_APP_ABOUT, OnAppAbout)
-END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x004198c0  [EFFECTIVE MATCH: main body structurally identical (asmscore
 //   align=16 = one cmp operand-order on the g_pExistingInstance null test — the inert
@@ -187,12 +173,23 @@ BOOL CTheApp::InitInstance()
     return TRUE;
 }
 
-// FUNCTION: YODA 0x00419df0
-// File>About: modal CAboutDlg parented to the main window.
-void CTheApp::OnAppAbout()
+// FUNCTION: YODA 0x00419ca0
+BOOL CTheApp::OnIdle(LONG lCount)
 {
-    CAboutDlg dlg(AfxGetApp()->m_pMainWnd);
-    dlg.DoModal();
+    return CWinApp::OnIdle(lCount);
+}
+
+// FUNCTION: YODA 0x00419cb0
+// Debug logger — append one line to c:\yodalog.txt (fopen "at" + fputs + fflush + fclose per
+// call). Nearly all callers compiled out under NDEBUG; only WorldgenPlacePuzzle's survives.
+// The original is a CTheApp member (call sites load ECX = AfxGetApp()); the body never reads
+// `this`, so the thiscall codegen is byte-identical to a __stdcall free function (RET 4).
+void CTheApp::LogWrite(char *pszMsg)
+{
+    FILE *pFile = fopen("c:\\yodalog.txt", "at");
+    fputs(pszMsg, pFile);
+    fflush(pFile);
+    fclose(pFile);
 }
 
 /////////////////////////////////////////////////////////////////////////////  CAboutDlg
@@ -212,6 +209,14 @@ void CAboutDlg::DoDataExchange(CDataExchange *pDX)
 // FUNCTION: YODA 0x00419de0  (GetMessageMap)
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 END_MESSAGE_MAP()
+
+// FUNCTION: YODA 0x00419df0
+// File>About: modal CAboutDlg parented to the main window.
+void CTheApp::OnAppAbout()
+{
+    CAboutDlg dlg(AfxGetApp()->m_pMainWnd);
+    dlg.DoModal();
+}
 
 // FUNCTION: YODA 0x00419eb0
 BOOL CAboutDlg::OnInitDialog()

@@ -169,3 +169,46 @@ en masse, and the diff cascades forward TU by TU.
 ⚠ G2 does NOT change the per-function CONTENT deltas (the reg-coloring residuals are compile-time and
 frozen — lesson #29). G2's product is the byte-identical IMAGE + a runnable/verifiable artifact, carrying
 the known ~48 reg-coloring .text deltas until/unless the central open problem (a different cl.exe) is cracked.
+
+## v44 progress — emission-order scrambles closed (App + Worldgen tail) + the /OPT question SETTLED
+1. **App TU reordered to original emission order** (src/App/App.cpp, CONTENT-neutral, 212 stands):
+   msgmap(CTheApp) → ctor → `theApp` global → InitInstance → OnIdle → LogWrite → CAboutDlg ctor →
+   DoDataExchange → msgmap(CAboutDlg) → OnAppAbout → OnInitDialog. `g2_order.py --scramble` → **App: in-order**.
+2. **Worldgen GameView-tail reordered to ascending address** (src/Worldgen/Worldgen.cpp, CONTENT-neutral):
+   the tail block is now UseWeapon(0x427d20) → DetonateAdjacentTiles(0x428680) → OnCmdMinimize →
+   DrawWeaponBox → DrawWeaponIcon → BlitViewportDither → PreCreateWindow → AddItemToInv →
+   RemoveItem(0x429150). Was 4 inversions → **1** (only the compiler-placed `??_GCProgressCtrl` left).
+3. **The remaining 3 scrambles are ALL compiler-placed library COMDATs — BENIGN / not source-steerable:**
+   - AppData: `??_GWorldgenZoneEntry` before its ctor (v42 PARKED — self-corrects at ??_GMapZone).
+   - GameView: 4 lib-COMDAT interleavings (CObject::operator delete / CScrollBar dtor / CBitmapButton
+     dtor / TriPoint ctor) + the end-placed `InvScrollBar` dtor (lesson #23 free-lunch placement).
+   - Worldgen: `??_GCProgressCtrl` (0x425e10) emits at FIRST odr-use of CProgressCtrl's deleting dtor
+     = LoadWorld's local `CProgressCtrl progress;` (Worldgen.cpp:3999). The original emits it ~0x425e10
+     (after OnLoadWorld), i.e. its first odr-use was a LATER function — moving it is a CONTENT change
+     (which function instantiates the progress bar), not a reorder. Left as-is.
+   ⇒ **All STEERABLE emission-order scrambles are now closed** (the "every app TU internally in-order"
+   milestone, modulo compiler-placed lib COMDATs). LAYOUT stays 39/378 because these functions are all
+   DOWNSTREAM of the first length wall (GameData SaveStoryHistoryNevada 0x402670) — cumulative drift
+   already displaced them, so fixing relative order is a health/correctness win, not an absolute-address
+   one until the walls crack (= the reg-alloc ceiling, same as 212 content).
+
+### ⭐ v44 — /OPT:REF vs /OPT:NOREF SETTLED: the original is a `/OPT:REF` build.
+Measured `.text` vsize of three links of the SAME build/*.obj set (from repo root, +wavmix32.lib):
+
+| build | .text vsize | vs original |
+|---|---|---|
+| **YodaDemo.exe (original)** | 0x49e7c (302,716 B) | — |
+| our **/OPT:REF** | 0x48ac7 (297,671 B) | **−5,045 B (−1.7 %)** |
+| our /OPT:NOREF | 0x57df7 (359,927 B) | +57,211 B (+19 %) |
+
+NOREF keeps ~57 KB the original DROPPED ⇒ the original is NOT NOREF. REF lands within 1.7 % of the
+original (the release/non-`/DEBUG` default for link 3.10 is transitive COMDAT elimination = `/OPT:REF`).
+This OVERTURNS the v43-pickup guess ("demo .text 454K vs our 446K hints NOREF-like") — those were
+full-FILE sizes distorted by the verbatim-copied `.rsrc`; the `.text` comparison points the opposite way.
+- **Consequence for the FINAL image:** target `/OPT:REF`. `g2_link.sh`'s NOREF is only a layout-ANALYSIS
+  scaffold (keeps our transcribed-but-not-yet-fully-cross-referenced functions visible in the map). The
+  byte-identical image needs REF **+** a complete reference graph.
+- **The −5 KB REF gap = we slightly UNDER-reference:** a few real MFC/GDI COMDATs the complete original
+  odr-used that our stubbed/partial source doesn't (the documented ??_GCPalette-style under-emit, plus
+  small reg-coloring length deltas net-negative). Closing it is the COMDAT fold-vs-survive geography work
+  (worklist #3), not a linker-flag change.
