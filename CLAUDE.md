@@ -74,14 +74,22 @@ Examples (note the mandatory `program=` param):
 
 The richer `mcp__ghidra__*` tools are also available and take a `program`/instance argument.
 
-**WRITE GOTCHA (worse than the read one):** `program=` is honored only for **reads**. **Mutations** (rename,
-set-comment, set-prototype, etc. — both `mcp__ghidra__*` and the HTTP endpoints) always act on the
-**currently-active** program, which is **JK.EXE**, and `switch_program` returns `success` but does NOT
-persist (next request is JK.EXE again). Passing `program=YodaDemo.exe` to a write is silently ignored →
-you will corrupt JK.EXE instead (verified 2026-07-04; e.g. renaming "YodaDemo 0x401490" actually hit
-JK.EXE's `jkGame_SetDefaultSettings` at 0x401480). **To rename/annotate YodaDemo you must make
-YodaDemo.exe the ACTIVE program in the Ghidra GUI first** (open/focus it in the CodeBrowser). Confirm with
-`list_open_programs` → `current_program` must read `YodaDemo.exe` before any write. Then writes land correctly.
+**WRITE GOTCHA (worse than the read one) — STILL LIVE as of 2026-07-08:** `program=` is honored only for
+**reads**. **Mutations** (rename, set-comment, set-prototype, etc. — both `mcp__ghidra__*` and the HTTP
+endpoints) always act on the **currently-active** program, and `switch_program` returns `success` but does
+NOT persist. Passing `program=X` to a write is silently ignored → you will corrupt whatever is ACTIVE.
+**To rename/annotate YodaDemo you must make YodaDemo.exe the ACTIVE program in the Ghidra GUI first**
+(open/focus it in the CodeBrowser). Confirm with `list_open_programs` → `current_program` must read
+`YodaDemo.exe` before any write. Then writes land correctly. ⚠ Other programs ARE open now (v50:
+libKOTOR.so/KOTOR2sub/libkotor2.so — the user's KOTOR project), so a mis-routed write corrupts THEIR work.
+- **A FIX EXISTS but is NOT yet live:** `~/workspace/ghidra-mcp` branch `feature/program-param-write-routing`
+  (built `target/GhidraMCP-5.15.0.zip`) makes `program=` authoritative on writes for annotation-based tools
+  (PROGRAM_PARAM_WRITE_CHANGE.md). **v50 TESTED it and it did NOT route** — a `program=libkotor2.so`
+  set_plate_comment landed on the ACTIVE YodaDemo (0x401000/OnTimer), libkotor2.so got nothing. So the
+  running plugin is still the OLD build; the new zip needs a **Ghidra restart** to take effect (quit Ghidra →
+  Install Extensions → the 5.15.0 zip → restart). AFTER the restart, RE-VERIFY with the cross-program comment
+  test (write to a non-current program via `program=`, confirm it lands THERE not in the active one, then
+  clear it) BEFORE weakening these warnings. Until then, the ACTIVE-program rule above is mandatory.
 
 ## Binary facts (established 2026-07-04)
 
