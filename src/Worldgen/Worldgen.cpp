@@ -6523,10 +6523,10 @@ int GameView::ShowTextDialog(CString &strText, int a, int b, int c)
     TextDialog dlg(this);
     pTextDialog = &dlg;
     dlg.strText = strText;
-    dlg.unk10 = a;
-    dlg.unk14 = b;
+    dlg.nArgX = a;
+    dlg.nArgY = b;
     dlg.soundSession = soundSession;
-    dlg.unk54 = c;
+    dlg.nMode = c;
     int nSavedMode = pWorld->nFrameMode;
     ReleaseCapture();
     pWorld->nFrameMode = 5;
