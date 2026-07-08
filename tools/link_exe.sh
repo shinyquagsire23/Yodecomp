@@ -34,9 +34,7 @@ echo "=== extracting resources (.rsrc -> .res) ==="
 python3 "$ROOT/tools/extract_res.py" "$ROOT/YodaDemo/YodaDemo.exe" "$BD/yoda.res"
 
 echo "=== linking (static MFC: NAFXCW + LIBCMT + resources) ==="
-# Win32 import libs the demo pulls in. WAVMIX32 is resolved by the authentic Microsoft
-# wavmix32.lib import library (toolchain/wavmix32/); the EXE imports WAVMIX32.DLL by name
-# just like the original, so a real (or stub) WAVMIX32.DLL provides sound at runtime.
+# Win32 import libs the demo pulls in.
 # Build the WAVMIX32 import lib from our own non-copyrighted stub source if it isn't built yet
 # (wavmix32.def + wavmix32_stub.c -> wavmix32.lib + a no-op wavmix32.dll). The implib carries the
 # stdcall-decorated _WaveMix*@N thunks our objects need and imports the undecorated names, so a
