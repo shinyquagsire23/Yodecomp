@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 all but done (src/GameView/GameView.cpp). v29: 73/121 markers; TextDialog cluster 6/7 (ctor EXACT; Run 622/622-insn eff.; Position+3 helpers eff.). REMAINING = ONLY TextDialog::Layout 0x4176f0 (1419B, jump table + CPoint[3] Polygon/LineTo + bitmap-button matrix; struct+decompile understood) |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ✅ PHASE E step 4 COMPLETE (src/GameView/GameView.cpp): 72/122 exact + rest eff. v30: TextDialog::Layout 0x4176f0 transcribed (eff., align 374 — jump table + TriPoint[3] tail triangle + bitmap-button matrix) and TriPoint::TriPoint 0x4186e0 EXACT (the TU's last function, an out-of-line empty point ctor). ZERO FUN_* / unclaimed code left in the view TU range — remainder is Phase F/G |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 8/13 exact (v28: the 1441B DTOR back IN) + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 36/90 exact under the v28 dial + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -348,11 +348,13 @@ Written to be followable without prior context: each phase lists concrete steps 
   doc-TU completion (v15) → 92.28 % coverage / 17.30 % exact (v26) → 94.42 % coverage (v27,
   GameView tail + option dialogs) → 95.64 % coverage / 19.39 % exact (v28: slider
   DoDataExchange discovery, struct de-dup steps 1-5, CyclePalette + OnCmdStats) →
-  **97.56 % coverage / 16.06 % exact — v29 (2026-07-07): the plain-class game TextDialog
-  modeled + 6/7 functions transcribed (ctor EXACT; Run 622/622-insn eff., Position + 3
-  helpers eff.); only TextDialog::Layout 0x4176f0 remains unclaimed of the big code**. Full
-  per-session milestone history in PLAN_COMPLETED.md. ~90 % after E, 100 % = G's whole-image
-  build. Track effective-match bytes separately (they count for G, not for %).
+  97.56 % coverage / 16.06 % exact (v29: the plain-class game TextDialog modeled + 6/7
+  functions transcribed) → **98.47 % coverage — v30 (2026-07-07): PHASE E COMPLETE — the
+  last big view-TU function TextDialog::Layout 0x4176f0 transcribed (eff., align 374, 1419B
+  jump-table balloon painter) + TriPoint::TriPoint 0x4186e0 EXACT (out-of-line empty point
+  ctor). Zero unclaimed app code left in the GameView TU; remainder is the first app TU +
+  Phase G COMDATs**. Full per-session milestone history in PLAN_COMPLETED.md. ~100 % = G's
+  whole-image build. Track effective-match bytes separately (they count for G, not for %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
 1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f <TU>.obj &&
@@ -390,42 +392,44 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v29 — TextDialog cluster 6/7 done; 97.56% coverage)
-**▶ v29 RESULTS (commits 9d23a75, ad9a30f): the plain-class game TextDialog (speech balloon,
-sizeof 0xc8, NOT Dlg.h's CTextDialog) is modeled + 6/7 functions transcribed. GameView TU =
-73/121 markers; coverage 97.56% (was 95.64% v28). Ghidra: TextDialog struct (0xc8) + 7 names
-synced, YodaDemo ACTIVE, run_script_inline works, saved.**
-- **Struct pinned from the ctor + every field access** (in GameView.h): 5 RECTs
-  (rectBox@0x5c / rectClose@0x6c / rectUp@0x7c / rectDown@0x8c / rectText@0x9c), line
-  counters (nTotalLines@0xac, nScrollLine@0xb0 starts at 5), nMode@0x54 (0=world-relative,
-  else screen), two view-ptr copies (pView2@0xb4, pParentView@0xc0), strText@0xb8.
-- **Ctor 0x416b90 EXACT** (161B). **Position 0x417570 eff.** DIFF(98): the shared
-  `goto do_layout` + tail-call to Layout fixed the structure (312→152 align); residual is
-  the cmp-direction family (two clamp inversions helped, nViewRight didn't) + one reg
-  rotation. **ScrollTextLine/ScrollTextLine2/UpdateDialogButtons DIFF(6-7)** — insn-identical
-  but for ONE uniform pParentView-load schedule shift (a local cache made it WORSE — the
-  orig re-reads). **UpdateDialogButtons takes a dead 4-byte stack arg** (ret 4, callers push
-  1) → `(int nUnused)`. **Run 0x416c40 eff.** 622/622 insns — full structure (the < 0x101 /
-  < 0x112 message-range ladders + WM_KEYDOWN wParam switch + the WM_LBUTTONDOWN 4-rect
-  PtInRect nest with shared dispatch:/rbtn: cross-jumps); residual = this-in-ESI vs the
-  original's EDI (the esi/edi this-swap allocator family) + its scheduling ripple.
-- Added `g_pszDialogFont` @0x4561cc (CreateFont face-name global, distinct from
-  g_pszFontName@0x456130).
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v30 — PHASE E COMPLETE; 98.47% coverage)
+**▶ v30 RESULTS (this commit): the LAST big view-TU function TextDialog::Layout 0x4176f0
+transcribed (EFFECTIVE, align 374, 1419B jump-table balloon painter) + TriPoint::TriPoint
+0x4186e0 EXACT. GameView TU now has ZERO unclaimed app code. verify.py 72/122 exact.
+Ghidra: TriPoint class + ctor renamed, 2 plates set, saved (YodaDemo ACTIVE, run_script_inline
+works). Coverage 97.56%→98.47%.**
+- **Layout autopsy (in-source):** 5-entry jump table (switch nVisibleLines 1/2-4/5), the tail
+  triangle drawn from a `TriPoint point[3]` (custom point type — MFC CPoint's ctor is inline so
+  would NOT emit the out-of-line call; TriPoint derives tagPOINT + has a non-inline empty ctor →
+  the array construction calls 0x4186e0 3×). Wins that dropped align 418→374: (a) store
+  point[0].x/[1].x INSIDE each x-branch not hoisted; (b) drop the `nShow` var — write
+  `btnDialogUp.ShowWindow(0/5)` directly per case so cl cross-jumps them (lesson #18). Parked
+  residual = cl trace-driven DUPLICATION of a dead `cmp bx,0x20/0x100` fragment into the low-x
+  branch + both nTailDir arms (3 copies, result unused — #15), pointer-reload aliasing on
+  &rectText.top/&nBoxX (#19), this-in-ESI. Nested-vs-else-if only shuffles arm merging (392 vs
+  374). G1.
+- **NEW SUB-LESSON (out-of-line empty ctor for array construction):** when the disasm shows a
+  stack `T arr[N]` construction loop CALLING an out-of-line `mov eax,ecx; ret` ctor, the source
+  type is NOT MFC's CPoint/CRect (their ctors are `_AFXWIN_INLINE`, get inlined → no call). Model
+  a custom class (`struct T : public tagPOINT { T(); };`) with the ctor DEFINED out-of-line and
+  AFTER the use site (so cl can't inline it) — it emits as the TU's own COMDAT.
 
-**▶ START HERE (v30): TextDialog::Layout 0x4176f0 (1419B) — the ONE remaining cluster
-function + the LAST big unclaimed app code.** Struct + full decompile already understood
-(Ghidra plate on 0x4176f0 has the map). It: CreateFont; fills rectBox; computes rectText;
-RoundRect the frame; MoveWindow the child CEdit; builds a **CPoint[3]** tail triangle
-(Polygon fill + CDC MoveTo/LineTo outline) — **0x4186e0 IS `CPoint::CPoint()`, an out-of-line
-empty ctor (`mov eax,ecx;ret`) the array-construction calls 3× at 0x417857** (declare a point
-type with a NON-inline empty default ctor so the 3 calls emit; plated in Ghidra); then a
-**switch(nVisibleLines) with a 5-entry jump table @0x417c78** (arms 1 / 2-4 / 5) that
-SetWindowPos+EnableWindow+ShowWindow the 3 CBitmapButtons into the bubble corner and fills the
-button rects @0x6c/0x7c/0x8c. Watch the shared `switchD_default` tail (ReleaseDC+DrawGameArea+
-WM_SETREDRAW(1)+ShowWindow) that most arms fall into. Expect effective (jump table + this-reg).
-1. Then Phase F audit: FUN_00407d90/FUN_00407dc0 (gap before Canvas TU head), the first app
-   TU (0x401000–0x401450: InvItem/MapZone/WorldgenZoneEntry ctors + CObject no-op COMDATs),
-   InvScrollBar ??_G/??1 (0x408690/0x4086b0, PARKED).
+**▶ START HERE (v31): PHASE F — the FIRST APP TU (0x401000–0x401450, ~18 funcs, the only
+un-transcribed real source file left).** It holds InvItem ctors (0x4011d0 Ctor, 0x401270
+CtorTileName — see struct table, InvItem 0xc CObject-derived), the CObject no-op COMDATs
+(0x401060 Serialize / 0x401070 AssertValid / 0x401080 Dump — the FOLDED copies every vtable
+refs), and utility FUN_* (0x401000/10/90/a0/b0/130/150/160/180/250/300/370/390/400). Likely the
+app's collection/utility source file (MapZone/WorldgenZoneEntry ctors may live here too). Model
+Records-style (real MFC base + members = ctor/dtor codegen free). Also the tiny Canvas-gap pair
+0x407d90/0x407dc0 (2 funcs before the Canvas TU head) and the parked InvScrollBar ??_G/??1
+(0x408690/0x4086b0).
+1. Everything else unclaimed is Phase-G whole-image plumbing, NOT hand-written source: EH
+   funclets (0x405320, 0x408c2a CxxFrameHandler thunk, 0x4161bd/416401/416547/416550/41673d/
+   416902/419e51/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x40e730/408690/
+   4086b0/41bee0/41bf30/41c180/41c340/41e8b0 ??_G/??1 dtors), static-init/atexit for the global
+   theApp + g_strReplayPath (0x419830/40/50/60, 0x4196e0/f0/419700), and bare linker thunks
+   (0x4186f0 CWnd::Default, 0x424fb0). These come free from codegen or fold at link — do them in
+   G2, not as transcription.
 2. Then de-dup **step 6 (World, ~102 field reconciliations)** or the G1 joint passes.
 
 

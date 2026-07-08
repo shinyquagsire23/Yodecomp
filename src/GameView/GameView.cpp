@@ -8334,6 +8334,187 @@ do_layout:
     Layout(x, y);
 }
 
+// The speech-bubble tail triangle is built as a 3-point array. The game's point type has an
+// OUT-OF-LINE empty default ctor (0x004186e0, `mov eax,ecx; ret`) — NOT MFC's inline CPoint —
+// so the array construction in Layout emits three ctor calls (0x417857 loop). Derived from
+// tagPOINT so it is LPPOINT-compatible for ::Polygon and its .x/.y feed MoveTo/LineTo.
+struct TriPoint : public tagPOINT
+{
+    TriPoint();
+};
+
+// FUNCTION: YODA 0x004176f0
+// TextDialog::Layout(x,y) — paint the speech balloon at (x,y): select the dialog font, fill the
+// bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
+// (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
+// out + show/hide the three CBitmapButtons (close/up/down) per the visible-line count.
+// EFFECTIVE (1419B, align 374, 407/405 insns — structure faithful): three residual families,
+// all whole-function allocator/scheduling artifacts, not source-steerable (G1):
+//   (a) cl's TRACE-DRIVEN DUPLICATION of the bx-range ladder — the original threads a dead
+//       `cmp bx,0x20; jl; cmp bx,0x100` fragment into the low-x branch AND both nTailDir arms
+//       (3 copies of a range test whose result is unused). Clean source emits none; the nested
+//       vs `else if` form only shuffles which arms cl merges (probed: nested 392 > else-if 374).
+//   (b) the two CDCs: the original keeps &rectText.top (esi+0xa0) and &nBoxX (esi+0x18) in
+//       POINTER regs (ebx/edx) and RELOADS the members (weak alias analysis vs the local point[]
+//       stores), where ours caches the values — a reload-vs-register tie-break (lesson #19).
+//   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
+// NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
+void TextDialog::Layout(int x, int y)
+{
+    HDC hdc = pParentView->pWorld->pCanvas->hdc;
+    HFONT h = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, g_pszDialogFont);
+    SelectObject(hdc, h);
+    rectBox.left = x;
+    rectBox.top = y;
+    rectBox.right = nBoxW + x;
+    rectBox.bottom = nBoxH + y;
+    if (nMode == 0)
+    {
+        rectText.left = (x - pParentView->pWorld->nViewLeft) + 0xf;
+        y -= pParentView->pWorld->nViewTop;
+    }
+    else
+    {
+        rectText.left = x + 0xf;
+    }
+    rectText.top = y + 0xc;
+    rectText.right = rectText.left + nTextW;
+    rectText.bottom = rectText.top + nTextH;
+
+    CDC *pDC = CDC::FromHandle(GetDC(pParentView->m_hWnd));
+    ::RoundRect(hdc, rectBox.left, rectBox.top, rectBox.right, rectBox.bottom, 0x10, 0x10);
+    ReleaseDC(pParentView->m_hWnd, pDC->m_hDC);
+    pParentView->wndDialogText.MoveWindow(rectText.left, rectText.top, nTextW, nTextH, TRUE);
+    nTotalLines = ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_GETLINECOUNT, 0, 0);
+
+    TriPoint point[3];
+    int bx = nBoxX;
+    if (nMode == 0)
+        bx -= pParentView->pWorld->nViewLeft;
+    if (bx < 0x90)
+    {
+        point[1].x = nBoxX;
+        point[0].x = nBoxX;
+        point[2].x = nBoxX + 0x10;
+    }
+    else if (bx < 0x101)
+    {
+        point[1].x = nBoxX;
+        point[0].x = nBoxX;
+        point[2].x = nBoxX - 0x10;
+    }
+    else
+    {
+        point[1].x = nBoxX;
+        point[0].x = nBoxX;
+        point[2].x = nBoxX - 0x10;
+    }
+    if (nTailDir == 1)
+    {
+        point[0].y = rectBox.bottom - 1;
+        point[1].y = rectBox.bottom + 0xf;
+        point[2].y = rectBox.bottom - 1;
+    }
+    else if (nTailDir == 2)
+    {
+        point[0].y = rectBox.top;
+        point[1].y = rectBox.top - 0x10;
+        point[2].y = rectBox.top;
+    }
+    ::Polygon(hdc, point, 3);
+
+    pDC = CDC::FromHandle(hdc);
+    pDC->SelectStockObject(WHITE_PEN);
+    if (nTailDir == 2)
+    {
+        if (point[2].x < point[0].x)
+        {
+            pDC->MoveTo(point[2].x + 1, point[2].y);
+            pDC->LineTo(point[0].x, point[0].y);
+        }
+        else
+        {
+            pDC->MoveTo(point[0].x, point[0].y);
+            pDC->LineTo(point[2].x, point[2].y);
+        }
+    }
+    else
+    {
+        if (point[2].x < point[0].x)
+        {
+            pDC->MoveTo(point[2].x + 1, point[2].y);
+            pDC->LineTo(point[0].x, point[0].y);
+        }
+        else
+        {
+            pDC->MoveTo(point[0].x, point[0].y);
+            pDC->LineTo(point[2].x, point[2].y);
+        }
+    }
+    pDC->SelectStockObject(BLACK_PEN);
+
+    int t = rectText.bottom - 0xf;
+    int l = (rectText.left + nTextW) + 0xc;
+    rectClose.left = l;
+    rectClose.top = t;
+    rectClose.right = l + 0x10;
+    rectClose.bottom = t + 0x10;
+    int dtop = (t - nLineHeight) - 4;
+    rectDown.top = dtop;
+    rectDown.left = l;
+    rectDown.bottom = t - 4;
+    rectDown.right = l + 0x10;
+    rectUp.left = l;
+    rectUp.right = l + 0x10;
+    rectUp.top = (dtop - nLineHeight) - 4;
+    rectUp.bottom = dtop - 4;
+
+    switch (nVisibleLines)
+    {
+    case 1:
+        pParentView->btnDialogClose.SetWindowPos(pParentView, l, t, 0x10, 0x10, 4);
+        pParentView->btnDialogClose.EnableWindow(1);
+        pParentView->btnDialogDown.ShowWindow(0);
+        pParentView->btnDialogDown.EnableWindow(0);
+        pParentView->btnDialogUp.ShowWindow(0);
+        pParentView->btnDialogUp.EnableWindow(0);
+        goto tail;
+    case 5:
+        if (bTimerActive == 0)
+            goto default_buttons;
+        pParentView->btnDialogUp.SetWindowPos(pParentView, l, dtop, 0x10, 0x10, 4);
+        pParentView->btnDialogDown.SetWindowPos(pParentView, rectUp.left, rectUp.top, 0x10, 0x10, 4);
+        pParentView->btnDialogClose.SetWindowPos(pParentView, rectClose.left, rectClose.top, 0x10, 0x10, 4);
+        pParentView->btnDialogClose.EnableWindow(0);
+        pParentView->btnDialogClose.ShowWindow(5);
+        pParentView->btnDialogDown.EnableWindow(0);
+        pParentView->btnDialogDown.ShowWindow(5);
+        pParentView->btnDialogUp.EnableWindow(1);
+        pParentView->btnDialogUp.ShowWindow(5);
+        break;
+    case 2:
+    case 3:
+    case 4:
+    default_buttons:
+        pParentView->btnDialogClose.SetWindowPos(pParentView, l, t, 0x10, 0x10, 4);
+        pParentView->btnDialogClose.EnableWindow(1);
+        pParentView->btnDialogClose.ShowWindow(5);
+        pParentView->btnDialogDown.EnableWindow(0);
+        pParentView->btnDialogDown.ShowWindow(0);
+        pParentView->btnDialogUp.EnableWindow(0);
+        pParentView->btnDialogUp.ShowWindow(0);
+        break;
+    default:
+        goto tail;
+    }
+tail:
+    ReleaseDC(pParentView->m_hWnd, pDC->m_hDC);
+    pParentView->DrawGameArea(0);
+    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 1, 0);
+    pParentView->wndDialogText.ShowWindow(5);
+    pParentView->btnDialogClose.ShowWindow(5);
+}
+
 // FUNCTION: YODA 0x00417c90
 // TextDialog::ScrollTextLine — scroll the child edit down one line (unless already at the
 // bottom), then re-enable/disable the up/down/close buttons for the new position.
@@ -8692,4 +8873,12 @@ void WorldSizeDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
         }
         m_nValue = nVal;
     }
+}
+
+// FUNCTION: YODA 0x004186e0
+// TriPoint::TriPoint — the game's speech-bubble point type's empty default ctor. Emitted
+// out-of-line (last function in the TU) as `mov eax,ecx; ret` (returns this, does nothing);
+// TextDialog::Layout's `TriPoint point[3];` array construction calls it 3x.
+TriPoint::TriPoint()
+{
 }

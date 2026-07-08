@@ -1031,3 +1031,21 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
   (`program=DESKADV.EXE`) as a structure/naming cross-ref for DTA/zone/IACT/worldgen — NOT
   byte-matchable. **Fable** (model `fable`) is available for planning/review/walls.
 
+
+### ⏮ PRIOR PICKUP (v29, 2026-07-07 — TextDialog cluster 6/7; 97.56% coverage) [demoted v30]
+v29 RESULTS (commits 9d23a75, ad9a30f): the plain-class game TextDialog (speech balloon,
+sizeof 0xc8, NOT Dlg.h's CTextDialog) modeled + 6/7 functions transcribed. GameView TU =
+73/121 markers; coverage 97.56% (was 95.64% v28). Ghidra: TextDialog struct (0xc8) + 7 names
+synced, saved.
+- Struct pinned from ctor + every field access (GameView.h): 5 RECTs (rectBox@0x5c /
+  rectClose@0x6c / rectUp@0x7c / rectDown@0x8c / rectText@0x9c), nTotalLines@0xac,
+  nScrollLine@0xb0 (starts 5), nMode@0x54 (0=world-relative), pView2@0xb4, pParentView@0xc0,
+  strText@0xb8.
+- Ctor 0x416b90 EXACT (161B). Position 0x417570 eff. DIFF(98): shared `goto do_layout` +
+  tail-call to Layout fixed structure (312->152 align); residual = cmp-direction family +
+  one reg rotation. ScrollTextLine/ScrollTextLine2/UpdateDialogButtons DIFF(6-7): one uniform
+  pParentView-load schedule shift (a local cache made it WORSE — orig re-reads).
+  UpdateDialogButtons takes a dead 4-byte stack arg (ret 4, callers push 1) -> (int nUnused).
+  Run 0x416c40 eff. 622/622 insns — full structure; residual = this-in-ESI vs orig EDI.
+- Added g_pszDialogFont @0x4561cc (CreateFont face-name global, distinct from g_pszFontName).
+- v30 finished the cluster: Layout 0x4176f0 transcribed (eff.), TriPoint::TriPoint 0x4186e0 EXACT.
