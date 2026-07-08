@@ -42,6 +42,7 @@ struct MIXPLAYPARAMS
 
 // --- module globals -----------------------------------------------------------
 char  *g_pszFontName = "MS Sans Serif";  // 0x00456130  (read by OnTimer + DrawText)
+char  *g_pszDialogFont = "MS Sans Serif"; // 0x004561cc (read by TextDialog::Run + ::Layout)
 int    g_bStopMusicThread;   // 0x00456134  set nonzero to end the pump loop
 HANDLE g_hWaveMixEvent;      // 0x00459454  pump-tick event
 int    g_dat459450;          // 0x00459450  cleared by the GameView ctor (music/sound related)
@@ -7993,6 +7994,239 @@ TextDialog::TextDialog(GameView *pView)
     pView2 = pView;
     nMode = 0;
     bAtBottom = 0;
+}
+
+// FUNCTION: YODA 0x00416c40
+// TextDialog::Run — show the balloon and drive its own modal message pump until the player
+// dismisses it (close button / Enter / Esc / click-off). Sets up the font + line metrics,
+// sizes the box, positions it (Position), then loops on GetMessage handling keys (up/down
+// scroll, Enter/Esc close), timer auto-repeat, and mouse hit-testing against the four rects.
+// On exit it repaints the zone (or the locator map, in screen mode) and clears bBusy.
+// EFFECTIVE (622/622 insns — structure exact, incl. the < 0x101 / < 0x112 message-range
+// ladders, the WM_KEYDOWN wParam switch, and the WM_LBUTTONDOWN 4-rect PtInRect nest with
+// its shared `dispatch:` / `rbtn:` cross-jumps): residual is the this-register landing in
+// ESI where the original keeps it in EDI (a whole-function allocator tie-break — the same
+// esi/edi this-swap family as OnCmdDifficulty/OnBumpTile) plus the scheduling ripple it
+// causes. Not source-steerable; G1.
+int TextDialog::Run()
+{
+    pParentView->bBusy = 1;
+    pParentView->wndDialogText.ShowWindow(0);
+    pParentView->btnDialogClose.ShowWindow(0);
+    pParentView->btnDialogDown.ShowWindow(0);
+    pParentView->btnDialogUp.ShowWindow(0);
+    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogClose.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogDown.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogUp.m_hWnd, WM_SETREDRAW, 0, 0);
+    HDC hdc = pParentView->pWorld->pCanvas->hdc;
+    HFONT h = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, g_pszDialogFont);
+    SelectObject(hdc, h);
+    TEXTMETRIC tm;
+    GetTextMetrics(hdc, &tm);
+    nLineHeight = tm.tmHeight;
+    nCharWidth = tm.tmAveCharWidth;
+    pParentView->wndDialogText.SetWindowText(strText);
+    LRESULT nLines = ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_GETLINECOUNT, 0, 0);
+    nTotalLines = nLines;
+    nVisibleLines = nLines;
+    bTimerActive = 0;
+    if (5 < nLines)
+    {
+        bTimerActive = 1;
+        nScrollLine = 5;
+        nVisibleLines = 5;
+    }
+    int vl = nVisibleLines;
+    if (vl == 1)
+        nTextH = nLineHeight + 1;
+    else
+    {
+        if (vl < 5)
+            vl = nLineHeight * vl;
+        else
+            vl = nLineHeight * 5;
+        nTextH = vl;
+    }
+    nBoxH = nTextH + 10;
+    int tw = nCharWidth * 0x1a;
+    nTextW = tw;
+    unk24 = 0;
+    nBoxW = tw + 0x28;
+    Position();
+    pParentView->bDialogCloseClicked = 0;
+    if (pParentView->bShowEmptyDialogOnceMaybe == 1)
+        pParentView->bDialogCloseClicked = 1;
+    GameView *pGV = pParentView;
+    RECT rc;
+    rc.top = rectBox.top - pGV->pWorld->nViewTop;
+    rc.left = rectBox.left - pGV->pWorld->nViewLeft;
+    rc.right = nBoxW + rc.left;
+    rc.bottom = nBoxH + rc.top;
+    int done = pGV->bDialogCloseClicked;
+    while (done == 0)
+    {
+        MSG msg;
+        POINT pt;
+        if (GetMessage(&msg, 0, 0, 0) < 1)
+        {
+            pParentView->bBusy = 0;
+            return 0;
+        }
+        if (msg.message < 0x101)
+        {
+            if (msg.message != WM_KEYDOWN)
+            {
+                if (msg.message != WM_NCLBUTTONDOWN || msg.wParam != VK_MENU)
+                    goto dispatch;
+                MessageBeep((UINT)-1);
+                goto after;
+            }
+            switch (msg.wParam)
+            {
+            case VK_RETURN:
+            case VK_ESCAPE:
+                pParentView->bDialogClickDismissMaybe = 1;
+                pParentView->bDialogCloseClicked = 1;
+                break;
+            default:
+                goto dispatch;
+            case VK_UP:
+                DispatchMessage(&msg);
+                ScrollTextLine2();
+                if (bTimerActive != 0)
+                    SetTimer(pParentView->m_hWnd, 1, 100, 0);
+                break;
+            case VK_DOWN:
+                DispatchMessage(&msg);
+                ScrollTextLine();
+                if (bTimerActive != 0)
+                    SetTimer(pParentView->m_hWnd, 1, 100, 0);
+            }
+            goto after;
+        }
+        if (msg.message < 0x112)
+        {
+            if (msg.message == WM_COMMAND)
+            {
+                if ((short)msg.wParam != (short)0xe141)
+                    goto dispatch;
+            }
+            else
+            {
+                if (msg.message != WM_KEYUP)
+                    goto dispatch;
+                DispatchMessage(&msg);
+                if (bTimerActive != 0)
+                    KillTimer(pParentView->m_hWnd, 1);
+            }
+            goto after;
+        }
+        switch (msg.message)
+        {
+        case WM_TIMER:
+            if (msg.wParam == 1)
+                UpdateDialogButtons(1);
+            break;
+        default:
+            goto dispatch;
+        case WM_LBUTTONDOWN:
+            pParentView->bDialogClickDismissMaybe = 0;
+            pParentView->bBlockBumpUntilClick = 1;
+            pt.x = msg.pt.x;
+            pt.y = msg.pt.y;
+            ScreenToClient(pParentView->m_hWnd, &pt);
+            if (PtInRect(&rc, pt) == 0 && nMode != 0)
+            {
+                if (bTimerActive == 0)
+                    pParentView->bDialogCloseClicked = 1;
+                else if (bAtBottom != 0)
+                    pParentView->bDialogCloseClicked = 1;
+            }
+            else if (PtInRect(&rectClose, pt) != 0)
+            {
+                if (bTimerActive == 0)
+                    pParentView->bDialogCloseClicked = 1;
+                else if (bAtBottom != 0)
+                    pParentView->bDialogCloseClicked = 1;
+            }
+            else if (PtInRect(&rectDown, pt) != 0)
+            {
+                DispatchMessage(&msg);
+                ScrollTextLine();
+                if (bTimerActive != 0)
+                    SetTimer(pParentView->m_hWnd, 1, 100, 0);
+            }
+            else if (PtInRect(&rectUp, pt) != 0)
+            {
+                DispatchMessage(&msg);
+                ScrollTextLine2();
+                if (bTimerActive != 0)
+                    SetTimer(pParentView->m_hWnd, 1, 100, 0);
+            }
+            else if (PtInRect(&rectText, pt) == 0)
+            {
+                goto rbtn;
+            }
+            break;
+        case WM_LBUTTONUP:
+            DispatchMessage(&msg);
+            if (bTimerActive != 0)
+                KillTimer(pParentView->m_hWnd, 1);
+            break;
+        case WM_LBUTTONDBLCLK:
+        rbtn:
+            pt.x = msg.pt.x;
+            pt.y = msg.pt.y;
+            ScreenToClient(pParentView->m_hWnd, &pt);
+            if (PtInRect(&rectText, pt) == 0)
+                goto dispatch;
+            break;
+        case WM_RBUTTONDOWN:
+            pt.x = msg.pt.x;
+            pt.y = msg.pt.y;
+            ScreenToClient(pParentView->m_hWnd, &pt);
+            if (PtInRect(&rc, pt) == 0)
+            {
+            dispatch:
+                DispatchMessage(&msg);
+            }
+        }
+    after:
+        done = pParentView->bDialogCloseClicked;
+    }
+    if (bTimerActive != 0)
+        KillTimer(pParentView->m_hWnd, 1);
+    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogClose.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogDown.m_hWnd, WM_SETREDRAW, 0, 0);
+    ::SendMessage(pParentView->btnDialogUp.m_hWnd, WM_SETREDRAW, 0, 0);
+    pParentView->wndDialogText.ShowWindow(0);
+    pParentView->btnDialogClose.ShowWindow(0);
+    pParentView->btnDialogDown.ShowWindow(0);
+    pParentView->btnDialogUp.ShowWindow(0);
+    if (nMode == 0)
+    {
+        pParentView->DrawWholeZone();
+        pParentView->pWorld->DrawPlayer();
+        pParentView->DrawGameArea(0);
+        pParentView->bShowEmptyDialogOnceMaybe = 0;
+        if (nMode == 0)
+            goto done_paint;
+    }
+    {
+        HDC hdc2 = GetDC(pParentView->m_hWnd);
+        CDC *pDC = CDC::FromHandle(hdc2);
+        CPalette *pOld = pDC->SelectPalette(pParentView->pWorld->pPalette, 0);
+        pParentView->pWorld->DrawLocatorMap(pDC, 0, pParentView->bMapTeleportEnabled);
+        pDC->SelectPalette(pOld, 0);
+        ReleaseDC(pParentView->m_hWnd, pDC->m_hDC);
+    }
+done_paint:
+    bTimerActive = 0;
+    pParentView->bDialogCloseClicked = 0;
+    pParentView->bBusy = 0;
+    return 1;
 }
 
 // FUNCTION: YODA 0x00417570
