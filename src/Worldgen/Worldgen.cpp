@@ -2167,7 +2167,7 @@ unsigned short World::PlaceQuestNode(short nType, short a2, short a3, short a4, 
             switch (nType)
             {
             case ZONE_TYPE_ENEMY_TERRITORY:
-                if (genSkipTeleCheckMaybe == 0)
+                if (genSkipTeleCheck == 0)
                 {
                     if (pZone->type == ZONE_TYPE_ENEMY_TERRITORY)
                         return nZoneId;
@@ -3737,11 +3737,11 @@ int World::WorldgenPlacePuzzles(short *paPlanGrid)
             {
                 int nOrder = GetZoneGridOrder(x, y);
                 if (nCode == 0x68 || nOrder < 2)
-                    genSkipTeleCheckMaybe = 1;
+                    genSkipTeleCheck = 1;
                 else
-                    genSkipTeleCheckMaybe = 0;
+                    genSkipTeleCheck = 0;
                 int nZoneId;
-                if (genSkipTeleCheckMaybe != 0)
+                if (genSkipTeleCheck != 0)
                 {
                     nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
                 }
@@ -3758,7 +3758,7 @@ int World::WorldgenPlacePuzzles(short *paPlanGrid)
                     if (nZoneId < 0)
                         return 0;
                     pZone = (Zone *)zones.GetAt(nZoneId);
-                    if (genSkipTeleCheckMaybe != 0)
+                    if (genSkipTeleCheck != 0)
                         goto place;
                     i = 0;
                     {
@@ -3862,7 +3862,7 @@ place:
     }
     if (n == 1)
     {
-        genSkipTeleCheckMaybe = 1;
+        genSkipTeleCheck = 1;
         int nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1,
                                             (short)GetZoneGridOrder(nLastX, nLastY), 0);
         if (nZoneId >= 0)
@@ -3945,7 +3945,7 @@ int World::ParseChar(CFile *pFile)
 int World::LoadWorld()
 {
     CTheApp *pApp = (CTheApp *)AfxGetApp();
-    if (bStartingGameMaybe == 0)
+    if (bStartingGame == 0)
     {
         currentPlanet = pApp->GetProfileInt("OPTIONS", "Terrain", 1);
         if (completionCount == 5 || completionCount == 10 || completionCount == 15)
@@ -4121,7 +4121,7 @@ int World::LoadWorld()
 // possibly TU-context-dependent lowering. (2) the same loop-exit-block placement family as
 // LoadWorld (orig glues it after the FIRST parse arm (TILE); ours after the tail). (3) one
 // frame-slot shift (our EH/catch temp region one dword tighter) + the reg cascade.
-// Structure proven: bDtaLoadedMaybe++ (inc form), grouped switch with per-arm AfxMessageBox
+// Structure proven: bDtaLoaded++ (inc form), grouped switch with per-arm AfxMessageBox
 // calls, dead code after AfxAbort, success block (Generate loop) sunk to the end.]
 // The main .dta asset loader: open theApp.m_str (CFileException box + AfxAbort on failure),
 // dispatch the FourCC chunk stream (VERS/TILE/TNAM/ZONE/ZAUX/ZAX2/ZAX3/CHAR/CHWP/CAUX/HTSP/
@@ -4163,8 +4163,8 @@ int World::Load()
         nFrameMode = 12;    // sic: unreachable after AfxAbort, still emitted (engine-bugs.md #7)
         return 0;           // sic
     }
-    if (bDtaLoadedMaybe == 0)
-        bDtaLoadedMaybe++;
+    if (bDtaLoaded == 0)
+        bDtaLoaded++;
     CProgressCtrl progress;
     int x = nViewLeft;
     int y = nViewTop;
@@ -4298,7 +4298,7 @@ int World::Load()
     else
     {
         int nGenerated = 0;
-        zoneCountLoadedMaybe = zones.GetSize();
+        nZonesLoaded = zones.GetSize();
         CacheUiTilePtrsMaybe();
         unsigned int nSeed = Randomize();
         do
@@ -4692,12 +4692,12 @@ void World::LoadWorldStateFile()
         }
         else if (strcmp(tag, "STUP") == 0)
         {
-            if (bDtaLoadedMaybe == 0)
+            if (bDtaLoaded == 0)
             {
                 ReadStupCanvas(pFile);
                 nDone++;
                 unk50 = 0;
-                bHidePlayerMaybe = 1;
+                bHidePlayer = 1;
                 bWorldReadyMaybe = 1;
                 unk3378 = 0;
                 nMapChangeReason = 1;
@@ -4759,12 +4759,12 @@ void World::Serialize(CArchive &ar)
             }
             else if (strcmp(tag, "STUP") == 0)
             {
-                if (bDtaLoadedMaybe == 0)
+                if (bDtaLoaded == 0)
                 {
                     ReadStupCanvas(pFile);
                     nDone++;
                     unk50 = 0;
-                    bHidePlayerMaybe = 1;
+                    bHidePlayer = 1;
                     bWorldReadyMaybe = 1;
                     unk3378 = 0;
                     nMapChangeReason = 1;
@@ -5106,7 +5106,7 @@ unsigned int World::Randomize()
 void World::OnNewWorld()
 {
     int nAnswer;
-    if (unk2e58 == 0 && gameState == 0)
+    if (bSkipNewWorldConfirm == 0 && gameState == 0)
         nAnswer = AfxMessageBox(0xe001, 4, 0);
     else
         nAnswer = 6;
@@ -5136,14 +5136,14 @@ void World::OnNewWorld()
 // GetPathName chain: ours pushes GetBuffer's 0xc8 before the GetPathName call (arg-push
 // scheduling family); (4) EH-state-store placement in the cancel tail (PlaceZone family);
 // (5) state-constant CSE: orig keeps 1 in EBX, ours 3; (6) the shared short nCount slot
-// rank (-0xe vs -0x26, ParseSnds family). Cracked here: unk33b8 selectors are `!= 0`
+// rank (-0xe vs -0x26, ParseSnds family). Cracked here: bQuestCellsResident selectors are `!= 0`
 // grid/backup-arm-FIRST at all four sites; the 2x2 recursive block materializes
 // MapZone *pCell (base-folded [ebx+4] id reads); pView=NULL declared AFTER the
 // GetFirstViewPosition call.]
 // ON_COMMAND(ID_FILE_SAVE 0xE103 File>Save World) [msgmap @0x44c348]: no-op in cutscene/world
 // frame modes, after a win, or at full health/lives; save dialog (filter 0xE006,
 // "savegame.wld") then write the "YODASAV44" .wld state: seed/planet + quest-item lists +
-// the center 2x2 quest cells (mapScratch or live grid per unk33b8) + the 10x10 grid dump +
+// the center 2x2 quest cells (mapScratch or live grid per bQuestCellsResident) + the 10x10 grid dump +
 // recursive zone records + inventory/player/weapon/camera/health/elapsed-time tail.
 void World::OnSaveWorld()
 {
@@ -5165,7 +5165,7 @@ void World::OnSaveWorld()
     CFileDialog *pDlg = new CFileDialog(0, "wld", "savegame", 0x80006, strFilter, (CWnd *)pView);
     CString strTitle;
     strTitle.LoadString(0xe032);
-    pDlg->m_ofn.lpstrInitialDir = lpszSaveDirMaybe;  // sic: dereferences pDlg BEFORE the null
+    pDlg->m_ofn.lpstrInitialDir = lpszSaveDir;  // sic: dereferences pDlg BEFORE the null
                                                      // check below (engine-bugs.md #13)
     if (pDlg == NULL)
     {
@@ -5212,7 +5212,7 @@ void World::OnSaveWorld()
         pFile->Write("YODASAV44", 9);
         pFile->Write(&worldSeed, 4);
         pFile->Write(&currentPlanet, 4);
-        pFile->Write(&unk33b8, 4);
+        pFile->Write(&bQuestCellsResident, 4);
         short nCount = (short)questItemsA.GetSize();
         pFile->Write(&nCount, 2);
         int i = 0;
@@ -5245,7 +5245,7 @@ void World::OnSaveWorld()
             do
             {
                 MapZone *pCell;
-                if (unk33b8 != 0)
+                if (bQuestCellsResident != 0)
                     pCell = &mapGrid[i * 10 + j + 0x2c];
                 else
                     pCell = &mapScratch[i * 2 + j];
@@ -5268,7 +5268,7 @@ void World::OnSaveWorld()
             } while (j < 2);
             i++;
         } while (i < 2);
-        if (unk33b8 != 0)
+        if (bQuestCellsResident != 0)
         {
             i = 4;
             do
@@ -5318,7 +5318,7 @@ void World::OnSaveWorld()
             do
             {
                 MapZone *pCell;
-                if (unk33b8 != 0)
+                if (bQuestCellsResident != 0)
                     pCell = &mapGridBackup[i * 10 + j];
                 else
                     pCell = &mapGrid[i * 10 + j];
@@ -5348,7 +5348,7 @@ void World::OnSaveWorld()
             do
             {
                 MapZone *pCell;
-                if (unk33b8 != 0)
+                if (bQuestCellsResident != 0)
                     pCell = &mapGridBackup[i * 10 + j];
                 else
                     pCell = &mapGrid[i * 10 + j];
@@ -5469,7 +5469,7 @@ void World::OnSaveWorld()
 // ON_COMMAND(0x800A File>Load World) [msgmap @0x44c360] — also entered via the 0x424fb0 jmp
 // thunk (GameView::OnTimer's replay kick; Ghidra's old name "Serialize"). Confirm box unless
 // replaying; open dialog (filter 0xE007, *.wld) or take g_strReplayPath; read the
-// "YODASAV44" state back: seed/planet/unk33b8 + StartGame(0,1) + quest-item lists (tail
+// "YODASAV44" state back: seed/planet/bQuestCellsResident + StartGame(0,1) + quest-item lists (tail
 // element seeds nCurrentGoalItem/startItem from the puzzle records) + the 2x2 quest cells +
 // zone records (LoadZoneRecursive until the -1,-1 sentinel) + the 10x10 grid (rebuilding
 // apZoneGrid) + inventory (freeing and re-newing InvItems from tile ids) + player/weapon/
@@ -5492,7 +5492,7 @@ void World::OnLoadWorld()
         if (g_bReplayMode == 0)
         {
             pDlg = new CFileDialog(1, "wld", "*.wld", 0x1006, strFilter, NULL);
-            pDlg->m_ofn.lpstrInitialDir = lpszSaveDirMaybe;  // sic: dereferences pDlg BEFORE
+            pDlg->m_ofn.lpstrInitialDir = lpszSaveDir;  // sic: dereferences pDlg BEFORE
             if (pDlg == NULL)                                //      the null check
                 return;
             pDlg->m_ofn.Flags &= ~0x10;
@@ -5573,8 +5573,8 @@ void World::OnLoadWorld()
         }
         pFile->Read(&worldSeed, 4);
         pFile->Read(&currentPlanet, 4);
-        pFile->Read(&unk33b8, 4);
-        bStartingGameMaybe = 1;
+        pFile->Read(&bQuestCellsResident, 4);
+        bStartingGame = 1;
         StartGame(0, 1);
         gameState = 0;
         abortFrame = 0;
@@ -5627,7 +5627,7 @@ void World::OnLoadWorld()
             do
             {
                 MapZone *pCell = pG;
-                if (unk33b8 == 0)
+                if (bQuestCellsResident == 0)
                     pCell = pScratch;
                 pFile->Read(&pCell->flagSolved, 4);
                 pFile->Read(&pCell->flagA, 4);
@@ -5681,7 +5681,7 @@ void World::OnLoadWorld()
             do
             {
                 MapZone *pCell = pBackup;
-                if (unk33b8 == 0)
+                if (bQuestCellsResident == 0)
                     pCell = pBackup - 100;
                 pFile->Read(&pCell->flagSolved, 4);
                 pFile->Read(&pCell->flagA, 4);
@@ -5928,10 +5928,10 @@ void World::OnLoadWorld()
         }
         pView->bBusy = 0;
         abortFrame = 0;
-        bWorldInvalidMaybe = 1;
+        bWorldInvalid = 1;
         bWorldReadyMaybe = 1;
         nFrameMode = 0xb;
-        bStartingGameMaybe = 0;
+        bStartingGame = 0;
         nMapChangeReason = 0;
         g_bReplayMode = 0;
     }
@@ -6023,7 +6023,7 @@ int World::Populate()
     playerX = 4;
     playerY = 5;
     nFrameMode = 0xb;
-    unk33b8 = 1;
+    bQuestCellsResident = 1;
     BackupRecords();
     pView->bBusy = 0;
     return 1;
@@ -6422,7 +6422,7 @@ void GameView::OnInitialUpdate()
         pWorld = (World *)m_pDocument;
         nGameSpeed = pWorld->gameSpeed;
         TRY {
-            pInvScrollBar = new InvScrollBar(this, &pWorld->rectInvScrollMaybe);
+            pInvScrollBar = new InvScrollBar(this, &pWorld->rectInvScroll);
         }
         }              // closes the try block the TRY macro opened
         catch (CException *e) {                // hand-expanded CATCH_ALL(e)

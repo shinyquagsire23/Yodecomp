@@ -335,7 +335,7 @@ World::World()
     nMusicEnabled = 1;
     unk2e60 = 0;
     bWorldInvalid = 0;
-    unk2e58 = 0;
+    bSkipNewWorldConfirm = 0;
     gameState = 0;
     nSoundEnabled = 1;
     difficulty = 0x32;
@@ -371,7 +371,7 @@ World::World()
             gameSpeed = 0x5f;
         if (gameSpeed > 0xb9)
             gameSpeed = 0xb9;
-        unk74 = *(int *)((char *)pApp + 0xc4);   // TODO: name the CWinApp-derived field
+        nFrameDelay = *(int *)((char *)pApp + 0xc4);   // TODO: name the CWinApp-derived field
     }
 
     // planet rotation for the next game (every 5th completion forces the cycle)
@@ -479,7 +479,7 @@ World::World()
     unk54 = 0;
     pPlayerChar = NULL;
     unk3348 = 0;
-    bPaletteAnimEnabledMaybe = 0;
+    bPaletteAnimEnabled = 0;
     palVersion = 0x300;
     palNumEntries = 0x100;
     unk334a = 0;
@@ -679,7 +679,7 @@ BOOL World::OnNewDocument()
 
     HDC hdc = ::GetDC(NULL);
     ::GetDeviceCaps(hdc, BITSPIXEL);
-    bPaletteAnimEnabledMaybe = 1;
+    bPaletteAnimEnabled = 1;
     int nSys = ::GetDeviceCaps(hdc, NUMCOLORS);
     if (nSys > 0x14) {
         nFull = nSys;

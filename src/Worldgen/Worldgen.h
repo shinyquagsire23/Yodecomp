@@ -34,18 +34,18 @@ extern CString g_strReplayPath;      // 0x00459e20 (defined in src/Frame/Frame.c
 enum PlanToken
 {
     PLAN_EMPTY    = 0,
-    PLAN_PATH     = 1,      //       plain path room
-    PLAN_GOAL     = 0x65,   // 101   goal room (CarveQuestPath random promotion)
-    PLAN_LOCK     = 0x66,   // 102   blockade lock spot (PlaceBlockades)
-    PLAN_WALL     = 0x68,   // 104   blockade wall (PlaceBlockades)
-    PLAN_START    = 0xc9,   // 201   the seed cell (Generate plants it; becomes MAP_START)
-    PLAN_CORRIDOR = 0x12c,  // 300   corridor body (perpendicular neighbors blocked)
-    PLAN_FORK_W   = 0x12d,  // 301   fork cell, corridor continues west
-    PLAN_FORK_E   = 0x12e,  // 302   fork cell, corridor continues east
-    PLAN_FORK_N   = 0x12f,  // 303   fork cell, corridor continues north
-    PLAN_FORK_S   = 0x130,  // 304   fork cell, corridor continues south
-    PLAN_BLOCKED  = 0x131,  // 305   reserved/blocker
-    PLAN_ORDERED  = 0x132,  // 306   order-id assigned (BuildQuestPath)
+    PLAN_PATH     = 1,     // plain path room
+    PLAN_GOAL     = 101,   // goal room (CarveQuestPath random promotion)
+    PLAN_LOCK     = 102,   // blockade lock spot (PlaceBlockades)
+    PLAN_WALL     = 104,   // blockade wall (PlaceBlockades)
+    PLAN_START    = 201,   // the seed cell (Generate plants it; becomes MAP_START)
+    PLAN_CORRIDOR = 300,   // corridor body (perpendicular neighbors blocked)
+    PLAN_FORK_W   = 301,   // fork cell, corridor continues west
+    PLAN_FORK_E   = 302,   // fork cell, corridor continues east
+    PLAN_FORK_N   = 303,   // fork cell, corridor continues north
+    PLAN_FORK_S   = 304,   // fork cell, corridor continues south
+    PLAN_BLOCKED  = 305,   // reserved/blocker
+    PLAN_ORDERED  = 306,   // order-id assigned (BuildQuestPath)
 };
 
 // Worldgen zone-entry record (8 bytes, vtable 0x44b080, ctor Mfc::0x401390): the element type
@@ -75,7 +75,7 @@ class World : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
     int         unk50;               // +0x0050
-    int         zoneCountLoadedMaybe; // +0x0054  Load: = zones.GetSize() after the .dta parse
+    int         nZonesLoaded; // +0x0054  Load: = zones.GetSize() after the .dta parse
     int         totalZones;          // +0x0058  (CalcCompletionScore denominator)
     int         nFrameMode;          // +0x005c
     int         nMapChangeReason;    // +0x0060  (names: WorldDoc.h ctor-proven layout)
@@ -83,7 +83,7 @@ public:
     int         gameState;           // +0x0068  -1=in progress, 1=won
     int         nRequestedGoalItem;  // +0x006c
     int         score;               // +0x0070
-    int         unk74;               // +0x0074  ctor: copied from CWinApp+0xc4 (frame delay)
+    int         nFrameDelay;               // +0x0074  ctor: copied from CWinApp+0xc4 (frame delay)
     int         timeBase;            // +0x0078
     int         timeOffset;          // +0x007c
     CObArray    tiles;               // +0x0080  Tile*
@@ -124,16 +124,16 @@ public:
     short       startItem;           // +0x2e38  (Ghidra names)
     short       startItem2Maybe;     // +0x2e3a
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
-    int         bStartingGameMaybe;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
-    int         bWeaponHitPendingMaybe; // +0x2e44  FireWeaponStep zeroes per shot fired
-    int         nWeaponHitXMaybe;    // +0x2e48  (Ghidra names)
-    int         nWeaponHitYMaybe;    // +0x2e4c
+    int         bStartingGame;  // +0x2e40  nonzero skips the planet re-pick in LoadWorld
+    int         bWeaponHitPending; // +0x2e44  FireWeaponStep zeroes per shot fired
+    int         nWeaponHitX;    // +0x2e48  (Ghidra names)
+    int         nWeaponHitY;    // +0x2e4c
     int         goalItemTileId;      // +0x2e50
-    int         bHidePlayerMaybe;    // +0x2e54  (Ghidra name)
-    int         unk2e58;             // +0x2e58  nonzero skips OnNewWorld's confirm box
-    int         bPaletteAnimEnabledMaybe; // +0x2e5c  gates CyclePalette (doc sets 0/1)
+    int         bHidePlayer;    // +0x2e54  (Ghidra name)
+    int         bSkipNewWorldConfirm;             // +0x2e58  nonzero skips OnNewWorld's confirm box
+    int         bPaletteAnimEnabled; // +0x2e5c  gates CyclePalette (doc sets 0/1)
     int         unk2e60;             // +0x2e60
-    int         genSkipTeleCheckMaybe; // +0x2e64  worldgen: skip the teleporter-distance test
+    int         genSkipTeleCheck; // +0x2e64  worldgen: skip the teleporter-distance test
     WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE
     WORD        palNumEntries;       // +0x2e6a  ctor: 0x100   } (WorldDoc.h names)
     PALETTEENTRY sysPalette[256];    // +0x2e6c  live palette mirror (GetSystemPaletteEntries
@@ -145,7 +145,7 @@ public:
     Canvas     *pCanvas;             // +0x3270
     RECT        rectUnk3274;         // +0x3274  locator-map blit origin (left/top used)
     RECT        rectUnk3284;         // +0x3284
-    RECT        rectInvScrollMaybe;  // +0x3294  passed to the InvScrollBar ctor
+    RECT        rectInvScroll;  // +0x3294  passed to the InvScrollBar ctor
     RECT        rectWeaponBox;       // +0x32a4  current-weapon icon box
     RECT        rectAmmoBar;         // +0x32b4  ammo bar box
     RECT        rectHealthDial;      // +0x32c4  (the 0x32d4 quad in WorldDoc.h was misnamed)
@@ -155,10 +155,10 @@ public:
     int         nViewBottom;         // +0x32e0
     RECT        rectArrowBox;        // +0x32e4  (DrawDirectionArrows struct-copies it whole)
     int         bWorldReadyMaybe;    // +0x32f4
-    int         bDtaLoadedMaybe;     // +0x32f8  set once by Load on first successful .dta open
-    int         bStateFileLoadedMaybe; // +0x32fc  gates World::LoadWorldStateFile (OnDraw)
-    int         nextCameraXMaybe;    // +0x3300  (Ghidra names)
-    int         nextCameraYMaybe;    // +0x3304
+    int         bDtaLoaded;     // +0x32f8  set once by Load on first successful .dta open
+    int         bStateFileLoaded; // +0x32fc  gates World::LoadWorldStateFile (OnDraw)
+    int         nextCameraX;    // +0x3300  (Ghidra names)
+    int         nextCameraY;    // +0x3304
     Zone       *pPendingZone;        // +0x3308
     int         nSoundEnabled;       // +0x330c
     int         nMusicEnabled;       // +0x3310
@@ -171,12 +171,12 @@ public:
     int         completionCount;     // +0x332c  worlds completed (5/10/15 milestones gate planets)
     int         cameraX;             // +0x3330
     int         cameraY;             // +0x3334
-    int         nQueuedMoveDXMaybe;  // +0x3338  pending bump/walk delta (OnBumpTile tail zeroes,
-    int         nQueuedMoveDYMaybe;  // +0x333c   zone-transition arms chain nMoveDX=nMoveDY=DX)
-    int         nWalkTargetXMaybe;   // +0x3340  OnLButtonDown mode-3 click target (fine coords, *32)
-    int         nWalkTargetYMaybe;   // +0x3344
-    short       ammoTheForceMaybe;   // +0x3348  saved charge for weapon tile 0x1fe (The Force)
-    short       ammoLightsaberMaybe; // +0x334a  saved charge for weapon tile 0x12 (lightsaber)
+    int         nQueuedMoveDX;  // +0x3338  pending bump/walk delta (OnBumpTile tail zeroes,
+    int         nQueuedMoveDY;  // +0x333c   zone-transition arms chain nMoveDX=nMoveDY=DX)
+    int         nWalkTargetX;   // +0x3340  OnLButtonDown mode-3 click target (fine coords, *32)
+    int         nWalkTargetY;   // +0x3344
+    short       ammoTheForce;   // +0x3348  saved charge for weapon tile 0x1fe (The Force)
+    short       ammoLightsaber; // +0x334a  saved charge for weapon tile 0x12 (lightsaber)
     short       weaponState[4];      // +0x334c  (Ghidra name; OnSaveWorld writes [0..2])
     short       nCurrentAmmoMaybe;   // +0x3354
     char        _pad3356[2];         // +0x3356
@@ -188,7 +188,7 @@ public:
     int         unk3370;             // +0x3370  cleared by GameView::ShowWinMessage tail
     Tile       *equippedItem;        // +0x3374  (UseWeapon saves/overrides it)
     int         unk3378;             // +0x3378  zeroed when STUP world-view state is entered
-    int         bWorldInvalidMaybe;  // +0x337c  (Ghidra name; OnLoadWorld sets 1)
+    int         bWorldInvalid;  // +0x337c  (Ghidra name; OnLoadWorld sets 1)
     int         genCellItemCScratch;      // +0x3380  worldgen per-cell scratch block
     int         genCellQuestSlot5Scratch; // +0x3384
     int         genCellItemAScratch;      // +0x3388
@@ -203,8 +203,8 @@ public:
     int         highScore;           // +0x33ac
     int         lastScore;           // +0x33b0
     char        _pad33b4[4];         // +0x33b4
-    int         unk33b8;             // +0x33b8  0 = quest cells swapped out (save reads mapScratch)
-    char       *lpszSaveDirMaybe;    // +0x33bc  save dialog's m_ofn.lpstrInitialDir
+    int         bQuestCellsResident;             // +0x33b8  0 = quest cells swapped out (save reads mapScratch)
+    char       *lpszSaveDir;    // +0x33bc  save dialog's m_ofn.lpstrInitialDir
 
     // ---- this TU's methods (grow one decl at a time as functions land) ----
     int  ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel); // 0x0041bfa0

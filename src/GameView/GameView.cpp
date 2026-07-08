@@ -458,9 +458,9 @@ void GameView::OnDraw(CDC *pDC)
         pWorld = (World *)m_pDocument;
     if (pWorld == 0)
         return;
-    if (pWorld->bStateFileLoadedMaybe == 0)
+    if (pWorld->bStateFileLoaded == 0)
     {
-        pWorld->bStateFileLoadedMaybe++;
+        pWorld->bStateFileLoaded++;
         pWorld->LoadWorldStateFile();
     }
     CPalette *pOldPalette = pDC->SelectPalette(pWorld->pPalette, FALSE);
@@ -476,10 +476,10 @@ void GameView::OnDraw(CDC *pDC)
     rc.top = pWorld->rectUnk3284.top - 2;
     rc.bottom = pWorld->rectUnk3284.bottom + 2;
     pWorld->DrawRect(pDC, &rc, 0, 2);
-    rc.left = pWorld->rectInvScrollMaybe.left - 2;
-    rc.right = pWorld->rectInvScrollMaybe.right + 2;
-    rc.top = pWorld->rectInvScrollMaybe.top - 2;
-    rc.bottom = pWorld->rectInvScrollMaybe.bottom + 2;
+    rc.left = pWorld->rectInvScroll.left - 2;
+    rc.right = pWorld->rectInvScroll.right + 2;
+    rc.top = pWorld->rectInvScroll.top - 2;
+    rc.bottom = pWorld->rectInvScroll.bottom + 2;
     pWorld->DrawRect(pDC, &rc, 0, 2);
     DrawHealthDial(pDC);
     DrawDirectionArrows(pDC);
@@ -503,12 +503,12 @@ void GameView::OnDraw(CDC *pDC)
         pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
                                 0x120, 0x120, srcX, srcY);
         pDC->SelectPalette(pOldPalette, FALSE);
-        if (pWorld != 0 && pWorld->bDtaLoadedMaybe == 0)
+        if (pWorld != 0 && pWorld->bDtaLoaded == 0)
         {
             pWorld->nFrameMode = 7;
             pWorld->nMapChangeReason = 1;
             bBusy = 0;
-            pWorld->bDtaLoadedMaybe++;
+            pWorld->bDtaLoaded++;
             if (pWorld->Load() == 0)
             {
                 AfxMessageBox(0xe01d, 0x10, (UINT)-1);
@@ -805,7 +805,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
         pWorld->currentZone = pWorld->GetZoneById(nZoneId);
         if (pWorld->currentZone == NULL)
             pWorld->currentZone = pOldZone;
-        if (pWorld->bWorldInvalidMaybe == 0)
+        if (pWorld->bWorldInvalid == 0)
         {
             short y = 0;
             nCellX = -1;
@@ -842,7 +842,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
         pWorld->UpdateCamera();
         pWorld->RefreshZone();
         short nSavedMode = (short)pWorld->nFrameMode;
-        if (pWorld->bWorldInvalidMaybe == 0)
+        if (pWorld->bWorldInvalid == 0)
         {
             nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
                                                                  pDC, pWorld, this);
@@ -850,7 +850,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
                 bAborted = 1;
         }
         bIactZoneEntryMaybe = 1;
-        if (pWorld->bWorldInvalidMaybe == 0)
+        if (pWorld->bWorldInvalid == 0)
             nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                   pDC, pWorld, this);
         bIactZoneEntryMaybe = 0;
@@ -861,7 +861,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
         else
             pWorld->nFrameMode = 0xb;
         pWorld->currentZone->activatedFlag = 1;
-        if (pWorld->bWorldInvalidMaybe == 0)
+        if (pWorld->bWorldInvalid == 0)
             DrawEntities();
         DrawWholeZone();
         pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
@@ -879,7 +879,7 @@ int GameView::ZoneTransitionStep(short nZoneId, short nStep)
         short nSavedMode = (short)pWorld->nFrameMode;
         unsigned short nMask;                  // sic: uninitialized when the IactRun
                                                //      below is skipped (engine-bugs #13)
-        if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalidMaybe == 0)
+        if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
             nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                  pDC, pWorld, this);
         if (nMask & 4)
@@ -960,7 +960,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
             pWorld->currentZone = pWorld->GetZoneById(nZoneId);
             if (pWorld->currentZone == NULL)
                 pWorld->currentZone = pOldZone;
-            if (pWorld->bWorldInvalidMaybe == 0)
+            if (pWorld->bWorldInvalid == 0)
             {
                 short y = 0;
                 nCellX = -1;
@@ -996,7 +996,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
             pWorld->unk50 = nZoneId;
             pWorld->UpdateCamera();
             pWorld->RefreshZone();
-            if (pWorld->bWorldInvalidMaybe == 0)
+            if (pWorld->bWorldInvalid == 0)
             {
                 nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
                                                                      pDC, pWorld, this);
@@ -1004,7 +1004,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
                     bAborted = 1;
             }
             bIactZoneEntryMaybe = 1;
-            if (pWorld->bWorldInvalidMaybe == 0)
+            if (pWorld->bWorldInvalid == 0)
                 nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                       pDC, pWorld, this);
             bIactZoneEntryMaybe = 0;
@@ -1012,7 +1012,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
                 pWorld->UpdateCamera();
             nTransitionStep = -1;
             pWorld->currentZone->activatedFlag = 1;
-            if (pWorld->bWorldInvalidMaybe == 0)
+            if (pWorld->bWorldInvalid == 0)
                 DrawEntities();
             DrawWholeZone();
             if (nCellY >= 0 && nCellX >= 0)
@@ -1030,7 +1030,7 @@ int GameView::WorldEntryStepMaybe(short nZoneId, short nStep)
             DrawDirectionArrows(pDC);
             unsigned short nMask;              // sic: uninitialized when the IactRun
                                                //      below is skipped (engine-bugs #13)
-            if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalidMaybe == 0)
+            if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
                 nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                      pDC, pWorld, this);
             if (nMask & 4)
@@ -1300,7 +1300,7 @@ void GameView::FireWeaponStep(int nStep)
         PlaySound(pWeapon->weaponCharId);
         pWeapon->unk48--;
         DrawWeaponIcon(0);
-        pWorld->bWeaponHitPendingMaybe = 0;
+        pWorld->bWeaponHitPending = 0;
         switch (nWeaponTile)
         {
         case 0x1ff:
@@ -1390,8 +1390,8 @@ void GameView::FireWeaponStep(int nStep)
                             DrawTileAt((short)nx, (short)y, 1);
                             BlitTile((short)y, (short)nx, 1, pProj);
                             DrawTileAt((short)nx, (short)y, 2);
-                            pWorld->nWeaponHitXMaybe = nx;
-                            pWorld->nWeaponHitYMaybe = y;
+                            pWorld->nWeaponHitX = nx;
+                            pWorld->nWeaponHitY = y;
                         }
                         else
                         {
@@ -1401,8 +1401,8 @@ void GameView::FireWeaponStep(int nStep)
                                 DrawTileAt((short)nx, (short)y, 1);
                                 BlitTile((short)y, (short)nx, 1, pProj);
                                 DrawTileAt((short)nx, (short)y, 2);
-                                pWorld->nWeaponHitXMaybe = nx;
-                                pWorld->nWeaponHitYMaybe = y;
+                                pWorld->nWeaponHitX = nx;
+                                pWorld->nWeaponHitY = y;
                             }
                             else
                             {
@@ -1475,8 +1475,8 @@ void GameView::FireWeaponStep(int nStep)
                                 DrawTileAt((short)x, (short)ny, 1);
                                 BlitTile((short)ny, (short)x, 1, pProj);
                                 DrawTileAt((short)x, (short)ny, 2);
-                                pWorld->nWeaponHitXMaybe = x;
-                                pWorld->nWeaponHitYMaybe = ny;
+                                pWorld->nWeaponHitX = x;
+                                pWorld->nWeaponHitY = ny;
                             }
                             else
                             {
@@ -1486,8 +1486,8 @@ void GameView::FireWeaponStep(int nStep)
                                     DrawTileAt((short)x, (short)ny, 1);
                                     BlitTile((short)ny, (short)x, 1, pProj);
                                     DrawTileAt((short)x, (short)ny, 2);
-                                    pWorld->nWeaponHitXMaybe = x;
-                                    pWorld->nWeaponHitYMaybe = ny;
+                                    pWorld->nWeaponHitX = x;
+                                    pWorld->nWeaponHitY = ny;
                                 }
                                 else
                                 {
@@ -3009,7 +3009,7 @@ void GameView::OnTimer(UINT nIDEvent)
         {
             pWorld->gameState = 1;
             pWorld->pPendingZone = pWorld->currentZone;
-            pWorld->bHidePlayerMaybe = 1;
+            pWorld->bHidePlayer = 1;
             nDragSlot = -1;
             bDragActive = 0;
             nDragLastScreenY = -1;
@@ -3020,8 +3020,8 @@ void GameView::OnTimer(UINT nIDEvent)
             CWinApp *pApp = AfxGetApp();
             pApp->WriteProfileInt("OPTIONS", "Count", pWorld->completionCount);
             int nZone = pWorld->GetVictoryZoneIndexMaybe();
-            pWorld->nextCameraXMaybe = pWorld->cameraX;
-            pWorld->nextCameraYMaybe = pWorld->cameraY;
+            pWorld->nextCameraX = pWorld->cameraX;
+            pWorld->nextCameraY = pWorld->cameraY;
             pWorld->cameraX = pWorld->cameraY = 0;
             pWorld->nFrameMode = 7;
             pWorld->nMapChangeReason = 2;
@@ -3081,12 +3081,12 @@ void GameView::OnTimer(UINT nIDEvent)
             nDragLastScreenY = -1;
             nDragLastScreenX = -1;
             draggedTile = NULL;
-            pWorld->bHidePlayerMaybe = 1;
+            pWorld->bHidePlayer = 1;
             pWorld->pPendingZone = pWorld->currentZone;
             pWorld->currentZone = pWorld->GetLossZoneMaybe();
             pWorld->RefreshZone();
-            pWorld->nextCameraXMaybe = pWorld->cameraX;
-            pWorld->nextCameraYMaybe = pWorld->cameraY;
+            pWorld->nextCameraX = pWorld->cameraX;
+            pWorld->nextCameraY = pWorld->cameraY;
             pWorld->cameraX = pWorld->cameraY = 0;
             pWorld->UpdateCamera();
             DrawGameArea(NULL);
@@ -3324,14 +3324,14 @@ void GameView::OnTimer(UINT nIDEvent)
         }
         if (nTransitionStep == 0)
         {
-            if (pWorld->bWorldInvalidMaybe == 0)
+            if (pWorld->bWorldInvalid == 0)
                 bSuppressWalkSound = 1;
             bDragActive = 0;
             nDragSlot = -1;
             nDragLastScreenY = -1;
             nDragLastScreenX = -1;
             draggedTile = NULL;
-            if (pWorld->bWorldInvalidMaybe != 0)
+            if (pWorld->bWorldInvalid != 0)
             {
                 DrawWeaponBox(NULL);
                 DrawWeaponIcon(NULL);
@@ -3343,7 +3343,7 @@ void GameView::OnTimer(UINT nIDEvent)
             bMapViewOpen = 0;
             DrawText(NULL);
             DrawHealthNeedle(NULL);
-            if (pWorld->bWorldInvalidMaybe != 0)
+            if (pWorld->bWorldInvalid != 0)
             {
                 int nRange = pWorld->inventory.GetSize();
                 if (nRange > 7)
@@ -3358,10 +3358,10 @@ void GameView::OnTimer(UINT nIDEvent)
                     pInvScrollBar->scrollMax = 0;
                 }
             }
-            pWorld->bHidePlayerMaybe = 0;
+            pWorld->bHidePlayer = 0;
             pWorld->bWorldReadyMaybe = 0;
         }
-        if (pWorld->bWorldInvalidMaybe == 0 && pWorld->totalZones != -1)
+        if (pWorld->bWorldInvalid == 0 && pWorld->totalZones != -1)
             WorldEntryStepMaybe((short)nTargetZoneId, (short)nTransitionStep);
         else
             ZoneTransitionStep((short)nTargetZoneId, (short)nTransitionStep);
@@ -3371,8 +3371,8 @@ void GameView::OnTimer(UINT nIDEvent)
             pWorld->nFrameMode = 3;
             bBusy = 0;
             DrawDirectionArrows(NULL);
-            pWorld->bWorldInvalidMaybe = 0;
-            if (pWorld->unk74 == 0x1e && bOneShotStubMaybe == 0)
+            pWorld->bWorldInvalid = 0;
+            if (pWorld->nFrameDelay == 0x1e && bOneShotStubMaybe == 0)
             {
                 bOneShotStubMaybe = 1;
                 EmptyFrameHookMaybe();
@@ -3592,8 +3592,8 @@ int GameView::TransitionZoneScript(int nUnused, int nZoneId)
 // GameView::TransitionZoneXWing — X-Wing takeoff/landing hotspot: like
 // ApplyHotspotCamera but for the OBJ_XWING_TO/FROM pair, and the world map
 // is swapped: TO (takeoff) backs up the zone grid, builds the fresh
-// travel grid and restores the quest records (unk33b8=1); FROM (landing)
-// backs up the records and restores the grid backup (unk33b8=0).
+// travel grid and restores the quest records (bQuestCellsResident=1); FROM (landing)
+// backs up the records and restores the grid backup (bQuestCellsResident=0).
 // EFFECTIVE MATCH (align=22, 152/152 insns, byte_diff=10): same parity-
 // crossed clone pair as ApplyHotspotCamera (the pre-call xor is vx in arm1
 // but i in arm2 in the ORIGINAL). Arm1 matches exactly. Arm2 residual = a
@@ -3646,7 +3646,7 @@ int GameView::TransitionZoneXWing(ZoneObj *pObj)
                 pWorld->BackupZoneGrid();
                 pWorld->SetupGrid();
                 pWorld->RestoreRecords();
-                pWorld->unk33b8 = 1;
+                pWorld->bQuestCellsResident = 1;
                 bBusy = 0;
                 return 1;
             }
@@ -3689,7 +3689,7 @@ int GameView::TransitionZoneXWing(ZoneObj *pObj)
                 pWorld->BackupRecords();
                 pWorld->SetupGrid();
                 pWorld->RestoreGridFromBackup();
-                pWorld->unk33b8 = 0;
+                pWorld->bQuestCellsResident = 0;
                 bBusy = 0;
                 return 1;
             }
@@ -4598,12 +4598,12 @@ void GameView::OnDragItem(int x, int y, Tile *pTile)
                         else switch (nCharTile)
                         {
                         case 0x12:
-                            if ((pChar->unk48 = pWorld->ammoLightsaberMaybe) == 0)
+                            if ((pChar->unk48 = pWorld->ammoLightsaber) == 0)
                                 pChar->unk48 = 30;
                             PlaySound(0x1f);
                             break;
                         case 0x1fe:
-                            if ((pChar->unk48 = pWorld->ammoTheForceMaybe) == 0)
+                            if ((pChar->unk48 = pWorld->ammoTheForce) == 0)
                                 pChar->unk48 = 30;
                             PlaySound(0x1f);
                             break;
@@ -5055,7 +5055,7 @@ void GameView::OnDragItem(int x, int y, Tile *pTile)
 // assigning the four callee-saved regs to pDC(ESI)/n(EDI)/per-arm scratch
 // (EBX/EBP incl. the GetSafeHdc temp); ours keeps this=ESI, pDC=EDI,
 // n2=EBX, n=EBP and reads fields directly. n/n2 decl order inert.
-// Cracks: int *pHide = &bHidePlayerMaybe pointer-local (add eax,0x2e54
+// Cracks: int *pHide = &bHidePlayer pointer-local (add eax,0x2e54
 // store form), CWinApp *pApp = AfxGetApp() local (single ModuleState
 // call), GetSafeHdc() for the BitBlt src hdc, one test-eax three-way
 // dispatch (dirX >0 / <0 / else dirY), clock()+50 busy-wait, per-arm
@@ -5071,7 +5071,7 @@ void GameView::ScrollZoneTransition()
         bMidiProfileInitMaybe = 1;
     }
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-    int *pHide = &pWorld->bHidePlayerMaybe;
+    int *pHide = &pWorld->bHidePlayer;
     int nOldHide = *pHide;
     *pHide = 1;
     unsigned int nMask = pWorld->currentZone->IactRun(4, -1, -1, -1, -1, -1, NULL, pWorld, this);
@@ -5125,7 +5125,7 @@ void GameView::ScrollZoneTransition()
         n2 += 0x10;
         n += 0x10;
     } while (n2 <= 0x120);
-    pWorld->bHidePlayerMaybe = nOldHide;
+    pWorld->bHidePlayer = nOldHide;
     pWorld->currentZone->activatedFlag = 1;
     DrawWholeZone();
     pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].flagSolved = 1;
@@ -5251,7 +5251,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
         rc.right = pWorld->rectUnk3274.right + 12;
         rc.top = pWorld->rectUnk3274.top - 12;
         rc.bottom = pWorld->rectUnk3274.bottom + 12;
-        if (PtInRect(&pWorld->rectInvScrollMaybe, point) == 0)
+        if (PtInRect(&pWorld->rectInvScroll, point) == 0)
         {
             if (PtInRect(&pWorld->rectUnk3284, point) != 0)
             {
@@ -5259,9 +5259,9 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
             }
             else if (PtInRect(&rc, point) != 0 && bInputLocked == 0)
             {
-                pWorld->nWalkTargetXMaybe =
+                pWorld->nWalkTargetX =
                     (pWorld->nViewLeft - pWorld->rectUnk3274.left + point.x) * 32;
-                pWorld->nWalkTargetYMaybe =
+                pWorld->nWalkTargetY =
                     (pWorld->nViewTop - pWorld->rectUnk3274.top + point.y) * 32;
                 SetCapture();
                 nWalkFramePhase++;
@@ -5283,11 +5283,11 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                 && pWorld->GetZoneIndex(pWorld->pPendingZone) != 0x152)
             {
                 pWorld->currentZone = pWorld->pPendingZone;
-                pWorld->cameraX = pWorld->nextCameraXMaybe;
-                pWorld->cameraY = pWorld->nextCameraYMaybe;
+                pWorld->cameraX = pWorld->nextCameraX;
+                pWorld->cameraY = pWorld->nextCameraY;
                 pWorld->RefreshZone();
                 pWorld->UpdateCamera();
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->DrawPlayer();
                 pWorld->nFrameMode = 3;
                 DrawGameArea(0);
@@ -5307,7 +5307,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                 bMapViewOpen = 0;
                 pWorld->RefreshZone();
                 pWorld->UpdateCamera();
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->nFrameMode = 3;
                 DrawGameArea(0);
                 bMouseCaptured = 0;
@@ -5322,7 +5322,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                 bMouseCaptured = 0;
                 pWorld->RefreshZone();
                 pWorld->UpdateCamera();
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->nFrameMode = 3;
                 DrawGameArea(0);
                 pWorld->DrawPlayer();
@@ -5335,7 +5335,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                 pWorld->currentZone = pMapReturnZone;
                 bMapViewOpen = 0;
                 pWorld->RefreshZone();
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->UpdateCamera();
                 pWorld->nFrameMode = 3;
                 DrawGameArea(0);
@@ -5365,7 +5365,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                                 pWorld->currentZone = pZone;
                                 pWorld->nFrameMode = 3;
                                 bMapViewOpen = 0;
-                                pWorld->bHidePlayerMaybe = 0;
+                                pWorld->bHidePlayer = 0;
                                 pWorld->RefreshZone();
                                 pWorld->UpdateCamera();
                                 DrawGameArea(0);
@@ -5385,7 +5385,7 @@ void GameView::OnLButtonDown(UINT nFlags, CPoint point)
                 pWorld->currentZone = pMapReturnZone;
                 bMapViewOpen = 0;
                 pWorld->RefreshZone();
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->UpdateCamera();
                 pWorld->nFrameMode = 3;
                 DrawGameArea(0);
@@ -5636,7 +5636,7 @@ void GameView::OnLButtonUp(UINT nFlags, CPoint point)
         rc.right = pWorld->rectUnk3274.right + 12;
         rc.top = pWorld->rectUnk3274.top - 12;
         rc.bottom = pWorld->rectUnk3274.bottom + 12;
-        if (PtInRect(&pWorld->rectInvScrollMaybe, point) != 0)
+        if (PtInRect(&pWorld->rectInvScroll, point) != 0)
             return;     // sic: the one exit that skips Default()
         if (PtInRect(&pWorld->rectUnk3284, point) != 0)
         {
@@ -5748,12 +5748,12 @@ void GameView::OnLButtonUp(UINT nFlags, CPoint point)
                         else switch (nCharTile)
                         {
                         case 0x12:
-                            if ((pChar->unk48 = pWorld->ammoLightsaberMaybe) == 0)
+                            if ((pChar->unk48 = pWorld->ammoLightsaber) == 0)
                                 pChar->unk48 = 30;
                             PlaySound(0x1f);
                             break;
                         case 0x1fe:
-                            if ((pChar->unk48 = pWorld->ammoTheForceMaybe) == 0)
+                            if ((pChar->unk48 = pWorld->ammoTheForce) == 0)
                                 pChar->unk48 = 30;
                             PlaySound(0x1f);
                             break;
@@ -6559,7 +6559,7 @@ void GameView::OnRButtonDown(UINT nFlags, CPoint point)
             pWorld->currentZone = pMapReturnZone;
             bMapViewOpen = 0;
             pWorld->RefreshZone();
-            pWorld->bHidePlayerMaybe = 0;
+            pWorld->bHidePlayer = 0;
             pWorld->UpdateCamera();
             pWorld->nFrameMode = 3;
             DrawGameArea(NULL);
@@ -6631,7 +6631,7 @@ void GameView::OnBumpTile(int dx, int dy)
                 {
                     if (pWorld->currentZone->GetEdgeCode(tx, ty) == 0)
                     {
-                        if (pWorld->bHidePlayerMaybe == 0)
+                        if (pWorld->bHidePlayer == 0)
                             DrawZoneCell(cx, cy);
                         pWorld->cameraX = tx * 32;
                         pWorld->cameraY = ty * 32;
@@ -6641,7 +6641,7 @@ void GameView::OnBumpTile(int dx, int dy)
                     }
                     else
                     {
-                        if (pWorld->bHidePlayerMaybe == 0)
+                        if (pWorld->bHidePlayer == 0)
                             DrawZoneCell(cx, cy);
                         UpdatePlayerWalkFrame();
                     }
@@ -6662,7 +6662,7 @@ void GameView::OnBumpTile(int dx, int dy)
                     bInputLocked = 0;
                     return;
                 }
-                if (pWorld->bHidePlayerMaybe == 0)
+                if (pWorld->bHidePlayer == 0)
                     DrawZoneCell(cx, cy);
                 int t = (short)pWorld->currentZone->GetTile(tx, ty, 1);
                 if (t == -1)
@@ -6704,9 +6704,9 @@ void GameView::OnBumpTile(int dx, int dy)
                                     pWorld->playerY = py;
                                     if (bKeyboardMoveActive == 0)
                                     {
-                                        pWorld->nQueuedMoveDYMaybe = 0;
-                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
-                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                        pWorld->nQueuedMoveDY = 0;
+                                        pWorld->nQueuedMoveDX = pWorld->nQueuedMoveDY;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDX;
                                     }
                                     ScrollZoneTransition();
                                 }
@@ -6748,9 +6748,9 @@ void GameView::OnBumpTile(int dx, int dy)
                                     pWorld->playerY = py;
                                     if (bKeyboardMoveActive == 0)
                                     {
-                                        pWorld->nQueuedMoveDYMaybe = 0;
-                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
-                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                        pWorld->nQueuedMoveDY = 0;
+                                        pWorld->nQueuedMoveDX = pWorld->nQueuedMoveDY;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDX;
                                     }
                                     ScrollZoneTransition();
                                 }
@@ -6792,9 +6792,9 @@ void GameView::OnBumpTile(int dx, int dy)
                                     pWorld->playerY = py;
                                     if (bKeyboardMoveActive == 0)
                                     {
-                                        pWorld->nQueuedMoveDYMaybe = 0;
-                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
-                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                        pWorld->nQueuedMoveDY = 0;
+                                        pWorld->nQueuedMoveDX = pWorld->nQueuedMoveDY;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDX;
                                     }
                                     ScrollZoneTransition();
                                     pWorld->scrollDirX = 0;
@@ -6837,9 +6837,9 @@ void GameView::OnBumpTile(int dx, int dy)
                                     pWorld->playerY = py;
                                     if (bKeyboardMoveActive == 0)
                                     {
-                                        pWorld->nQueuedMoveDYMaybe = 0;
-                                        pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
-                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDXMaybe;
+                                        pWorld->nQueuedMoveDY = 0;
+                                        pWorld->nQueuedMoveDX = pWorld->nQueuedMoveDY;
+                                        nMoveDX = nMoveDY = pWorld->nQueuedMoveDX;
                                     }
                                     ScrollZoneTransition();
                                 }
@@ -7120,8 +7120,8 @@ void GameView::OnBumpTile(int dx, int dy)
                 }
                 break;
             }
-            pWorld->nQueuedMoveDYMaybe = 0;
-            pWorld->nQueuedMoveDXMaybe = pWorld->nQueuedMoveDYMaybe;
+            pWorld->nQueuedMoveDY = 0;
+            pWorld->nQueuedMoveDX = pWorld->nQueuedMoveDY;
             if (bKeyboardMoveActive == 0)
             {
                 nMoveDY = 0;
@@ -7289,7 +7289,7 @@ void GameView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
                 PlaySound(0x23);
                 pWorld->currentZone = pMapReturnZone;
                 bMapViewOpen = 0;
-                pWorld->bHidePlayerMaybe = 0;
+                pWorld->bHidePlayer = 0;
                 pWorld->nFrameMode = 3;
                 pWorld->RefreshZone();
                 pWorld->UpdateCamera();
@@ -7447,7 +7447,7 @@ void GameView::OnDestroy()
 // ---------------------------------------------------------------------------
 void GameView::CyclePalette()
 {
-    if (pWorld->bPaletteAnimEnabledMaybe == 0)
+    if (pWorld->bPaletteAnimEnabled == 0)
         return;
     PALETTEENTRY savedEntry;
     RGBQUAD savedColor;

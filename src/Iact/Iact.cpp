@@ -469,8 +469,8 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, Wor
                                 n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
                             if (n >= 0 && pWorld->tileArray[n] == pWorld->pEquippedItem) {
                                 if (n == 0x1ff)
-                                    pView->DrawTileAt((short)pWorld->nWeaponHitXMaybe,
-                                                      (short)pWorld->nWeaponHitYMaybe, -1);
+                                    pView->DrawTileAt((short)pWorld->nWeaponHitX,
+                                                      (short)pWorld->nWeaponHitY, -1);
                                 break;
                             }
                         }

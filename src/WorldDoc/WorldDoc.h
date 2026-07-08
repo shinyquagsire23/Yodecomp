@@ -49,7 +49,7 @@ public:
     int         gameState;           // +0x0068  -1=in progress, 1=won
     int         nRequestedGoalItem;  // +0x006c
     int         score;               // +0x0070
-    int         unk74;               // +0x0074  ctor: copied from CWinApp+0xc4
+    int         nFrameDelay;               // +0x0074  ctor: copied from CWinApp+0xc4
     int         timeBase;            // +0x0078
     int         timeOffset;          // +0x007c
     CObArray    tiles;               // +0x0080  Tile*
@@ -94,8 +94,8 @@ public:
     int         nWeaponHitY;         // +0x2e4c
     int         goalItemTileId;      // +0x2e50
     int         bHidePlayer;         // +0x2e54
-    int         unk2e58;             // +0x2e58  ctor: 0
-    int         bPaletteAnimEnabledMaybe; // +0x2e5c  OnNewDocument: 1 — gates GameView::CyclePalette
+    int         bSkipNewWorldConfirm;             // +0x2e58  ctor: 0
+    int         bPaletteAnimEnabled; // +0x2e5c  OnNewDocument: 1 — gates GameView::CyclePalette
     int         unk2e60;             // +0x2e60  ctor: 0
     int         unk2e64;             // +0x2e64
     WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE
@@ -169,7 +169,7 @@ public:
     int         highScore;           // +0x33ac
     int         lastScore;           // +0x33b0
     int         unk33b4;             // +0x33b4  ctor: -1
-    int         unk33b8;             // +0x33b8
+    int         bQuestCellsResident;             // +0x33b8
     CString     installPath;         // +0x33bc  ctor: registry Install Path / drive scan
                                      // sizeof 0x33c0
 

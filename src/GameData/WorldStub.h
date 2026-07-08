@@ -91,8 +91,8 @@ public:
     int         currentPlanet;           // +0x2e3c
     int         bStartingGame;           // +0x2e40
     int         unk2e44;                 // +0x2e44
-    int         nWeaponHitXMaybe;        // +0x2e48  last weapon-hit cell (written by
-    int         nWeaponHitYMaybe;        // +0x2e4c  GameView::FireWeaponStep; blinked by IactRun)
+    int         nWeaponHitX;        // +0x2e48  last weapon-hit cell (written by
+    int         nWeaponHitY;        // +0x2e4c  GameView::FireWeaponStep; blinked by IactRun)
     int         goalItemTileId;          // +0x2e50
     int         bHidePlayer;             // +0x2e54
     char        _pad2e58[8];             // +0x2e58
