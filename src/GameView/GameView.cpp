@@ -60,10 +60,10 @@ class StatsDlg : public CDialog
 public:
     int      unk5c;                  // +0x5c
     World   *pWorld;                 // +0x60  ctor arg (the doc)
-    CString  m_str0;                 // +0x64  DDX 0x98
-    CString  m_str1;                 // +0x68  DDX 0x97
-    CString  m_str2;                 // +0x6c  DDX 0x95
-    CString  m_str3;                 // +0x70  DDX 0x96
+    CString  m_str0;                 // +0x64  DDX 0x98 <- World.lastCount
+    CString  m_str1;                 // +0x68  DDX 0x97 <- World.completionCount
+    CString  m_str2;                 // +0x6c  DDX 0x95 <- World.highScore
+    CString  m_str3;                 // +0x70  DDX 0x96 <- World.lastScore
     StatsDlg(CWnd *pParent, World *pDoc);                // 0x00416810
     virtual void DoDataExchange(CDataExchange *pDX);     // 0x004169e0
     virtual BOOL OnInitDialog();                         // 0x00416a40
@@ -138,7 +138,7 @@ BEGIN_MESSAGE_MAP(GameView, CView)
     ON_UPDATE_COMMAND_UI(0x800c, OnUpdateGameSpeedUi)
     ON_COMMAND(0x800d, OnCmdWorldSizeMaybe)
     ON_UPDATE_COMMAND_UI(0x800d, OnUpdateWorldSizeUi)
-    ON_COMMAND(0x800e, OnCmdStatsMaybe)
+    ON_COMMAND(0x800e, OnCmdStats)
     ON_UPDATE_COMMAND_UI(0x800e, OnUpdateStatsUi)
     ON_BN_CLICKED(0x1389, OnDialogCloseBtn)
     ON_BN_CLICKED(0x138a, OnDialogDownBtnNop)
@@ -7431,9 +7431,130 @@ void GameView::OnDestroy()
 }
 
 // ---------------------------------------------------------------------------
-// (CyclePalette 0x00415af0 slot — transcribed later; 1280B palette-cycle raw-offset
-//  rotation, deferred. Keeps .text source order when inserted here.)
+// FUNCTION: YODA 0x00415af0
+// GameView::CyclePalette — the animated-palette tick (bacta bubbles, fires, water).
+// Ring-shifts entry runs of World.sysPalette (the inline-LOGPALETTE PALETTEENTRY[256]
+// mirror @0x2e6c) and the DIB color-table mirror pSysColorTable in lockstep, then
+// pushes the two animated bands to the Canvas DIB (SetPalette) and the screen palette
+// (AnimatePalette + RealizePalette). Every 2nd tick (even nPaletteClock) also runs the
+// slower rings/swaps. NO locals for pWorld/the tables: every store goes through
+// PALETTEENTRY*/RGBQUAD* lvalues that may alias them, so the compiler reloads
+// [this+0x44] / [pWorld+0x326c] per statement — exactly the original shape.
+// EFFECTIVE (first compile: 304/304 insns, align=0, 6B): one eax<->ecx role swap in the
+// FIRST ::AnimatePalette's setup only — the orig's two IDENTICAL statements get OPPOSITE
+// allocations by position (the ZTS<->WES parity-crossing family, not source-steerable). G1.
 // ---------------------------------------------------------------------------
+void GameView::CyclePalette()
+{
+    if (pWorld->bPaletteAnimEnabledMaybe == 0)
+        return;
+    PALETTEENTRY savedEntry;
+    RGBQUAD savedColor;
+    int i;
+    if ((nPaletteClock++ & 1) == 0)
+    {
+        // ring [229..237] up by one
+        savedEntry = pWorld->sysPalette[237];
+        savedColor = pWorld->pSysColorTable[237];
+        for (i = 8; i > 0; i--)
+        {
+            pWorld->sysPalette[229 + i] = pWorld->sysPalette[228 + i];
+            pWorld->pSysColorTable[229 + i] = pWorld->pSysColorTable[228 + i];
+        }
+        pWorld->pSysColorTable[229] = savedColor;
+        pWorld->sysPalette[229] = savedEntry;
+        // swap 244<->245
+        savedEntry = pWorld->sysPalette[245];
+        pWorld->sysPalette[245] = pWorld->sysPalette[244];
+        pWorld->sysPalette[244] = savedEntry;
+        savedColor = pWorld->pSysColorTable[245];
+        pWorld->pSysColorTable[245] = pWorld->pSysColorTable[244];
+        pWorld->pSysColorTable[244] = savedColor;
+        // ring [215..223] up by one
+        savedEntry = pWorld->sysPalette[223];
+        savedColor = pWorld->pSysColorTable[223];
+        for (i = 8; i > 0; i--)
+        {
+            pWorld->sysPalette[215 + i] = pWorld->sysPalette[214 + i];
+            pWorld->pSysColorTable[215 + i] = pWorld->pSysColorTable[214 + i];
+        }
+        pWorld->pSysColorTable[215] = savedColor;
+        pWorld->sysPalette[215] = savedEntry;
+        // swap 198<->199
+        savedEntry = pWorld->sysPalette[199];
+        pWorld->sysPalette[199] = pWorld->sysPalette[198];
+        pWorld->sysPalette[198] = savedEntry;
+        savedColor = pWorld->pSysColorTable[199];
+        pWorld->pSysColorTable[199] = pWorld->pSysColorTable[198];
+        pWorld->pSysColorTable[198] = savedColor;
+        // swap 200<->201
+        savedEntry = pWorld->sysPalette[201];
+        pWorld->sysPalette[201] = pWorld->sysPalette[200];
+        pWorld->sysPalette[200] = savedEntry;
+        savedColor = pWorld->pSysColorTable[201];
+        pWorld->pSysColorTable[201] = pWorld->pSysColorTable[200];
+        pWorld->pSysColorTable[200] = savedColor;
+    }
+    // every tick: swaps 202<->203, 204<->205, 206<->207
+    savedEntry = pWorld->sysPalette[203];
+    pWorld->sysPalette[203] = pWorld->sysPalette[202];
+    pWorld->sysPalette[202] = savedEntry;
+    savedColor = pWorld->pSysColorTable[203];
+    pWorld->pSysColorTable[203] = pWorld->pSysColorTable[202];
+    pWorld->pSysColorTable[202] = savedColor;
+    savedEntry = pWorld->sysPalette[205];
+    pWorld->sysPalette[205] = pWorld->sysPalette[204];
+    pWorld->sysPalette[204] = savedEntry;
+    savedColor = pWorld->pSysColorTable[205];
+    pWorld->pSysColorTable[205] = pWorld->pSysColorTable[204];
+    pWorld->pSysColorTable[204] = savedColor;
+    savedEntry = pWorld->sysPalette[207];
+    pWorld->sysPalette[207] = pWorld->sysPalette[206];
+    pWorld->sysPalette[206] = savedEntry;
+    savedColor = pWorld->pSysColorTable[207];
+    pWorld->pSysColorTable[207] = pWorld->pSysColorTable[206];
+    pWorld->pSysColorTable[206] = savedColor;
+    // ring [224..228] up by one
+    savedEntry = pWorld->sysPalette[228];
+    savedColor = pWorld->pSysColorTable[228];
+    for (i = 4; i > 0; i--)
+    {
+        pWorld->sysPalette[224 + i] = pWorld->sysPalette[223 + i];
+        pWorld->pSysColorTable[224 + i] = pWorld->pSysColorTable[223 + i];
+    }
+    pWorld->pSysColorTable[224] = savedColor;
+    pWorld->sysPalette[224] = savedEntry;
+    // ring [238..243] up by one
+    savedEntry = pWorld->sysPalette[243];
+    savedColor = pWorld->pSysColorTable[243];
+    for (i = 5; i > 0; i--)
+    {
+        pWorld->sysPalette[238 + i] = pWorld->sysPalette[237 + i];
+        pWorld->pSysColorTable[238 + i] = pWorld->pSysColorTable[237 + i];
+    }
+    pWorld->pSysColorTable[238] = savedColor;
+    pWorld->sysPalette[238] = savedEntry;
+    // ring [10..15] up by one
+    savedEntry = pWorld->sysPalette[15];
+    savedColor = pWorld->pSysColorTable[15];
+    for (i = 5; i > 0; i--)
+    {
+        pWorld->sysPalette[10 + i] = pWorld->sysPalette[9 + i];
+        pWorld->pSysColorTable[10 + i] = pWorld->pSysColorTable[9 + i];
+    }
+    pWorld->pSysColorTable[10] = savedColor;
+    pWorld->sysPalette[10] = savedEntry;
+    // push the two animated bands (10..14 and 0xa0..0xf5) to the DIB + screen palette
+    pWorld->pCanvas->SetPalette(0xa, 5, pWorld->pSysColorTable + 10);
+    pWorld->pCanvas->SetPalette(0xa0, 0x56, pWorld->pSysColorTable + 0xa0);
+    CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa, 5, &pWorld->sysPalette[10]);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa0, 0x56, &pWorld->sysPalette[0xa0]);
+    ::RealizePalette(pDC->m_hDC);
+    pDC->SelectPalette(pOldPal, 0);
+    ::ReleaseDC(m_hWnd, pDC->m_hDC);
+}
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00415ff0
@@ -7699,8 +7820,27 @@ void GameView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
 }
 
 // ---------------------------------------------------------------------------
-// (OnCmdStatsMaybe 0x00416620 slot — needs StatsDlg; transcribed with the
-//  options-dialog cluster.)
+// FUNCTION: YODA 0x00416620
+// GameView::OnCmdStats (WM_COMMAND 0x800e): run the stats dialog seeded with the four
+// score counters, formatted through ONE reused CString temp (Format "%ld" + operator=
+// per field, in DDX-ctrl order 0x95/0x96/0x97/0x98's memory order 2,3,1,0). DoModal
+// result ignored (display-only). The stack StatsDlg makes this TU emit ??1StatsDlg —
+// the binary's copy is at 0x416750 (marker on the class dtor comes free).
+// ---------------------------------------------------------------------------
+void GameView::OnCmdStats()
+{
+    StatsDlg dlg(this, pWorld);
+    CString str;
+    str.Format("%ld", pWorld->highScore);
+    dlg.m_str2 = str;
+    str.Format("%ld", pWorld->lastScore);
+    dlg.m_str3 = str;
+    str.Format("%ld", pWorld->completionCount);
+    dlg.m_str1 = str;
+    str.Format("%ld", pWorld->lastCount);
+    dlg.m_str0 = str;
+    dlg.DoModal();
+}
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -7733,6 +7873,10 @@ StatsDlg::StatsDlg(CWnd *pParent, World *pDoc) : CDialog(0xe1, pParent)
     m_str3 = "";
     //}}AFX_DATA_INIT
 }
+
+// FUNCTION: YODA 0x00416750  (??1StatsDlg@@UAE@XZ — the plain dtor, emitted for OnCmdStats's
+// STACK StatsDlg; EH-framed, destroys the 4 CStrings via per-member funclets then ~CDialog.
+// Sits between OnCmdStats 0x416620 and OnUpdateStatsUi 0x416800 in .text.)
 
 // FUNCTION: YODA 0x00416920  (??_GStatsDlg@@UAEPAXI@Z — compiler-emitted scalar dtor, 188B:
 // EH-framed body destroying the 4 CString members + handler thunk + funclet. The ctor's own

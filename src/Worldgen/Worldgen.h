@@ -131,11 +131,17 @@ public:
     int         goalItemTileId;      // +0x2e50
     int         bHidePlayerMaybe;    // +0x2e54  (Ghidra name)
     int         unk2e58;             // +0x2e58  nonzero skips OnNewWorld's confirm box
-    char        _pad2e5c[4];         // +0x2e5c
+    int         bPaletteAnimEnabledMaybe; // +0x2e5c  gates CyclePalette (doc sets 0/1)
     int         unk2e60;             // +0x2e60
     int         genSkipTeleCheckMaybe; // +0x2e64  worldgen: skip the teleporter-distance test
-    char        _pad2e68[0x404];     // +0x2e68
-    BYTE       *pSysColorTable;      // +0x326c
+    WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE
+    WORD        palNumEntries;       // +0x2e6a  ctor: 0x100   } (WorldDoc.h names)
+    PALETTEENTRY sysPalette[256];    // +0x2e6c  live palette mirror (GetSystemPaletteEntries
+                                     //          target; CyclePalette ring-shifts it and feeds
+                                     //          AnimatePalette from it)
+    RGBQUAD    *pSysColorTable;      // +0x326c  DIB color-table mirror, ring-shifted in
+                                     //          lockstep; Canvas::SetPalette source (the doc
+                                     //          TU writes its bytes via (BYTE*) math)
     Canvas     *pCanvas;             // +0x3270
     RECT        rectUnk3274;         // +0x3274  locator-map blit origin (left/top used)
     RECT        rectUnk3284;         // +0x3284

@@ -93,7 +93,7 @@ public:
     int         goalItemTileId;      // +0x2e50
     int         bHidePlayer;         // +0x2e54
     int         unk2e58;             // +0x2e58  ctor: 0
-    int         unk2e5c;             // +0x2e5c  OnNewDocument: 1 (palette-device flag?)
+    int         bPaletteAnimEnabledMaybe; // +0x2e5c  OnNewDocument: 1 — gates GameView::CyclePalette
     int         unk2e60;             // +0x2e60  ctor: 0
     int         unk2e64;             // +0x2e64
     WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE

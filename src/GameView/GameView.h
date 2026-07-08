@@ -264,7 +264,7 @@ protected:
     afx_msg void OnUpdateGameSpeedUi(CCmdUI *pCmdUI);      // 0x00416460
     afx_msg void OnCmdWorldSizeMaybe();                    // 0x004164d0  cmd 0x800d (demo-disabled)
     afx_msg void OnUpdateWorldSizeUi(CCmdUI *pCmdUI);      // 0x004165a0
-    afx_msg void OnCmdStatsMaybe();                        // 0x00416620  cmd 0x800e (demo-disabled)
+    afx_msg void OnCmdStats();                             // 0x00416620  cmd 0x800e (demo-disabled)
     afx_msg void OnUpdateStatsUi(CCmdUI *pCmdUI);          // 0x00416800
     afx_msg void OnDialogCloseBtn();                       // 0x00416a60  BN 0x1389
     afx_msg void OnDialogDownBtnNop();                     // 0x00416a80  BN 0x138a

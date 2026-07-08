@@ -412,7 +412,7 @@ World::World()
     unk54 = 0;
     pPlayerChar = NULL;
     unk3348 = 0;
-    unk2e5c = 0;
+    bPaletteAnimEnabledMaybe = 0;
     palVersion = 0x300;
     palNumEntries = 0x100;
     unk334a = 0;
@@ -612,7 +612,7 @@ BOOL World::OnNewDocument()
 
     HDC hdc = ::GetDC(NULL);
     ::GetDeviceCaps(hdc, BITSPIXEL);
-    unk2e5c = 1;
+    bPaletteAnimEnabledMaybe = 1;
     int nSys = ::GetDeviceCaps(hdc, NUMCOLORS);
     if (nSys > 0x14) {
         nFull = nSys;
