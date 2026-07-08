@@ -488,7 +488,21 @@ Written to be followable without prior context: each phase lists concrete steps 
   it SHIFTS everything downstream. ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
   the 212 content ceiling. Productive G2 = fix emission-ORDER scrambles (cheap/content-neutral); ABSOLUTE
   layout caps at the first intrinsic length divergence (GameData SaveStory, +0x50). Two AppData residuals
-  PARKED (CObject trio -0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk).**
+  PARKED (CObject trio -0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk).** →
+  **212 exact / 99.17 % coverage — v43 (2026-07-08): PHASE G2 layout-ceiling quantified + Frame reorder +
+  code-cleanup pass (212 CONTENT stands). (1) Built tools/g2_order.py (--walls: ~43 clean length walls, all
+  in non-exact reg-coloring funcs, first = SaveStoryHistoryNevada 0x402670 capping absolute LAYOUT at 26
+  markers; --scramble: per-TU emission-order metric) + toolchain/test/orig_func_addrs.txt cache. ⭐ Found
+  LAYOUT is 39 not 26 because cumulative length-drift OSCILLATES (mixed +/- walls cancel, passing through 0
+  → coincidental re-alignments); absolute layout == #markers where cum-drift==0, so the true fix is
+  eliminating ALL walls = cracking the cl reg-alloc wall (same as the 212 content ceiling). CORRECTED the
+  v42 direction error: OURS over-allocates EBX on SaveStory (3 pushes vs orig's 2, longer). (2) Reordered
+  Frame's message handlers to original emission order → Frame internally in-order (14/18 holds). Remaining
+  scrambles: App (3), Worldgen GameView-tail (3) — relative-only (downstream of the walls), noted for later.
+  (3) CODE CLEANUP (user req): promoted 24 World unk*/*Maybe fields WITH detailed usage comments to proper
+  names + synced to Ghidra (created 6 fields Ghidra lacked, aligned 5 stale Ghidra *Maybe names); PlanToken
+  enum → decimal values + dropped redundant decimal comments. All codegen-neutral (progress 212, link
+  0/0/exit0, bugscan 0/0/0).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -530,74 +544,62 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v42 — PHASE G2: AppData+Records LAYOUT reconciled; the layout ceiling characterized; 212 CONTENT stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v42** commits (5a29b6d
-"Records internal order", cb73983 "AppData layout reconciled"; below: 63da675 v41, a2764c0 v40). Tree CLEAN
-(USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
-`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX
-/O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh`
-which compiles all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs /
-99.17% coverage** (STABLE — name-keyed); `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU
-exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124,
-**Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ verify.py
-per-TU can UNDERCOUNT ~10 (lesson #30): trust progress.py's 212. **G2 baseline: `bash tools/g2_link.sh &&
-python3 tools/g2_diff.py` → LAYOUT 39/378, CONTENT 226/378, BOTH 32/378.** Ghidra: current=YodaDemo.exe (NO
-writes this session, nothing pending). ⚠ BUDGET: Fable weekly usage was ~94% before reset 2026-07-09 23:00
-America/Boise — check before spawning fable agents (G2 is all main-thread anyway).
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v43 — PHASE G2: layout ceiling quantified + Frame reorder + World-field/PlanToken cleanup; 212 CONTENT stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v43** commits (8082a13
+"cleanup — World fields + PlanToken", 94b0da0 "Frame reorder", 8f8dbe5 "length-wall tool", 5a29b6d, cb73983;
+below: 63da675 v41). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch).
+Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj &&
+../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/
+<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh` which compiles all): `link_exe.sh` → **0 dup / 0 unresolved /
+exit 0**; `progress.py` → **212 exact funcs / 99.17% coverage** (STABLE — name-keyed); `bugscan.py --all` →
+**0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame
+14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8,
+**WorldDoc 8/13**, Worldgen 34/91. ⚠ verify.py per-TU can UNDERCOUNT ~10 (lesson #30): trust progress.py's
+212. **G2 baseline: `bash tools/g2_link.sh && python3 tools/g2_diff.py` → LAYOUT 39/378, CONTENT 226/378,
+BOTH 32/378** (also `python3 tools/g2_order.py --walls` / `--scramble`). Ghidra: current=YodaDemo.exe (v43
+SYNCED the World field renames + created 6 missing fields + aligned 5 stale *Maybe; saved — nothing pending).
+⚠ BUDGET: Fable weekly usage was ~94% before reset 2026-07-09 23:00 America/Boise (G2 is all main-thread anyway).
 
-**▶ v42 RESULTS — PHASE G2, AppData+Records LAYOUT reconciled + the layout ceiling characterized:**
-- **AppData (commit cb73983): removed `BEGIN_MESSAGE_MAP(AppWnd)` from AppData.cpp.** The original AppData.obj
-  emits NO GetMessageMap COMDAT (all 9 real GetMessageMaps live >0x408000; AppWnd's belongs to its class's
-  primary TU / was REF-dropped). Our copy emitted FIRST (shoved OnTimer off 0x401000) + added +0x10 that
-  cascaded downstream. Deleting it → OnTimer emits first at 0x401000, AppData is the right total length →
-  the ENTIRE World scorer run + LoadStory/SaveStory head snapped into LAYOUT alignment (LAYOUT 2→39). The
-  `DECLARE_MESSAGE_MAP()` in the class decl stays (harmless). link_exe.sh still 0/0/exit0. CONTENT-neutral
-  (AppData 14/14, progress 212). ⚠ the msgmap DATA @0x44b000 for the whole image comes from the verbatim
-  .rsrc/.rdata copy, not our TUs — nothing referenced AppWnd::messageMap symbolically.
-- **Records (commit 5a29b6d): moved Character::Read to right after Character::Init** (orig emission order is
-  Init, Read, GetWalkFrameTile, GetFrameTile, GetProjectileTile; ours had Read after GetFrameTile). CONTENT-
-  neutral (26/33). Effect: the Records region local scramble collapsed to a UNIFORM +0x50 — Records is now
-  internally in-order ("prepared"), will snap to LAYOUT-match the moment upstream GameData is resolved.
-- **⭐ KEY FINDING (full writeup docs/g2-layout.md): G2 LAYOUT is GATED by per-function LENGTH, and the
-  length divergences ARE the intrinsic reg-coloring wall.** Layout progresses in STRICT address order: an
-  upstream function N bytes longer/shorter shifts EVERYTHING downstream by N. Two divergence kinds:
-  (1) **emission-ORDER scrambles** (GetMessageMap-at-head; Read-after-GetFrameTile) — FIXABLE by source
-  reorder, CONTENT-neutral, the clean G2 wins; (2) **LENGTH divergences from intrinsic reg-allocation** —
-  proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611/858, +10B each): OUR cl allocates one MORE
-  callee-saved register (ours pushes ebx/esi/edi=3 vs the original's esi/edi=2) — ours grabs EBX for the 2nd
-  sprintf arm, which then FAILS to cross-jump the shared tail the original shares (#18) = a LONGER stream on
-  identical IR (original is the compact one). Lesson-#29 ABI-pinned class, but it changes LENGTH not just
-  reg-names, so it SHIFTS layout. Source knobs EXHAUSTED (GameData.cpp:207 autopsy); NOT steerable (#29/#30).
-  ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as the 212 content ceiling
-  — in LAYOUT too, not just bytes.
+**▶ v43 RESULTS:**
+- **G2 layout ceiling QUANTIFIED (commit 8f8dbe5, tools/g2_order.py + toolchain/test/orig_func_addrs.txt):**
+  `--walls` = ~43 clean length walls (our padded COMDAT len != orig true slot from Ghidra addrs; non-16-aligned
+  slots auto-skipped as EH-funclet/clone confound), ALL in non-exact reg-coloring funcs, FIRST = SaveStory-
+  HistoryNevada 0x402670 (+0x10). `--scramble` = per-TU emission-order metric. ⭐ LAYOUT is 39 (not 26)
+  because cumulative length-drift OSCILLATES (mixed +/- walls cancel, passing through 0 → coincidental
+  re-alignments); absolute layout == #markers where cum-drift==0. CORRECTED v42's direction error: OURS
+  over-allocates EBX on SaveStory (3 pushes vs orig's 2 → ours LONGER; orig is the compact one).
+- **Frame reorder (commit 94b0da0):** CMainFrame handlers → original emission order (OnSysCommand,
+  PreCreateWindow, OnGetMinMaxInfo, OnSize, OnCreate, OnCreateClient, OnPaletteChanged, OnPaletteIsChanging,
+  OnQueryNewPalette, OnActivate, OnShowWindow, OnQueryEndSession). Frame now internally in-order (14/18 holds).
+- **Code cleanup (commit 8082a13, USER req):** promoted 24 World unk*/*Maybe fields that had detailed usage
+  comments to proper names + synced to Ghidra (created 6 fields Ghidra lacked; aligned 5 stale Ghidra *Maybe).
+  PlanToken enum → decimal + dropped redundant decimal comments. All codegen-neutral (212 holds).
 
-**▶ START HERE (v43) — PHASE G2, main-thread. The layout ceiling is now understood: ABSOLUTE-address match
-caps at the first intrinsic length divergence (GameData SaveStoryHistory, +0x50 by GameData's end). Do NOT
-grind SaveStory/intrinsic-length funcs for layout — they are the same #29 park as content. Productive work:**
-1. **Reconcile the remaining emission-ORDER scrambles (cheap, content-neutral, correct — they "prepare" each
-   TU to snap in later).** Use `python3 tools/g2_diff.py --show-misplaced`; for any region showing a LOCAL
-   scramble (mixed +/- deltas within a TU, not a uniform shift), compare our `match.coff_functions('build/
-   <TU>.obj')` order to the original's Ghidra address order (curl list_functions, filter the TU range) and
-   reorder the source .cpp to match. VERIFY progress.py stays 212 after each (content-neutral). Candidates
-   to check next: the GameData tail (0x403060–0x4042b0), Zone/Character helper regions, GameView TU. Each
-   fixed scramble = a region that collapses to a uniform delta.
-2. **The GameView TU boundary (0x408690 InvScrollBar → +0x10090 jump, then -0x2ca0):** big deltas around the
-   Canvas→GameView obj boundary in the NOREF map — investigate whether it's NOREF keeping a large unused lib
-   block or a real obj-order issue (may need the `.text$` section-group order from the map's section table).
-3. **Decide the /OPT:REF vs /OPT:NOREF question for the FINAL image** (open): the demo's larger .text (454K
-   vs our 446K REF-build) hints the original kept more (NOREF-like). Determine from the original's function
-   count vs our kept-set. This decides whether the final image reproduces a reference graph or just uses NOREF.
-4. **Accept the intrinsic layout cap:** once all order-scrambles are fixed, the achievable G2 state is a
-   linkable/runnable image with correct RELATIVE layout within same-length runs + known reg-coloring deltas;
-   ABSOLUTE whole-image byte-identity needs the central open problem cracked (period-correct/different cl.exe
-   build, or exact original per-function source). Verify RELATIVE layout as the realistic G2 completion bar.
-- **AppData residuals PARKED** (both self-correct, don't cascade): CObject Serialize/AssertValid/Dump trio
-  position (-0x30, re-converges at ??_GMapZone 0x401160; original pulls the trio in early via the real
-  AppWnd vtable we don't model); WorldgenZoneEntry ??_G-before-ctor detached-COMDAT quirk (source reorder
-  moves the dtor BODY, not ??_G). See docs/g2-layout.md.
+**▶ START HERE (v44) — PHASE G2, main-thread. The ceiling is understood (docs/g2-layout.md): absolute LAYOUT
+is gated by ~43 intrinsic length walls == the same cl reg-alloc wall as the 212 content ceiling; the achievable
+G2 bar is every app TU internally in-order + a runnable image. Do NOT grind intrinsic-length funcs for layout.
+Productive work, in priority order:**
+1. **Finish the emission-ORDER scrambles (the completable "all TUs in-order" milestone).** Run `python3
+   tools/g2_order.py --scramble`. Remaining REAL scrambles: **App (3)** and **Worldgen GameView-tail (3:
+   PreCreateWindow/AddItemToInv/DetonateAdjacentTiles/UseWeapon block order)**. For each: compare our
+   `match.coff_functions('build/<TU>.obj')` order to the original Ghidra address order (curl list_functions,
+   filter TU range) and reorder the .cpp defs to match. VERIFY progress.py stays 212 after each. ⚠ App is
+   partly blocked by compiler-placed CObject-default COMDATs (0x419830-860) you can't steer — fix only the
+   app-method relative order (LogWrite after InitInstance/OnIdle; OnAppAbout after CAboutDlg's DDX/msgmap).
+   AppData's 1 remaining inversion (WorldgenZoneEntry ??_G) + GameView's 1 (end-placed InvScrollBar dtor,
+   lesson #23) are BENIGN — leave them.
+2. **/OPT:REF vs /OPT:NOREF for the FINAL image** (open): demo .text 454K vs our 446K REF-build hints the
+   original kept more (NOREF-like). Determine from the original's function count vs our kept-set.
+3. **Accept the intrinsic layout cap:** once order-scrambles are done, the G2 deliverable is a runnable image
+   with correct RELATIVE layout within same-length runs + the known ~43 reg-coloring length deltas. ABSOLUTE
+   byte-identity needs the central open problem cracked (period-correct/different cl.exe, or exact original
+   per-function source). That's the standing wall for BOTH content-212 and absolute-layout.
+- **AppData residuals PARKED** (self-correct, don't cascade): CObject trio -0x30 (re-converges at ??_GMapZone;
+  orig pulls the trio in early via the real AppWnd vtable we don't model); WorldgenZoneEntry ??_G-before-ctor.
 - **Later G2:** .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; EH funclets + 0x424fb0 thunk; PE
   timestamp/checksum mask; whole-image reccmp diff. **Canvas-gap mini** BLOCKED on owning dialog class
-  (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6** (World, ~102 fields) — docs/dedup-plan.md.
+  (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6** (World, ~102 fields) — docs/dedup-plan.md; note v43
+  already reconciled ~29 World field names/defs between source and Ghidra.
 - **Map non-exact:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — all remaining non-exact
   are lesson-#29 intrinsic/park class, NOT content-fixable and (when same-length) layout-neutral.
 
