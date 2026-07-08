@@ -83,9 +83,9 @@ void World::LoadStoryHistoryNevada()
         storyHistoryNevada.RemoveAt(0, 1);
 }
 
-// FUNCTION: YODA 0x00401ea0  [dial-breather: exact -> DIFF(2) at the MapZone.h de-dup ->
-//   back EXACT at the Canvas.h de-dup (both 2026-07-07). FindTile 0x403aa0 took its place
-//   (its EFFECTIVE DIFF(4) note applies again). Pure tie-break rotation.]
+// FUNCTION: YODA 0x00401ea0  [perpetual dial-breather: flipped exact<->DIFF(2) at EVERY
+//   de-dup step (MapZone out, Canvas in, GameView-stub-retirement out — all 2026-07-07).
+//   One 2-byte tie-break rides the TU dial; do not chase. G1.]
 // Load the planet-2 story history from registry [GameData] Alaska0..N. Line format
 // "<seed>_<obfKey>_<count>_v0_..": seed parsed but discarded; obfKey subtracted from each value.
 // Reads until a missing key (default "0"); trims the list to <= 3 entries.
@@ -473,8 +473,8 @@ void World::RemoveEmptyZonesFromPlacedList()
 }
 
 // FUNCTION: YODA 0x00403140  [DIAL-SENSITIVE: byte-exact under the 2026-07-06 RecordClasses.h
-//   decl set (Zone Iact-method decls added); was DIFF(10) under the pre-dial a4ba541 set. Proven
-//   correct; final state settles at the Phase-D/G joint pass.]
+//   decl set; DIFF(10) again since the real-GameView.h de-dup (step 5, 2026-07-07) rotated the
+//   TU dial. Proven correct; settles at G1.]
 // Stamp a zone's visible objects into tile layer 1. Types 0/1/2/5/6/7/8 place their tile if
 // active and the cell is empty; type 0xb forces tile 0x1cb.
 void World::PlaceZoneObjectTiles(short zoneId)
@@ -514,7 +514,8 @@ void World::PlaceZoneObjectTiles(short zoneId)
 }
 
 // FUNCTION: YODA 0x00403250  [DIAL-SENSITIVE: byte-exact under the 2026-07-06 RecordClasses.h
-//   decl set; was DIFF(16) under the pre-dial a4ba541 set. Proven correct; settles at Phase-D/G.]
+//   decl set; DIFF(16) again since the real-GameView.h de-dup (step 5, 2026-07-07). Proven
+//   correct; settles at G1.]
 // Locate the world-map cell holding zone `id`; outputs grid coords.
 int World::FindZoneCellById(short id, int *pX, int *pY)
 {
@@ -760,7 +761,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
     GameView *v = (GameView *)GetNextView(pos);
     if (v != 0) {
         for (int i = 0; i < 5; i++) {
-            v->OnWalk(0x5d, (short)i);
+            v->ZoneTransitionStep(0x5d, (short)i);
             long c = clock();
             while (clock() < c + 100)
                 ;
@@ -768,7 +769,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
         nFrameMode = 0;
         v->nTransitionStep = 0;
         v->SoundFlush();
-        v->PlayerMove(0x3a);
+        v->PlaySound(0x3a);
     }
     FindSpecialZoneMaybe();
     cameraY = 0;

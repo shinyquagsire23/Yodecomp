@@ -5,57 +5,17 @@
 #ifndef GAMEDATA_WORLDSTUB_H
 #define GAMEDATA_WORLDSTUB_H
 #include <afxwin.h>
+#include <afxext.h>
 #include <afxcoll.h>
 #include "../Records/RecordClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
                                         // Tile/ZoneObj/Zone — never stub matched modules
 
-// Canvas — canonical declaration (de-dup steps 3+4; was a 3-method blit stub).
-#include "../Canvas/Canvas.h"
-
-// Inventory entry (World.inventory CObArray element): CObject wrapper holding the item's Tile.
-class InvItem : public CObject
-{
-public:
-    Tile *pTile;                     // +0x04
-};
-
-// GameView stub: fields/methods the doc-side TUs (GameData, Iact) touch. sizeof == 0x310.
-class GameView
-{
-public:
-    char _pad00[0x4c];               // +0x000
-    int  bBusy;                      // +0x04c
-    char _pad50[0x30];               // +0x050
-    int  bIactZoneEntryMaybe;        // +0x080  set during scripted zone entry
-    char _pad84[0x10];               // +0x084
-    int  bBlinkState;                // +0x094
-    char _pad98[0x6c];               // +0x098
-    int  nPickupX;                   // +0x104
-    int  nPickupY;                   // +0x108
-    int  nPickupTileId;              // +0x10c
-    ZoneObj *pPickupObj;             // +0x110
-    int  nTargetZoneId;              // +0x114
-    int  nTransitionStep;            // +0x118
-    char _pad11c[0x1d8];             // +0x11c
-    int  bSuppressWalkSound;         // +0x2f4
-    char _pad2f8[0x18];              // +0x2f8
-
-    void OnWalk(int cmd, short n);                   // 0x00409510-ish (walk-in anim step)
-    void SoundFlush();                               // sound queue flush
-    void PlayerMove(int n);                          // 0x00409060
-    void DrawGameArea(CDC *pDC);                     // 0x0040a200 full redraw
-    // Iact interpreter callees:
-    int  DrawTileAt(short x, short y, short frame);  // 0x0040a3a0
-    void DrawZoneCell(short x, short y);             // 0x00409460
-    void DrawZoneCellRect(int x0, int y0, int x1, int y1); // 0x004095d0
-    void RedrawPlayerCellMaybe();                    // 0x00413dd0
-    int  ShowTextDialog(CString *pText, int x, int y, int a4); // 0x00427310
-    void PlaySound(int nSound);                      // 0x00409060
-    void AddItemToInv(Tile *pTile);                  // 0x00428f50
-    void RemoveItem(Tile *pTile);                    // 0x00429150
-    void AddHealth(int n);                           // 0x00427690
-    int  TransitionZoneScript(int a1, int nZoneId);  // 0x0040e750
-};
+// InvItem / Canvas / InvScrollBar / GameView / TextDialog — the real shared view header
+// (de-dup step 5, 2026-07-07; was a partial-field GameView stub + a 3-field InvItem stub).
+// Stub fixups folded into the .cpps: OnWalk(int,short) was really ZoneTransitionStep
+// (short,short) — the (0x5d, i) walk-in call; PlayerMove was PlaySound;
+// bSuppressWalkSound@0x2f4 is bWeaponIactActiveMaybe.
+#include "../GameView/GameView.h"
 
 // A 10x10 world-map grid cell — canonical vptr-true definition (de-dup step 2). The old
 // local struct here was the SAME layout shifted -4 (id@+0, no vptr), compensated by

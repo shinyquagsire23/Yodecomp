@@ -14,7 +14,8 @@
 #include <time.h>
 #pragma intrinsic(strcmp)
 
-// FUNCTION: YODA 0x00405ae0
+// FUNCTION: YODA 0x00405ae0  [dial-breather: was exact; DIFF(7) since the real-GameView.h
+//   de-dup (step 5, 2026-07-07) — align=0, one pure reg cycle. G1.]
 // Parses an IZON header up to the tile grid: dims/type/vars + the 18x18x3 tile rows.
 // A mismatched tag rewinds the 8 header bytes (record is optional in the stream).
 void Zone::ReadIzon(CFile *pFile)
@@ -591,7 +592,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, Wor
                             if (n == -1)
                                 n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
                             if (n >= 0 && pWorld->tileArray[n] != pWorld->pEquippedItem
-                                && pView->bSuppressWalkSound == 0) {
+                                && pView->bWeaponIactActiveMaybe == 0) {
                                 int id = pWorld->FindTile(pWorld->pEquippedItem);
                                 if (id <= 0x202) {
                                     if (id >= 0x1fe || id == 0x12)
@@ -822,7 +823,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, World *pWorld, GameV
                         msg = head;
                     }
                 }
-                pView->ShowTextDialog(&msg, textX, textY, 0);
+                pView->ShowTextDialog(msg, textX, textY, 0);
                 result |= 2;
             }
             break;
