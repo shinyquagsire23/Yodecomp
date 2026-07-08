@@ -7558,3 +7558,51 @@ done:
     pDC->SelectPalette(pOldPal, 0);
     ::ReleaseDC(m_hWnd, pDC->m_hDC);
 }
+
+// FUNCTION: YODA 0x00429150
+// Remove an inventory item, matched by its Tile* definition. If it was the equipped weapon
+// (tiles[0x12]) clear currentWeapon and repaint the weapon icon + box; then scan the inventory,
+// RemoveAt + delete the matching InvItem, repaint the item text, and resize the inventory
+// scrollbar (max 0 while <8 items, else count-7). The TU's last function (was missed by the
+// "zero FUN_*" sweep — it sits just past the recorded 0x429150 end; found via the G0 link audit).
+void GameView::RemoveItem(Tile *pItem)
+{
+    if (pWorld->tiles.GetAt(0x12) == (CObject *)pItem)
+    {
+        pWorld->currentWeapon = NULL;
+        DrawWeaponIcon(NULL);
+        DrawWeaponBox(NULL);
+    }
+    World *pW = pWorld;
+    int i = 0;
+    int n = pW->inventory.GetSize();
+    if (n > 0)
+    {
+        InvItem **pp = (InvItem **)pW->inventory.GetData();
+        do
+        {
+            InvItem *pEntry = *pp;
+            if (pEntry->pTile == pItem)
+            {
+                pW->inventory.RemoveAt(i, 1);
+                delete pEntry;
+                break;
+            }
+            pp++;
+            i++;
+        } while (n > i);
+    }
+    DrawText(NULL);
+    int cnt = pWorld->inventory.GetSize();
+    if (cnt > 7)
+    {
+        cnt -= 7;
+        pInvScrollBar->SetScrollRange(0, cnt, TRUE);
+        pInvScrollBar->scrollMax = cnt;
+    }
+    else
+    {
+        pInvScrollBar->SetScrollRange(0, 1, TRUE);
+        pInvScrollBar->scrollMax = 0;
+    }
+}

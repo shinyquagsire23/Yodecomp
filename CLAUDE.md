@@ -177,7 +177,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ✅ PHASE E step 4 COMPLETE (src/GameView/GameView.cpp): 72/122 exact + rest eff. v30: TextDialog::Layout 0x4176f0 transcribed (eff., align 374 — jump table + TriPoint[3] tail triangle + bitmap-button matrix) and TriPoint::TriPoint 0x4186e0 EXACT (the TU's last function, an out-of-line empty point ctor). ZERO FUN_* / unclaimed code left in the view TU range — remainder is Phase F/G |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 8/13 exact (v28: the 1441B DTOR back IN) + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
-| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; **34/90 exact** (the v29/v30 TextDialog field renames in GameView.h rotated its dial ~2 off the old "36" tally; pre-existing, not a v31 regression — my AppData ~InvItem add is dial-neutral) + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
+| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen **91 markers** = EVERY function incl. the GameView tail block + GameView::RemoveItem 0x429150 (v31: the TU's true last function, EXACT — was missed by the sweep, found via the G0 link audit); **35/91 exact** (the v29/v30 TextDialog field renames in GameView.h rotated its dial ~2 off the old "36" tally; pre-existing, not a v31 regression) + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
 
 With the doc TU transcribed (v14), the untranscribed remainder is essentially ONE monster: the
 GameView TU + its mislabeled head (~63 KB ≈ 26 % of the app region). Its struct is complete and its
@@ -286,7 +286,24 @@ Written to be followable without prior context: each phase lists concrete steps 
      codegen free; `toolchain/vc42/MFC/SRC` for message-map/vtable reference).
   3. Done when: the audit lists only lib-owned/COMDAT/thunk addresses (verify.py LIB_OWNERS).
 
-- **G — Endgame (two sub-phases, IN THIS ORDER).**
+- **G — Endgame (three sub-phases, IN THIS ORDER).**
+  - **G0 — "link-to-complete" completeness audit (NEW v31; run FIRST, it's cheap + ongoing).**
+    `tools/link_exe.sh` compiles every TU and attempts a full static-MFC link (NAFXCW+LIBCMT+Win32
+    imports) into one EXE. The link is a COMPLETENESS ORACLE, not (yet) a byte-image: the linker
+    enumerates every **unresolved external** (a true gap OR cross-TU name/sig/linkage drift) and
+    every **duplicate symbol** (stub-vs-real body collision). This did Phase F's audit as compiler
+    errors — it found the ONE true gap `GameView::RemoveItem` 0x429150 (now EXACT, in Worldgen.cpp)
+    that the manual "zero FUN_*" sweep missed (it sits one function past the recorded TU end).
+    Current state (v31): **0 duplicates, 34 unresolved** = 10 WAVMIX32 external imports (need a
+    `wavmix32.lib` stub) + ~21 cross-TU DRIFTS (functions that ARE transcribed but referenced under
+    a mismatched name/sig — e.g. `FindTile(void*)` vs `(Tile*)`, `EnterZone`=real `GetZoneIndex`,
+    `FrameView::*`=real `GameView::*`, `CTheApp::LogWrite`=free `Log_Write`) + 3 DYNCREATE rtc
+    objects + a few data-global linkage drifts. Full categorized checklist + reconciliation notes:
+    **docs/link-audit.md**. Key lever: **a pure rename reconciliation is BYTE-NEUTRAL** (call sites
+    are masked relocations), so most of G0 can proceed without disturbing existing byte-matches; a
+    signature change needs the caller re-verified. Done when link_exe.sh reports 0 unresolved (WAVMIX
+    stubbed) + 0 duplicates ⇒ a linkable image. Then pull EXE resources (RT_DIALOG/MENU/BITMAP/
+    STRING via `wrestool`/PE parse) for a RUNNABLE image. G0 overlaps/feeds the de-dup work and G1.
   - **G1 — JOINT residual passes (moved here from ad-hoc; run ONLY after E).** Rationale:
     Worldgen.h is shared by the doc TU and (via the E header work) the GameView TU — every decl
     added in E re-rotates the doc TU's tie-breaks, so any joint pass run before the headers are
@@ -357,8 +374,11 @@ Written to be followable without prior context: each phase lists concrete steps 
   AppWnd CWnd class) + 5 CObject lib COMDATs match their folded addrs. The last real un-
   transcribed source file is done — every remaining unclaimed addr is Phase-G whole-image
   plumbing (EH funclets, ??_GCPalette 0x41e8b0, static-init, linker thunks) or the two
-  parked minis (InvScrollBar ??1 0x4086b0, Canvas-gap 0x407d90/dc0)**. Full per-session
-  milestone history in PLAN_COMPLETED.md. ~100 % = G's whole-image build. Track effective-
+  parked minis (InvScrollBar ??1 0x4086b0, Canvas-gap 0x407d90/dc0). Also stood up Phase G0
+  (tools/link_exe.sh — full-image link as a completeness oracle): 0 duplicate symbols, 34
+  unresolved (10 WAVMIX imports + ~21 cross-TU name/sig drifts + rtc/globals), and it surfaced
+  + closed the ONE true gap GameView::RemoveItem 0x429150 (EXACT). docs/link-audit.md**. Full
+  per-session milestone history in PLAN_COMPLETED.md. ~100 % = G's whole-image build. Track effective-
   match bytes separately (they count for G, not for %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
@@ -420,8 +440,19 @@ plate on 0x401000, saved (YodaDemo ACTIVE). Coverage 98.47%→99.09%, exact 21.2
   message-map + vtable DATA reconcile in G2. `::EnableWindow(m_hWnd,BOOL)` was written as the
   DIRECT Win32 API call (CWnd::EnableWindow did NOT inline in our build → a tail-call).
 
+**▶ v31 ADDENDUM — Phase G0 stood up (link-to-complete audit).** `tools/link_exe.sh` links all
+TUs into one EXE as a completeness oracle. It found + I closed the ONE true gap
+`GameView::RemoveItem` 0x429150 (now EXACT, appended to Worldgen.cpp — Worldgen 34→35/91). Current
+link state: 0 duplicates, 34 unresolved (10 WAVMIX32 imports + ~21 cross-TU name/sig drifts + 3
+DYNCREATE rtc + data globals). Full checklist: docs/link-audit.md. **Byte-neutral lever:** pure
+rename reconciliations don't change code bytes (masked relocs) — safe to grind.
+
 **▶ START HERE (v32): the app region has ZERO un-transcribed real source files.** Everything
-left is Phase G whole-image plumbing OR the G1 joint residual passes. Options, pick one:
+left is Phase G. Recommended: **G0 reconciliation** — run `tools/link_exe.sh`, then knock down the
+docs/link-audit.md drift list (rename stubs to the canonical decls; unify `FindTile` param,
+`GetExitDirections` return, `SaveZoneRecursive` arity, `EnterZone`=`GetZoneIndex`, `FrameView`=
+`GameView`, `LogWrite`, the `rtc*` DYNCREATE names, the C/C++ linkage globals) until unresolved→0,
+then add a `wavmix32.lib` stub + extract resources. Most of this is byte-neutral. Other options:
 1. **Two parked minis (small, real source):** the Canvas-gap pair 0x407d90/0x407dc0 (2 funcs
    just before the Canvas TU head) and the InvScrollBar ??_G/??1 (0x408690/0x4086b0, the
    InvScrollBar mini-TU 0x4085c0–0x408710 between Canvas and GameView). Model InvScrollBar
