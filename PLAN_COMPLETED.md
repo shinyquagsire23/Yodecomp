@@ -1188,3 +1188,13 @@ option all dead). MEASUREMENT-INTEGRITY: .obj non-deterministic (COFF timestamp 
 verify.py per-TU can undercount ~10 (Worldgen 34↔24); progress.py's 212 is name-keyed + ROBUST (3× rebuilds).
 G2 GROUNDWORK: derived the deterministic app-.obj link order (13 TUs contiguous by first addr, AppData→…→
 Worldgen) as the G2 step-1 input. Only remaining path = G2 byte-identical image.
+**v41** (212 CONTENT, no change — PHASE G2 STARTED, a LAYOUT effort orthogonal to the exact count): built
+tools/g2_link.sh (13 app objs in v40 address order + /OPT:NOREF + /MAP) + tools/g2_diff.py (per marker:
+LAYOUT = linked addr==orig addr; CONTENT = reloc-masked bytes equal). Baseline 378/378 paired, LAYOUT 2/378,
+CONTENT 226/378. Proved the layout model (docs/g2-layout.md): (1) /OPT:REF eliminates unreferenced COMDATs
+(drops 19 markers — AppWnd::Disable/Enable/GetMessageMap…), NOREF keeps all; (2) the linker lays out .text
+COMDATs in OBJ EMISSION ORDER (= source order), per obj in link order — proven byte-for-byte on AppData+World
+(refines lesson #28: CONTENT order-invariant at fixed marker addrs, LINKED layout == source order). ⇒ layout
+reproduction = match kept-set + per-TU source order + COMDAT sizes; fix upstream divergence → downstream
+re-aligns (World already in perfect order, +0x10 shifted by AppData being 0x10 long). First divergence: AppData
+emits GetMessageMap before OnTimer (orig OnTimer@401000 first). Worklist in docs/g2-layout.md.

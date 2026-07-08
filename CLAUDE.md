@@ -459,7 +459,19 @@ Written to be followable without prior context: each phase lists concrete steps 
   GROUNDWORK: derived the deterministic app-.obj link order (13 TUs, contiguous non-overlapping by first
   addr: AppData→World→GameData→Records→Iact→Canvas→GameView→IactScript→Dlg→Frame→App→WorldDoc→Worldgen) —
   the input to G2's "link app objs in address order". ⇒ ALL per-function/per-TU exact-raising is closed;
-  the sole remaining path is G2 (byte-identical IMAGE, known .text reg-coloring deltas) or a different cl.**
+  the sole remaining path is G2 (byte-identical IMAGE, known .text reg-coloring deltas) or a different cl.** →
+  **212 exact / 99.17 % coverage — v41 (2026-07-08): PHASE G2 STARTED — whole-image layout tooling + model
+  (no per-func exact change; G2 is a LAYOUT effort, ORTHOGONAL to the 212 CONTENT count). Built
+  tools/g2_link.sh (links the 13 app objs in address order + /OPT:NOREF + /MAP) and tools/g2_diff.py (per
+  marker: LAYOUT = linked addr == orig addr; CONTENT = reloc-masked bytes equal). Baseline: 378/378 paired,
+  LAYOUT 2/378, CONTENT 226/378. Proved the layout model (docs/g2-layout.md): (1) /OPT:REF eliminates
+  unreferenced COMDATs (drops 19 markers in our partial image — AppWnd::Disable/Enable/GetMessageMap…);
+  NOREF keeps all. (2) ⭐ the linker lays out .text COMDATs in OBJ EMISSION ORDER (= source order), per obj
+  in link order — PROVEN byte-for-byte on AppData + World (refines lesson #28: content is order-invariant at
+  fixed marker addrs, but LINKED layout == source order). ⇒ layout reproduction = match kept-set + per-TU
+  source order + COMDAT sizes; fix an upstream divergence and everything downstream re-aligns (World already
+  in perfect order, merely +0x10 shifted by AppData being 0x10 long). First divergence: AppData emits
+  GetMessageMap before OnTimer (orig OnTimer@401000 first). Worklist in docs/g2-layout.md.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -501,73 +513,69 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v40 — COMPILER-OPTION axis CLOSED + measurement-integrity clarified + G2 link-order derived; 212 stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v40** commit (below it:
-8f87ed1 v39, 3a8a0ca v38, b3938ac v37 afxcmn). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine
-runtime copy — don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f
-../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
-/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**;
-`progress.py` → **212 exact funcs / 99.17% coverage** (STABLE — name-keyed, verified 3× fresh rebuilds);
-`bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12,
-Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12,
-Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ **verify.py per-TU can UNDERCOUNT ~10** (saw
-Worldgen 34↔24 across identical recompiles — the .obj is non-deterministic, see lesson #30): trust
-progress.py's 212, treat a lone verify.py number as a lower bound. Ghidra: current=YodaDemo.exe (NO writes
-this session, nothing pending). All v40 experiments reverted; tree has ONLY doc edits (CLAUDE.md/memory).
-⚠ BUDGET: Fable weekly usage ~94% (resets 2026-07-09 23:00 America/Boise) — Fable step-7 escalation nearly
-out this week; main-thread only (G2 is main-thread anyway).
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v41 — PHASE G2 STARTED: whole-image layout tooling + model; 212 CONTENT stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v41** commit (below it:
+a2764c0 v40, 8f87ed1 v39). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't
+touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj &&
+../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+/Fo../../build/<TU>.obj <TU>.cpp`, or just run `tools/link_exe.sh` which compiles all): `link_exe.sh` →
+**0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs / 99.17% coverage** (STABLE — name-
+keyed); `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App
+11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript
+11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ **verify.py per-TU can UNDERCOUNT
+~10** (Worldgen 34↔24 — .obj is non-deterministic, lesson #30): trust progress.py's 212. Ghidra:
+current=YodaDemo.exe (NO writes this session, nothing pending). ⚠ BUDGET: Fable weekly usage ~94% (resets
+2026-07-09 23:00 America/Boise) — main-thread only (G2 is all main-thread).
 
-**▶ v40 RESULTS (no exact change — closed the LAST experimental lever + de-risked the metric + derived G2 input):**
-- **⭐ COMPILER-OPTION AXIS DEAD (lesson #30) — the last untested lever.** Global-flag battery on Worldgen
-  with an INTERLEAVED-baseline harness (measure /O2, then variant, back-to-back — mandatory to beat the
-  measurement noise below): NO flag beats /O2 — `/Gr` & `/Gy` exactly TIE (don't touch explicit-__thiscall
-  member codegen); `/Ox`,`/O1`,`/Oa`,`/Ow`,`/Oy-`,`/Os`,`/Og`-combos all strictly WORSE. Per-function
-  `#pragma optimize("L",on)` on DetonateAdjacentTiles 0x428680: /O2-implied letters (`g`/`t`/`y`/`w`/`gt`)
-  reproduce the 60-byte residual byte-for-byte; `a`/`s`/`` (off) all far worse (align 0→502/638/1870).
-  ⇒ /O2 uniquely optimal; the symmetric-register residual is invariant to every VC++ 4.2 build knob. This
-  COMPLETES the exhaustion list: body(v36)/header(v37-38)/emission-order(v38)/PCH(v37)/COMDAT-set(v39)/
-  OPTION(v40) all dead. Do NOT re-test flags or pragmas.
-- **⚠ MEASUREMENT-INTEGRITY (important for every future session).** The compiled .obj is NON-deterministic:
-  md5 differs on each identical recompile (COFF timestamp + COMDAT symbol ORDER vary) while the reloc-masked
-  .text is STABLE. Consequence: verify.py's best-fit pairing occasionally mis-pairs clone-family COMDATs
-  depending on obj symbol order and undercounts a TU (Worldgen flips 34↔24; verify.py IS deterministic per
-  fixed obj — 34×5). **progress.py's 212 is name-keyed and ROBUST** (3 fresh full rebuilds → 212,212,212).
-  Rule going forward: track progress.py, not a lone verify.py per-TU display.
-- **⭐ G2 GROUNDWORK: derived the deterministic app-.obj LINK ORDER** (input to G2 step "link app objs in
-  address order"). The 13 app TUs are contiguous + non-overlapping by first-function address:
-  `AppData(0x401000) → World(0x401450) → GameData(0x401ac0) → Records(0x4042b0) → Iact(0x405ae0) →
-  Canvas(0x407df0) → GameView(0x4084f0) → IactScript(0x418700) → Dlg(0x418dd0) → Frame(0x419000) →
-  App(0x419720) → WorldDoc(0x419ed0) → Worldgen(0x41bfa0..0x429150)`. link_exe.sh currently feeds `*.obj`
-  in ALPHABETICAL glob order (yoda.exe 446KB vs orig 454KB), so the .text layout does NOT match yet — the
-  G2 experiment is to feed app objs in THIS order (then NAFXCW/LIBCMT) and diff resulting addresses.
+**▶ v41 RESULTS — PHASE G2 STARTED (LAYOUT effort, orthogonal to the 212 CONTENT count):**
+- **Built the G2 tooling** (committed): `tools/g2_link.sh` (links the 13 app objs in the v40 address order
+  + `/OPT:NOREF` + `/MAP` into `$CLAUDE_JOB_DIR/tmp/g2/`) and `tools/g2_diff.py` (per marker: **LAYOUT** =
+  linked Rva+Base == orig marker addr; **CONTENT** = reloc-masked bytes equal; `--show-misplaced` for
+  orig→linked deltas). Reuses match.py. Run `bash tools/g2_link.sh && python3 tools/g2_diff.py`.
+- **Baseline: 378/378 paired, LAYOUT 2/378, CONTENT 226/378, BOTH 1/378.** Only the very first funcs land
+  right; everything drifts by small (0x10–0x50) accumulating deltas. (CONTENT 226 > progress's 212 because
+  NOREF keeps ~14 tiny lib-default COMDATs that trivially match — not new hand matches.)
+- **⭐ PROVED the layout model (full writeup + worklist in docs/g2-layout.md):** TWO mechanisms.
+  (1) **/OPT:REF (link default) ELIMINATES unreferenced COMDATs** — drops 19 markers in our partial image
+  (AppWnd::Disable/Enable/GetMessageMap…); `/OPT:NOREF` keeps all 378. (2) **⭐ the linker lays out .text
+  COMDATs in OBJ EMISSION ORDER (= source order), per obj in link order** — PROVEN byte-for-byte on AppData
+  AND World (our NOREF linked order == `match.coff_functions` order exactly). This REFINES lesson #28:
+  per-function CONTENT is order-invariant (compared at fixed marker addrs), but LINKED-IMAGE LAYOUT ==
+  source order. ⇒ **layout reproduction = (a) match kept-COMDAT set + (b) match each TU's source/emission
+  order to the original + (c) match COMDAT sizes** (mostly already exact; reg-coloring residuals are same-
+  length so they don't shift layout). Fix an upstream divergence and everything downstream re-aligns —
+  World is ALREADY in perfect order, merely +0x10 shifted because AppData came out 0x10 long.
+- **First divergence (AppData 0x401000):** we emit `GetMessageMap` before `OnTimer` (our message-map macro
+  sits before the handlers), but the original has `OnTimer@401000` first + a ~0x30 gap before Disable@401090.
+  Two source-order deltas to reconcile in AppData.cpp (details in docs/g2-layout.md).
 
-**▶ START HERE (v41) — ALL per-function / per-TU / build-option exact-raising is now PROVABLY EXHAUSTED
-(body/header/emission-order/PCH/COMDAT-set/compiler-option). The ~48 non-exact are the intrinsic
-symmetric-register class (lesson #29); they will NOT move without a different cl.exe. The sole remaining
-path to progress is G2 (byte-identical IMAGE, not exact .text). Do NOT re-grind per-function or re-test
-flags. Concrete G2 plan, in order:**
-1. **⭐ G2 step 1 — reproduce the link with app objs in address order (main-thread, tractable).** Modify a
-   COPY of the link (don't disturb link_exe.sh's oracle role): feed the 13 app .objs in the v40 link-order
-   list above (NOT glob order), then nafxcw.lib libcmt.lib + Win32 imports. Then compare our yoda.exe's
-   .text function addresses vs the original's known // FUNCTION addresses. Expect MISMATCH initially (COMDAT
-   fold order + .rdata interleave shift everything) — the diff is the G2 worklist. Build a small PE-.text
-   comparator (parse both PE section tables, match functions by the masked-.text bytes we already know per
-   marker, report address delta + which are byte-identical-at-same-addr). This is the reccmp-style
-   whole-image diff, built EARLY as the G2 driver rather than the final check.
-2. **G2 step 2 — COMDAT fold-vs-survive geography** (the documented open question): map which COMDATs FOLD
-   to one copy (CObject::Serialize/AssertValid/Dump → 0x401060/70/80; ??_GCPalette folds from WorldDoc) vs
-   SURVIVE per-TU (the CException/CFileException dtor family at each TU head). Our TUs over-emit some GDI
-   dtors + under-emit others — reconcile against the binary's actual function list. This gates step 1's
-   address reproduction.
-3. **G2 steps 3-5:** .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; EH funclets (0x405320, 0x408c2a
-   CxxFrameHandler thunk, 0x4161bd/…/424f69) + 0x424fb0 bare-jmp thunk; PE timestamp/checksum mask; then the
-   whole-image diff → progress.py toward the image-level ~100%. ⚠ G2 does NOT fix the reg-coloring .text
-   deltas (compile-time) — its goal is the byte-identical IMAGE + a runnable/verifiable artifact.
-- **Map each session:** `tools/survey.py` (nearest non-exact) + `tools/frontier.py` (need build/*.obj).
-  Closest non-exact: ParseSnds(5B frame-slot,park), BlitMasked(4B MMX,park), GetZoneIndex(4B ECX/EDX),
-  ReenableHotspotObjects(7B), UpdatePlayerWalkFrame(11B) — all lesson-#29 intrinsic/park class, NOT G2-fixable.
-- **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
-  combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
+**▶ START HERE (v42) — PHASE G2, main-thread. All per-function/per-TU/option exact-raising is CLOSED
+(lessons #29/#30); G2 is the sole path and is a LAYOUT effort that will NOT change the 212 CONTENT count —
+its product is the byte-identical IMAGE + runnable artifact carrying the known reg-coloring .text deltas.
+Do NOT re-grind per-function or re-test flags. Work the worklist in docs/g2-layout.md, in address order
+(fixing TU N re-aligns N+1…). Concrete next steps:**
+1. **⭐ Reconcile AppData's source order (the first divergence).** In src/AppData/AppData.cpp: move the
+   message-map definition so `OnTimer` emits first (matches orig OnTimer@401000); figure out what fills the
+   original's 0x401060–0x401090 gap (disasm the original there via Ghidra). Re-run `bash tools/g2_link.sh &&
+   python3 tools/g2_diff.py --show-misplaced` and watch LAYOUT climb. ⚠ VERIFY the reorder is CONTENT-
+   NEUTRAL first (progress.py still 212 — reordering defs must not disturb any exact match; lesson #23/#28
+   #line caveats apply — but here we're changing LINKED layout on purpose, and CONTENT is compared at fixed
+   orig addrs so it should hold). Target: AppData region 0x401000–0x401450 all LAYOUT-match.
+2. **Cascade forward** — after each upstream TU is size-reconciled, re-diff; long in-order runs (World,
+   etc.) snap into place at once. The `--show-misplaced` delta column always points at the next divergence.
+3. **COMDAT fold-vs-survive geography** (docs/g2-layout.md step 3): CObject defaults fold to 0x401060/70/80;
+   CException/CFileException dtor family survives per-TU @head; ??_GCPalette folds from WorldDoc. Reconcile
+   our over-/under-emitted GDI dtors against the binary's actual function list.
+4. Later G2: .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; the `.text$AFX_*` lib section-group
+   order (see the map's section table); EH funclets + 0x424fb0 thunk; PE timestamp/checksum mask; then the
+   whole-image reccmp diff → progress toward image-level ~100%.
+- **OPEN QUESTION for the final image:** was the original linked `/OPT:REF` or `/OPT:NOREF`? The demo's
+  larger .text (454K vs our 446K REF-build) hints it kept more. If REF, we must reproduce its reference
+  graph so REF keeps the same set; if NOREF, we just use NOREF. Determine from the original's function count.
+- **Map non-exact each session:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — all remaining
+  non-exact are lesson-#29 intrinsic/park class, NOT G2-fixable (G2 is layout, not content).
+- **Canvas-gap mini (parked #2):** BLOCKED on the owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e).
+  **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
   0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/41bf30/41e8b0
   ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also owns the exact
