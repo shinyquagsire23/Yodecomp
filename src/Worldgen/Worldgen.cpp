@@ -4512,10 +4512,14 @@ int World::ParseTnam(CFile *pFile)
 
 // FUNCTION: YODA 0x004233f0
 // [EFFECTIVE: 5B — frame-slot order of the char buffers: orig ascending {ext,fname,name,path}
-// (size-sorted), ours {ext,name,fname,path}. Probes ALL inert (layout byte-stable): decl order
-// x2, nested strcat(strcpy(),) vs sequential, if-scope vs loop-scope vs split scopes. The array
-// slot key is compiler-internal, not source-steerable from inside the function; insns/regs 100%
-// (align=0 reg_pen=0). Park for the joint TU pass.]
+// (size-sorted), ours {ext,name,fname,path} (name(16) lands before fname(12)). Probes ALL inert
+// (layout byte-stable): ⭐ EXHAUSTIVE v36 — ALL 24 permutations of the four buffer decls compiled
+// (tryorder.py) => every one gives byte_diff=5, align=0. Also nested strcat(strcpy(),) vs
+// sequential, if-scope vs loop-scope vs split scopes: inert. The array slot key is compiler-
+// internal (NOT decl order, NOT scope) — likely first-linearized-use or an internal symtab hash;
+// insns/regs 100% (align=0 reg_pen=0). Definitive proof for the frame-layout park class:
+// address-taken char[] slots are decl-order-INVARIANT in cl 10.20. Joint-pass/whole-image only
+// (and that build uses the SAME cl, so this 5B may be irreducible from the source side).]
 // SNDS chunk: NEGATED sound count, then per-sound a length-prefixed source path; only the
 // bare "fname.ext" is kept in soundNames[i].
 int World::ParseSnds(CFile *pFile)

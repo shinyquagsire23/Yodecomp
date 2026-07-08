@@ -1117,3 +1117,15 @@ Resource@+0xc. Swapped all 19 → 14 field bytes closed (OnInitialUpdate DIFF 31
 (static-MFC EXE: the two handles are equal) so the EXE oracle MISSES it (lesson #25, memory
 [[afx-resource-vs-instance-handle]]). Both funcs stay EFFECTIVE ⇒ 209 exact / Worldgen 34/91 / link
 0/0/exit0 unchanged. Ghidra: no writes. (v35 committed the ephemeral scan as tools/bugscan.py.)
+
+⏮ PRIOR PICKUP v35 (2026-07-08 — bug-oracle committed as tools/bugscan.py + clean sweep): committed
+v34's ephemeral vtscan as tools/bugscan.py (static #24/#25 oracle: NW-align our stream vs original with
+relocs masked, flag aligned same-mnem/opkind pairs with matching base reg + index but differing mem-disp;
+buckets HIGH/LOW/FRAME; DIRECTIONALITY discriminator — one-directional systematic group = SHIFT(bug?),
+bidirectional = SWAP(sched) scheduler reorder not a bug). Validated: clean tree → 0 HIGH/0 SHIFT/exit 0;
+reverting the v34 Afx fix re-flags OnInitialUpdate 10×+DrawDirectionArrows 4× as SHIFT. ShowWinMessage
+0x40f4b0's bidirectional 0x1e8↔0x1fc = the documented field30 arm-crossing SWAP (not a bug). Canvas-gap
+mini (0x407d90/dc0) SCOPED: one dialog's two combo handlers (msgmap head 0x44b1d8, combo ctrl 0x9e,
+`m_field68 = ((CComboBox*)GetDlgItem(0x9e))->GetCurSel()+1`) but BLOCKED — nothing in the binary
+references msgmap 0x44b1d8 and the class's ctor/OnInitDialog aren't in-range, so its fields are unknown
+(violates structs-before-transcription). 209 exact / Worldgen 34/91 / GameData 12/27 / link 0/0/exit0.

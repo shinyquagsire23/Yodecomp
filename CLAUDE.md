@@ -342,15 +342,25 @@ Written to be followable without prior context: each phase lists concrete steps 
   differs (shape, type width, decl presence) — hunt the construct, don't blame the compiler. Proven
   levers live in the Records/Canvas annotations (int-vs-short locals, `= -1` placement, nested `int id`
   locals, shared-return nesting, memset(0xff), tag[4]=0+intrinsic strcmp, CFile vcall CSE).
-- **⭐ THE TU-PHASE DIAL (2026-07-06, biggest mechanism find yet):** the class's member-decl set in the
-  TU's header ROTATES allocator/cmp-direction tie-breaks in EVERY function of the TU — and signature
-  SHAPE is load-bearing (adding `int GetZoneCell(int,int)` to WorldStub.h flipped Nevada's loader to
-  its jg form; each +decl combo gave different loaders/Place/FindZC/BQP outcomes). **Do NOT chase
-  per-function phase with fake decls — only real methods.** The unique all-functions fixed point is
-  the ORIGINAL header's complete decl set ⇒ reconstructing the real CDeskcppDoc class declaration
-  (all ~200 methods, right order) is a first-class Phase-D goal. Also explains the Records Tile::Ctor
-  flip and the original binary's own loader jg/jl/jg drift. A function byte-exact under one dial but
-  not the current one = annotate `PHASE-DISPLACED` (source proven correct), not a source miss.
+- **⭐ THE TU-PHASE DIAL (2026-07-06; MECHANISM CORRECTED v36 2026-07-08):** allocator/cmp-direction
+  tie-breaks carry forward through a TU and rotate EVERY function's tie-breaks together — but the
+  ROTATION DRIVER is **actually-emitted code**, NOT bare declaration-set membership. ⚠ v36 controlled
+  experiment (GameView TU, 73/124 baseline, isolated each axis): adding a non-virtual, never-defined,
+  UNREFERENCED member decl → **byte-identical**; making it `virtual` (a NEW/non-override slot appended
+  at vtable end) → **byte-identical**; a pure `#line` shift (blank line above all bodies) → **byte-
+  identical** (MSVC 4.2 line numbers go to `.debug$S`/COFF line tables, NOT `.text` — masked-code
+  compare is line-invariant). Positive control (one immediate 100→101) → correctly detected 73→72. So
+  an INERT decl does nothing. What ACTUALLY rotates the dial: (a) a decl that is **CALLED** in the TU —
+  its signature SHAPE changes the CALL-SITE codegen (arg widths / return handling, lesson #14), and
+  THAT real code change cascades to siblings via the lesson-#7 TU-allocation carry; (b) a vtable change
+  that **reorders existing slots** or changes `sizeof(class)`; (c) reordering/adding/removing emitted
+  FUNCTION DEFINITIONS (lesson #7 proper). The canonical `+int GetZoneCell(int,int)` → Nevada-loader-jg
+  evidence fits (a): GetZoneCell is CALLED in that loader. **STRATEGIC COROLLARY:** reconstructing the
+  full ~200-method class is OVER-BROAD — only the SUBSET of methods a given TU actually CALLS (with
+  exact signatures) + vtable-slot-ORDER + sizeof affect that TU's dial. Get called-helper signatures
+  right; adding decls for methods the TU never calls is inert busywork. **Do NOT chase per-function
+  phase with fake decls.** A function byte-exact under one dial but not the current one = annotate
+  `PHASE-DISPLACED` (source proven correct), not a source miss.
 - **Byte-diff numbers lie once lengths diverge** — use verify.py per-function + capstone diffs against
   the TRUE original extent (funclets + EH stubs included); asmscore for reg-vs-structure triage.
 - **Verification traps (proven 2026-07-06):** (a) always `rm <TU>.obj` + fresh `toolchain/bin/cl`
@@ -443,66 +453,65 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v35 — bug-oracle committed as tools/bugscan.py + clean sweep)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v35** commit
-(below it: e8ed6af "asdf" = USER's link_exe.sh comment tweak, 15472c2 v34, f2d3019 v33). A dirty tree is
-EXPECTED and fine: `?? YodaDemoCopy/` is the USER's test copy — do NOT commit or revert it. Baselines (rm
-obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` →
-**0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py src/AppData/AppData.cpp` → **14/14**;
-`src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/GameData.cpp` → **12/27**; `progress.py` →
-**209 exact funcs**; `python3 tools/bugscan.py` (needs ALL build/*.obj — compile every TU first) →
-**0 HIGH, 0 SHIFT, 0 SWAP** (exit 0 = clean). Ghidra: `list_open_programs` current=YodaDemo.exe before
-any write. If a baseline differs, a header drifted — bisect first.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v36 — DIAL MECHANISM CORRECTED + residual survey)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v36** commit
+(below it: 47b6805 v35, e8ed6af "asdf" = USER's link_exe.sh tweak, 15472c2 v34). A dirty tree is EXPECTED
+and fine: `?? YodaDemoCopy/` is the USER's runtime test copy (has WAVMIX32.DLL + YodaDemo.dta + our
+yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompile per protocol — objs in
+`build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0**;
+`verify.py src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**;
+`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs**; `python3 tools/bugscan.py`
+(needs ALL build/*.obj) → **0 HIGH/0 SHIFT/0 SWAP** (exit 0). Ghidra: current=YodaDemo.exe before writes.
 
-**▶ v35 RESULTS (committed):**
-- **⭐ tools/bugscan.py — the static #24/#25 bug oracle, now a COMMITTED reusable tool** (was v34's
-  ephemeral job-tmp vtscan). Reuses match.coff_functions + asmscore._decode/_align. For every marker:
-  NW-aligns our stream vs the original (relocs masked), flags aligned same-mnemonic/same-opkind pairs
-  with matching base reg + index but DIFFERING mem-operand disp. Buckets: HIGH (align==0 drift-free =
-  the whole reg-alloc agrees ⇒ a disp diff is a real field/slot bug), LOW (drifted, same reg NAME may be
-  a different pointer ⇒ manual review, hidden unless --all), FRAME (ebp/esp = frame noise). Absolute
-  [disp32] (base=None) skipped (reloc/global). **⭐ Key discriminator = DIRECTIONALITY:** a SYSTEMATIC
-  group (same (func,mnem,base,dispA,dispB) ≥3×) is a `SHIFT(bug?)` only if one-directional (v34 Afx:
-  orig=0xc ours=0x8 ×14, no reverse); a BIDIRECTIONAL swap (orig=X ours=Y AND orig=Y ours=X) is
-  `SWAP(sched)` = two writes/reads REORDERED by the scheduler, NW pairs them crosswise (NOT a bug).
-- **Validated both ways:** on clean source → 0 HIGH / 0 SHIFT / exit 0. Reverting the v34 Afx fix →
-  correctly flags OnInitialUpdate 10× + DrawDirectionArrows 4× as `SHIFT(bug?)`, exit 1. ⇒ the codebase
-  is confirmed clean of #24 (wrong-vtable-slot) and #25 (wrong-inlined-accessor) bugs.
-- **One systematic hit investigated + dismissed:** ShowWinMessage 0x40f4b0 shows a bidirectional
-  0x1e8↔0x1fc swap (questItemsA@0x1e8 / questItemsB@0x1fc reads on ecx=pWorld) — this is the ALREADY-
-  DOCUMENTED field30 if/else arm-crossing scheduling artifact in its EFFECTIVE annotation, count is
-  align-sensitive (2–3×, unstable = noise), correctly classed `SWAP(sched)`. Not a bug.
-- **Canvas-gap mini (parked #2) SCOPED, still blocked:** 0x407d90/0x407dc0 are ONE dialog class's two
-  combo handlers (NOT two classes — both live in the same AFX_MSGMAP at head 0x44b1d8, entries 0x44b1e0,
-  base 0x44c510 = CDialog::messageMap; WM_COMMAND codes 1=CBN_SELCHANGE & 5=CBN_EDITCHANGE for combo
-  0x9e). Body: `m_field68 = ((CComboBox*)GetDlgItem(0x9e))->GetCurSel() + 1;` (m_hWnd@0x1c, ::SendMessageA
-  CB_GETCURSEL). **BLOCKER:** the class is unidentifiable — NOTHING in the whole binary references the
-  msgmap head 0x44b1d8 (search_byte_patterns "d8 b1 44 00" = 0 hits; control 0x9e pushed ONLY at these 2
-  sites), and the class's ctor/OnInitDialog/DoDataExchange are NOT in this mini-TU range (0x407d90–
-  0x407df0, before Canvas) — so its fields (0x5c/0x60/0x64 before m_field68@0x68) are unknown. Violates
-  "structs before transcription"; DON'T force a fabricated-field match. Needs finding the owning dialog
-  (try: which CDialog DoModal/ctor sets a vtable whose GetMessageMap returns 0x44b1d8; or resource-
-  template 0x9e combo). Note: the addrs at 0x40799c/0x407a40/… are switch-case labels INSIDE the already-
-  claimed IactRunCommands (0x4070e0–0x407cf6), NOT separate funcs; 0x407d60 is its jump table.
+**▶ v36 RESULTS (no exact-count change — this was a MECHANISM + strategy session):**
+- **⭐⭐ THE DIAL MECHANISM WAS WRONG — CORRECTED (see the ⭐ THE TU-PHASE DIAL standing rule + KEY
+  lesson #8).** Controlled experiment (GameView TU, isolated each axis, positive control = one immediate
+  100→101 correctly dropped 73→72): an INERT class-member declaration does NOT rotate the dial. Adding a
+  non-virtual never-defined UNREFERENCED member → BYTE-IDENTICAL; making it `virtual` (new non-override
+  slot appended at vtable END) → BYTE-IDENTICAL; a pure `#line` shift (blank line above all bodies) →
+  BYTE-IDENTICAL (MSVC 4.2 line #s go to `.debug$S`/COFF line tables, NOT `.text`). What ACTUALLY rotates
+  a TU: (a) a **CALLED** method whose signature SHAPE changes its CALL-SITE codegen (arg widths/return,
+  lesson #14) → cascades via #7; (b) a vtable change that **reorders EXISTING slots** or changes `sizeof`;
+  (c) reorder/add/remove emitted function DEFINITIONS (lesson #7). The old `+GetZoneCell` "decl rotated
+  it" evidence fits (a) — GetZoneCell is CALLED in that loader. **STRATEGIC COROLLARY (kills a first-class
+  goal): reconstructing the full ~200-method class is OVER-BROAD.** Only the SUBSET of methods a TU
+  actually CALLS (with exact signatures) + vtable-slot ORDER + sizeof affect that TU's dial. Get called-
+  helper signatures right; decls for methods the TU never calls are inert busywork. (Experiment scripts:
+  job-tmp; documented, not committed.)
+- **Residual closeness survey (job-tmp/survey.py — worth re-creating): scores every non-exact marker
+  across all TUs, ranks by asmscore align→reg_pen→byte_diff.** Findings: the ~50 closest non-exact funcs
+  are ALL the TU-allocation reg-swap / frame-layout class, NOT single-function-crackable:
+  · **ParseSnds 0x4233f0 (Worldgen)** — closest in the whole codebase (align=0/reg=0, 5B). EXHAUSTIVELY
+    parked v36: ALL 24 buffer decl-orders compiled → every one byte_diff=5. Frame-slot layout of the four
+    char[] (ext/fname/name/path) is decl-order-INVARIANT (compiler-internal). Annotation updated in-source.
+  · **FindTile 0x403aa0 (GameData, align=0 reg=2, 4B)** — 5 source forms probed (index/hoist/reorder/
+    end-ptr): none crack the ECX-vs-EDX walk-pointer swap; some made align WORSE. Joint-pass confirmed.
+  · **DrawZoneCellRect 0x4095d0 (GameView, align=22)** — pure reg-swap (this in EBP orig / EBX ours) + a
+    cmp-operand/jcc flip; NOT a call-signature bug.
+  · Source function order already matches .text order for our funcs — the few "out-of-order" markers are
+    library COMDATs (CBitmap/CGdiObject dtors, linker-placed) + the documented GameView-tail block; NOT a
+    lesson-#7 lever. ⇒ no cheap reorder win available.
 - Ghidra: NO writes this session. Nothing pending.
 
-**▶ START HERE (v36):**
-1. **Re-run `python3 tools/bugscan.py` after ANY new transcription** — cheap regression guard; HIGH or
-   SHIFT>0 (exit 1) = a new #24/#25 bug to fix. `--all` shows LOW/FRAME buckets for manual review.
-2. **⭐ RUN THE EXE AS A BUG ORACLE (still highest-value; v33 proved it).** bugscan clears the static
-   byte-diff bug classes but SEMANTIC bugs with NO byte diff (right instruction, reloc-masked wrong
-   constant; wrong logic that compiles to a plausible-but-different disasm; missing behavior) only show
-   at runtime. Play through yoda.exe: wrong colors / missing glyphs / misplaced UI → map symptom to
-   function, diff vs disasm. Needs real WAVMIX32.DLL + YODADEMO.DTA under wine (USER's YodaDemoCopy/).
-3. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine workers
-   around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED funcs per TU
-   (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Minimal-TU probe tells
-   header-dial vs TU-position. v32-displaced trio (Worldgen ParseZaux/ParseZax3/ParseZax2 0x423110/190/210)
-   are align=0 pure-reg-swap clones that only resolve at the joint fixed point (lesson #7), NOT
-   individually. UseWeapon binding flip (0x427d20, align=226 — big) + loader/saver clones = better targets.
-4. **Canvas-gap mini (parked #2):** unblock by IDENTIFYING the owning dialog class (see v35 blocker above),
-   then model it + its message map. Small win (2×21B) but adds a modeled class.
-5. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
+**▶ START HERE (v37) — the closest funcs are provably joint-pass-bound, so pick a lever that MOVES:**
+1. **⭐ RUN THE EXE AS A BUG ORACLE (now highest-value; v33 proved it, setup is READY).** USER's
+   `YodaDemoCopy/` has yoda.exe + WAVMIX32.DLL + MSVCRT40.DLL + YodaDemo.dta + wavemix.ini, and `wine`
+   is installed (/opt/homebrew/bin/wine). bugscan already clears the static #24/#25 byte-diff classes, so
+   the remaining bugs are SEMANTIC-with-no-byte-diff (right insn, reloc-masked wrong constant; wrong logic
+   that compiles to a plausible-but-different disasm; missing behavior) — visible ONLY at runtime. Launch
+   under wine, play through, map any wrong color/missing glyph/misplaced-UI symptom → function → diff vs
+   disasm. (Observing a GUI game headless is the hard part — may need screenshots or USER to drive.)
+2. **G1 joint residual passes = the ONLY path to the reg-swap exact-%.** Per the corrected dial: single-
+   function permutation CANNOT fix these (proven again on FindTile). Real levers: (a) get every CALLED
+   helper's signature exactly right per TU (a wrong one mistranscribes call sites AND rotates the dial —
+   the one actionable, findable defect class; hunt via align>0 hits AT call sites); (b) the whole-TU
+   asm-first / joint-permuter approach for the reg-swap clones (Worldgen ParseZaux/Zax3/Zax2 0x423110/190/
+   210; DetonateAdjacentTiles 0x428680 is align=0/1042B — goes EXACT the instant the Worldgen TU allocation
+   is right). Building the N-worker parallel permuter is still the roadmap ask, but note it mutates ONE
+   function so it WON'T crack pure TU-position swaps — it only helps functions with an internal source knob.
+3. **Canvas-gap mini (parked #2):** still BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
+   combo ctrl 0x9e — nothing references the msgmap head; class ctor/OnInitDialog out of range). Small.
+4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
   thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
   41bf30/41e8b0 ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also
@@ -560,11 +569,14 @@ any write. If a baseline differs, a header drifted — bisect first.
      in source/.text order) or use a permuter. This is a strong argument for the asm-first / full-TU
      approach for such modules. Simple leaf/accessor funcs (GetTile, etc.) are context-insensitive and
      match fine piecemeal.
-  8. **The TU-phase dial refines #7: the class HEADER alone shifts TU state.** The member-decl set of
-     the class (count AND signature shapes — `int f(int,int)` vs `void f()` matter independently)
-     rotates allocator/cmp-direction tie-breaks in every function of the TU, even for functions that
-     never call the declared methods. Only REAL methods, never fake decls; full write-up + the
-     PHASE-DISPLACED annotation convention in "Standing rules" (roadmap section).
+  8. **The TU-phase dial refines #7 — but the driver is EMITTED CODE, not the bare decl set (CORRECTED
+     v36).** A method DECLARATION that is never called and never defined is INERT (v36: adding one to
+     GameView, virtual or not, and even a pure `#line` shift, all gave BYTE-IDENTICAL output). What
+     rotates the TU: (a) a **called** method whose signature SHAPE (`int f(int,int)` vs `void f()`)
+     changes its CALL-SITE codegen — which cascades via #7; (b) a vtable change that reorders EXISTING
+     slots or changes `sizeof`; (c) reordering/adding emitted function DEFINITIONS. Signature shape is
+     load-bearing ONLY for methods the TU actually calls. Only REAL methods, never fake decls. Full
+     write-up + the PHASE-DISPLACED convention in "Standing rules" (roadmap section, ⭐ THE TU-PHASE DIAL).
   9. **Loop rotation:** a `for` with an early `return` does NOT rotate; write the
      `if (n > 0) { do {...} while (i < n); }` guard+do-while explicitly. `break`-form loops rotate.
      Hoist the count (`int n = arr.GetSize();`) or the strength-reduction to a walking pointer
