@@ -36,6 +36,37 @@ Fixed AppData's two head divergences → the ENTIRE World scorer region + most o
 2. (attempted, reverted) WorldgenZoneEntry ctor/dtor SOURCE swap to move ??_G before the ctor — did NOT
    work (put the dtor BODY at 0x401370 instead). See the two PARKED residuals below.
 
+## ⭐ v42 KEY FINDING — G2 LAYOUT is GATED by per-function LENGTH, and the length divergences ARE the intrinsic reg-coloring wall (couples G2 to the 212-content ceiling)
+Layout progresses in STRICT ADDRESS ORDER: a function that is N bytes longer/shorter than the original
+shifts EVERY downstream function by N, so nothing downstream can LAYOUT-match until the upstream length is
+reconciled. There are exactly TWO kinds of divergence, and only one is fixable:
+1. **Emission-ORDER scrambles** — a function/COMDAT emitted in the wrong source position (AppData's
+   GetMessageMap-at-head; Character::Read defined after GetFrameTile instead of after Init). FIXABLE by
+   reordering the source, CONTENT-NEUTRAL (exact count unchanged). These are the clean G2 wins. When fixed,
+   the affected region collapses from a local +/- scramble to a UNIFORM delta == the upstream shift, i.e.
+   the TU becomes internally in-order and "prepared" to snap into place once upstream is resolved.
+2. **LENGTH divergences from INTRINSIC register allocation** — a non-exact function whose bytes differ in
+   COUNT, not just register names. Proven root cause on the SaveStoryHistory clone family (0x402670/9c0/d10,
+   DIFF 611/858, +10 bytes each): the ORIGINAL cl allocated one MORE callee-saved register (pushes ebx/esi/
+   edi = 3; ours pushes esi/edi = 2), so it strength-reduces the frame-table index into EBX while ours
+   recomputes it — a different, LONGER instruction stream on identical IR. This is exactly the lesson-#29
+   ABI-pinned reg-coloring class, but here it changes LENGTH (not just same-length renames), so it SHIFTS
+   layout. Lessons #29/#30 proved this class is NOT per-TU/source/flag steerable. These are hard walls.
+
+**Consequence / corrected plan:** the byte-identical whole image (the ~100% goal) is bounded by the SAME
+cl register-allocation wall as the 212 content ceiling — not only in bytes but in LAYOUT, because reg-count
+differences change function lengths. The FIRST hard wall after AppData is GameData's SaveStoryHistory family
+(+0x50 accumulated by GameData's end: SaveStory ×3 + StartGame/others). Everything downstream (Records —
+now internally in-order at a uniform +0x50; Zone; Character helpers, all mostly exact/same-length) is
+BLOCKED from absolute-address match by that upstream +0x50, even though those TUs are themselves clean.
+
+**Therefore the productive G2 layout work is:** (a) reconcile every emission-ORDER scramble so each TU is
+internally in-order ("prepared"); (b) accept that ABSOLUTE-address LAYOUT match caps at the first intrinsic
+length divergence; (c) verify RELATIVE layout within same-length runs. Absolute whole-image byte-identity
+requires cracking the central open problem (a different/period-correct cl.exe build, or the exact original
+per-function source) — the standing wall. Do NOT grind the SaveStory/intrinsic-length funcs for layout;
+they are the same park as content. DO keep fixing order-scrambles (cheap, correct, content-neutral).
+
 ### AppData residuals (both self-correcting — do NOT cascade past 0x401450; ~5 local funcs)
 - **CObject trio position (-0x30):** Disable/Enable/MapZone-ctor land 0x30 low because the original emits
   `CObject::Serialize/AssertValid/Dump` (0x401060/70/80) right after OnPaint (before Disable), whereas our

@@ -1198,3 +1198,18 @@ COMDATs in OBJ EMISSION ORDER (= source order), per obj in link order — proven
 reproduction = match kept-set + per-TU source order + COMDAT sizes; fix upstream divergence → downstream
 re-aligns (World already in perfect order, +0x10 shifted by AppData being 0x10 long). First divergence: AppData
 emits GetMessageMap before OnTimer (orig OnTimer@401000 first). Worklist in docs/g2-layout.md.
+
+---
+### ⏮ PRIOR v42 (2026-07-08) — condensed (superseded by the v43 pickup in CLAUDE.md)
+PHASE G2, AppData+Records LAYOUT reconciled (g2_diff LAYOUT 2→39, BOTH 1→32; 212 CONTENT stands, all
+changes content-neutral). (1) Removed BEGIN_MESSAGE_MAP(AppWnd) from AppData.cpp — orig AppData.obj emits
+no GetMessageMap COMDAT; our copy emitted first, shoving OnTimer off 0x401000 + a +0x10 cascade. Deleting
+it → OnTimer first at 0x401000, correct length, World scorer run + LoadStory/SaveStory head snap in.
+link_exe.sh still 0/0/exit0. (2) Moved Character::Read after Init in Records.cpp (orig order Init,Read,
+GetWalkFrameTile,…) → Records collapses to uniform +0x50 (internally in-order). (3) ⭐ KEY FINDING: G2
+LAYOUT is gated by per-function LENGTH, and the length divergences ARE the lesson-#29 intrinsic reg-coloring
+wall — proven on SaveStoryHistory clones (DIFF 611, +10B each; orig cl allocated one more callee-saved reg
+ebx → longer stream on identical IR). ⇒ byte-identical whole image bounded by the same cl reg-allocation
+wall as the 212 content ceiling. Two divergence kinds: emission-ORDER scrambles (FIXABLE, content-neutral,
+the clean G2 wins) vs intrinsic LENGTH diffs (hard #29 park). Two AppData residuals PARKED (CObject trio
+-0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk). Full model + worklist: docs/g2-layout.md.

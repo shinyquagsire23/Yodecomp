@@ -471,7 +471,24 @@ Written to be followable without prior context: each phase lists concrete steps 
   fixed marker addrs, but LINKED layout == source order). ⇒ layout reproduction = match kept-set + per-TU
   source order + COMDAT sizes; fix an upstream divergence and everything downstream re-aligns (World already
   in perfect order, merely +0x10 shifted by AppData being 0x10 long). First divergence: AppData emits
-  GetMessageMap before OnTimer (orig OnTimer@401000 first). Worklist in docs/g2-layout.md.**
+  GetMessageMap before OnTimer (orig OnTimer@401000 first). Worklist in docs/g2-layout.md.** →
+  **212 exact / 99.17 % coverage — v42 (2026-07-08): PHASE G2 — AppData+Records LAYOUT reconciled
+  (LAYOUT 2→39/378, BOTH 1→32/378; 212 CONTENT stands, all changes CONTENT-neutral). (1) Removed
+  BEGIN_MESSAGE_MAP(AppWnd) from AppData.cpp — the original AppData.obj emits NO GetMessageMap COMDAT (all 9
+  real ones live >0x408000; AppWnd's belongs to its class's primary TU / was REF-dropped). Our copy emitted
+  FIRST (shoved OnTimer off 0x401000) and added +0x10 cascading downstream. Deleting it: OnTimer emits first
+  at 0x401000, AppData is correct total length → the ENTIRE World scorer run + LoadStory/SaveStory head snap
+  into LAYOUT alignment. link_exe.sh still 0/0/exit0 (nothing referenced AppWnd::messageMap symbolically).
+  (2) Moved Character::Read after Init in Records.cpp (orig order Init,Read,GetWalkFrameTile,…) → Records
+  region collapses from a local scramble to a UNIFORM +0x50 (internally in-order, "prepared"). (3) ⭐ KEY
+  FINDING (docs/g2-layout.md): G2 LAYOUT is GATED by per-function LENGTH, and the length divergences ARE the
+  intrinsic reg-coloring wall — proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611, +10B each):
+  the ORIGINAL cl allocated one MORE callee-saved reg (pushes ebx/esi/edi vs our esi/edi) → longer stream on
+  identical IR = the lesson-#29 ABI-pinned class, but here it changes LENGTH not just reg-names, so it SHIFTS
+  everything downstream. ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
+  the 212 content ceiling. Productive G2 = fix emission-ORDER scrambles (cheap/content-neutral); ABSOLUTE
+  layout caps at the first intrinsic length divergence (GameData SaveStory, +0x50). Two AppData residuals
+  PARKED (CObject trio -0x30 self-corrects; WorldgenZoneEntry ??_G-before-ctor quirk).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -513,73 +530,75 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v41 — PHASE G2 STARTED: whole-image layout tooling + model; 212 CONTENT stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v41** commit (below it:
-a2764c0 v40, 8f87ed1 v39). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't
-touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj &&
-../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-/Fo../../build/<TU>.obj <TU>.cpp`, or just run `tools/link_exe.sh` which compiles all): `link_exe.sh` →
-**0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs / 99.17% coverage** (STABLE — name-
-keyed); `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App
-11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript
-11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ **verify.py per-TU can UNDERCOUNT
-~10** (Worldgen 34↔24 — .obj is non-deterministic, lesson #30): trust progress.py's 212. Ghidra:
-current=YodaDemo.exe (NO writes this session, nothing pending). ⚠ BUDGET: Fable weekly usage ~94% (resets
-2026-07-09 23:00 America/Boise) — main-thread only (G2 is all main-thread).
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v42 — PHASE G2: AppData+Records LAYOUT reconciled; the layout ceiling characterized; 212 CONTENT stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v42** commits (5a29b6d
+"Records internal order", cb73983 "AppData layout reconciled"; below: 63da675 v41, a2764c0 v40). Tree CLEAN
+(USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
+`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX
+/O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh`
+which compiles all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs /
+99.17% coverage** (STABLE — name-keyed); `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU
+exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124,
+**Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ verify.py
+per-TU can UNDERCOUNT ~10 (lesson #30): trust progress.py's 212. **G2 baseline: `bash tools/g2_link.sh &&
+python3 tools/g2_diff.py` → LAYOUT 39/378, CONTENT 226/378, BOTH 32/378.** Ghidra: current=YodaDemo.exe (NO
+writes this session, nothing pending). ⚠ BUDGET: Fable weekly usage was ~94% before reset 2026-07-09 23:00
+America/Boise — check before spawning fable agents (G2 is all main-thread anyway).
 
-**▶ v41 RESULTS — PHASE G2 STARTED (LAYOUT effort, orthogonal to the 212 CONTENT count):**
-- **Built the G2 tooling** (committed): `tools/g2_link.sh` (links the 13 app objs in the v40 address order
-  + `/OPT:NOREF` + `/MAP` into `$CLAUDE_JOB_DIR/tmp/g2/`) and `tools/g2_diff.py` (per marker: **LAYOUT** =
-  linked Rva+Base == orig marker addr; **CONTENT** = reloc-masked bytes equal; `--show-misplaced` for
-  orig→linked deltas). Reuses match.py. Run `bash tools/g2_link.sh && python3 tools/g2_diff.py`.
-- **Baseline: 378/378 paired, LAYOUT 2/378, CONTENT 226/378, BOTH 1/378.** Only the very first funcs land
-  right; everything drifts by small (0x10–0x50) accumulating deltas. (CONTENT 226 > progress's 212 because
-  NOREF keeps ~14 tiny lib-default COMDATs that trivially match — not new hand matches.)
-- **⭐ PROVED the layout model (full writeup + worklist in docs/g2-layout.md):** TWO mechanisms.
-  (1) **/OPT:REF (link default) ELIMINATES unreferenced COMDATs** — drops 19 markers in our partial image
-  (AppWnd::Disable/Enable/GetMessageMap…); `/OPT:NOREF` keeps all 378. (2) **⭐ the linker lays out .text
-  COMDATs in OBJ EMISSION ORDER (= source order), per obj in link order** — PROVEN byte-for-byte on AppData
-  AND World (our NOREF linked order == `match.coff_functions` order exactly). This REFINES lesson #28:
-  per-function CONTENT is order-invariant (compared at fixed marker addrs), but LINKED-IMAGE LAYOUT ==
-  source order. ⇒ **layout reproduction = (a) match kept-COMDAT set + (b) match each TU's source/emission
-  order to the original + (c) match COMDAT sizes** (mostly already exact; reg-coloring residuals are same-
-  length so they don't shift layout). Fix an upstream divergence and everything downstream re-aligns —
-  World is ALREADY in perfect order, merely +0x10 shifted because AppData came out 0x10 long.
-- **First divergence (AppData 0x401000):** we emit `GetMessageMap` before `OnTimer` (our message-map macro
-  sits before the handlers), but the original has `OnTimer@401000` first + a ~0x30 gap before Disable@401090.
-  Two source-order deltas to reconcile in AppData.cpp (details in docs/g2-layout.md).
+**▶ v42 RESULTS — PHASE G2, AppData+Records LAYOUT reconciled + the layout ceiling characterized:**
+- **AppData (commit cb73983): removed `BEGIN_MESSAGE_MAP(AppWnd)` from AppData.cpp.** The original AppData.obj
+  emits NO GetMessageMap COMDAT (all 9 real GetMessageMaps live >0x408000; AppWnd's belongs to its class's
+  primary TU / was REF-dropped). Our copy emitted FIRST (shoved OnTimer off 0x401000) + added +0x10 that
+  cascaded downstream. Deleting it → OnTimer emits first at 0x401000, AppData is the right total length →
+  the ENTIRE World scorer run + LoadStory/SaveStory head snapped into LAYOUT alignment (LAYOUT 2→39). The
+  `DECLARE_MESSAGE_MAP()` in the class decl stays (harmless). link_exe.sh still 0/0/exit0. CONTENT-neutral
+  (AppData 14/14, progress 212). ⚠ the msgmap DATA @0x44b000 for the whole image comes from the verbatim
+  .rsrc/.rdata copy, not our TUs — nothing referenced AppWnd::messageMap symbolically.
+- **Records (commit 5a29b6d): moved Character::Read to right after Character::Init** (orig emission order is
+  Init, Read, GetWalkFrameTile, GetFrameTile, GetProjectileTile; ours had Read after GetFrameTile). CONTENT-
+  neutral (26/33). Effect: the Records region local scramble collapsed to a UNIFORM +0x50 — Records is now
+  internally in-order ("prepared"), will snap to LAYOUT-match the moment upstream GameData is resolved.
+- **⭐ KEY FINDING (full writeup docs/g2-layout.md): G2 LAYOUT is GATED by per-function LENGTH, and the
+  length divergences ARE the intrinsic reg-coloring wall.** Layout progresses in STRICT address order: an
+  upstream function N bytes longer/shorter shifts EVERYTHING downstream by N. Two divergence kinds:
+  (1) **emission-ORDER scrambles** (GetMessageMap-at-head; Read-after-GetFrameTile) — FIXABLE by source
+  reorder, CONTENT-neutral, the clean G2 wins; (2) **LENGTH divergences from intrinsic reg-allocation** —
+  proven on SaveStoryHistory clones (0x402670/9c0/d10, DIFF 611/858, +10B each): the ORIGINAL cl allocated
+  one MORE callee-saved register (pushes ebx/esi/edi=3 vs our esi/edi=2) → strength-reduces the frame-table
+  index into EBX while ours recomputes it = a LONGER stream on identical IR. This is the lesson-#29 ABI-
+  pinned class, but it changes LENGTH not just reg-names, so it SHIFTS layout. NOT per-TU/source/flag
+  steerable (#29/#30). ⇒ the byte-identical whole image is bounded by the SAME cl reg-allocation wall as
+  the 212 content ceiling — in LAYOUT too, not just bytes.
 
-**▶ START HERE (v42) — PHASE G2, main-thread. All per-function/per-TU/option exact-raising is CLOSED
-(lessons #29/#30); G2 is the sole path and is a LAYOUT effort that will NOT change the 212 CONTENT count —
-its product is the byte-identical IMAGE + runnable artifact carrying the known reg-coloring .text deltas.
-Do NOT re-grind per-function or re-test flags. Work the worklist in docs/g2-layout.md, in address order
-(fixing TU N re-aligns N+1…). Concrete next steps:**
-1. **⭐ Reconcile AppData's source order (the first divergence).** In src/AppData/AppData.cpp: move the
-   message-map definition so `OnTimer` emits first (matches orig OnTimer@401000); figure out what fills the
-   original's 0x401060–0x401090 gap (disasm the original there via Ghidra). Re-run `bash tools/g2_link.sh &&
-   python3 tools/g2_diff.py --show-misplaced` and watch LAYOUT climb. ⚠ VERIFY the reorder is CONTENT-
-   NEUTRAL first (progress.py still 212 — reordering defs must not disturb any exact match; lesson #23/#28
-   #line caveats apply — but here we're changing LINKED layout on purpose, and CONTENT is compared at fixed
-   orig addrs so it should hold). Target: AppData region 0x401000–0x401450 all LAYOUT-match.
-2. **Cascade forward** — after each upstream TU is size-reconciled, re-diff; long in-order runs (World,
-   etc.) snap into place at once. The `--show-misplaced` delta column always points at the next divergence.
-3. **COMDAT fold-vs-survive geography** (docs/g2-layout.md step 3): CObject defaults fold to 0x401060/70/80;
-   CException/CFileException dtor family survives per-TU @head; ??_GCPalette folds from WorldDoc. Reconcile
-   our over-/under-emitted GDI dtors against the binary's actual function list.
-4. Later G2: .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; the `.text$AFX_*` lib section-group
-   order (see the map's section table); EH funclets + 0x424fb0 thunk; PE timestamp/checksum mask; then the
-   whole-image reccmp diff → progress toward image-level ~100%.
-- **OPEN QUESTION for the final image:** was the original linked `/OPT:REF` or `/OPT:NOREF`? The demo's
-  larger .text (454K vs our 446K REF-build) hints it kept more. If REF, we must reproduce its reference
-  graph so REF keeps the same set; if NOREF, we just use NOREF. Determine from the original's function count.
-- **Map non-exact each session:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — all remaining
-  non-exact are lesson-#29 intrinsic/park class, NOT G2-fixable (G2 is layout, not content).
-- **Canvas-gap mini (parked #2):** BLOCKED on the owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e).
-  **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
-- **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
-  0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/41bf30/41e8b0
-  ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also owns the exact
-  .data/.rsrc layout + gNeedleTable[25]/Iact_szCmdTextBuf reservation sizes.
+**▶ START HERE (v43) — PHASE G2, main-thread. The layout ceiling is now understood: ABSOLUTE-address match
+caps at the first intrinsic length divergence (GameData SaveStoryHistory, +0x50 by GameData's end). Do NOT
+grind SaveStory/intrinsic-length funcs for layout — they are the same #29 park as content. Productive work:**
+1. **Reconcile the remaining emission-ORDER scrambles (cheap, content-neutral, correct — they "prepare" each
+   TU to snap in later).** Use `python3 tools/g2_diff.py --show-misplaced`; for any region showing a LOCAL
+   scramble (mixed +/- deltas within a TU, not a uniform shift), compare our `match.coff_functions('build/
+   <TU>.obj')` order to the original's Ghidra address order (curl list_functions, filter the TU range) and
+   reorder the source .cpp to match. VERIFY progress.py stays 212 after each (content-neutral). Candidates
+   to check next: the GameData tail (0x403060–0x4042b0), Zone/Character helper regions, GameView TU. Each
+   fixed scramble = a region that collapses to a uniform delta.
+2. **The GameView TU boundary (0x408690 InvScrollBar → +0x10090 jump, then -0x2ca0):** big deltas around the
+   Canvas→GameView obj boundary in the NOREF map — investigate whether it's NOREF keeping a large unused lib
+   block or a real obj-order issue (may need the `.text$` section-group order from the map's section table).
+3. **Decide the /OPT:REF vs /OPT:NOREF question for the FINAL image** (open): the demo's larger .text (454K
+   vs our 446K REF-build) hints the original kept more (NOREF-like). Determine from the original's function
+   count vs our kept-set. This decides whether the final image reproduces a reference graph or just uses NOREF.
+4. **Accept the intrinsic layout cap:** once all order-scrambles are fixed, the achievable G2 state is a
+   linkable/runnable image with correct RELATIVE layout within same-length runs + known reg-coloring deltas;
+   ABSOLUTE whole-image byte-identity needs the central open problem cracked (period-correct/different cl.exe
+   build, or exact original per-function source). Verify RELATIVE layout as the realistic G2 completion bar.
+- **AppData residuals PARKED** (both self-correct, don't cascade): CObject Serialize/AssertValid/Dump trio
+  position (-0x30, re-converges at ??_GMapZone 0x401160; original pulls the trio in early via the real
+  AppWnd vtable we don't model); WorldgenZoneEntry ??_G-before-ctor detached-COMDAT quirk (source reorder
+  moves the dtor BODY, not ??_G). See docs/g2-layout.md.
+- **Later G2:** .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; EH funclets + 0x424fb0 thunk; PE
+  timestamp/checksum mask; whole-image reccmp diff. **Canvas-gap mini** BLOCKED on owning dialog class
+  (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6** (World, ~102 fields) — docs/dedup-plan.md.
+- **Map non-exact:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — all remaining non-exact
+  are lesson-#29 intrinsic/park class, NOT content-fixable and (when same-length) layout-neutral.
 
 
 ### Matching progress + tooling (Phase 4 underway)
