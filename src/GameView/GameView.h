@@ -39,7 +39,7 @@ class InvScrollBar : public CScrollBar
 public:
     int  scrollMax;                  // +0x3c
     int  scrollPos;                  // +0x40
-    InvScrollBar(GameView *pView, RECT *pRect);           // 0x004085c0 (Ghidra: CtorCreateMaybe)
+    InvScrollBar(GameView *pView, RECT *pRect); virtual ~InvScrollBar(); // ctor 0x4085c0; dtor ??1 0x4086b0 + thin ??_G 0x408690
     void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409340 (fwd->OnVScroll)
     //{{AFX_MSG(InvScrollBar)
     afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00409360

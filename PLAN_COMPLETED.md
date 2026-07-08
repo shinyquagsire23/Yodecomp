@@ -1078,3 +1078,19 @@ Also STOOD UP Phase G0 (tools/link_exe.sh — full-image link as a completeness 
 closed the ONE true gap GameView::RemoveItem 0x429150 (EXACT, appended to Worldgen.cpp). Left the
 link at 0 duplicates / 34 unresolved (10 WAVMIX + 24 cross-TU name/sig/data drifts) — all closed
 in v32. Milestone: 98.47→99.09 % coverage, 21.24 % exact.
+
+### ⏮ PRIOR PICKUP (v32, 2026-07-07 — PHASE G0 COMPLETE: links + runnable image)
+`tools/link_exe.sh` links the whole image (0 unresolved / 0 duplicates / exit 0) → a RUNNABLE
+`yoda.exe` (446 KB with the original's copied .rsrc). Closed all 34 v31 unresolved: 10 WAVMIX via an
+in-house non-copyrighted stub (toolchain/wavmix32/wavmix32.def + wavmix32_stub.c → decorated import
+lib + no-op DLL importing WAVMIX32.DLL by name; real DLL drops in for sound) + 24 code/data drifts
+reconciled (docs/link-audit.md). Resources via tools/extract_res.py (127 resources, .rsrc verbatim).
+Reconciliation highlights: FindSpecialZoneMaybe=SetCurrentToIntroZone (0x423d20); Records.h
+PlayerMove/PlayerCheckWalkable → real PlaySound(int)/DrawZoneCell(short,short) (0x409060/0x409460);
+FrameView→GameView; SaveZoneRecursive=(CFile*,short,int bFull); dropped stray DamageEntityAt(int)
+overload (real short); App Log_Write free-fn → member CTheApp::LogWrite; rtcDeskcpp*→RUNTIME_CLASS.
+Real .data tables extracted: YodaMasterPalette[1024]@0x456230, gWorldgenGridOrderTable[100]@0x456630,
+gNeedleTable(25)@0x456938, Iact_szCmdTextBuf[2048]@0x459558. DIAL COST: exact 21.24→20.57 % (-0.7 %)
+— shared-header sig changes flipped Worldgen ParseZaux/ParseZax2/SetCurrentToIntroZone + 1 WorldDoc
+fn to PHASE-DISPLACED (source proven; G1 recovers). Objs moved to repo build/ (gitignored). Ghidra:
+no writes.

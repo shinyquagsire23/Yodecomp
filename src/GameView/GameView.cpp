@@ -183,9 +183,9 @@ InvScrollBar::InvScrollBar(GameView *pView, RECT *pRect)
     scrollMax = 0;
     scrollPos = 0;
 }
-// Compiler-generated InvScrollBar dtors (0x408690 ??_G / 0x4086b0 ??1) are emitted from
-// the class's implicit virtual dtor; their ??_G/??1 split shape needs dtor-modeling work
-// (Phase F/G). Left unmarked for now — the ctor (above) and ??_GGameView both match.
+// InvScrollBar's explicit dtor (??1 0x4086b0 + thin ??_G 0x408690) is DEFINED AT THE END of
+// this file (not here) so its added source lines don't shift the #line provenance of the
+// functions below and rotate the GameView TU dial. See the definition + autopsy there.
 
 // -----------------------------------------------------------------------------
 // FUNCTION: YODA 0x00408710
@@ -8881,4 +8881,22 @@ void WorldSizeDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 // TextDialog::Layout's `TriPoint point[3];` array construction calls it 3x.
 TriPoint::TriPoint()
 {
+}
+
+// FUNCTION: YODA 0x00408690
+// FUNCTION: YODA 0x004086b0
+// InvScrollBar::~InvScrollBar — EXPLICIT dtor calling DestroyWindow(). Declaring the dtor (vs.
+// leaving it implicit) forces MSVC to SPLIT destruction into a separate ??1 (0x4086b0, the
+// 91-byte SEH-framed body: vtable reset to 0x44b578, SEH-protected DestroyWindow(this) [unwinds
+// to ~CScrollBar if it throws], then the base ~CScrollBar => ~CWnd) and a THIN ??_G (0x408690,
+// 30-byte scalar-deleting: call ??1 then operator delete if flag&1). Two proofs the body is
+// DestroyWindow() (not empty): (a) an empty body emits only 79 bytes; (b) the disasm at 0x4086b0
+// shows CALL CWnd::DestroyWindow inside the try. An implicit dtor would instead inline the whole
+// body into ??_G with no ??1 (MFC-matching lesson #1). Both COMDATs byte-match (match.py; note
+// verify.py mis-pairs this clone family). DEFINED HERE (end of TU) so the added lines do not
+// shift #line provenance of the functions above and rotate their dial — placement is
+// codegen-neutral for THIS function (an SEH thunk dtor whose bytes don't depend on TU phase).
+InvScrollBar::~InvScrollBar()
+{
+    DestroyWindow();
 }

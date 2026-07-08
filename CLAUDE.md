@@ -199,7 +199,7 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 | MapZone (10×10 grid cell) | 0x34 | 100 % | few | ✅ CANONICAL src/Worldgen/MapZone.h (de-dup step 2, v28) — the GameData shifted-by-4 stub is retired; grids START at 0x4b0 |
 | IactScript | 0x30 | 100 % | 0 | ✅ solved 2026-07-05: vtbl@0 (0x44bc68) + 2 inline CObArray (conditions@4, commands@0x18) + doneFlag@0x2c — Zone-pattern. Whole Iact-script TU (0x418700–0x418dd0) renamed Records-style: IactScript/IactCondition/IactCommand ::Ctor/ScalarDtor/Dtor/Read |
 | IactCondition / IactCommand | 0x1c/0x20 | 100 % | 0 | ✅ vftable@0 added (0x44bc80/98); opcode@4 + args[5]@8 (+text@0x1c for commands) |
-| InvScrollBar | 0x44 | good | 0 | ✅ v14/v15: CScrollBar-derived, scrollMax@0x3c, scrollPos@0x40; Ctor=0x4085c0 (its own mini-TU) |
+| InvScrollBar | 0x44 | good | 0 | ✅ v14/v15: CScrollBar-derived, scrollMax@0x3c, scrollPos@0x40; Ctor=0x4085c0. **v33: EXPLICIT dtor `~InvScrollBar(){DestroyWindow();}` byte-matched — ??1 0x4086b0 (91B) + thin ??_G 0x408690 (30B), defined #line-neutral at GameView.cpp end (lesson #23)** |
 | TextDialog | 0xc8 | good | 3 | ✅ v14/v15: NOT CDialog-derived (plain class). unk10/unk14/unk54 (ShowTextDialog args a/b/c), strText@0xb8 (CString), pParentView@0xc0, soundSession@0xc4; Ctor 0x416b90 / Run() 0x416c40 / ??1 0x427440 (Run is 0-arg, byte-match-proven) |
 | InvItem | 0xc | 100 % | 0 | ✅ v15/v31: CObject-derived (vftable/pTile/name); Ctor 0x4011d0 + CtorTileName 0x401270 + explicit out-of-line ~InvItem 0x401300 (all EXACT, src/AppData); element of World.inventory@0xa8 |
 | CFile (stub) | 0x40 | 6 % | 0 | intentional — DB stub only pins Read@vtbl+0x3c; real MFC used at compile time |
@@ -385,8 +385,14 @@ Written to be followable without prior context: each phase lists concrete steps 
   tables extracted from the binary; tools/extract_res.py copies the .rsrc verbatim. Exact dipped
   21.24→20.57 % as the shared-header signature fixes rotated the dial (Worldgen ParseZaux/ParseZax2/
   SetCurrentToIntroZone + 1 WorldDoc fn → PHASE-DISPLACED; recoverable in G1). Objs moved to repo
-  build/. docs/link-audit.md**. Full per-session milestone history in PLAN_COMPLETED.md. ~100 % =
-  G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
+  build/. docs/link-audit.md** → **99.17 % coverage / 208 exact funcs — v33 (2026-07-08): G1 begun.
+  InvScrollBar dtors matched (parked mini #1 done): explicit `~InvScrollBar(){DestroyWindow();}` →
+  ??1 0x4086b0 (91B) + thin ??_G 0x408690 (30B), both byte-exact. New codegen lesson #23: a mid-file
+  def DISPLACED 6 exact funcs via #line-provenance dial rotation (208→204); #line-neutral placement
+  (decl on ctor's line, def at file end) kept all 208 + the 2 dtors. User reported a functional lead:
+  running yoda.exe's speech-bubble text doesn't render (chain traced faithful; suspect Layout 0x4176f0
+  / wine — memory textbubble-render-lead).** Full per-session milestone history in PLAN_COMPLETED.md.
+  ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
 1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f ../../build/<TU>.obj &&
@@ -426,57 +432,55 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v32 — PHASE G0 COMPLETE: LINKS + RUNNABLE; 99.09% coverage)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` should top out at the v32 G0
-commit ("Phase G0 complete: link 0-unresolved + runnable image"). Baselines (rm the obj + recompile
-per protocol — **objs now live in `build/`, use `/Fo../../build/<TU>.obj`**):
-`tools/link_exe.sh` → **0 duplicates, 0 unresolved, link exit 0, yoda.exe built** (auto-builds
-the wavmix32 import lib from toolchain/wavmix32/wavmix32.def + wavmix32_stub.c); `tools/verify.py
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v33 — G1 begun: InvScrollBar dtors matched #line-neutral; text-bubble lead)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the v33 commit.
+Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`):
+`tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py
 src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/
-GameData.cpp` → **12/27**. Ghidra: confirm `list_open_programs` current=YodaDemo.exe before writes.
+GameData.cpp` → **12/27**; `progress.py` → **208 exact funcs** (best-fit under-counts the 2 new
+InvScrollBar dtors — they DO match, see below). Ghidra: `list_open_programs` current=YodaDemo.exe.
 If a baseline differs, a header drifted — bisect first.
 
-**▶ v32 RESULTS (committed): PHASE G0 DONE — `tools/link_exe.sh` links the whole image with 0
-unresolved + 0 duplicates + resources → a RUNNABLE `yoda.exe` (446 KB).** All 34 v31 unresolved
-closed: 10 WAVMIX via an in-house non-copyrighted stub — `toolchain/wavmix32/wavmix32.def` +
-`wavmix32_stub.c` build a decorated import lib + a no-op DLL that imports WAVMIX32.DLL by name like
-the original (real DLL drops in for sound) + 24 code/data drifts reconciled (full table:
-docs/link-audit.md). Resources: `tools/extract_res.py` copies YodaDemo.exe's `.rsrc` verbatim →
-`.res` (127 resources; link.exe 3.10 takes `.res` directly; output `.rsrc` matches orig 0xd674).
-- **Reconciliation highlights:** `FindSpecialZoneMaybe`=`SetCurrentToIntroZone` (0x423d20, proven
-  via StartGame disasm); Records.h `PlayerMove/PlayerCheckWalkable` were MISNAMED → real
-  `PlaySound(int)/DrawZoneCell(short,short)` (0x409060/0x409460); `FrameView` stub → `GameView`;
-  `SaveZoneRecursive` is 3-arg `(CFile*,short,int bFull)` — OnSaveWorld passes `pCell->flagSolved`
-  (raw-disasm: 3 pushes); removed the stray `Zone::DamageEntityAt(…,int,…)` dup overload (real is
-  `short`); App.cpp `Log_Write` free-fn → member `CTheApp::LogWrite` (byte-identical, body ignores
-  `this`); `rtcDeskcpp*` → `RUNTIME_CLASS(World/CMainFrame/GameView)`. Real .data tables extracted
-  from the binary: YodaMasterPalette[1024]@0x456230, gWorldgenGridOrderTable[100]@0x456630,
-  gNeedleTable(25 real)@0x456938, Iact_szCmdTextBuf[2048]@0x459558.
-- **DIAL COST (expected):** exact 21.24%→**20.57%** (-0.7%). The shared-header signature changes
-  (GetExitDirections uchar, SaveZoneRecursive arity, FindTile void*, DamageEntityAt short, Populate
-  int) rotated the TU-phase dial: Worldgen ParseZaux/ParseZax2/SetCurrentToIntroZone + one WorldDoc
-  fn flipped to PHASE-DISPLACED (source proven correct). NET function count was +2 exact; the sigs
-  are now CORRECT (= what G1's fixed point needs). Do NOT revert them — G1 recovers the bytes.
-- **v32 hygiene:** objs moved to repo-level `build/` (verify/match/progress/asmscore + link_exe.sh
-  all use `/Fo build/<TU>.obj`; `build/` gitignored). Two new tools: `tools/extract_res.py`,
-  and `tools/link_exe.sh` now extracts resources + links wavmix + emits the runnable EXE.
-- Ghidra: NO writes this session (pure source/tooling reconciliation). Nothing pending.
+**▶ v33 RESULTS (committed):**
+- **InvScrollBar dtors matched (parked mini #1 DONE).** 0x408690 (??_G, 30B) + 0x4086b0 (??1, 91B)
+  now byte-exact. Discovery: the original ??1 has a SEPARATE body + thin ??_G (⇒ EXPLICIT dtor, not
+  implicit — MFC lesson #1) and its 91-byte body calls `DestroyWindow()` (empty body = only 79B; the
+  disasm shows CALL CWnd::DestroyWindow in the try). Source: `InvScrollBar::~InvScrollBar(){ Destroy
+  Window(); }` — DECL appended to the ctor's existing line in GameView.h, DEF at the END of
+  GameView.cpp. **KEY: mid-file placement DISPLACED 6 exact funcs (208→204) via #line-provenance dial
+  rotation; #line-neutral placement kept all 208 + the 2 dtors → new codegen lesson #23.** Verify the
+  dtor match with a name-keyed compare (best-fit mis-pairs it): `coff_functions` → `??1InvScrollBar` →
+  `M.mask` vs exe@0x4086b0 (was masked-diff 0).
+- Ghidra: NO writes this session. Nothing pending.
+- **⚠ NEW LEAD from the user (running yoda.exe): the speech-bubble text does NOT render** (frame
+  draws, text missing). Traced the whole chain — ShowTextDialog copies strText, OnInitialUpdate
+  (0x426c40, struct-exact) creates the CEdit+font, Run→Position→Layout show/size it, Layout's tail
+  matches the disasm byte-for-byte. No logic bug found by inspection. Suspect: Layout (0x4176f0,
+  EFFECTIVE align~374 — weakest link) sizing/coord slip, OR wine/font/child-blit env. Needs runtime
+  logging of nTextW/nTextH/rectText + wndDialogText.m_hWnd. See memory [[textbubble-render-lead]].
 
-**▶ START HERE (v33): G0 is complete; pick G1 (exact-% recovery) or G2 (byte-image). Recommended:**
-1. **G1 joint residual passes (biggest exact-% wins, recovers the v32 dial cost + more).** Build the
-   parallel permuter loop (N wine workers around tools/permute.py --mode all, asmscore oracle) and
-   sweep the parked EFFECTIVE / PHASE-DISPLACED functions per TU (Worldgen 57, GameView 64, Records
-   7, Iact 9, WorldDoc 6, GameData 15, scorers). Per function use the minimal-TU probe (extract fn +
-   its `#include`, asmscore solo) to tell header-dial vs TU-position. Expected big wins: the Worldgen
-   ParseZaux/ParseZax2 pair + SetCurrentToIntroZone (just displaced by v32 — should re-converge once
-   the real GameData/WorldDoc decl sets settle), UseWeapon binding flip, loader/saver clone rotations.
-2. **Two parked minis (small, real source):** Canvas-gap pair 0x407d90/0x407dc0; InvScrollBar
-   ??_G/??1 (0x408690/0x4086b0, mini-TU 0x4085c0–0x408710). Model InvScrollBar Records-style
-   (CScrollBar base; Ctor 0x4085c0; scrollMax@0x3c/scrollPos@0x40). Its Disable/Enable virtuals are
-   the folded copies now owned by AppData.
-3. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
-4. **Run the EXE (functional check):** need a real WAVMIX32.DLL present at load + YODADEMO.DTA
-   assets. The linked yoda.exe has the original's full resource UI; verify it boots under wine.
+**▶ START HERE (v34):**
+1. **Chase the text-bubble bug (user-facing, high signal).** Best done by running yoda.exe under wine
+   with a real WAVMIX32.DLL + YODADEMO.DTA and logging Layout's edit rect/size, OR by a close
+   disasm-vs-source semantic diff of TextDialog::Layout's MIDDLE (0x4176f0, rectText/nMode coord
+   conversion + MoveWindow). If the size/coords are right at runtime, it's a wine/child-window-paint
+   env issue, not our code. This also validates the decomp behaviorally.
+2. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine
+   workers around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED
+   funcs per TU (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Use
+   the minimal-TU probe to tell header-dial vs TU-position. **NOTE re v32-displaced trio:** the
+   Worldgen ParseZaux/ParseZax3/ParseZax2 clones (0x423110/190/210) are ALL align=0 pure-reg-swap now
+   but each got a DIFFERENT register allocation in the ORIGINAL (ParseZax3 uses a 3-reg EBP rotation,
+   ParseZaux 2-reg) — source-identical clones can't all match in a partial TU (lesson #7); they only
+   resolve at the joint fixed point / G2 whole-TU build, NOT individually. SetCurrentToIntroZone
+   (0x423d20) is align=12 (structural, harder). UseWeapon binding flip + loader/saver clones are the
+   better G1 targets.
+3. **Canvas-gap pair (parked mini #2):** 0x407d90/0x407dc0 — IDENTICAL 21-byte funcs, each
+   `field68 = SendMessage(GetDlgItem(0x9e)->m_hWnd, CB_GETCURSEL,0,0) + 1` (a combo-select handler).
+   They're message-map pfns (DATA-ref'd from AFX_MSGMAP entries @0x44b1f4/0x44b20c) for two small
+   dialog classes NOT yet in src/ (they sit just before Canvas TU, 0x407df0). Needs modeling the two
+   dialog classes + their message maps — a small untranscribed dialog TU.
+4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
   thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
   41bf30/41e8b0 ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also
@@ -614,6 +618,19 @@ docs/link-audit.md). Resources: `tools/extract_res.py` copies YodaDemo.exe's `.r
      GameView stub mis-widened ZoneTransitionStep's short arg as "OnWalk(int,...)". When a WIP
      shows systematic displacement/width deltas, audit the stub against the real layout FIRST
      — and prefer promoting the real shared header (docs/dedup-plan.md) over growing the stub.
+  23. **#line-stable placement wins the dial for free (v33, InvScrollBar dtor).** Adding a correct
+     helper-class dtor def mid-file (GameView.cpp line 186) DISPLACED 6 exact functions below it
+     (208→204) — NOT because the decl set changed but because the added source lines shifted the
+     **#line provenance** of everything after, rotating the TU dial (v16's blank-line lesson).
+     Fix that kept BOTH the new match AND the 6: (a) put the class DECL on an EXISTING line (append
+     `virtual ~T();` to the ctor's line — zero net header lines); (b) define the function at the
+     END of the .cpp (after the last function) so its lines shift nothing above; (c) replace the
+     old placeholder comment with the SAME line-count pointer comment. Restored 208 + the 2 dtors
+     match (verified: ??1 masked-diff 0 at file-end — an SEH thunk dtor's bytes are TU-phase-
+     independent, so end-placement is codegen-neutral for IT). Corollary: for a leaf/COMDAT whose
+     own bytes don't depend on phase, end-of-file definition is the free-lunch placement. ⚠
+     progress.py/match.py best-fit MIS-PAIRS these clone-shaped dtors (assigns 0x4086b0 to
+     TextDialog::Run) and under-counts — confirm with a name-keyed coff_functions + M.mask compare.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
