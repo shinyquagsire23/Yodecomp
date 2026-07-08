@@ -505,6 +505,34 @@ yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompi
   coloring + cmp-direction seeded by the TU's real header/decl CONTEXT (the corrected dial) + MSVC 4.2
   internal allocator state — NOT reproducible piecemeal. They need the joint fixed-point (G2 whole-image
   linking all TUs, or the exact original build), NOT more per-function grinding. Annotations updated.
+- **⭐ FABLE CONSULT (v36) — 3 decisive results + 2 corrections to our model:**
+  · **Compiler-version hypothesis for the jl/jg family is DEAD (proven).** `tools/jgaudit.py` (job-tmp):
+    our cl DOES emit `cmp mem,reg; jg` backward loop back-edges — 22 in the app region, 5 inside
+    byte-EXACT functions. Smoking gun: **LoadStoryHistoryOregon 0x40258b is EXACT and contains
+    `cmp [ebp-0x24],eax; jg`** — the very form its near-twin sibling LoadStoryHistoryNevada 0x401ac0
+    (non-exact, emits `jl`) is "missing". Same TU (GameData), Nevada=idx0 gets jl, Oregon=later gets jg
+    ⇒ pure TU-position/phase drift, NOT a build/patch level. **Nevada(jl,broken)/Oregon(jg,exact) is the
+    perfect A/B pair for cracking the family.**
+  · **Identifier-name hashing is NOT a dial axis (null result).** Fable hypothesized MSVC's hash-bucketed
+    symtab could make variable NAMES a slot/reg tie-break. Probed ParseSnds with 10 name sets (a/b/c/d,
+    szPath/…, drive/dir/fname/ext, …) → all byte_diff=5. Names are inert; don't chase this.
+  · **CORRECTION to my G1 conclusion: whole-image LINKING does NOT change codegen** (link.exe only
+    rearranges sections + patches relocs). The reg-swap fix is the per-TU FIXED POINT = complete function
+    set in original order (have) + the TU's exact header/include/**PCH** context (don't have). G2 is still
+    needed for layout/folding/image-diff, but is IRRELEVANT to these residuals.
+  · **⭐ NEW LEAD — the PCH axis (Fable, untested at TU scale).** MFC 4.2 AppWizard builds every TU with
+    `/Yu"stdafx.h"` — a precompiled-header MEMORY SNAPSHOT of the afx headers, NOT textual inclusion. That
+    is a legitimately cross-TU compiler-state input (the ONLY one) and the single plausible "global switch
+    that flips the whole jl/jg family at once." Experiment: reconstruct stdafx.h (afxwin/afxext/afxcmn),
+    `/Yc` once, `/Yu` per TU with TU headers included AFTER, re-verify Iact+GameData; watch Nevada's jl/jg
+    + ReadIzon/Puzzle coloring. Even a null collapses a hypothesis family. (Canvas's one-off "PCH inert"
+    probe doesn't count — Canvas is the suspected separate-lib oddball.)
+  · **ReadIzon regression IS real (Iact genuinely needs GameView — calls pView->ShowTextDialog@line833),
+    so it's NOT include-hygiene.** The rotation is a real GameView.h decl / emitted-COMDAT difference.
+    Fable's bisect: diff Iact.obj COMDAT sets pre/post f1ca459 (match.coff_functions) — our Worldgen/Iact
+    OVER-EMIT lib COMDATs (CPen/CBrush/CGdiObject/CObject dtors) the original TU lacks; under the corrected
+    dial, EMITTED defs rotate ⇒ reconciling each TU's emitted-COMDAT set to the original's is a CODEGEN fix
+    (today), not just a G2 layout chore. This is the concrete next lever.
 - Ghidra: NO writes this session. Nothing pending.
 
 **▶ START HERE (v37) — the closest funcs are provably joint-pass-bound, so pick a lever that MOVES:**
