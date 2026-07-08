@@ -445,7 +445,21 @@ Written to be followable without prior context: each phase lists concrete steps 
   order is caller-pinned (nDetonatorX@0x15c=arg1) and local-reorder levers are inert/structural. ⇒ the 212
   per-TU ceiling is genuine; compile-time + intrinsic so even G2 linking won't move it — needs the exact
   original source form or a cl build/flag difference (the central open problem). ALL per-TU levers now
-  provably exhausted (body/header/emission-order/PCH/COMDAT-set).**
+  provably exhausted (body/header/emission-order/PCH/COMDAT-set).** →
+  **212 exact / 99.17 % coverage — v40 (2026-07-08): the COMPILER-OPTION axis CLOSED + measurement-integrity
+  clarified + G2 link-order derived (no exact change; a strategy session). (1) ⭐ COMPILER-OPTION lever DEAD
+  (lesson #30): NO global flag beats /O2 (interleaved-baseline battery on Worldgen — /Gr,/Gy TIE; /Ox,/O1,
+  /Oa,/Ow,/Oy-,/Os,/Og-combos all WORSE) and NO per-function `#pragma optimize` flips DetonateAdjacentTiles'
+  60-byte symmetric-register residual (/O2-implied letters reproduce it byte-for-byte; `a`/`s`/off all
+  worse). /O2 uniquely optimal — completes the exhaustion list (body/header/emission-order/PCH/COMDAT-set/
+  OPTION all dead). (2) ⚠ MEASUREMENT-INTEGRITY: the .obj is NON-deterministic (COFF timestamp + COMDAT
+  symbol order; md5 varies each compile) while reloc-masked .text is stable ⇒ verify.py's best-fit pairing
+  can UNDERCOUNT a TU by ~10 (Worldgen 34↔24) on clone families; progress.py's 212 is name-keyed + ROBUST
+  (stable across 3 rebuilds) — trust progress.py, treat a lone verify.py number as a lower bound. (3) G2
+  GROUNDWORK: derived the deterministic app-.obj link order (13 TUs, contiguous non-overlapping by first
+  addr: AppData→World→GameData→Records→Iact→Canvas→GameView→IactScript→Dlg→Frame→App→WorldDoc→Worldgen) —
+  the input to G2's "link app objs in address order". ⇒ ALL per-function/per-TU exact-raising is closed;
+  the sole remaining path is G2 (byte-identical IMAGE, known .text reg-coloring deltas) or a different cl.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -487,76 +501,73 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v39 — COMDAT-set lever CLOSED + reg-coloring class characterized as intrinsic/ABI-pinned; 212 stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v39** commit (below it:
-3a8a0ca v38, b3938ac v37 afxcmn). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy —
-don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj
-&& ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-/Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py`
-→ **212 exact funcs / 99.17% coverage**; `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0).
-Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView
-73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91.
-Ghidra: current=YodaDemo.exe before any write. v39 job-tmp backups (Worldgen.cpp.bak/Wg2/Wg3/Gv2/Gv3) are
-gone with the job; all experiments were reverted, RESULTS captured below + in lesson #29.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v40 — COMPILER-OPTION axis CLOSED + measurement-integrity clarified + G2 link-order derived; 212 stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v40** commit (below it:
+8f87ed1 v39, 3a8a0ca v38, b3938ac v37 afxcmn). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine
+runtime copy — don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f
+../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**;
+`progress.py` → **212 exact funcs / 99.17% coverage** (STABLE — name-keyed, verified 3× fresh rebuilds);
+`bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12,
+Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12,
+Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ **verify.py per-TU can UNDERCOUNT ~10** (saw
+Worldgen 34↔24 across identical recompiles — the .obj is non-deterministic, see lesson #30): trust
+progress.py's 212, treat a lone verify.py number as a lower bound. Ghidra: current=YodaDemo.exe (NO writes
+this session, nothing pending). All v40 experiments reverted; tree has ONLY doc edits (CLAUDE.md/memory).
 ⚠ BUDGET: Fable weekly usage ~94% (resets 2026-07-09 23:00 America/Boise) — Fable step-7 escalation nearly
-out this week; main-thread only (G2 groundwork is main-thread anyway).
+out this week; main-thread only (G2 is main-thread anyway).
 
-**▶ v39 RESULTS (no exact change — closed the LAST cheap lever + fully characterized the residual class):**
-- **⭐ COMDAT-SET LEVER (v38's #1 START-HERE) is DEAD — proven, not assumed (lesson #29).** Four experiments
-  on the bellwether DetonateAdjacentTiles 0x428680 ALL left it byte-for-byte identical (total=1060, align=0,
-  reg_pen=4, identity_miss=60): (a) v38 reorder; (b) a brand-new COMDAT inserted IMMEDIATELY before it
-  (`CRgn` local → ??_GCRgn+??1CRgn+probe fn, emitted-set 111→114); (c) a reg-pressure predecessor fn; (d)
-  the MINIMAL-TU probe (function ALONE with just `#include "Worldgen.h"` scores IDENTICALLY to the full
-  95-func TU). ⇒ the reg-coloring residual is INTRINSIC to (body + header decl-set), NOT TU-position — so
-  neither the emitted-COMDAT set, emission order, nor neighbors can rotate it. Worldgen's "over-emitted GDI
-  dtors" cannot help. And ??_GCPalette was a lesson-#28 MISATTRIBUTION: it's correctly odr-emitted by the
-  World ctor (`new CPalette` in WorldDoc.cpp:475 → build/WorldDoc.obj DOES emit ??_GCPalette); 0x41e8b0 is
-  just where the linker FOLDED that copy into Worldgen's address span. Both halves of lever #1 are closed.
-- **⭐ THE RESIDUAL CLASS = symmetric 2-register ROLE swap, ABI-pinned, not faithfully steerable.** Dumps:
-  DetonateAdjacentTiles = pure ESI↔EDI param swap; GetZoneIndex 0x423dc0 = ECX↔EDX (walker vs pZone);
-  ReenableHotspotObjects 0x40ebe0 = ESI↔EDX (loop index vs count). DECL/PARAM ORDER **can** flip it — I
-  swapped Detonate's sig to (int y,int x)+caller and it collapsed **60→2 bytes** (reg_pen=0 identity_miss=0,
-  registers then EXACT; the 2 residual bytes = y landing in param1's 0x10 frame slot vs orig's 0x14). BUT
-  that swap is UNFAITHFUL: the caller StepDetonatorEffect pushes nDetonatorX(@0x15c) as arg1, nDetonatorY
-  (@0x160) as arg2 → the TRUE sig is (int x,int y) as written; reverted. For the non-param cases the levers
-  are inert/structural: GetZoneIndex cmp-operand flip = inert; ReenableHotspot stmt-reorder = breaks
-  structure (align 0→16); decl-order hoist = inert (matches the ParseSnds 24-perm park). CONCLUSION: with
-  faithful source our cl deterministically picks the OPPOSITE symmetric register from the original on
-  identical IR. **This is the genuine 212 per-TU ceiling** — and since it's compile-time + intrinsic, even
-  G2 LINKING won't move it. Closing it needs the exact original source form (unrecoverable per-function) or
-  a subtly-different cl build/state (the standing central open problem; version hypo killed v37).
-- **ParseSnds 0x4233f0 (closest non-exact, 5B)** re-confirmed as the frame-slot-order park (orig ascending
-  {ext,fname,name,path} size-sorted, ours swaps fname/name). v36's 24-perm exhaustion stands; the untested
-  first-USE-order axis is fixed by the algorithm (path Read first, then _splitpath, then name) — not steerable.
-- Ghidra: NO writes this session. Nothing pending. Only source change: an expanded EFFECTIVE annotation on
-  DetonateAdjacentTiles (byte-neutral #line shift, Worldgen still 34/91).
+**▶ v40 RESULTS (no exact change — closed the LAST experimental lever + de-risked the metric + derived G2 input):**
+- **⭐ COMPILER-OPTION AXIS DEAD (lesson #30) — the last untested lever.** Global-flag battery on Worldgen
+  with an INTERLEAVED-baseline harness (measure /O2, then variant, back-to-back — mandatory to beat the
+  measurement noise below): NO flag beats /O2 — `/Gr` & `/Gy` exactly TIE (don't touch explicit-__thiscall
+  member codegen); `/Ox`,`/O1`,`/Oa`,`/Ow`,`/Oy-`,`/Os`,`/Og`-combos all strictly WORSE. Per-function
+  `#pragma optimize("L",on)` on DetonateAdjacentTiles 0x428680: /O2-implied letters (`g`/`t`/`y`/`w`/`gt`)
+  reproduce the 60-byte residual byte-for-byte; `a`/`s`/`` (off) all far worse (align 0→502/638/1870).
+  ⇒ /O2 uniquely optimal; the symmetric-register residual is invariant to every VC++ 4.2 build knob. This
+  COMPLETES the exhaustion list: body(v36)/header(v37-38)/emission-order(v38)/PCH(v37)/COMDAT-set(v39)/
+  OPTION(v40) all dead. Do NOT re-test flags or pragmas.
+- **⚠ MEASUREMENT-INTEGRITY (important for every future session).** The compiled .obj is NON-deterministic:
+  md5 differs on each identical recompile (COFF timestamp + COMDAT symbol ORDER vary) while the reloc-masked
+  .text is STABLE. Consequence: verify.py's best-fit pairing occasionally mis-pairs clone-family COMDATs
+  depending on obj symbol order and undercounts a TU (Worldgen flips 34↔24; verify.py IS deterministic per
+  fixed obj — 34×5). **progress.py's 212 is name-keyed and ROBUST** (3 fresh full rebuilds → 212,212,212).
+  Rule going forward: track progress.py, not a lone verify.py per-TU display.
+- **⭐ G2 GROUNDWORK: derived the deterministic app-.obj LINK ORDER** (input to G2 step "link app objs in
+  address order"). The 13 app TUs are contiguous + non-overlapping by first-function address:
+  `AppData(0x401000) → World(0x401450) → GameData(0x401ac0) → Records(0x4042b0) → Iact(0x405ae0) →
+  Canvas(0x407df0) → GameView(0x4084f0) → IactScript(0x418700) → Dlg(0x418dd0) → Frame(0x419000) →
+  App(0x419720) → WorldDoc(0x419ed0) → Worldgen(0x41bfa0..0x429150)`. link_exe.sh currently feeds `*.obj`
+  in ALPHABETICAL glob order (yoda.exe 446KB vs orig 454KB), so the .text layout does NOT match yet — the
+  G2 experiment is to feed app objs in THIS order (then NAFXCW/LIBCMT) and diff resulting addresses.
 
-**▶ START HERE (v40) — ALL per-TU levers are now provably exhausted (body v36, header v37/v38, emission-order
-v38-linker-owned, PCH v37, COMDAT-set v39). The ~48 non-exact are the intrinsic symmetric-register class,
-NOT source-steerable with faithful code (lesson #29). The ONLY remaining path to raise exact is G2 groundwork
-OR cracking the central open problem (why our cl picks the opposite symmetric register). Do NOT re-grind
-per-function. Concrete options, in order:**
-1. **⭐ G2 whole-image build (the real remaining path — main-thread).** link_exe.sh already links a runnable
-   yoda.exe (0/0/exit0). G2 = byte-identical image: (1) reproduce the link (app .objs in address order, then
-   LIBCMT/NAFXCW — link 3.10 vs 4.20 note in toolchain/README); (2) map COMDAT fold-vs-survive geography
-   (CException family survives per-TU @head; CObject no-ops fold to 0x401060/70/80; ??_GCPalette folds from
-   WorldDoc); (3) .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; (4) EH funclets + 0x424fb0 thunk +
-   PE timestamp/checksum mask; (5) reccmp-style whole-image diff → progress.py toward ~100%. ⚠ NOTE: G2
-   does NOT fix the reg-coloring residuals (they're compile-time); G2's goal is the byte-identical IMAGE
-   (the user's ~100% goal) and a runnable/verifiable artifact — the .text won't be byte-identical until the
-   central open problem is solved, so G2 gives a linkable/runnable image with the known residual .text deltas.
-2. **⭐ The CENTRAL OPEN PROBLEM (highest-value, uncertain): why does our cl pick the opposite symmetric
-   register on identical IR?** Lesson #29 proves DECL/param ORDER flips it — so our cl's allocation worklist
-   order differs from the original's. Hypotheses to probe CHEAPLY: (a) is there a cl.exe build/patch diff
-   (10.20a vs 10.20b) that reorders the allocator worklist? (b) does a compiler FLAG we haven't tried
-   (/Ox vs /O2, /Oy, /Gr register-calling, /Gd/Gz) flip the symmetric choice globally WITHOUT breaking the
-   200+ existing exact matches? Test a flag on ONE TU (Worldgen) and diff exact-count — if any flip is net-
-   positive it's a huge unlock. If a flag helps Detonate's ESI/EDI it likely helps the whole class at once.
-3. **Map each session:** `tools/survey.py` (nearest non-exact) + `tools/frontier.py` (need build/*.obj).
-   Closest non-exact today: ParseSnds(5B frame-slot,park), BlitMasked(4B MMX,park), GetZoneIndex(4B ECX/EDX),
-   ReenableHotspotObjects(7B), UpdatePlayerWalkFrame(11B) — all lesson-#29 intrinsic/park class.
-5. **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
-   combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
+**▶ START HERE (v41) — ALL per-function / per-TU / build-option exact-raising is now PROVABLY EXHAUSTED
+(body/header/emission-order/PCH/COMDAT-set/compiler-option). The ~48 non-exact are the intrinsic
+symmetric-register class (lesson #29); they will NOT move without a different cl.exe. The sole remaining
+path to progress is G2 (byte-identical IMAGE, not exact .text). Do NOT re-grind per-function or re-test
+flags. Concrete G2 plan, in order:**
+1. **⭐ G2 step 1 — reproduce the link with app objs in address order (main-thread, tractable).** Modify a
+   COPY of the link (don't disturb link_exe.sh's oracle role): feed the 13 app .objs in the v40 link-order
+   list above (NOT glob order), then nafxcw.lib libcmt.lib + Win32 imports. Then compare our yoda.exe's
+   .text function addresses vs the original's known // FUNCTION addresses. Expect MISMATCH initially (COMDAT
+   fold order + .rdata interleave shift everything) — the diff is the G2 worklist. Build a small PE-.text
+   comparator (parse both PE section tables, match functions by the masked-.text bytes we already know per
+   marker, report address delta + which are byte-identical-at-same-addr). This is the reccmp-style
+   whole-image diff, built EARLY as the G2 driver rather than the final check.
+2. **G2 step 2 — COMDAT fold-vs-survive geography** (the documented open question): map which COMDATs FOLD
+   to one copy (CObject::Serialize/AssertValid/Dump → 0x401060/70/80; ??_GCPalette folds from WorldDoc) vs
+   SURVIVE per-TU (the CException/CFileException dtor family at each TU head). Our TUs over-emit some GDI
+   dtors + under-emit others — reconcile against the binary's actual function list. This gates step 1's
+   address reproduction.
+3. **G2 steps 3-5:** .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; EH funclets (0x405320, 0x408c2a
+   CxxFrameHandler thunk, 0x4161bd/…/424f69) + 0x424fb0 bare-jmp thunk; PE timestamp/checksum mask; then the
+   whole-image diff → progress.py toward the image-level ~100%. ⚠ G2 does NOT fix the reg-coloring .text
+   deltas (compile-time) — its goal is the byte-identical IMAGE + a runnable/verifiable artifact.
+- **Map each session:** `tools/survey.py` (nearest non-exact) + `tools/frontier.py` (need build/*.obj).
+  Closest non-exact: ParseSnds(5B frame-slot,park), BlitMasked(4B MMX,park), GetZoneIndex(4B ECX/EDX),
+  ReenableHotspotObjects(7B), UpdatePlayerWalkFrame(11B) — all lesson-#29 intrinsic/park class, NOT G2-fixable.
+- **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
+  combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
   0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/41bf30/41e8b0
   ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also owns the exact
@@ -799,6 +810,26 @@ per-function. Concrete options, in order:**
      is COMPILE-time + intrinsic, even G2 LINKING won't move it — closing the gap needs either the exact
      original source form (unrecoverable per-function) or a subtly different cl build/state (the standing
      central open problem; version hypothesis already killed v37). Do NOT re-grind this class per-function.
+  30. **⭐ The COMPILER-OPTION axis is DEAD — no global flag NOR per-function `#pragma optimize` flips the
+     intrinsic symmetric-register choice (v40; completes the "levers exhausted" list).** Tested on Worldgen
+     (34/91 baseline) with an INTERLEAVED-baseline harness (measure /O2, then the variant, back-to-back —
+     required to defeat the v40 measurement-noise finding below): every global flag is ≤ baseline —
+     `/Gr` and `/Gy` exactly TIE (they don't touch our explicit-__thiscall member codegen), while `/Ox`,
+     `/O1`, `/Oa`, `/Ow`, `/Oy-`, `/Os`, and `/Og`-piecewise combos all score strictly WORSE. Per-function
+     `#pragma optimize("L", on)` on DetonateAdjacentTiles 0x428680: the /O2-implied letters (`g`,`t`,`y`,`w`,
+     `gt`) reproduce the 60-byte residual byte-for-byte (they're already active), and every letter that
+     changes something (`a`=assume-no-alias, `s`=size, ``=off) makes it far WORSE (align 0→502/638/1870).
+     ⇒ /O2 is uniquely optimal; the symmetric-register residual is invariant to every VC++ 4.2 build knob.
+     Combined with #27 (PCH dead), #28 (emission-order linker-owned), #29 (COMDAT-set dead): ALL per-TU +
+     all option levers are now closed. The only paths left to raise exact beyond 212 are G2 (byte-identical
+     IMAGE, not exact .text) or a genuinely DIFFERENT cl.exe build (unobtainable). Do NOT re-test flags.
+     ⚠ **v40 MEASUREMENT-INTEGRITY finding (know this before trusting a per-TU count):** the compiled .obj
+     is NON-deterministic run-to-run (COFF timestamp + COMDAT symbol ORDER vary; md5 differs each compile)
+     while the reloc-masked .text is STABLE. Consequence: `verify.py`'s best-fit COMDAT pairing occasionally
+     mis-pairs clone-family COMDATs depending on the obj's symbol order and UNDERCOUNTS a TU by ~10 (saw
+     Worldgen flip 34↔24 across identical recompiles; verify.py is deterministic *per fixed obj* — 34×5).
+     **progress.py's headline 212 is name-keyed and ROBUST** (stable across 3 fresh full rebuilds) — trust
+     it; treat a lone verify.py per-TU number as a lower bound, and re-run/confirm with a name-keyed check.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in

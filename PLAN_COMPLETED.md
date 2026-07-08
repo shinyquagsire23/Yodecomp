@@ -1172,3 +1172,19 @@ driver). The REAL v37 win was orthogonal: a MISSING afxcmn.h header (lesson #26)
 PlaceZoneObjectTiles), WorldDoc 7→8 (~World), Iact 1→2; adopted in WorldStub.h + WorldDoc.h. /Yu PCH axis
 KILLED (lesson #27): net-negative, doesn't flip jl/jg, its only win (afxcmn decls) is fully textual. afxcmn
 DEMOTED GameData LoadStoryHistoryOregon (was a lucky jg match under a false context).
+
+**v39** (212, no change): COMDAT-SET lever DEAD (lesson #29) — reg-coloring residual proven INTRINSIC to
+(body + header decl-set), NOT TU-position, via 4 experiments on DetonateAdjacentTiles 0x428680 (v38 reorder;
+a new COMDAT inserted right before it; a reg-pressure predecessor; minimal-TU probe = identical score solo
+vs full TU). ??_GCPalette = lesson-#28 misattribution (odr-emitted by World ctor in WorldDoc; 0x41e8b0 =
+folded copy). Residual class = symmetric 2-reg ROLE swap (ESI/EDI DetonateAdjacentTiles, ECX/EDX GetZoneIndex
+0x423dc0, ESI/EDX ReenableHotspotObjects 0x40ebe0), ABI-pinned: sig-swap flips it (60→2B) but is caller-
+unfaithful; local-reorder levers inert/structural. 212 = genuine per-TU ceiling (compile-time+intrinsic).
+**v40** (212, no change): COMPILER-OPTION axis DEAD (lesson #30) — global-flag battery on Worldgen
+(interleaved-baseline): /Gr,/Gy TIE, all others (/Ox,/O1,/Oa,/Ow,/Oy-,/Os,/Og-combos) WORSE; per-function
+`#pragma optimize` on DetonateAdjacentTiles: /O2-implied letters reproduce the 60B residual, `a`/`s`/off all
+worse. /O2 uniquely optimal → completes the exhaustion list (body/header/emission-order/PCH/COMDAT-set/
+option all dead). MEASUREMENT-INTEGRITY: .obj non-deterministic (COFF timestamp + COMDAT symbol order) →
+verify.py per-TU can undercount ~10 (Worldgen 34↔24); progress.py's 212 is name-keyed + ROBUST (3× rebuilds).
+G2 GROUNDWORK: derived the deterministic app-.obj link order (13 TUs contiguous by first addr, AppData→…→
+Worldgen) as the G2 step-1 input. Only remaining path = G2 byte-identical image.
