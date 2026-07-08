@@ -7289,3 +7289,319 @@ void GameView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         OnSetCursor(this, HTCLIENT, 0);
     }
 }
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00415820
+// GameView::CheckCheat — called after a cheat string is typed into strCheatBuffer
+// (built up by OnChar). "goyoda" ⇒ invincibility; "gojedi" ⇒ the full weapon set
+// (tiles 0x1ff-0x202) + a Super-Jedi banner. On a hit, strCheatBuffer is reset to "".
+// On no match, returns without resetting (the goto skips the reset). The two inline
+// strcmps are the /Oi intrinsic (the sbb (1-b)-(b!=0) idiom).
+// EFFECTIVE (align 232, was 366 before the per-arm `strCheatBuffer=""; return;`
+// copy): the residual is a whole-function register-role swap - the original keeps
+// this in esi and reads strCheatBuffer this-relative ([esi+0x17c]), while ours CSEs
+// &strCheatBuffer into a callee-saved reg (this -> edi). That reallocation cascades
+// (playerX/Y coord LEA-vs-shl+add scheduling). Minimal-TU-probe / G1 dial territory.
+// ---------------------------------------------------------------------------
+void GameView::CheckCheat()
+{
+    CString str = "goyoda";
+    if (strcmp(str, strCheatBuffer) == 0)
+    {
+        str = "Invincible!";
+        ShowTextDialog(str, pWorld->playerX * 0x1c + 0x12, pWorld->playerY * 0x1c + 0x12, 1);
+        bInvincibleCheat = 1;
+        strCheatBuffer = "";
+        return;
+    }
+    str = "gojedi";
+    if (strcmp(str, strCheatBuffer) != 0)
+        return;
+    AddItemToInv(pWorld->GetTileData(0x1ff));
+    AddItemToInv(pWorld->GetTileData(0x200));
+    AddItemToInv(pWorld->GetTileData(0x201));
+    AddItemToInv(pWorld->GetTileData(0x202));
+    AddItemToInv(pWorld->GetTileData(0x202));
+    AddItemToInv(pWorld->GetTileData(0x202));
+    AddItemToInv(pWorld->GetTileData(0x202));
+    AddItemToInv(pWorld->GetTileData(0x202));
+    str = "Super Jedi!";
+    ShowTextDialog(str, pWorld->playerX * 0x1c + 0x12, pWorld->playerY * 0x1c + 0x12, 1);
+    strCheatBuffer = "";
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00415a50
+// GameView::OnKeyUp (WM_KEYUP): clear the locator-key latch + keyboard-move state,
+// re-sample the shift key, and stop a keyboard walk (mode 2 -> 3). Ends with Default().
+// EFFECTIVE (align 24, 25/25 insns): the int-local `nShift` reproduces the sign-extend
+// but the GetAsyncKeyState test/`xor ecx,ecx` schedule 1-2 slots later than the original
+// (the v26 OnKeyDown GetAsyncKeyState `& 0x8000` scheduling family). Parked for G1.
+// ---------------------------------------------------------------------------
+void GameView::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+    bLocatorKeyLatchMaybe = 0;
+    int nShift = GetAsyncKeyState(VK_SHIFT);
+    bShiftHeld = 1;
+    if ((nShift & 0x8000) == 0)
+        bShiftHeld = 0;
+    int *pMode = &pWorld->nFrameMode;
+    bKeyboardMoveActive = 0;
+    bDebugFlagMaybe = 0;
+    nMovePending = 0;
+    nMoveCommand = -1;
+    if (*pMode == 2)
+    {
+        *pMode = 3;
+        bMouseCaptured = 0;
+    }
+    Default();
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00415ac0
+// GameView::OnDestroy (WM_DESTROY): kill the frame timer and destroy the inventory
+// scroll bar, then chain to the base.
+// ---------------------------------------------------------------------------
+void GameView::OnDestroy()
+{
+    ::KillTimer(m_hWnd, 0x1d1d);
+    if (pInvScrollBar != NULL)
+        delete pInvScrollBar;
+    pInvScrollBar = NULL;
+    CView::OnDestroy();
+}
+
+// ---------------------------------------------------------------------------
+// (CyclePalette 0x00415af0 slot — transcribed later; 1280B palette-cycle raw-offset
+//  rotation, deferred. Keeps .text source order when inserted here.)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00415ff0
+// GameView::OnHScroll (WM_HSCROLL): forward to the inventory scroll bar if present,
+// else the base handler.
+// ---------------------------------------------------------------------------
+void GameView::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+    if (pInvScrollBar != NULL)
+    {
+        pInvScrollBar->OnHScroll(nSBCode, nPos, pScrollBar);
+        return;
+    }
+    CView::OnHScroll(nSBCode, nPos, pScrollBar);
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416030
+// GameView::ConfirmExit — cancel any in-progress drag (mode 4), then AfxMessageBox
+// (yes/no). On Yes: force the balloon closed, persist MIDILoad if music is on, resume
+// the (suspended) music thread, signal the wave-mix pump to stop, close the document,
+// and PostQuitMessage. Near-identical twin of OnAppExit (0x416110).
+// EFFECTIVE (align 24, 54/54 insns): the only residual is the AfxGetApp() inline
+// (AfxGetModuleState()->m_pCurrentWinApp) scheduling relative to the pMusicThread load
+// - the original hoists the AfxGetModuleState call earlier. Scheduling tie-break, G1.
+// ---------------------------------------------------------------------------
+void GameView::ConfirmExit()
+{
+    if (pWorld->nFrameMode == 4)
+    {
+        bDragActive = 0;
+        UpdateDragCursor(1);
+        nDragSlot = -1;
+        nDragLastScreenY = -1;
+        nDragLastScreenX = -1;
+        pWorld->nFrameMode = 3;
+        DrawText(NULL);
+    }
+    if (AfxMessageBox(0xe01b, MB_YESNO, 0) == IDYES)
+    {
+        if (bDialogCloseClicked == 0)
+        {
+            bDialogCloseClicked = 1;
+            pWorld->nFrameMode = 3;
+        }
+        if (pWorld->nMusicEnabled != 0)
+            AfxGetApp()->WriteProfileInt("OPTIONS", "MIDILoad", 1);
+        if (pMusicThread != NULL)
+            ResumeThread(((CWinThread *)pMusicThread)->m_hThread);
+        g_bStopMusicThread = 1;
+        SetEvent(g_hWaveMixEvent);
+        pWorld->OnCloseDocument();
+        PostQuitMessage(0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416110
+// GameView::OnAppExit (ID_APP_EXIT) — the menu-driven twin of ConfirmExit (0x416030).
+// Identical body: cancel drag, confirm, then shut down.
+// EFFECTIVE: shares ConfirmExit's AfxGetApp()-inline scheduling residual (twin body).
+// ---------------------------------------------------------------------------
+void GameView::OnAppExit()
+{
+    if (pWorld->nFrameMode == 4)
+    {
+        bDragActive = 0;
+        UpdateDragCursor(1);
+        nDragSlot = -1;
+        nDragLastScreenY = -1;
+        nDragLastScreenX = -1;
+        pWorld->nFrameMode = 3;
+        DrawText(NULL);
+    }
+    if (AfxMessageBox(0xe01b, MB_YESNO, 0) == IDYES)
+    {
+        if (bDialogCloseClicked == 0)
+        {
+            bDialogCloseClicked = 1;
+            pWorld->nFrameMode = 3;
+        }
+        if (pWorld->nMusicEnabled != 0)
+            AfxGetApp()->WriteProfileInt("OPTIONS", "MIDILoad", 1);
+        if (pMusicThread != NULL)
+            ResumeThread(((CWinThread *)pMusicThread)->m_hThread);
+        g_bStopMusicThread = 1;
+        SetEvent(g_hWaveMixEvent);
+        pWorld->OnCloseDocument();
+        PostQuitMessage(0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// (OnCmdDifficulty 0x00416120 slot — needs DifficultyDlg; transcribed with the
+//  options-dialog cluster.)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416220
+// GameView::OnTogglePause (WM_COMMAND 0x8002): toggle mode <-> 0xe (paused). On pause,
+// bank the elapsed time into timeOffset; on resume, restore the zone/camera and reset
+// timeBase so the game clock continues.
+// ---------------------------------------------------------------------------
+void GameView::OnTogglePause()
+{
+    int nMode = pWorld->nFrameMode;
+    int *pMode = &pWorld->nFrameMode;
+    if (nMode != 0xe)
+    {
+        nSavedFrameMode = nMode;
+        *pMode = 0xe;
+        pWorld->timeOffset += (int)difftime(pWorld->timeBase, time(NULL));
+        return;
+    }
+    *pMode = nSavedFrameMode;
+    nSavedFrameMode = 3;
+    bPauseOverlayDrawn = 0;
+    pWorld->RefreshZone();
+    pWorld->UpdateCamera();
+    DrawGameArea(NULL);
+    pWorld->timeBase = (int)time(NULL);
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x004162a0
+// GameView::OnUpdatePauseUi (ON_UPDATE_COMMAND_UI 0x8002): enable the Pause item unless
+// mid-transition (modes 1/4/5/6/7/9); check it while paused (mode 0).
+// ---------------------------------------------------------------------------
+void GameView::OnUpdatePauseUi(CCmdUI *pCmdUI)
+{
+    switch (pWorld->nFrameMode)
+    {
+    case 1:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 9:
+        pCmdUI->Enable(0);
+        break;
+    default:
+        pCmdUI->Enable(1);
+    }
+    pCmdUI->SetCheck(pWorld->nFrameMode == 0);
+}
+
+// ---------------------------------------------------------------------------
+// (OnCmdGameSpeed 0x00416310 slot — needs GameSpeedDlg; transcribed with the
+//  options-dialog cluster.)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416460
+// GameView::OnUpdateGameSpeedUi (ON_UPDATE_COMMAND_UI 0x800c): disable mid-transition
+// (modes 1/4/5/6/8/0xb), else enable only when not busy.
+// ---------------------------------------------------------------------------
+void GameView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
+{
+    switch (pWorld->nFrameMode)
+    {
+    case 1:
+    case 4:
+    case 5:
+    case 6:
+    case 8:
+    case 0xb:
+        pCmdUI->Enable(0);
+        return;
+    }
+    if (bBusy == 0)
+        pCmdUI->Enable(1);
+    else
+        pCmdUI->Enable(0);
+}
+
+// ---------------------------------------------------------------------------
+// (OnCmdWorldSizeMaybe 0x004164d0 slot — needs WorldSizeDlg; transcribed with the
+//  options-dialog cluster.)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x004165a0
+// GameView::OnUpdateWorldSizeUi (ON_UPDATE_COMMAND_UI 0x800d): always disabled (demo).
+// EFFECTIVE (6B, 13/13): the original materializes pCmdUI in eax then `mov ecx,eax`
+// for the vcall (the unused GameView `this` stays in ecx a beat longer); ours loads
+// pCmdUI straight to ecx. Allocation artifact of a `this`-ignoring member. G1.
+// ---------------------------------------------------------------------------
+void GameView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
+{
+    pCmdUI->Enable(0);
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x004165b0
+// GameView::OnUpdateDifficultyUi (ON_UPDATE_COMMAND_UI 0x8005): same gate as GameSpeed.
+// ---------------------------------------------------------------------------
+void GameView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
+{
+    switch (pWorld->nFrameMode)
+    {
+    case 1:
+    case 4:
+    case 5:
+    case 6:
+    case 8:
+    case 0xb:
+        pCmdUI->Enable(0);
+        return;
+    }
+    if (bBusy == 0)
+        pCmdUI->Enable(1);
+    else
+        pCmdUI->Enable(0);
+}
+
+// ---------------------------------------------------------------------------
+// (OnCmdStatsMaybe 0x00416620 slot — needs StatsDlg; transcribed with the
+//  options-dialog cluster.)
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416800
+// GameView::OnUpdateStatsUi (ON_UPDATE_COMMAND_UI 0x800e): always disabled (demo).
+// EFFECTIVE (6B, 13/13): same unused-`this` eax-hop as OnUpdateWorldSizeUi. G1.
+// ---------------------------------------------------------------------------
+void GameView::OnUpdateStatsUi(CCmdUI *pCmdUI)
+{
+    pCmdUI->Enable(0);
+}
