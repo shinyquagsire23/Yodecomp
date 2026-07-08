@@ -1129,3 +1129,30 @@ mini (0x407d90/dc0) SCOPED: one dialog's two combo handlers (msgmap head 0x44b1d
 `m_field68 = ((CComboBox*)GetDlgItem(0x9e))->GetCurSel()+1`) but BLOCKED — nothing in the binary
 references msgmap 0x44b1d8 and the class's ctor/OnInitDialog aren't in-range, so its fields are unknown
 (violates structs-before-transcription). 209 exact / Worldgen 34/91 / GameData 12/27 / link 0/0/exit0.
+
+---
+
+## ⏮ PRIOR PICKUP (v36 — 2026-07-08, DIAL MECHANISM CORRECTED + Fable consult) — demoted at v37
+
+v36 was a MECHANISM/STRATEGY session (no exact-count change; stayed 209). Key results, all now
+folded into the standing rules / KEY lessons #8:
+- **CORRECTED the TU-phase dial:** INERT decls (non-virtual/never-called/undefined), NEW appended
+  virtuals, and pure `#line` shifts are ALL byte-neutral (controlled experiment, GameView TU, positive
+  control = one immediate 100→101 dropped 73→72). Only these rotate a TU: (a) a CALLED method whose
+  signature SHAPE changes call-site codegen (lesson #14→#7 cascade); (b) a vtable change reordering
+  EXISTING slots or changing sizeof; (c) reorder/add/remove emitted function DEFINITIONS. ⇒ reconstructing
+  the full ~200-method class is OVER-BROAD — only CALLED-method sigs + vtable-slot ORDER + sizeof matter.
+- **Frontier/survey analysis:** the ~50 closest non-exact are ALL the `this`/counter reg-coloring +
+  jl/jg cmp-direction class. ParseSnds 0x4233f0 (24 decl-orders → all byte_diff=5), FindTile 0x403aa0,
+  DrawZoneCellRect 0x4095d0 all proven not single-function-crackable. /O2 UNIQUELY correct (flag sweep).
+- **Fable consult:** (1) compiler-VERSION hypothesis for jl/jg DEAD — our cl emits `jg` back-edges in 5
+  EXACT funcs incl. LoadStoryHistoryOregon 0x40258b; its twin Nevada 0x401ac0 emits `jl` in the same TU
+  = pure TU-position drift. Nevada(jl,broken)/Oregon(jg,exact) = the A/B pair. (2) Variable-NAME hashing
+  inert (10 name sets on ParseSnds → all byte_diff=5). (3) whole-image LINKING doesn't change codegen.
+  (4) Leads handed to v37: per-TU emitted-COMDAT reconciliation + the /Yu PCH axis.
+- New tools committed: tools/survey.py (rank non-exact by closeness), tools/frontier.py (first non-exact
+  per TU). Both proven MAP-only (the "first non-exact is body-steerable" hope FAILS — header-phase, not body).
+
+**v37 verdict on the two leads it inherited:** PCH axis KILLED (net-negative + can't flip jl/jg; lesson
+#27). COMDAT lever partially checked — Iact's COMDAT set is IDENTICAL across f1ca459 (not the ReadIzon
+driver). The REAL v37 win was orthogonal: a MISSING afxcmn.h header (lesson #26) = +3 exact.

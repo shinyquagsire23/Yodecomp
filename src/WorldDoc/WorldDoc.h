@@ -22,6 +22,8 @@
 #define WORLDDOC_H
 #include <afxwin.h>
 #include <afxcoll.h>
+#include <afxcmn.h>                      // common controls — original built every TU with afxcmn
+                                         // (v37): its decls flip ~World() to EXACT (WorldDoc 7→8).
 #include "../Records/RecordClasses.h"
 
 // Canvas stub (real module: src/Canvas/, byte-matched). Modeled here with the ctor/dtor

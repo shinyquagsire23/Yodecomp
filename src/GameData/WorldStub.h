@@ -6,6 +6,12 @@
 #define GAMEDATA_WORLDSTUB_H
 #include <afxwin.h>
 #include <afxext.h>
+#include <afxcmn.h>                      // common controls (CProgressCtrl/CToolTipCtrl/…) — the
+                                         // original built EVERY TU with afxcmn (AppWizard stdafx.h);
+                                         // its decls are a real TU-context dial input (v37): adding
+                                         // it flips FindTile+PlaceZoneObjectTiles to EXACT (GameData
+                                         // 12→13). Proven a DECL effect, NOT a /Yu PCH effect (PCH
+                                         // itself is net-negative + can't flip jl/jg — v37).
 #include <afxcoll.h>
 #include "../Records/RecordClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
                                         // Tile/ZoneObj/Zone — never stub matched modules

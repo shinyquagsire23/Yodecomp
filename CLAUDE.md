@@ -166,9 +166,9 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 |---|---|---|---|
 | **AppData** (1st app TU) | 0x401000–0x401450 | ~1.1 KB | ✅ DONE v31 (src/AppData/): **14/14 app funcs EXACT** + 5 CObject lib COMDATs match their folded addrs. MapZone/InvItem/WorldgenZoneEntry ctors/dtors + the AppWnd CWnd class (OnTimer/OnPaint/Enable/DisableSelfWindow). InvItem needed an explicit out-of-line ~InvItem (added to GameView.h; dial-neutral) |
 | World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | ✅ 5/6 exact (07-06: CalcTimeScore matched); CalcSolvedScore x87 park proven permuter-immune |
-| **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE: 9/27 exact under the v28 dial (real GameView.h), rest effective/PHASE-DISPLACED; StartGame DIFF 79 (was 254 pre-de-dup) |
+| **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE: **13/27 exact (v37 +afxcmn: FindTile+PlaceZoneObjectTiles gained, Oregon demoted→jl/jg re-grind)**, rest effective/PHASE-DISPLACED; StartGame DIFF 79 |
 | **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
-| **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE: all 10 funcs transcribed, 88% insn-identical; 1 exact + 9 annotated tie-breaks under the v28 dial |
+| **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE: all 10 funcs transcribed, 88% insn-identical; **2/10 exact (v37 +afxcmn via WorldStub.h)** + 8 annotated tie-breaks; COMDAT set proven stable across f1ca459 (ReadIzon rotation = header-decl-context, not a COMDAT change) |
 | **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 9/11 + 2 eff. (parked); v28: canonical Canvas.h, 0x407df0=ctor / 0x407eb0=dtor, CDC stub private to Canvas.cpp |
 | **IactScript** (3 script record classes) | 0x418700–0x418dd0 | ~1.7 KB | ✅ 11/12 exact (src/IactScript/) |
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
@@ -176,7 +176,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
 | **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ✅ PHASE E step 4 COMPLETE (src/GameView/GameView.cpp): 72/122 exact + rest eff. v30: TextDialog::Layout 0x4176f0 transcribed (eff., align 374 — jump table + TriPoint[3] tail triangle + bitmap-button matrix) and TriPoint::TriPoint 0x4186e0 EXACT (the TU's last function, an out-of-line empty point ctor). ZERO FUN_* / unclaimed code left in the view TU range — remainder is Phase F/G |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
-| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 8/13 exact (v28: the 1441B DTOR back IN) + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
+| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: **9/13 exact (v37 +afxcmn: `~World` dtor gained)** + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen **91 markers** = EVERY function incl. the GameView tail block + GameView::RemoveItem 0x429150 (v31: the TU's true last function, EXACT — was missed by the sweep, found via the G0 link audit); **35/91 exact** (the v29/v30 TextDialog field renames in GameView.h rotated its dial ~2 off the old "36" tally; pre-existing, not a v31 regression) + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
 
 With the doc TU transcribed (v14), the untranscribed remainder is essentially ONE monster: the
@@ -421,7 +421,20 @@ Written to be followable without prior context: each phase lists concrete steps 
   compiler flags (/O2 unique). (3) Fable consult: jl/jg VERSION hypothesis KILLED (our cl emits jg
   back-edges — LoadStoryHistoryOregon 0x40258b exact+jg vs sibling Nevada jl); variable NAMES ruled out;
   whole-image LINKING proven irrelevant to codegen; NEW leads = per-TU emitted-COMDAT reconciliation +
-  the /Yu PCH axis (v37 START HERE).** Full per-session milestone history in PLAN_COMPLETED.md.
+  the /Yu PCH axis (v37 START HERE).** →
+  **212 exact / 99.17 % coverage — v37 (2026-07-08): the afxcmn HEADER-DIAL win (+3) + PCH hypothesis
+  KILLED. (1) ⭐ A MISSING MFC HEADER is a real TU-context dial input (lesson #26): several TUs lacked
+  `afxcmn.h` (the app is a common-controls MFC 4.2 app → AppWizard stdafx had it in every TU). Adding
+  `#include <afxcmn.h>` textually: GameData 12→13 (FindTile 0x403aa0 [a survey top near-miss] +
+  PlaceZoneObjectTiles → EXACT), WorldDoc 7→8 (`~World` → EXACT), Iact 1→2; ZERO regressions on 8 TUs
+  tested. Adopted in WorldStub.h (GameData+Iact) + WorldDoc.h. A DECL effect (not PCH — proven textual).
+  (2) ⭐ The /Yu PCH axis is DEAD (lesson #27, kills Fable's central v36 hypothesis): PCH is a real dial
+  axis but net-NEGATIVE (Worldgen −2 from the MECHANISM, content-independent) and does NOT flip jl/jg
+  (Nevada @0x30b stays jl under every config; orig is jg). The only PCH win = afxcmn decls, fully
+  reproducible textually. (3) COMDAT lever (partial): Iact's emitted COMDAT set is IDENTICAL across the
+  f1ca459 ReadIzon regression (11 funcs both) — that rotation is header-decl-context, not a COMDAT
+  change. Worldgen over-emits GDI dtor COMDATs mid-TU (untested — ground-truth obscured by folding).**
+  Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
@@ -462,125 +475,75 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v36 — DIAL MECHANISM CORRECTED + Fable consult; PCH/COMDAT leads)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -6` tops out at **f3df959 "v36: Fable
-consult…"** (below: b741458/48b157b = USER's README+gitignore, 6ba8dc3 v36 G1 tools, 534bbe6 v36 dial
-correction, 47b6805 v35). Tree is now CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy —
-don't touch it). Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`;
-compile EVERY TU first for progress/bugscan/link): `tools/link_exe.sh` → **0 dup, 0 unresolved, exit 0**;
-`verify.py src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**;
-`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs / 99.17% coverage**;
-`tools/bugscan.py` → **0 HIGH/0 SHIFT/0 SWAP** (exit 0). New v36 tools: `tools/survey.py` (rank non-exact
-by closeness), `tools/frontier.py` (first non-exact per TU). Ghidra: current=YodaDemo.exe before writes.
-⚠ v36 was a MECHANISM/STRATEGY session — NO source or exact-count change; USER is driving yoda.exe under
-wine themselves as a runtime bug oracle (reports functional; subtle bugs may surface — a README screenshot
-exists). Job-tmp experiment scripts (jgaudit/nameprobe/tryorder/findtile/readizon/bdiff) are gone with the
-job; their RESULTS are captured below + in-source annotations.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v37 — the afxcmn HEADER-DIAL win +3; PCH KILLED)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v37** commit (below it:
+a8c764b v36 finalize, f3df959 v36 Fable, b741458/48b157b USER README+gitignore). Tree CLEAN (USER
+gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
+`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3
+/GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` →
+**0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs / 99.17% coverage**; `bugscan.py --all`
+→ **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5,
+Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World
+6/8, **WorldDoc 9/13**, Worldgen 34/91. Ghidra: current=YodaDemo.exe before any write. v37 job-tmp scripts
+(pchtest/pchtu/pchcfg/hdrtest/bisect) are gone with the job; RESULTS captured below + in lessons #26/#27.
 
-**▶ v36 RESULTS (no exact-count change — this was a MECHANISM + strategy session):**
-- **⭐⭐ THE DIAL MECHANISM WAS WRONG — CORRECTED (see the ⭐ THE TU-PHASE DIAL standing rule + KEY
-  lesson #8).** Controlled experiment (GameView TU, isolated each axis, positive control = one immediate
-  100→101 correctly dropped 73→72): an INERT class-member declaration does NOT rotate the dial. Adding a
-  non-virtual never-defined UNREFERENCED member → BYTE-IDENTICAL; making it `virtual` (new non-override
-  slot appended at vtable END) → BYTE-IDENTICAL; a pure `#line` shift (blank line above all bodies) →
-  BYTE-IDENTICAL (MSVC 4.2 line #s go to `.debug$S`/COFF line tables, NOT `.text`). What ACTUALLY rotates
-  a TU: (a) a **CALLED** method whose signature SHAPE changes its CALL-SITE codegen (arg widths/return,
-  lesson #14) → cascades via #7; (b) a vtable change that **reorders EXISTING slots** or changes `sizeof`;
-  (c) reorder/add/remove emitted function DEFINITIONS (lesson #7). The old `+GetZoneCell` "decl rotated
-  it" evidence fits (a) — GetZoneCell is CALLED in that loader. **STRATEGIC COROLLARY (kills a first-class
-  goal): reconstructing the full ~200-method class is OVER-BROAD.** Only the SUBSET of methods a TU
-  actually CALLS (with exact signatures) + vtable-slot ORDER + sizeof affect that TU's dial. Get called-
-  helper signatures right; decls for methods the TU never calls are inert busywork. (Experiment scripts:
-  job-tmp; documented, not committed.)
-- **Residual closeness survey (job-tmp/survey.py — worth re-creating): scores every non-exact marker
-  across all TUs, ranks by asmscore align→reg_pen→byte_diff.** Findings: the ~50 closest non-exact funcs
-  are ALL the TU-allocation reg-swap / frame-layout class, NOT single-function-crackable:
-  · **ParseSnds 0x4233f0 (Worldgen)** — closest in the whole codebase (align=0/reg=0, 5B). EXHAUSTIVELY
-    parked v36: ALL 24 buffer decl-orders compiled → every one byte_diff=5. Frame-slot layout of the four
-    char[] (ext/fname/name/path) is decl-order-INVARIANT (compiler-internal). Annotation updated in-source.
-  · **FindTile 0x403aa0 (GameData, align=0 reg=2, 4B)** — 5 source forms probed (index/hoist/reorder/
-    end-ptr): none crack the ECX-vs-EDX walk-pointer swap; some made align WORSE. Joint-pass confirmed.
-  · **DrawZoneCellRect 0x4095d0 (GameView, align=22)** — pure reg-swap (this in EBP orig / EBX ours) + a
-    cmp-operand/jcc flip; NOT a call-signature bug.
-  · Source function order already matches .text order for our funcs — the few "out-of-order" markers are
-    library COMDATs (CBitmap/CGdiObject dtors, linker-placed) + the documented GameView-tail block; NOT a
-    lesson-#7 lever. ⇒ no cheap reorder win available.
-- **⭐ G1 FRONTIER ANALYSIS (main-thread per-function G1 is EXHAUSTED for the current near-misses).**
-  New tools: **`tools/frontier.py`** (per TU, the FIRST non-exact fn in .text/emission order = the
-  best-steerable candidate) + **`tools/survey.py`** (all non-exact ranked by asmscore closeness).
-  Tested the hypothesis "first non-exact is steerable from its own body" — it FAILS: three independent
-  fresh-TU first-functions resist every body/decl/flag probe: ReadIzon 0x405ae0 (Iact, EBP<->EBX loop
-  swap — loop forms + flag sweep inert; root cause = de-dup step 5 commit f1ca459 gave Iact the real
-  GameView.h, header-phase displacement), Puzzle::Puzzle 0x4042b0 (Records, this=EDI/ESI — decl+body
-  order verified inert), and the **jl/jg cmp-direction FAMILY** (LoadStoryHistoryNevada 0x401ac0 2B /
-  ParseTilesMaybe 0x41a030 3B / many loaders — `orig cmp n,i;jg` vs `ours cmp i,n;jl`). ⭐ FLAG SWEEP
-  RESULT: /O2 is UNIQUELY correct (GameData 12/27; /Ox→0, /O1→2, /Og/Os→0, /O2/Oy-→6) — the jl/jg
-  family is NOT a compiler-flag axis. CONCLUSION: these residuals are the `this`/counter register
-  coloring + cmp-direction seeded by the TU's real header/decl CONTEXT (the corrected dial) + MSVC 4.2
-  internal allocator state — NOT reproducible piecemeal. They need the joint fixed-point (G2 whole-image
-  linking all TUs, or the exact original build), NOT more per-function grinding. Annotations updated.
-- **⭐ FABLE CONSULT (v36) — 3 decisive results + 2 corrections to our model:**
-  · **Compiler-version hypothesis for the jl/jg family is DEAD (proven).** `tools/jgaudit.py` (job-tmp):
-    our cl DOES emit `cmp mem,reg; jg` backward loop back-edges — 22 in the app region, 5 inside
-    byte-EXACT functions. Smoking gun: **LoadStoryHistoryOregon 0x40258b is EXACT and contains
-    `cmp [ebp-0x24],eax; jg`** — the very form its near-twin sibling LoadStoryHistoryNevada 0x401ac0
-    (non-exact, emits `jl`) is "missing". Same TU (GameData), Nevada=idx0 gets jl, Oregon=later gets jg
-    ⇒ pure TU-position/phase drift, NOT a build/patch level. **Nevada(jl,broken)/Oregon(jg,exact) is the
-    perfect A/B pair for cracking the family.**
-  · **Identifier-name hashing is NOT a dial axis (null result).** Fable hypothesized MSVC's hash-bucketed
-    symtab could make variable NAMES a slot/reg tie-break. Probed ParseSnds with 10 name sets (a/b/c/d,
-    szPath/…, drive/dir/fname/ext, …) → all byte_diff=5. Names are inert; don't chase this.
-  · **CORRECTION to my G1 conclusion: whole-image LINKING does NOT change codegen** (link.exe only
-    rearranges sections + patches relocs). The reg-swap fix is the per-TU FIXED POINT = complete function
-    set in original order (have) + the TU's exact header/include/**PCH** context (don't have). G2 is still
-    needed for layout/folding/image-diff, but is IRRELEVANT to these residuals.
-  · **⭐ NEW LEAD — the PCH axis (Fable, untested at TU scale).** MFC 4.2 AppWizard builds every TU with
-    `/Yu"stdafx.h"` — a precompiled-header MEMORY SNAPSHOT of the afx headers, NOT textual inclusion. That
-    is a legitimately cross-TU compiler-state input (the ONLY one) and the single plausible "global switch
-    that flips the whole jl/jg family at once." Experiment: reconstruct stdafx.h (afxwin/afxext/afxcmn),
-    `/Yc` once, `/Yu` per TU with TU headers included AFTER, re-verify Iact+GameData; watch Nevada's jl/jg
-    + ReadIzon/Puzzle coloring. Even a null collapses a hypothesis family. (Canvas's one-off "PCH inert"
-    probe doesn't count — Canvas is the suspected separate-lib oddball.)
-  · **ReadIzon regression IS real (Iact genuinely needs GameView — calls pView->ShowTextDialog@line833),
-    so it's NOT include-hygiene.** The rotation is a real GameView.h decl / emitted-COMDAT difference.
-    Fable's bisect: diff Iact.obj COMDAT sets pre/post f1ca459 (match.coff_functions) — our Worldgen/Iact
-    OVER-EMIT lib COMDATs (CPen/CBrush/CGdiObject/CObject dtors) the original TU lacks; under the corrected
-    dial, EMITTED defs rotate ⇒ reconciling each TU's emitted-COMDAT set to the original's is a CODEGEN fix
-    (today), not just a G2 layout chore. This is the concrete next lever.
+**▶ v37 RESULTS:**
+- **⭐ THE afxcmn HEADER-DIAL WIN (+3 exact; lesson #26).** Several TUs were compiled WITHOUT `afxcmn.h`
+  — but the app is a common-controls MFC 4.2 app, so its AppWizard stdafx.h had afxwin+afxext+**afxcmn**
+  in EVERY TU. Adding `#include <afxcmn.h>` textually rotates reg/insn-selection tie-breaks toward the
+  original: **GameData 12→13** (FindTile 0x403aa0 [a survey.py top near-miss!] + PlaceZoneObjectTiles →
+  EXACT), **WorldDoc 7→8** (`~World` dtor → EXACT), **Iact 1→2**; ZERO regressions on 8 TUs tested
+  (Records/Frame/App/Dlg/IactScript neutral). ADOPTED in src/GameData/WorldStub.h (→GameData+Iact) and
+  src/WorldDoc/WorldDoc.h. Proven a DECL effect (identical result textual vs a /Yu afxcmn PCH), NOT PCH.
+  ⚠ It DEMOTED one lucky match: GameData LoadStoryHistoryOregon was EXACT (jg) sans afxcmn, now non-exact
+  under the correct context (its source was matching a FALSE dial) ⇒ a legit v38 jl/jg re-grind target.
+- **⭐ /Yu PCH axis KILLED (lesson #27, ends Fable's central v36 hypothesis).** PCH IS a real dial axis
+  but (a) net-NEGATIVE — afxcmn PCH: GameData +1 / Iact 0 / Worldgen **−2**, and the −2 is the PCH
+  MECHANISM (content-independent — afxwin-only PCH also −2); (b) does NOT flip jl/jg — Nevada 0x401ac0
+  @+0x30b stays `jl 0x240` under EVERY config, orig is `jg 0x240`; (c) its only win (afxcmn decls) is
+  fully textual. Do NOT re-open PCH.
+- **COMDAT lever (lever 1, PARTIAL — Iact ruled out, Worldgen untested).** Iact's emitted COMDAT set is
+  IDENTICAL (11 funcs) across the f1ca459 ReadIzon regression (built the parent-commit Iact.obj + diffed
+  via match.coff_functions) ⇒ that rotation is header-DECL-context, not a COMDAT-set change. Worldgen
+  OVER-EMITS GDI dtor COMDATs MID-TU (emission order: ??1CBrush/CGdiObject #91-94, ??1CPen #98-99 — all
+  BEFORE DetonateAdjacentTiles #108) — still a live candidate, but "did the original emit them?" is
+  obscured by link-folding; NOT tested this session.
 - Ghidra: NO writes this session. Nothing pending.
 
-**▶ START HERE (v37) — G1 reg-swap fix = per-TU CONTEXT, not per-function (Fable-clarified). Two concrete
-levers, both bounded, both real exact-% upside. Per-function body grinding is PROVEN EXHAUSTED — don't.**
-1. **⭐ COMDAT-set reconciliation (most concrete; entry = the ReadIzon bisect).** Under the corrected dial,
-   EMITTED function definitions rotate a TU's codegen. Our TUs OVER-EMIT library COMDATs the original TU
-   lacks (Worldgen: CPen/CBrush/CGdiObject/CObject dtors; Iact: ??3CObject operator delete). STEP 1 — the
-   ReadIzon regression: `git show f1ca459` changed WorldStub.h to #include the real GameView.h; ReadIzon
-   0x405ae0 was byte-EXACT before, DIFF(7) after. Diff Iact.obj's COMDAT set pre/post that commit
-   (match.coff_functions over both objs — build one in a temp dir from the parent commit). Whatever COMDAT
-   appeared/changed is the non-inert rotation source (an odr-used inline, a vtable, a sizeof-driven ctor).
-   Reconcile it (drop the over-emitted COMDAT via include/odr-use hygiene, or match the original's set) and
-   re-verify Iact — ReadIzon + the other 8 Iact non-exacts may cascade back. Repeat per TU (Worldgen next).
-   ⚠ Iact GENUINELY needs GameView (calls pView->ShowTextDialog@Iact.cpp:833) — the fix is COMDAT/odr-use
-   parity, NOT dropping the include.
-2. **⭐ PCH axis (higher-risk, could flip the WHOLE jl/jg family at once).** MFC 4.2 AppWizard builds every
-   TU with `/Yu"stdafx.h"` (a precompiled-header memory snapshot of the afx headers) — the ONLY legit
-   cross-TU compiler-state input, and the plausible single switch behind the systematic jl/jg drift.
-   Reconstruct a plausible `stdafx.h` (afxwin/afxext/afxcmn), `/Yc` it once, `/Yu` per TU with the TU's own
-   headers included AFTER, re-verify GameData + Iact. WATCH the A/B pair: LoadStoryHistoryNevada 0x401ac0
-   (currently jl, non-exact) vs its exact twin LoadStoryHistoryOregon 0x40258b (jg) — if PCH flips Nevada
-   to jg it's a breakthrough; a null cleanly kills the hypothesis. (Compiler-VERSION is already ruled out:
-   our cl emits jg back-edges in 5 exact funcs incl. Oregon — jgaudit, v36.)
-3. **Map first:** `tools/frontier.py` (per-TU frontier) + `tools/survey.py` (closeness rank) before either.
-   The ~50 non-exact are the `this`/counter register-coloring + jl/jg class; all proven inert to source
-   forms/decl-order/flags. DetonateAdjacentTiles 0x428680 (align=0/1042B) goes EXACT the instant Worldgen's
-   TU context is right — a good bellwether for the COMDAT/PCH work.
-4. **Canvas-gap mini (parked #2):** still BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
-   combo ctrl 0x9e — nothing references the msgmap head; class ctor/OnInitDialog out of range). Small.
-4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
-- **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
-  thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
-  41bf30/41e8b0 ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also
-  owns the exact .data/.rsrc layout + the gNeedleTable[25]/Iact_szCmdTextBuf reservation sizes.
+**▶ START HERE (v38) — bank more header-dial wins, then re-attack jl/jg under the CORRECT context.**
+1. **⭐ FINISH the afxcmn universality audit (cheapest remaining wins).** v37 adopted afxcmn only on the
+   TUs where it was net-positive; the original had it in ALL TUs. The neutral standalone TUs (Records,
+   Frame, App, Dlg, IactScript) were measured neutral — but re-test them TOGETHER with any OTHER missing
+   AppWizard headers. Worldgen.h's set is the reconstructed stdafx: `afxwin, afxcoll, afxcmn, afxdlgs,
+   afxext` — note **afxdlgs** (common dialogs) + afxext-LAST. Test that FULL set/order on every TU that
+   lacks pieces (GameData currently afxwin/afxext/afxcmn/afxcoll — try the Worldgen order; WorldDoc;
+   Records; etc.). Harness pattern: strip a header's `#include <afx*.h>` lines, insert the candidate set,
+   rebuild textual, verify, restore (job-tmp/hdrtest.sh in v37). Any net-positive → adopt.
+2. **⭐ Re-grind the jl/jg family UNDER afxcmn (the context is now correct).** The A/B pair is intact:
+   LoadStoryHistoryNevada 0x401ac0 (jl, non-exact) vs LoadStoryHistoryOregon 0x40258b (was jg+exact, now
+   demoted by afxcmn). Both are in GameData which NOW has afxcmn. With the true header context, the
+   remaining jl/jg drift is purely TU-emission-ORDER/position (lesson #7) — so the lever is the emitted
+   FUNCTION-DEFINITION set + order, or the CALLED-helper signature shapes (lesson #14). Check whether
+   GameData's function EMISSION order matches the original .text order exactly; a mismatch is a real
+   lesson-#7 rotation you can fix by reordering source functions. (Do NOT grind function bodies — proven
+   exhausted; do NOT touch PCH.)
+3. **⭐ Worldgen emitted-COMDAT reconciliation (the untested half of lever 1; biggest pool, 34/91).**
+   Worldgen over-emits CPen/CBrush/CGdiObject/CObject dtor COMDATs mid-TU (#91-99) and UNDER-emits
+   ??_GCPalette (orig has it @0x41e8b0, between PlaceBlockades and PickItemFromZone). Per the corrected
+   dial, the emitted-def SET rotates everything after it — DetonateAdjacentTiles 0x428680 (align=0/1042B)
+   is the bellwether that goes EXACT once Worldgen's context is right. Determine whether the original
+   Worldgen.obj emitted these GDI dtors (folding obscures the linked image — need the .obj-level truth,
+   e.g. from the emission POSITIONS vs the exception-COMDATs-survive pattern) and add the CPalette odr-use
+   in the right source position. Higher-effort/uncertain — attempt after 1&2.
+4. **Map first each session:** `tools/frontier.py` + `tools/survey.py` (need build/*.obj — compile all).
+   The ~50 non-exact are the reg-coloring + jl/jg class; body-grinding is EXHAUSTED (v36). Header-set +
+   emission-order + the joint G2 fixed point are the only remaining levers.
+5. **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
+   combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
+- **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
+  0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/41bf30/41e8b0
+  ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also owns the exact
+  .data/.rsrc layout + gNeedleTable[25]/Iact_szCmdTextBuf reservation sizes.
 
 
 ### Matching progress + tooling (Phase 4 underway)
@@ -754,6 +717,34 @@ levers, both bounded, both real exact-% upside. Per-function body grinding is PR
      reloc-masked streams, NW-align (asmscore._align), flag aligned same-key pairs with a non-stack
      mem operand, matching base reg, differing disp. That scan proved ZERO remaining v33-class
      `call [reg+disp]` vtable-slot bugs and zero field bugs in drift-free funcs (only this Afx class).
+  26. **⭐ A missing MFC HEADER is a real TU-context dial input — the DECL side of the corrected dial
+     (v37, the afxcmn win).** The original app is a common-controls MFC 4.2 app, so its AppWizard
+     `stdafx.h` = `afxwin.h`+`afxext.h`+`afxcmn.h`, included FIRST by EVERY TU. Several of our TUs
+     were compiled WITHOUT `afxcmn.h` (an oversight — WorldStub.h/WorldDoc.h predate the realization).
+     Adding `#include <afxcmn.h>` to a TU that lacked it ROTATES its register/instruction-selection
+     tie-breaks toward the original: **GameData 12→13** (FindTile 0x403aa0 + PlaceZoneObjectTiles →
+     EXACT; a survey.py top near-miss cracked), **WorldDoc 7→8** (`~World` dtor → EXACT), **Iact 1→2**;
+     ZERO regressions on the 8 TUs tested (Records/Frame/App/Dlg/IactScript neutral). This is a DECL
+     effect (lesson #8/#14 class), NOT a `/Yu` PCH effect — proven: textual `#include <afxcmn.h>` gives
+     the identical result as an afxcmn PCH. Mechanism: afxcmn's class decls (CProgressCtrl/CToolTipCtrl/
+     CImageList/CSpinButtonCtrl…) change name-lookup/type-table state the compiler carries into codegen.
+     Corollary — WHEN A TU'S FIRST-EMITTED FUNCTIONS ARE THE NON-EXACT ONES, AUDIT ITS MFC HEADER SET
+     against the AppWizard stdafx (afxwin+afxext+afxcmn) BEFORE grinding — a missing header is a
+     free dial correction. Worldgen/GameView/World already had afxcmn (via Worldgen.h); GameData+Iact
+     (WorldStub.h) and WorldDoc got it in v37. ⚠ The correct context can DEMOTE a lucky match:
+     GameData's LoadStoryHistoryOregon was EXACT (jg) sans afxcmn, now non-exact — it was matching
+     under a FALSE context; its source is a legit re-grind target UNDER afxcmn (a v38 jl/jg lead).
+  27. **The `/Yu` precompiled-header axis is DEAD as a matching lever (v37, kills Fable's central v36
+     hypothesis).** PCH IS a real dial axis (it changes codegen deterministically) but (a) it is
+     net-NEGATIVE: an afxcmn PCH gives GameData +1 / Iact 0 / **Worldgen −2**, and the Worldgen −2 is
+     the PCH MECHANISM ITSELF — content-independent (even an afxwin-only PCH gives −2). No config is
+     globally net-positive. (b) It does NOT flip the jl/jg family: LoadStoryHistoryNevada @0x30b stays
+     `jl 0x240` under EVERY PCH config; the original is `jg 0x240` (jgaudit already proved our cl emits
+     jg elsewhere — it's TU-position, not build-flag). (c) The one real PCH win (afxcmn decls) is fully
+     reproducible TEXTUALLY (lesson #26), so there is no reason to adopt `/Yu`. Do NOT re-litigate PCH.
+     ⚠ Tooling gotcha: a `/Yc` PCH must be rebuilt IMMEDIATELY before each `/Yu` consume (stale .pch →
+     silent 0/27), and the cl wrapper needs flags passed INLINE (a `$VAR` of flags reaches cl as one
+     arg → D4002 → cl drops /c and tries to LINK, leaving a truncated obj).
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
