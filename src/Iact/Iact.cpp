@@ -15,7 +15,14 @@
 #pragma intrinsic(strcmp)
 
 // FUNCTION: YODA 0x00405ae0  [dial-breather: was exact; DIFF(7) since the real-GameView.h
-//   de-dup (step 5, 2026-07-07) — align=0, one pure reg cycle. G1.]
+//   de-dup (step 5, 2026-07-07, commit f1ca459 — WorldStub.h now includes the real GameView.h,
+//   which Iact.cpp pulls in). align=0, one pure EBP<->EBX cycle (loop counter i vs the tile
+//   walk-pointer). v36 root-cause + probes: it is Iact's FIRST emitted function, so its coloring
+//   is seeded purely by the TU header/decl CONTEXT, not its body — loop forms (idx/while/do-while/
+//   w-hoist) all INERT; /O2 uniquely correct (flag sweep: /Ox/O1/Og all catastrophic, none flip
+//   it). This is header-phase displacement from a deliberate correctness de-dup (retiring the
+//   poisoning stub, lesson #22) — reverting would trade correctness for bytes. Joint-fixed-point
+//   (G2 whole-image) resolves it; do NOT mangle this correct body. See tools/frontier.py.]
 // Parses an IZON header up to the tile grid: dims/type/vars + the 18x18x3 tile rows.
 // A mismatched tag rewinds the 8 header bytes (record is optional in the stream).
 void Zone::ReadIzon(CFile *pFile)

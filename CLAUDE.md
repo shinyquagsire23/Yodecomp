@@ -491,6 +491,20 @@ yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompi
   · Source function order already matches .text order for our funcs — the few "out-of-order" markers are
     library COMDATs (CBitmap/CGdiObject dtors, linker-placed) + the documented GameView-tail block; NOT a
     lesson-#7 lever. ⇒ no cheap reorder win available.
+- **⭐ G1 FRONTIER ANALYSIS (main-thread per-function G1 is EXHAUSTED for the current near-misses).**
+  New tools: **`tools/frontier.py`** (per TU, the FIRST non-exact fn in .text/emission order = the
+  best-steerable candidate) + **`tools/survey.py`** (all non-exact ranked by asmscore closeness).
+  Tested the hypothesis "first non-exact is steerable from its own body" — it FAILS: three independent
+  fresh-TU first-functions resist every body/decl/flag probe: ReadIzon 0x405ae0 (Iact, EBP<->EBX loop
+  swap — loop forms + flag sweep inert; root cause = de-dup step 5 commit f1ca459 gave Iact the real
+  GameView.h, header-phase displacement), Puzzle::Puzzle 0x4042b0 (Records, this=EDI/ESI — decl+body
+  order verified inert), and the **jl/jg cmp-direction FAMILY** (LoadStoryHistoryNevada 0x401ac0 2B /
+  ParseTilesMaybe 0x41a030 3B / many loaders — `orig cmp n,i;jg` vs `ours cmp i,n;jl`). ⭐ FLAG SWEEP
+  RESULT: /O2 is UNIQUELY correct (GameData 12/27; /Ox→0, /O1→2, /Og/Os→0, /O2/Oy-→6) — the jl/jg
+  family is NOT a compiler-flag axis. CONCLUSION: these residuals are the `this`/counter register
+  coloring + cmp-direction seeded by the TU's real header/decl CONTEXT (the corrected dial) + MSVC 4.2
+  internal allocator state — NOT reproducible piecemeal. They need the joint fixed-point (G2 whole-image
+  linking all TUs, or the exact original build), NOT more per-function grinding. Annotations updated.
 - Ghidra: NO writes this session. Nothing pending.
 
 **▶ START HERE (v37) — the closest funcs are provably joint-pass-bound, so pick a lever that MOVES:**
@@ -501,14 +515,17 @@ yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompi
    that compiles to a plausible-but-different disasm; missing behavior) — visible ONLY at runtime. Launch
    under wine, play through, map any wrong color/missing glyph/misplaced-UI symptom → function → diff vs
    disasm. (Observing a GUI game headless is the hard part — may need screenshots or USER to drive.)
-2. **G1 joint residual passes = the ONLY path to the reg-swap exact-%.** Per the corrected dial: single-
-   function permutation CANNOT fix these (proven again on FindTile). Real levers: (a) get every CALLED
-   helper's signature exactly right per TU (a wrong one mistranscribes call sites AND rotates the dial —
-   the one actionable, findable defect class; hunt via align>0 hits AT call sites); (b) the whole-TU
-   asm-first / joint-permuter approach for the reg-swap clones (Worldgen ParseZaux/Zax3/Zax2 0x423110/190/
-   210; DetonateAdjacentTiles 0x428680 is align=0/1042B — goes EXACT the instant the Worldgen TU allocation
-   is right). Building the N-worker parallel permuter is still the roadmap ask, but note it mutates ONE
-   function so it WON'T crack pure TU-position swaps — it only helps functions with an internal source knob.
+2. **G1 reg-swap/cmp-family residuals — main-thread per-function grinding is EXHAUSTED (v36 proof).**
+   Run `tools/frontier.py` + `tools/survey.py` for the map. The closest ~50 non-exact funcs are all the
+   `this`/counter register-coloring + jl/jg cmp-direction class, and v36 proved them inert to source
+   forms, decl/body order, AND compiler flags (/O2 uniquely correct). They need the JOINT FIXED-POINT,
+   which realistically means **G2 whole-image** (link all TUs in original order — the allocator is
+   deterministic, so identical source + identical whole-TU context reproduces the original coloring;
+   any residual = a source/context difference still to find). DetonateAdjacentTiles 0x428680 (align=0/
+   1042B) goes EXACT the instant Worldgen's TU context is right. Do NOT re-grind the parked near-misses
+   per-function. The ONE still-actionable per-function class: a CALLED helper with a WRONG signature
+   (mistranscribes its call sites AND rotates the dial) — hunt via align>0 hits AT call sites; but the
+   align=0 frontier funcs already have correct call-site structure, so this is rare now.
 3. **Canvas-gap mini (parked #2):** still BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
    combo ctrl 0x9e — nothing references the msgmap head; class ctor/OnInitDialog out of range). Small.
 4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
@@ -739,6 +756,12 @@ yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompi
 - **`progress.py`** — completion dashboard: compiles every `src/**/*.cpp`, sums matched bytes ÷ 128158
   total app-region function bytes (534 funcs). One number to track progress.
 - **`bytematch.py --va 0x.. --obj ..`** — single-function reloc-masked compare (the original harness).
+- **`survey.py`** (v36) — ranks EVERY non-exact marker across all TUs by asmscore closeness (align→reg_pen
+  →byte_diff). Top rows = nearest to exact; align=0 = pure reg-alloc/TU-phase, align>0 = insn-sel/sched.
+  The G1 target picker. Needs build/*.obj (compile all first).
+- **`frontier.py`** (v36) — per TU, the FIRST non-exact fn in .text/emission order (the joint-pass
+  frontier). ⚠ v36 proved the "first is steerable" hope FAILS for the reg-tie-break class (header-phase,
+  not body-steerable) — use it to MAP, not as a free-win list. Both reuse match+asmscore.
 - **`bugscan.py [src/TU/TU.cpp ...] [--all]`** — ⭐ the **static #24/#25 correctness-bug oracle** (v35;
   the committed form of v34's job-tmp vtscan). Needs `build/<TU>.obj` built (compile every TU first, like
   progress.py). For each `// FUNCTION: YODA` marker it NW-aligns our stream vs the original (relocs masked,
