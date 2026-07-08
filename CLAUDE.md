@@ -104,6 +104,14 @@ libKOTOR.so/KOTOR2sub/libkotor2.so — the user's KOTOR project), so a mis-route
     as now) — then RESTART Claude Code (MCP servers launch at startup). Verify deps (`mcp`, `requests`) import
     under that python3. AFTER repoint+restart, re-run the cross-program comment test; if it routes, relax these
     warnings.
+  - **v51 APPLIED the fix (pending a Claude Code RESTART to take effect):** the old bridge needed `mcp>=1.28.1`
+    but system python3 had `mcp 1.5.0`, so built a dedicated venv `~/workspace/ghidra-mcp/.venv`
+    (`python3 -m venv` + `pip install -e ~/workspace/ghidra-mcp`, mcp 1.28.1) and repointed
+    `~/.claude.json`→`mcpServers.ghidra` to `{"command":".../.venv/bin/python","args":["-m","bridge_mcp_ghidra"]}`
+    (backup at `~/.claude.json.bak-v51`). Smoke-tested: the new bridge starts + registers tools. ⚠ It prefers
+    UDS AUTO-DISCOVERY and connected to instance **"JK_re"**, NOT YodaDemo/8089 — after the CC restart, use
+    `list_instances`/`connect_instance` to reach the YodaDemo instance if it didn't auto-pick it. THEN re-run
+    the cross-program comment test; if writes route by `program=`, relax the WRITE GOTCHA warnings.
   - **⇒ SAFE-WRITE RULES until the bridge is repointed+restarted:** (a) write to a NON-active program via
     **direct HTTP `?program=<name>` in the query** (routes correctly); (b) for `mcp__ghidra__*` writes keep the
     TARGET program **ACTIVE** (`list_open_programs`→current) — they ignore `program=`.
