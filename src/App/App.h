@@ -3,8 +3,6 @@
 #define APP_H
 #include <afxwin.h>
 
-void __stdcall Log_Write(char *pszMsg);  // 0x00419cb0
-
 // The About box (IDD_ABOUTBOX == 100). vftable 0x0044c1d8.
 class CAboutDlg : public CDialog
 {
@@ -27,9 +25,9 @@ public:
     virtual BOOL InitInstance();                         // 0x004198c0
     virtual BOOL OnIdle(LONG lCount);                    // 0x00419ca0
     void OnAppAbout();                                   // 0x00419df0
-    // 0x00419cb0 — same address as the free Log_Write above: call sites in the doc TU pass
-    // ECX = AfxGetApp(), so the original was a member; the body never reads `this`, which is
-    // why the App TU's __stdcall free-function transcription still byte-matched.
+    // 0x00419cb0 — debug logger (defined in App.cpp). Call sites in the doc TU pass
+    // ECX = AfxGetApp(), so the original is a thiscall member; the body never reads `this`,
+    // so its codegen is byte-identical to a __stdcall free function (RET 4).
     void LogWrite(char *pszMsg);
 protected:
     DECLARE_MESSAGE_MAP()                                // 0x00419720

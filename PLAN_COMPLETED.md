@@ -1064,3 +1064,17 @@ synced, saved.
   an out-of-line `mov eax,ecx; ret` ctor ⇒ NOT MFC CPoint/CRect (their ctors are _AFXWIN_INLINE).
   Model a custom class with the empty ctor DEFINED out-of-line AND AFTER the use site. (Now in the
   permanent MFC lessons list.)
+
+### ⏮ PRIOR PICKUP (v31 — 2026-07-07, condensed at v32)
+PHASE F: the FIRST APP TU (src/AppData/AppData.cpp, 0x401000–0x401450) — the last un-transcribed
+real source file — done, 14/14 app funcs EXACT (MapZone/InvItem/WorldgenZoneEntry ctors/dtors +
+the AppWnd CWnd class OnTimer/OnPaint/Disable/Enable) + 5 CObject lib COMDATs match folded addrs.
+Codegen lessons applied: (a) MapZone ctor writes fields DESCENDING by offset (cl groups same-value
+stores keeping source order per group); (b) InvItem needed an EXPLICIT out-of-line ~InvItem (added
+to GameView.h) so ??_GInvItem stays a thin 28B call-through, not inlined CString destruction.
+AppWnd stayed PROVISIONAL (msgmap-0x44b000 CWnd class identity unknown; Disable/Enable overrides
+COMDAT-fold across ~15 UI classes; `::EnableWindow(m_hWnd,BOOL)` written as the direct Win32 call).
+Also STOOD UP Phase G0 (tools/link_exe.sh — full-image link as a completeness oracle): found +
+closed the ONE true gap GameView::RemoveItem 0x429150 (EXACT, appended to Worldgen.cpp). Left the
+link at 0 duplicates / 34 unresolved (10 WAVMIX + 24 cross-TU name/sig/data drifts) — all closed
+in v32. Milestone: 98.47→99.09 % coverage, 21.24 % exact.

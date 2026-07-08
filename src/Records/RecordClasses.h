@@ -232,10 +232,6 @@ public:                              // +0x00 = CObject vtable
     Zone(short w = 18, short h = 18);                       // 0x00405150
     virtual ~Zone();                                        // 0x004054d0
     unsigned short GetTile(int x, int y, int layer);        // 0x00405430  MATCH
-    int   DamageEntityAt(int x, int y, CObArray *paChars, int nDmg,
-                         World *pWorld, GameView *pView);   // 0x00405710 (Zone TU)
-    void  HitEntityAt(int x, int y, CObArray *paChars, short nDmg,
-                      World *pWorld, GameView *pView);      // 0x004059d0 (Zone TU)
     void           SetTile(int x, int y, int layer, short val); // 0x00405480  MATCH
     int            GetEdgeCode(int x, int y);               // 0x00405380
     ZoneObj       *FindObjectAt(int x, int y);              // 0x00405330

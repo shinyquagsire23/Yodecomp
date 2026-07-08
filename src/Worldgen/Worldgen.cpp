@@ -5,6 +5,33 @@
 #include <time.h>
 #include "Worldgen.h"
 
+// ---- .data lookup tables (extracted from the original binary) ----
+// 10x10 worldgen grid-order priority ring (0x00456630): outer ring 5 -> center 1.
+int gWorldgenGridOrderTable[100] = {
+     5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+     5, 4, 4, 4, 4, 4, 4, 4, 4, 5,
+     5, 4, 3, 3, 3, 3, 3, 3, 4, 5,
+     5, 4, 3, 2, 2, 2, 2, 3, 4, 5,
+     5, 4, 3, 2, 1, 1, 2, 3, 4, 5,
+     5, 4, 3, 2, 1, 1, 2, 3, 4, 5,
+     5, 4, 3, 2, 2, 2, 2, 3, 4, 5,
+     5, 4, 3, 3, 3, 3, 3, 3, 4, 5,
+     5, 4, 4, 4, 4, 4, 4, 4, 4, 5,
+     5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+};
+
+// Quarter-circle needle-offset table (radius 16), 0x00456938 (25 ints in the binary;
+// the health-dial needle indexes [50-nLo] which reaches [25] at exactly nLo=25 -- an
+// original one-past-the-end read of the adjacent chunk tag. We provide a 26th element
+// (=16, the geometric continuation) so our build is well-defined at 25%% health.
+int gNeedleTable[26] = {
+     0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    10,10,11,11,12,12,13,13,14,14,
+    15,15,15,16,16,
+    16,
+};
+
+
 // FUNCTION: YODA 0x0041bfa0
 // [EFFECTIVE: align=12 — clean ESI/EDI rename + one arg-marshal slot at the recursion call
 // (orig loads visible into CX and sel into EAX; ours AX/ECX). Twin 0x41c0b0 scores align=0
@@ -5250,7 +5277,7 @@ void World::OnSaveWorld()
                     {
                         pFile->Write(&i, 4);
                         pFile->Write(&j, 4);
-                        SaveZoneRecursive(pFile, pCell->id);
+                        SaveZoneRecursive(pFile, pCell->id, pCell->flagSolved);
                     }
                     j++;
                 } while (j < 6);
@@ -5270,7 +5297,7 @@ void World::OnSaveWorld()
                     {
                         pFile->Write(&i, 4);
                         pFile->Write(&j, 4);
-                        SaveZoneRecursive(pFile, pCell->id);
+                        SaveZoneRecursive(pFile, pCell->id, pCell->flagSolved);
                     }
                     j++;
                 } while (j < 2);
@@ -5325,7 +5352,7 @@ void World::OnSaveWorld()
                 {
                     pFile->Write(&i, 4);
                     pFile->Write(&j, 4);
-                    SaveZoneRecursive(pFile, pCell->id);
+                    SaveZoneRecursive(pFile, pCell->id, pCell->flagSolved);
                 }
                 j++;
             } while (j < 10);

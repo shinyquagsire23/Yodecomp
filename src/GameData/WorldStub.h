@@ -167,7 +167,7 @@ public:
     // original spills+reloads ECX at every call site, proving the member-call form):
     // dir (1=W 2=N 3=E 4=S, 0=none) of the neighbor of (x,y) holding a 0x68 gate cell
     int  FindAdjacentGateDirMaybe(int x, int y, short *paGrid); // 0x00419f60
-    int  GetGridOrderMaybe(int x, int y);                 // 0x00421e50 (static 10x10 table 0x456630)
+    int  GetZoneGridOrder(int x, int y);                  // 0x00421e50 (static 10x10 table 0x456630)
     // ⚠ TU-PHASE DIAL (2026-07-06): the number & signature-shapes of World member decls rotate
     // allocator/cmp-direction tie-breaks in EVERY function of this TU (proven: loaders' backedge
     // jg/jl phase, PlaceZoneObjectTiles, FindZoneCellById, the savers' arm symmetry). These four
@@ -179,18 +179,18 @@ public:
     int  CalcTimeScore();                                 // 0x004019c0 (scorers TU)
     void RestoreGridFromBackup();                         // 0x00421520 (doc TU)
     // ---- cross-TU externs (doc TU / worldgen) ----
-    int          LoadWorldMaybe();                        // 0x00421fd0
+    int          LoadWorld();                             // 0x00421fd0
     int          Generate(unsigned int nSeed);            // worldgen driver
     unsigned int Randomize();                             // 0x00424380  reseed rand
     void         BackupZoneGrid();                        // zones[0..99] -> [100..199]
-    void         Populate();                              // 0x00425e30
-    void         FindSpecialZoneMaybe();                  //
+    int          Populate();                              // 0x00425e30
+    void         SetCurrentToIntroZone();                 // 0x00423d20
     void         UpdateCamera();                          //
     Tile *GetTileData(int idx);                           // 0x00403a40
     Zone *GetZoneById(short id);                      // 0x00403a70
     int  FindTile(void *pTile);                           // 0x00403aa0
     // Iact interpreter callees (doc TU):
-    int  EnterZone(Zone *pZone);                          // 0x00423dc0  returns zone id
+    int  GetZoneIndex(Zone *pZone);                       // 0x00423dc0  returns zone id
     void DrawPlayer();                                    // 0x0041a6d0
 };
 

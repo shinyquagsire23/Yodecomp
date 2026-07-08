@@ -17,8 +17,8 @@ class Character;
 class GameView
 {
 public:
-    void PlayerMove(int n);                     // 0x00409060 (sound/feedback tick)
-    void PlayerCheckWalkable(short x, short y); // 0x00409460
+    void PlaySound(int nSoundId);               // 0x00409060 (sound/feedback tick)
+    void DrawZoneCell(short x, short y);        // 0x00409460 (redraw one map cell)
 };
 
 class World

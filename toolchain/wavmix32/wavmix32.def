@@ -1,0 +1,19 @@
+; wavmix32.def — module-definition file for the WAVMIX32.DLL import library.
+;
+; Authored for this project. Contains only the interface (the DLL name + the exported function
+; names the demo imports) — facts, not copyrightable expression. LIB.EXE turns it into
+; wavmix32.lib, whose stdcall-decorated symbols (_WaveMix*@N) resolve our objects and import the
+; undecorated names from WAVMIX32.DLL by name, exactly like the original binary. A real (or the
+; stub) WAVMIX32.DLL provides sound at runtime.
+LIBRARY   WAVMIX32
+EXPORTS
+    WaveMixInit         @1
+    WaveMixActivate     @2
+    WaveMixOpenWave     @3
+    WaveMixOpenChannel  @4
+    WaveMixPlay         @5
+    WaveMixFlushChannel @6
+    WaveMixCloseChannel @7
+    WaveMixFreeWave     @8
+    WaveMixCloseSession @9
+    WaveMixPump         @10

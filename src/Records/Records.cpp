@@ -545,14 +545,14 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
             if (ch->health != -1) {
                 e->damageTaken = e->damageTaken + damage;
                 if (ch->health <= e->damageTaken) {
-                    pView->PlayerMove(5);
+                    pView->PlaySound(5);
                     short w = pWorld->characters[e->charId]->weaponCharId;
                     if (w >= 0) {
                         void *t = pWorld->characters[w]->GetProjectileTile(0, e->bulletDX, e->bulletDY, 0, &pWorld->tiles);
                         int ti = pWorld->FindTile(t);
                         if ((short)GetTile(e->bulletX, e->bulletY, 1) == ti) {
                             SetTile(e->bulletX, e->bulletY, 1, -1);
-                            pView->PlayerCheckWalkable(e->bulletX, e->bulletY);
+                            pView->DrawZoneCell(e->bulletX, e->bulletY);
                         }
                     }
                     e->charId = -1;
@@ -574,7 +574,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
                                 no->state = 1;
                                 objects.SetAtGrow(objects.GetSize(), no);
                                 SetTile(x, y, 1, drop);
-                                pView->PlayerCheckWalkable((short)x, (short)y);
+                                pView->DrawZoneCell((short)x, (short)y);
                             }
                         } else {
                             no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
@@ -582,7 +582,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, World *p
                             no->state = 1;
                             objects.SetAtGrow(objects.GetSize(), no);
                             SetTile(x, y, 1, e->item - 1);
-                            pView->PlayerCheckWalkable((short)x, (short)y);
+                            pView->DrawZoneCell((short)x, (short)y);
                         }
                     }
                     return 1;
@@ -610,14 +610,14 @@ int Zone::HitEntityAt(int x, int y, CObArray *paChars, int timerVal, World *pWor
             int id = e->charId;
             if (nChars > id && id >= 0) {
             e->timer = (short)timerVal;
-            pView->PlayerMove(5);
+            pView->PlaySound(5);
             short w = pWorld->characters[e->charId]->weaponCharId;
             if (w >= 0) {
                 void *t = pWorld->characters[w]->GetProjectileTile(0, e->bulletDX, e->bulletDY, 0, &pWorld->tiles);
                 int ti = pWorld->FindTile(t);
                 if ((short)GetTile(e->bulletX, e->bulletY, 1) == ti) {
                     SetTile(e->bulletX, e->bulletY, 1, -1);
-                    pView->PlayerCheckWalkable(e->bulletX, e->bulletY);
+                    pView->DrawZoneCell(e->bulletX, e->bulletY);
                 }
                 return 1;
             }

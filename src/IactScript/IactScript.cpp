@@ -7,7 +7,10 @@
 // Shared scratch for IACT command text (.data 0x459558). Only real reader/writer is
 // IactCommand::Read — the SoundInit/GameView::Dtor "refs" are the END bound of the
 // wave-handle array at 0x459458.
-extern char Iact_szCmdTextBuf[];
+// IACT command text scratch buffer (.bss 0x00459558). IactCommand::Read fills it with the
+// command's inline text (len is a WORD from the .dta). Size is the reservation to the next
+// global (0x459e28); the exact figure is a G2 layout detail — 2048 comfortably holds any text.
+char Iact_szCmdTextBuf[2048];
 
 // ============================== IactScript ==============================
 

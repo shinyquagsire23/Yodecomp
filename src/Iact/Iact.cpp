@@ -429,7 +429,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, Wor
                 switch (pCond->opcode) {
                 case COND_FirstEnter:
                     if (event == 4 && activatedFlag == 0 && pWorld != NULL) {
-                        if (pWorld->FindZoneCellById((short)pWorld->EnterZone(this),
+                        if (pWorld->FindZoneCellById((short)pWorld->GetZoneIndex(this),
                                                      &cellX, &cellY) != 0
                             && pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].flagSolved == 1)
                             matched = 0;

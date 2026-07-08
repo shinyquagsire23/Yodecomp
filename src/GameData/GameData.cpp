@@ -771,7 +771,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
         v->SoundFlush();
         v->PlaySound(0x3a);
     }
-    FindSpecialZoneMaybe();
+    SetCurrentToIntroZone();
     cameraY = 0;
     cameraX = 0;
     UpdateCamera();
@@ -828,7 +828,7 @@ int World::StartGame(unsigned int nSeed, int bSkipGenerate)
             mz++;
         }
     }
-    if (LoadWorldMaybe() == 0)
+    if (LoadWorld() == 0)
         return 0;
     unk2e34 = 0;
     if (bSkipGenerate == 0) {
@@ -1164,7 +1164,7 @@ int World::BuildQuestPathMaybe(short *paGrid, short *paOrder)
         }
         if (count >= target)
             break;
-        if (GetGridOrderMaybe(x, y) >= 3 || attempts >= 0x96) {
+        if (GetZoneGridOrder(x, y) >= 3 || attempts >= 0x96) {
             int cell = paGrid[y * 10 + x];
             if (cell == 1 || cell == 0x12c) {
                 int bLeftOk = 0;
@@ -1196,7 +1196,7 @@ int World::BuildQuestPathMaybe(short *paGrid, short *paOrder)
     int fy = 0;
     for (y = 0; y < 10; y++) {
         for (x = 0; x < 10; x++) {
-            if (paOrder[y * 10 + x] == last && GetGridOrderMaybe(x, y) < 3) {
+            if (paOrder[y * 10 + x] == last && GetZoneGridOrder(x, y) < 3) {
                 fx = x;
                 fy = y;
                 found = 1;
@@ -1209,7 +1209,7 @@ int World::BuildQuestPathMaybe(short *paGrid, short *paOrder)
     if (found) {
         for (y = 0; y < 10; y++) {
             for (x = 0; x < 10; x++) {
-                if (paOrder[y * 10 + x] >= 0 && GetGridOrderMaybe(x, y) >= 3
+                if (paOrder[y * 10 + x] >= 0 && GetZoneGridOrder(x, y) >= 3
                     && paOrder[y * 10 + x] != last) {
                     short t = paOrder[y * 10 + x];
                     paOrder[y * 10 + x] = (short)last;

@@ -378,10 +378,12 @@ def _cli():
     exe = open(os.path.join(root, "YodaDemo/YodaDemo.exe"), "rb").read()
     workdir = os.path.dirname(os.path.abspath(src))
     base = os.path.splitext(os.path.basename(src))[0]
-    obj = os.path.join(workdir, base + ".obj")
+    build = os.path.join(root, "build"); os.makedirs(build, exist_ok=True)
+    obj = os.path.join(build, base + ".obj")
     if os.path.exists(obj):
         os.remove(obj)
-    r = subprocess.run([cl] + flags + [base + ".cpp"], cwd=workdir,
+    fo = "/Fo" + os.path.relpath(obj, workdir)
+    r = subprocess.run([cl] + flags + [fo, base + ".cpp"], cwd=workdir,
                        env=dict(os.environ, WINEDEBUG="-all"), capture_output=True)
     if not os.path.exists(obj):
         print(r.stdout.decode("latin1", "replace"))

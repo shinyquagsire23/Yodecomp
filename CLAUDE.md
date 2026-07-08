@@ -377,15 +377,24 @@ Written to be followable without prior context: each phase lists concrete steps 
   parked minis (InvScrollBar ??1 0x4086b0, Canvas-gap 0x407d90/dc0). Also stood up Phase G0
   (tools/link_exe.sh — full-image link as a completeness oracle): 0 duplicate symbols, 34
   unresolved (10 WAVMIX imports + ~21 cross-TU name/sig drifts + rtc/globals), and it surfaced
-  + closed the ONE true gap GameView::RemoveItem 0x429150 (EXACT). docs/link-audit.md**. Full
-  per-session milestone history in PLAN_COMPLETED.md. ~100 % = G's whole-image build. Track effective-
-  match bytes separately (they count for G, not for %).
+  + closed the ONE true gap GameView::RemoveItem 0x429150 (EXACT). docs/link-audit.md** →
+  **99.09 % coverage / 20.57 % exact — v32 (2026-07-07): PHASE G0 COMPLETE. tools/link_exe.sh
+  links the WHOLE image (0 unresolved / 0 duplicates / exit 0) into a RUNNABLE yoda.exe (446 KB
+  with the original's copied resource section). All 34 v31 unresolved closed: 10 WAVMIX via an
+  in-house non-copyrighted stub lib + 24 code/data drifts reconciled to the real defs + real .data
+  tables extracted from the binary; tools/extract_res.py copies the .rsrc verbatim. Exact dipped
+  21.24→20.57 % as the shared-header signature fixes rotated the dial (Worldgen ParseZaux/ParseZax2/
+  SetCurrentToIntroZone + 1 WorldDoc fn → PHASE-DISPLACED; recoverable in G1). Objs moved to repo
+  build/. docs/link-audit.md**. Full per-session milestone history in PLAN_COMPLETED.md. ~100 % =
+  G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
-1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f <TU>.obj &&
-   ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS <TU>.cpp`
-   then `python3 tools/verify.py src/<TU>/<TU>.cpp` from repo root — confirm the recorded
-   exact-count reproduces BEFORE changing anything (if not, a header drifted; bisect first).
+1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f ../../build/<TU>.obj &&
+   ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+   /Fo../../build/<TU>.obj <TU>.cpp` then `python3 tools/verify.py src/<TU>/<TU>.cpp` from repo root
+   — confirm the recorded exact-count reproduces BEFORE changing anything (if not, a header drifted;
+   bisect first). **⚠ OBJS LIVE IN `build/` (repo root), not next to the .cpp** (v32 hygiene change):
+   all tooling (verify/match/progress/asmscore + link_exe.sh) reads/writes `build/<TU>.obj` via `/Fo`.
 2. **Ghidra check:** `curl -s localhost:8089/list_open_programs` → `current_program` must be
    `YodaDemo.exe` before ANY write (renames/comments/struct edits hit the ACTIVE program, and
    `program=` is honored only for reads). If not active, queue the writes in the pickup block
@@ -417,70 +426,61 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v31 — PHASE F DONE + PHASE G0 STOOD UP; 99.09% coverage)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` should top out at the G0
-commit ("Phase G0: link-to-complete audit … RemoveItem"). Baseline to reproduce before changing
-anything: `tools/link_exe.sh` → **0 duplicates, 34 unresolved** (10 WAVMIX); `python3
-tools/verify.py src/AppData/AppData.cpp` → **14/14 exact** (rm the .obj + recompile first, per
-protocol); `tools/verify.py src/Worldgen/Worldgen.cpp` → **35/91 exact**. Ghidra: confirm
-`list_open_programs` current=YodaDemo.exe before any write. If any baseline differs, a header
-drifted — bisect before proceeding.
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v32 — PHASE G0 COMPLETE: LINKS + RUNNABLE; 99.09% coverage)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` should top out at the v32 G0
+commit ("Phase G0 complete: link 0-unresolved + runnable image"). Baselines (rm the obj + recompile
+per protocol — **objs now live in `build/`, use `/Fo../../build/<TU>.obj`**):
+`tools/link_exe.sh` → **0 duplicates, 0 unresolved, link exit 0, yoda.exe built** (auto-builds
+the wavmix32 import lib from toolchain/wavmix32/wavmix32.def + wavmix32_stub.c); `tools/verify.py
+src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/
+GameData.cpp` → **12/27**. Ghidra: confirm `list_open_programs` current=YodaDemo.exe before writes.
+If a baseline differs, a header drifted — bisect first.
 
-**▶ v31 RESULTS (committed): PHASE F — the FIRST APP TU (src/AppData/AppData.cpp,
-0x401000–0x401450), the LAST un-transcribed real source file, is DONE: 14/14 app funcs EXACT
-+ 5 CObject lib COMDATs (0x401060/70/80/130/150) byte-match their folded addrs. Also fixed the
-Worldgen build (TextDialog field renames unk10/14/54→nArgX/nArgY/nMode broke ShowTextDialog).
-Ghidra: 16 funcs renamed into MapZone/InvItem/WorldgenZoneEntry/AppWnd/CObject namespaces +
-plate on 0x401000, saved (YodaDemo ACTIVE). Coverage 98.47%→99.09%, exact 21.24%.**
-- **AppData classes (all EXACT):** MapZone (ctor 0x4010b0 / ~ 0x401180 / ??_G 0x401160),
-  InvItem (ctor 0x4011d0 / tile-ctor 0x401270 / ~ 0x401300 / ??_G 0x401250), WorldgenZoneEntry
-  (ctor 0x401390 / ~ 0x401400 / ??_G 0x401370), + the AppWnd CWnd class: OnTimer 0x401000
-  (`{ Default(); }`), OnPaint 0x401010 (`{ CPaintDC dc(this); }`), DisableSelfWindow 0x401090 /
-  EnableSelfWindow 0x4010a0 (`::EnableWindow(m_hWnd, F/T)`).
-- **Two codegen lessons applied:** (a) MapZone ctor writes fields DESCENDING by offset — cl
-  groups same-value stores keeping source order per group (0-writes 0x28→0x08, -1-writes
-  0x18→0x04). (b) InvItem needed an EXPLICIT out-of-line `~InvItem()` (added to GameView.h) so
-  ??_GInvItem stays a thin 28B call-through instead of inlining CString destruction (implicit-
-  vs-explicit dtor shape). Verified dial-neutral: GameView 72/122, Worldgen (was 34/90 at the
-  time; now 35/91 after the G0 RemoveItem add) both ways.
-- **AppWnd is PROVISIONAL:** the msgmap-0x44b000 CWnd class's exact identity is unknown (base
-  msgmap 0x44c510). Its Disable/Enable overrides COMDAT-fold across ~15 UI classes (InvScrollBar
-  vtable 0x44b578 slots 36/37 point at the folded copies). Bodies byte-match regardless; the
-  message-map + vtable DATA reconcile in G2. `::EnableWindow(m_hWnd,BOOL)` was written as the
-  DIRECT Win32 API call (CWnd::EnableWindow did NOT inline in our build → a tail-call).
+**▶ v32 RESULTS (committed): PHASE G0 DONE — `tools/link_exe.sh` links the whole image with 0
+unresolved + 0 duplicates + resources → a RUNNABLE `yoda.exe` (446 KB).** All 34 v31 unresolved
+closed: 10 WAVMIX via an in-house non-copyrighted stub — `toolchain/wavmix32/wavmix32.def` +
+`wavmix32_stub.c` build a decorated import lib + a no-op DLL that imports WAVMIX32.DLL by name like
+the original (real DLL drops in for sound) + 24 code/data drifts reconciled (full table:
+docs/link-audit.md). Resources: `tools/extract_res.py` copies YodaDemo.exe's `.rsrc` verbatim →
+`.res` (127 resources; link.exe 3.10 takes `.res` directly; output `.rsrc` matches orig 0xd674).
+- **Reconciliation highlights:** `FindSpecialZoneMaybe`=`SetCurrentToIntroZone` (0x423d20, proven
+  via StartGame disasm); Records.h `PlayerMove/PlayerCheckWalkable` were MISNAMED → real
+  `PlaySound(int)/DrawZoneCell(short,short)` (0x409060/0x409460); `FrameView` stub → `GameView`;
+  `SaveZoneRecursive` is 3-arg `(CFile*,short,int bFull)` — OnSaveWorld passes `pCell->flagSolved`
+  (raw-disasm: 3 pushes); removed the stray `Zone::DamageEntityAt(…,int,…)` dup overload (real is
+  `short`); App.cpp `Log_Write` free-fn → member `CTheApp::LogWrite` (byte-identical, body ignores
+  `this`); `rtcDeskcpp*` → `RUNTIME_CLASS(World/CMainFrame/GameView)`. Real .data tables extracted
+  from the binary: YodaMasterPalette[1024]@0x456230, gWorldgenGridOrderTable[100]@0x456630,
+  gNeedleTable(25 real)@0x456938, Iact_szCmdTextBuf[2048]@0x459558.
+- **DIAL COST (expected):** exact 21.24%→**20.57%** (-0.7%). The shared-header signature changes
+  (GetExitDirections uchar, SaveZoneRecursive arity, FindTile void*, DamageEntityAt short, Populate
+  int) rotated the TU-phase dial: Worldgen ParseZaux/ParseZax2/SetCurrentToIntroZone + one WorldDoc
+  fn flipped to PHASE-DISPLACED (source proven correct). NET function count was +2 exact; the sigs
+  are now CORRECT (= what G1's fixed point needs). Do NOT revert them — G1 recovers the bytes.
+- **v32 hygiene:** objs moved to repo-level `build/` (verify/match/progress/asmscore + link_exe.sh
+  all use `/Fo build/<TU>.obj`; `build/` gitignored). Two new tools: `tools/extract_res.py`,
+  and `tools/link_exe.sh` now extracts resources + links wavmix + emits the runnable EXE.
+- Ghidra: NO writes this session (pure source/tooling reconciliation). Nothing pending.
 
-**▶ v31 ADDENDUM — Phase G0 stood up (link-to-complete audit).** `tools/link_exe.sh` links all
-TUs into one EXE as a completeness oracle. It found + I closed the ONE true gap
-`GameView::RemoveItem` 0x429150 (now EXACT, appended to Worldgen.cpp — Worldgen 34→35/91). Current
-link state: 0 duplicates, 34 unresolved (10 WAVMIX32 imports + ~21 cross-TU name/sig drifts + 3
-DYNCREATE rtc + data globals). Full checklist: docs/link-audit.md. **Byte-neutral lever:** pure
-rename reconciliations don't change code bytes (masked relocs) — safe to grind.
-
-**▶ START HERE (v32): the app region has ZERO un-transcribed real source files.** Everything
-left is Phase G. Recommended: **G0 reconciliation** — run `tools/link_exe.sh`, then knock down the
-docs/link-audit.md drift list (rename stubs to the canonical decls; unify `FindTile` param,
-`GetExitDirections` return, `SaveZoneRecursive` arity, `EnterZone`=`GetZoneIndex`, `FrameView`=
-`GameView`, `LogWrite`, the `rtc*` DYNCREATE names, the C/C++ linkage globals) until unresolved→0,
-then add a `wavmix32.lib` stub + extract resources. Most of this is byte-neutral. Other options:
-1. **Two parked minis (small, real source):** the Canvas-gap pair 0x407d90/0x407dc0 (2 funcs
-   just before the Canvas TU head) and the InvScrollBar ??_G/??1 (0x408690/0x4086b0, the
-   InvScrollBar mini-TU 0x4085c0–0x408710 between Canvas and GameView). Model InvScrollBar
-   Records-style (CScrollBar base; Ctor 0x4085c0; scrollMax@0x3c/scrollPos@0x40). NOTE its
-   Disable/Enable virtuals are the same folded copies now owned by AppData.
-2. **G1 joint residual passes** (biggest exact-% wins): build the parallel permuter loop (N wine
-   workers around tools/permute.py --mode all, asmscore oracle) and sweep the parked EFFECTIVE
-   functions per TU (doc TU 56, Records 8, Iact 8, Canvas 3, WorldDoc 6, GameData, scorers).
-   The Worldgen "36→35/91" drift is a symptom the shared-header dials aren't at their fixed point yet
-   — the minimal-TU probe (extract a function + its `#include`, asmscore solo) tells header-dial
-   vs TU-position per function. UseWeapon binding flip + loader/saver clone rotations are the big
-   expected wins.
+**▶ START HERE (v33): G0 is complete; pick G1 (exact-% recovery) or G2 (byte-image). Recommended:**
+1. **G1 joint residual passes (biggest exact-% wins, recovers the v32 dial cost + more).** Build the
+   parallel permuter loop (N wine workers around tools/permute.py --mode all, asmscore oracle) and
+   sweep the parked EFFECTIVE / PHASE-DISPLACED functions per TU (Worldgen 57, GameView 64, Records
+   7, Iact 9, WorldDoc 6, GameData 15, scorers). Per function use the minimal-TU probe (extract fn +
+   its `#include`, asmscore solo) to tell header-dial vs TU-position. Expected big wins: the Worldgen
+   ParseZaux/ParseZax2 pair + SetCurrentToIntroZone (just displaced by v32 — should re-converge once
+   the real GameData/WorldDoc decl sets settle), UseWeapon binding flip, loader/saver clone rotations.
+2. **Two parked minis (small, real source):** Canvas-gap pair 0x407d90/0x407dc0; InvScrollBar
+   ??_G/??1 (0x408690/0x4086b0, mini-TU 0x4085c0–0x408710). Model InvScrollBar Records-style
+   (CScrollBar base; Ctor 0x4085c0; scrollMax@0x3c/scrollPos@0x40). Its Disable/Enable virtuals are
+   the folded copies now owned by AppData.
 3. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
-- **Phase-G plumbing (NOT hand-written source — do in G2):** EH funclets (0x405320, 0x408c2a
-  CxxFrameHandler thunk, 0x4161bd/416401/416547/416550/41673d/416902/419e51/424f69), COMDAT-
-  folded lib defaults (0x40e3f0 CView no-op, 0x40e730/41bee0/41bf30/41c180/41c340/41e8b0 ??_G/??1
-  dtors + ??_GCPalette 0x41e8b0), static-init/atexit for theApp + g_strReplayPath (0x419830/40/
-  50/60, 0x4196e0/f0/419700), bare linker thunks (0x4186f0 CWnd::Default, 0x424fb0). Largest
-  unclaimed now (progress.py): 0x41c180/0x41e8b0/0x41c340/0x41bf30 (all ~100B EH/palette COMDATs).
+4. **Run the EXE (functional check):** need a real WAVMIX32.DLL present at load + YODADEMO.DTA
+   assets. The linked yoda.exe has the original's full resource UI; verify it boots under wine.
+- **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
+  thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
+  41bf30/41e8b0 ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also
+  owns the exact .data/.rsrc layout + the gNeedleTable[25]/Iact_szCmdTextBuf reservation sizes.
 
 
 ### Matching progress + tooling (Phase 4 underway)

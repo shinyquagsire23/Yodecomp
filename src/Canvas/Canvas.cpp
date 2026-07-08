@@ -11,7 +11,7 @@
 class CDC { public: void *_vfptr; HDC m_hDC; };
 
 // Set once at startup: 1 if the CPU supports MMX. Gates the accelerated blit path.
-extern int App_bCpuHasMMX;
+extern "C" int App_bCpuHasMMX;
 
 // EFFECTIVE MATCH (22B reg-alloc residual): scheduler places the `height` CSE-temp load ~2 stores earlier
 // than the original + a push-edi timing diff. Semantically identical; not source-steerable (see CLAUDE.md).

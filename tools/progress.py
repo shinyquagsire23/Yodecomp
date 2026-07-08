@@ -35,7 +35,8 @@ import re
 
 
 def compile_obj(cpp):
-    obj = os.path.splitext(cpp)[0] + ".obj"
+    build = os.path.join(ROOT, "build"); os.makedirs(build, exist_ok=True)
+    obj = os.path.join(build, os.path.splitext(os.path.basename(cpp))[0] + ".obj")
     env = dict(os.environ, WINEDEBUG="-all")
     # MFC TUs need /D_MBCS to compile afxwin.h — detect it through local includes too
     # (e.g. Iact.cpp -> RecordClasses.h -> <afxwin.h>), not just a direct <afx> include.
@@ -47,7 +48,8 @@ def compile_obj(cpp):
             afx = True
             break
     flags = FLAGS + (["/D", "_MBCS"] if afx else [])
-    r = subprocess.run([CL] + flags + [os.path.basename(cpp)],
+    fo = "/Fo" + os.path.relpath(obj, os.path.dirname(cpp))
+    r = subprocess.run([CL] + flags + [fo, os.path.basename(cpp)],
                        cwd=os.path.dirname(cpp), env=env, capture_output=True)
     return obj if r.returncode == 0 and os.path.exists(obj) else None
 

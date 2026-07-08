@@ -157,7 +157,7 @@ def pair_by_name(text, funcs):
 def main():
     src = sys.argv[1]
     exe = sys.argv[sys.argv.index("--exe") + 1] if "--exe" in sys.argv else os.path.join(ROOT, "YodaDemo/YodaDemo.exe")
-    obj = os.path.splitext(src)[0] + ".obj"
+    obj = os.path.join(ROOT, "build", os.path.splitext(os.path.basename(src))[0] + ".obj")
     if not os.path.exists(obj):
         print("obj not found; compile first:", obj); return 2
 

@@ -7,20 +7,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern "C" int App_bCpuHasMMX;           // 0x00459e28  (set by the InitInstance CPUID probe)
+extern "C" { int App_bCpuHasMMX; }       // 0x00459e28  definition (set by InitInstance CPUID probe)
 int         g_bReplayMode;               // 0x00459e2c
 extern CString g_strReplayPath;          // 0x00459e20 — defined in the Frame TU (its thunks live there)
 CWnd    *g_pExistingInstance;            // 0x00459e24
 BYTE     g_bInstanceChecked;             // 0x00459e30  bit0: FindWindow done once
 
-// Stand-ins for the doc-template CRuntimeClasses (CDeskcppDoc / CMainFrame / CDeskcppView).
-// Their addresses are masked relocations at the CSingleDocTemplate call site.
-extern CRuntimeClass rtcDeskcppDoc, rtcMainFrame, rtcDeskcppView;
+// The doc-template CRuntimeClasses. IMPLEMENT_DYNCREATE(World/CMainFrame/GameView) in their own
+// TUs emits `World::classWorld` etc.; forward-declare just that static member so RUNTIME_CLASS
+// resolves to it (the addresses are masked relocations at the CSingleDocTemplate call site).
+class World      { public: static const CRuntimeClass classWorld; };
+class CMainFrame { public: static const CRuntimeClass classCMainFrame; };
+class GameView   { public: static const CRuntimeClass classGameView; };
 
 // FUNCTION: YODA 0x00419cb0
 // Debug logger — append one line to c:\yodalog.txt (fopen "at" + fputs + fflush + fclose per
 // call). Nearly all callers compiled out under NDEBUG; only WorldgenPlacePuzzle's survives.
-void __stdcall Log_Write(char *pszMsg)
+// The original is a CTheApp member (call sites load ECX = AfxGetApp()); the body never reads
+// `this`, so the thiscall codegen is byte-identical to a __stdcall free function (RET 4).
+void CTheApp::LogWrite(char *pszMsg)
 {
     FILE *pFile = fopen("c:\\yodalog.txt", "at");
     fputs(pszMsg, pFile);
@@ -163,7 +168,7 @@ BOOL CTheApp::InitInstance()
     }
 
     CSingleDocTemplate *pDocTemplate = new CSingleDocTemplate(
-        2, &rtcDeskcppDoc, &rtcMainFrame, &rtcDeskcppView);
+        2, RUNTIME_CLASS(World), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(GameView));
     AddDocTemplate(pDocTemplate);
     OnFileNew();
 
