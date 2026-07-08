@@ -173,7 +173,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 nearly done (src/GameView/GameView.cpp). v28: 70/114 markers (7605B exact) incl. StatsDlg + 3 slider dialogs complete (empty DoDataExchange discovery), CyclePalette eff., OnCmdStats EXACT. REMAINING = the TextDialog cluster ONLY (0x416b90/0x416c40/0x417570/0x4176f0/0x417c90/0x417d30/0x417dc0 + the 0x4186e0 return-this helper, ~4.3KB) |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 all but done (src/GameView/GameView.cpp). v29: 73/121 markers; TextDialog cluster 6/7 (ctor EXACT; Run 622/622-insn eff.; Position+3 helpers eff.). REMAINING = ONLY TextDialog::Layout 0x4176f0 (1419B, jump table + CPoint[3] Polygon/LineTo + bitmap-button matrix; struct+decompile understood) |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
 | **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 8/13 exact (v28: the 1441B DTOR back IN) + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 36/90 exact under the v28 dial + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
@@ -346,12 +346,13 @@ Written to be followable without prior context: each phase lists concrete steps 
 - **Milestones** (progress.py; since v23 track the Ghidra-extent COVERAGE % — the old
   transcribed% was inflated): 7.02 % after A → 13.52 % mid-D (v7) → 73.63 % transcribed at
   doc-TU completion (v15) → 92.28 % coverage / 17.30 % exact (v26) → 94.42 % coverage (v27,
-  GameView tail + option dialogs) → **95.64 % coverage / 19.39 % exact — v28 (2026-07-07):
-  slider DoDataExchange discovery (+13 GameView exacts), struct de-dup steps 1-5
-  (MapZone/CDC/Canvas/GameView canonical; StartGame DIFF 254→79), CyclePalette eff. +
-  OnCmdStats EXACT; remaining unclaimed = the TextDialog cluster only**. Full per-session
-  milestone history in PLAN_COMPLETED.md. ~90 % after E, 100 % = G's whole-image build.
-  Track effective-match bytes separately (they count for G, not for %).
+  GameView tail + option dialogs) → 95.64 % coverage / 19.39 % exact (v28: slider
+  DoDataExchange discovery, struct de-dup steps 1-5, CyclePalette + OnCmdStats) →
+  **97.56 % coverage / 16.06 % exact — v29 (2026-07-07): the plain-class game TextDialog
+  modeled + 6/7 functions transcribed (ctor EXACT; Run 622/622-insn eff., Position + 3
+  helpers eff.); only TextDialog::Layout 0x4176f0 remains unclaimed of the big code**. Full
+  per-session milestone history in PLAN_COMPLETED.md. ~90 % after E, 100 % = G's whole-image
+  build. Track effective-match bytes separately (they count for G, not for %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
 1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f <TU>.obj &&
@@ -389,59 +390,43 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v28 — DoDataExchange discovery + struct de-dup 1-5 + CyclePalette/OnCmdStats; 95.64% coverage)
-**▶ v28 RESULTS (commits 60ac1c8..): GameView TU = 70/114 markers (7605B exact); 95.64%
-coverage / 19.39% exact globally. Ghidra: YodaDemo ACTIVE all session; run_script_inline
-WORKS again (a Ghidra restart cleared the v26 phantom-script cache); all writes landed +
-saved. PRIOR blocks migrated to PLAN_COMPLETED.md (user directive); their distilled
-knowledge = KEY lessons 15-22 + the consolidated MFC/Ghidra blocks below.**
-- **⭐ The 3 slider dialogs have EMPTY DoDataExchange overrides** (bare RET 4 @0x417f30/
-  0x418210/0x4184f0; vtable-slot-pinned at +0x88 = StatsDlg's DDX slot delta): NO base
-  call — the dev deleted it. Added to the classes + 11 COMDAT markers (4 ??_G scalar
-  dtors, 4 GetMessageMaps, 3 DoDataExchanges) — ALL MATCH first compile. Message maps
-  moved to their .text-proven position (ctor → DoDataExchange → BEGIN_MESSAGE_MAP →
-  OnInitDialog, ClassWizard layout).
-- **⭐ STRUCT DE-DUP steps 1-5 DONE** (docs/dedup-plan.md has the full log; one commit per
-  step): canonical **MapZone.h** (vptr-true; retired GameData's shifted-by-4 stub whose
-  off-by-4 displacements had been poisoning StartGame — DIFF 254→79); canonical
-  **Canvas.h** (0x407df0 = the real CTOR, 0x407eb0 = ~Canvas; `class CDC;` fwd-decl only,
-  the 2-field CDC stub now PRIVATE to Canvas.cpp; Canvas 8/11→9/11, Worldgen +4); **real
-  GameView.h into GameData/Iact** (stub lies fixed: "OnWalk(int,short)" was really
-  ZoneTransitionStep(short,short), "PlayerMove" was PlaySound, bSuppressWalkSound@0x2f4 =
-  bWeaponIactActiveMaybe; cost GameData −3 / Iact −1, all small same-length tie-breaks,
-  annotated). **Step 6 (World merge, ~102 field/granularity reconciliations) REMAINS —
-  do as its own session.**
-- **CyclePalette 0x415af0 (1280B) EFFECTIVE first compile** (304/304 insns, align 0, 6B:
-  one eax↔ecx swap in the FIRST ::AnimatePalette setup — the orig gives its two IDENTICAL
-  statements opposite allocations; parity-crossing family, G1). Palette region modeled in
-  Worldgen.h + Ghidra: bPaletteAnimEnabledMaybe@0x2e5c gates it, inline-LOGPALETTE WORDs
-  @0x2e68, sysPalette PALETTEENTRY[256]@0x2e6c (AnimatePalette source), pSysColorTable
-  retyped RGBQUAD* (WorldDoc keeps byte-math via its own header until step 6). Key shape:
-  NO pointer-caching locals — every store may alias, cl reloads per statement (lesson 19).
-- **OnCmdStats 0x416620 EXACT first compile** (296B; Maybe dropped in src+Ghidra): stack
-  StatsDlg + ONE reused CString, Format "%ld" ×4 in member order 2,3,1,0 (m_str2←highScore
-  @0x33ac, m_str3←lastScore@0x33b0, m_str1←completionCount@0x332c, m_str0←lastCount
-  @0x33a8). **??1StatsDlg = 0x416750 MATCH** (out-of-line dtor emitted by the stack
-  instance; Ghidra function created — its body was a broken 1-byte stub).
-- Dial flips all annotated in-source per protocol: IN OnCmdDifficulty + DrawEntities (the
-  DoDataExchange decls), IsZoneUsed out→in round trip, WorldDoc ??1World (1441B) back IN,
-  Canvas Clear IN; OUT FindTile, StepDetonatorEffect, ReadIzon, PlaceZoneObjectTiles,
-  FindZoneCellById; LoadStoryHistoryAlaska = the perpetual 2-byte breather (noted as such).
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v29 — TextDialog cluster 6/7 done; 97.56% coverage)
+**▶ v29 RESULTS (commits 9d23a75, ad9a30f): the plain-class game TextDialog (speech balloon,
+sizeof 0xc8, NOT Dlg.h's CTextDialog) is modeled + 6/7 functions transcribed. GameView TU =
+73/121 markers; coverage 97.56% (was 95.64% v28). Ghidra: TextDialog struct (0xc8) + 7 names
+synced, YodaDemo ACTIVE, run_script_inline works, saved.**
+- **Struct pinned from the ctor + every field access** (in GameView.h): 5 RECTs
+  (rectBox@0x5c / rectClose@0x6c / rectUp@0x7c / rectDown@0x8c / rectText@0x9c), line
+  counters (nTotalLines@0xac, nScrollLine@0xb0 starts at 5), nMode@0x54 (0=world-relative,
+  else screen), two view-ptr copies (pView2@0xb4, pParentView@0xc0), strText@0xb8.
+- **Ctor 0x416b90 EXACT** (161B). **Position 0x417570 eff.** DIFF(98): the shared
+  `goto do_layout` + tail-call to Layout fixed the structure (312→152 align); residual is
+  the cmp-direction family (two clamp inversions helped, nViewRight didn't) + one reg
+  rotation. **ScrollTextLine/ScrollTextLine2/UpdateDialogButtons DIFF(6-7)** — insn-identical
+  but for ONE uniform pParentView-load schedule shift (a local cache made it WORSE — the
+  orig re-reads). **UpdateDialogButtons takes a dead 4-byte stack arg** (ret 4, callers push
+  1) → `(int nUnused)`. **Run 0x416c40 eff.** 622/622 insns — full structure (the < 0x101 /
+  < 0x112 message-range ladders + WM_KEYDOWN wParam switch + the WM_LBUTTONDOWN 4-rect
+  PtInRect nest with shared dispatch:/rbtn: cross-jumps); residual = this-in-ESI vs the
+  original's EDI (the esi/edi this-swap allocator family) + its scheduling ripple.
+- Added `g_pszDialogFont` @0x4561cc (CreateFont face-name global, distinct from
+  g_pszFontName@0x456130).
 
-**▶ START HERE (v29): the TextDialog cluster — the LAST unclaimed app code (~4.3KB).**
-1. The plain non-CDialog TextDialog (sizeof 0xc8; decl already in GameView.h): Ctor
-   0x416b90 (161B), **Run 0x416c40 (2022B — the monster)**, Position 0x417570 (384B),
-   Layout 0x4176f0 (1419B), ScrollTextLine pair 0x417c90/0x417d30 (160B each),
-   UpdateDialogButtons 0x417dc0 (144B). ⚠ Distinct from Dlg.h's CTextDialog (sizeof 0x6c)
-   — do NOT conflate. Structs-before-transcription: pin the 0xc8 layout from the Ctor.
-2. **0x4186e0 = a trivial `mov eax,ecx; ret` member** (returns this), sole caller inside
-   Layout @0x417857 — identify + claim while transcribing Layout. 0x4186f0 = bare jmp
-   thunk to CWnd::Default sitting in the StatsDlg vtable slot @0x44b91c (same family as
-   the 0x424fb0 ILT thunk; Phase-G artifact, plate-commented, NO source needed).
-3. Then the Phase F audit: FUN_00407d90/FUN_00407dc0 (unclaimed gap before the Canvas TU
-   head), the first app TU (0x401000–0x401450: InvItem/MapZone/WorldgenZoneEntry ctors +
-   CObject no-op COMDATs), InvScrollBar ??_G/??1 (0x408690/0x4086b0, PARKED).
-4. Then de-dup **step 6 (World)** or the G1 joint passes per the roadmap.
+**▶ START HERE (v30): TextDialog::Layout 0x4176f0 (1419B) — the ONE remaining cluster
+function + the LAST big unclaimed app code.** Struct + full decompile already understood
+(Ghidra plate on 0x4176f0 has the map). It: CreateFont; fills rectBox; computes rectText;
+RoundRect the frame; MoveWindow the child CEdit; builds a **CPoint[3]** tail triangle
+(Polygon fill + CDC MoveTo/LineTo outline) — **0x4186e0 IS `CPoint::CPoint()`, an out-of-line
+empty ctor (`mov eax,ecx;ret`) the array-construction calls 3× at 0x417857** (declare a point
+type with a NON-inline empty default ctor so the 3 calls emit; plated in Ghidra); then a
+**switch(nVisibleLines) with a 5-entry jump table @0x417c78** (arms 1 / 2-4 / 5) that
+SetWindowPos+EnableWindow+ShowWindow the 3 CBitmapButtons into the bubble corner and fills the
+button rects @0x6c/0x7c/0x8c. Watch the shared `switchD_default` tail (ReleaseDC+DrawGameArea+
+WM_SETREDRAW(1)+ShowWindow) that most arms fall into. Expect effective (jump table + this-reg).
+1. Then Phase F audit: FUN_00407d90/FUN_00407dc0 (gap before Canvas TU head), the first app
+   TU (0x401000–0x401450: InvItem/MapZone/WorldgenZoneEntry ctors + CObject no-op COMDATs),
+   InvScrollBar ??_G/??1 (0x408690/0x4086b0, PARKED).
+2. Then de-dup **step 6 (World, ~102 field reconciliations)** or the G1 joint passes.
 
 
 ### Matching progress + tooling (Phase 4 underway)

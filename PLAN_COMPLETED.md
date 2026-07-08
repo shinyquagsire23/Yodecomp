@@ -198,6 +198,46 @@ write-recipes/struct-edit-gotchas block (Conventions). These blocks are the full
 logs, newest first, kept for provenance (per-function autopsies also live in-source next to
 their `// FUNCTION: YODA` markers).
 
+### ⏮ PRIOR (2026-07-07 v28 — DoDataExchange discovery + struct de-dup 1-5 + CyclePalette/OnCmdStats; 95.64% coverage)
+**▶ v28 RESULTS (commits 60ac1c8..): GameView TU = 70/114 markers (7605B exact); 95.64%
+coverage / 19.39% exact globally. Ghidra: YodaDemo ACTIVE all session; run_script_inline
+WORKS again (a Ghidra restart cleared the v26 phantom-script cache); all writes landed +
+saved. PRIOR blocks migrated to PLAN_COMPLETED.md (user directive); their distilled
+knowledge = KEY lessons 15-22 + the consolidated MFC/Ghidra blocks below.**
+- **⭐ The 3 slider dialogs have EMPTY DoDataExchange overrides** (bare RET 4 @0x417f30/
+  0x418210/0x4184f0; vtable-slot-pinned at +0x88 = StatsDlg's DDX slot delta): NO base
+  call — the dev deleted it. Added to the classes + 11 COMDAT markers (4 ??_G scalar
+  dtors, 4 GetMessageMaps, 3 DoDataExchanges) — ALL MATCH first compile. Message maps
+  moved to their .text-proven position (ctor → DoDataExchange → BEGIN_MESSAGE_MAP →
+  OnInitDialog, ClassWizard layout).
+- **⭐ STRUCT DE-DUP steps 1-5 DONE** (docs/dedup-plan.md has the full log; one commit per
+  step): canonical **MapZone.h** (vptr-true; retired GameData's shifted-by-4 stub whose
+  off-by-4 displacements had been poisoning StartGame — DIFF 254→79); canonical
+  **Canvas.h** (0x407df0 = the real CTOR, 0x407eb0 = ~Canvas; `class CDC;` fwd-decl only,
+  the 2-field CDC stub now PRIVATE to Canvas.cpp; Canvas 8/11→9/11, Worldgen +4); **real
+  GameView.h into GameData/Iact** (stub lies fixed: "OnWalk(int,short)" was really
+  ZoneTransitionStep(short,short), "PlayerMove" was PlaySound, bSuppressWalkSound@0x2f4 =
+  bWeaponIactActiveMaybe; cost GameData −3 / Iact −1, all small same-length tie-breaks,
+  annotated). **Step 6 (World merge, ~102 field/granularity reconciliations) REMAINS —
+  do as its own session.**
+- **CyclePalette 0x415af0 (1280B) EFFECTIVE first compile** (304/304 insns, align 0, 6B:
+  one eax↔ecx swap in the FIRST ::AnimatePalette setup — the orig gives its two IDENTICAL
+  statements opposite allocations; parity-crossing family, G1). Palette region modeled in
+  Worldgen.h + Ghidra: bPaletteAnimEnabledMaybe@0x2e5c gates it, inline-LOGPALETTE WORDs
+  @0x2e68, sysPalette PALETTEENTRY[256]@0x2e6c (AnimatePalette source), pSysColorTable
+  retyped RGBQUAD* (WorldDoc keeps byte-math via its own header until step 6). Key shape:
+  NO pointer-caching locals — every store may alias, cl reloads per statement (lesson 19).
+- **OnCmdStats 0x416620 EXACT first compile** (296B; Maybe dropped in src+Ghidra): stack
+  StatsDlg + ONE reused CString, Format "%ld" ×4 in member order 2,3,1,0 (m_str2←highScore
+  @0x33ac, m_str3←lastScore@0x33b0, m_str1←completionCount@0x332c, m_str0←lastCount
+  @0x33a8). **??1StatsDlg = 0x416750 MATCH** (out-of-line dtor emitted by the stack
+  instance; Ghidra function created — its body was a broken 1-byte stub).
+- Dial flips all annotated in-source per protocol: IN OnCmdDifficulty + DrawEntities (the
+  DoDataExchange decls), IsZoneUsed out→in round trip, WorldDoc ??1World (1441B) back IN,
+  Canvas Clear IN; OUT FindTile, StepDetonatorEffect, ReadIzon, PlaceZoneObjectTiles,
+  FindZoneCellById; LoadStoryHistoryAlaska = the perpetual 2-byte breather (noted as such).
+
+
 ### ⏮ PRIOR (2026-07-07 v27 — GameView tail handlers + option dialogs; 94.42% coverage)
 **▶ v27 RESULTS: GameView.cpp = 55/100 markers (6557B exact); marker coverage 94.42% globally.
 Transcribed the whole 0x415820–0x4186e0 tail EXCEPT CyclePalette/TextDialog (deferred).**
