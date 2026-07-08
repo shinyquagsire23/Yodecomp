@@ -1156,3 +1156,19 @@ folded into the standing rules / KEY lessons #8:
 **v37 verdict on the two leads it inherited:** PCH axis KILLED (net-negative + can't flip jl/jg; lesson
 #27). COMDAT lever partially checked — Iact's COMDAT set is IDENTICAL across f1ca459 (not the ReadIzon
 driver). The REAL v37 win was orthogonal: a MISSING afxcmn.h header (lesson #26) = +3 exact.
+
+## ⏮ v38 PRIOR (demoted from CLAUDE.md pickup at v39)
+**v38** (no exact change; closed 2 of v38's 3 START-HERE levers):
+- HEADER AUDIT CLOSED — every TU at its optimal MFC header set. afxcmn (v37) is the ONLY beneficial add.
+  afxext is REQUIRED for GameData/Iact (GameView.h uses CBitmapButton) but HURTS record/doc TUs that don't
+  include GameView.h: canonical afxwin/afxext/afxcmn REGRESSES Records 26→25, WorldDoc 8→7, IactScript 11→10;
+  afxdlgs also regresses. Original did NOT use one uniform afxext stdafx for all TUs. Don't add afxext/afxdlgs
+  where not needed to COMPILE.
+- EMISSION-ORDER REORDER REFUTED. GameData's fn emission order already matches its .text address order (0
+  mismatches) yet Nevada still emits jl (needs G2). Worldgen GameView-tail block reordered to .text-address
+  order → net-neutral 34/91, DetonateAdjacentTiles stayed DIFF(60) byte-for-byte, DrawWeaponIcon worsened →
+  REVERTED. Became lesson #28 (LINKER lays out /Gy COMDATs; EXE address order ≠ source/.obj order).
+**v37** (+3 exact): afxcmn header-dial win (lesson #26) — GameData 12→13 (FindTile 0x403aa0 +
+PlaceZoneObjectTiles), WorldDoc 7→8 (~World), Iact 1→2; adopted in WorldStub.h + WorldDoc.h. /Yu PCH axis
+KILLED (lesson #27): net-negative, doesn't flip jl/jg, its only win (afxcmn decls) is fully textual. afxcmn
+DEMOTED GameData LoadStoryHistoryOregon (was a lucky jg match under a false context).

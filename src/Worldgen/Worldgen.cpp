@@ -7127,9 +7127,21 @@ void GameView::AddItemToInv(Tile *pTile)
 }
 
 // FUNCTION: YODA 0x00428680
-// [EFFECTIVE: align=0, insns 377/377 — pure reg bijection (60 identity bytes). Cracks:
+// [EFFECTIVE: align=0, insns 377/377 — pure ESI<->EDI role swap (60 identity bytes). Cracks:
 // nTile is the movsx-IMMEDIATELY int form; DrawZoneCell args are plain int expressions
-// (no short casts/locals at the call sites).]
+// (no short casts/locals at the call sites).
+// ⭐ v39 PROOF-OF-MECHANISM: the entire 60B residual is ONE ESI<->EDI transposition of the two
+// params (orig y->ESI x->EDI via a push-ebp-interleaved prologue that loads both at [esp+0x14];
+// ours x->ESI y->EDI). Swapping the SIGNATURE to (int y,int x)+caller args collapses it to
+// byte_diff=2 (reg_pen=0 identity_miss=0 — registers then MATCH), the 2 residual bytes being
+// only the two prologue load displacements (y lands in param1's 0x10 slot vs orig's 0x14). BUT
+// the swap is NOT faithful: the caller (StepDetonatorEffect 0x40e4bf) pushes [+0x15c]=nDetonatorX
+// as arg1, [+0x160]=nDetonatorY as arg2 => the TRUE original sig is (int x,int y) as written. So
+// the residual is the genuine intrinsic allocator choice: with the faithful (x,y) sig our cl
+// enregisters param1(x)->ESI, orig enregisters param2(y)->ESI. NOT source-steerable without an
+// ABI-breaking param reorder. PROVEN INTRINSIC (v39): identical asmscore solo vs full-TU, and
+// byte-stable across a COMDAT-set probe (+3 COMDATs inserted immediately before it) and a
+// reg-pressure predecessor — the emitted-set/position axis is DEAD for it (G2 note in CLAUDE.md).]
 // Bomb blast: nine copy-pasted blocks, one per 3x3 cell around (x,y). Each reads the
 // layer-1 tile; if its data is destructible (flags & 0x20000), DamageEntityAt (6 corners,
 // 8 edges, 10 center) and on a hit clear the tile and redraw the cell.

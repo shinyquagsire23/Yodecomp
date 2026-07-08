@@ -433,7 +433,19 @@ Written to be followable without prior context: each phase lists concrete steps 
   (Nevada @0x30b stays jl under every config; orig is jg). The only PCH win = afxcmn decls, fully
   reproducible textually. (3) COMDAT lever (partial): Iact's emitted COMDAT set is IDENTICAL across the
   f1ca459 ReadIzon regression (11 funcs both) — that rotation is header-decl-context, not a COMDAT
-  change. Worldgen over-emits GDI dtor COMDATs mid-TU (untested — ground-truth obscured by folding).**
+  change. Worldgen over-emits GDI dtor COMDATs mid-TU (untested — ground-truth obscured by folding).** →
+  **212 exact / 99.17 % coverage — v39 (2026-07-08): the LAST cheap lever CLOSED + residual class fully
+  characterized (no exact change; a mechanism/strategy session like v36). (1) ⭐ COMDAT-SET lever DEAD
+  (lesson #29): the reg-coloring residual is INTRINSIC to (body + header decl-set), proven on
+  DetonateAdjacentTiles by 4 experiments (v38 reorder; a new COMDAT inserted right before it; a reg-pressure
+  predecessor; the minimal-TU probe = IDENTICAL score solo vs full TU). Neither emitted-COMDAT set, order,
+  nor neighbors move it. ??_GCPalette was a lesson-#28 misattribution (correctly emitted by the World ctor in
+  WorldDoc; 0x41e8b0 = folded copy). (2) ⭐ Residual class = symmetric 2-reg ROLE swap (ESI/EDI, ECX/EDX),
+  ABI-pinned: DECL/PARAM order CAN flip it (Detonate sig-swap → 60→2 bytes, regs then exact) but the true
+  order is caller-pinned (nDetonatorX@0x15c=arg1) and local-reorder levers are inert/structural. ⇒ the 212
+  per-TU ceiling is genuine; compile-time + intrinsic so even G2 linking won't move it — needs the exact
+  original source form or a cl build/flag difference (the central open problem). ALL per-TU levers now
+  provably exhausted (body/header/emission-order/PCH/COMDAT-set).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -475,88 +487,74 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v38 — header audit CLOSED + reorder refuted; v37 afxcmn +3 stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v38** commit (below it:
-b3938ac v37 afxcmn, a8c764b v36 finalize). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime
-copy — don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f
-../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
-/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**;
-`progress.py` → **212 exact funcs / 99.17% coverage**; `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP**
-(exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**,
-GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen
-34/91. Ghidra: current=YodaDemo.exe before any write. v37/v38 job-tmp scripts (pchtest/pchtu/pchcfg/
-hdrtest/bisect) are gone with the job; RESULTS captured below + in lessons #26/#27.
-⚠ BUDGET (as of 2026-07-08): Fable weekly usage ~94% (resets 2026-07-09 23:00 America/Boise) — the
-step-7 Fable-escalation is nearly out of budget this week; prefer main-thread analysis for v39 (G2
-groundwork is main-thread anyway), and don't burn Fable on speculative probes.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v39 — COMDAT-set lever CLOSED + reg-coloring class characterized as intrinsic/ABI-pinned; 212 stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v39** commit (below it:
+3a8a0ca v38, b3938ac v37 afxcmn). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy —
+don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj
+&& ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+/Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py`
+→ **212 exact funcs / 99.17% coverage**; `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0).
+Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView
+73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91.
+Ghidra: current=YodaDemo.exe before any write. v39 job-tmp backups (Worldgen.cpp.bak/Wg2/Wg3/Gv2/Gv3) are
+gone with the job; all experiments were reverted, RESULTS captured below + in lesson #29.
+⚠ BUDGET: Fable weekly usage ~94% (resets 2026-07-09 23:00 America/Boise) — Fable step-7 escalation nearly
+out this week; main-thread only (G2 groundwork is main-thread anyway).
 
-**▶ v38 RESULTS (no exact change — closed 2 of v38's 3 START-HERE levers with negative results):**
-- **HEADER AUDIT CLOSED — every TU is at its optimal MFC header set; no more header wins.** afxcmn is the
-  ONLY beneficial add (v37). afxext is REQUIRED for GameData/Iact (GameView.h uses CBitmapButton) but
-  HURTS the record/doc TUs that don't include GameView.h: canonical afxwin/afxext/afxcmn REGRESSES Records
-  26→25, WorldDoc 8→7, IactScript 11→10. afxdlgs / the full Worldgen-order set also regress. So the
-  original did NOT use one uniform afxext stdafx for all TUs — the record TUs saw a minimal afxwin/afxcoll
-  (+afxcmn-neutral) set. Don't add afxext/afxdlgs anywhere it isn't already needed to COMPILE.
-- **EMISSION-ORDER REORDER REFUTED (Worldgen tail block).** GameData's function emission order already
-  EXACTLY matches its .text address order (0 mismatches) — the jl/jg family (Nevada 0x401ac0 jl vs exact-
-  twin Oregon 0x402280 jg) is pure TU-position under the now-correct header, needs G2. Worldgen's
-  GameView-tail block (UseWeapon 0x427d20 … RemoveItem 0x429150) was in a SCRAMBLED source order; I
-  reordered it to strict .text-address order → **net-neutral 34/91**, the bellwether DetonateAdjacentTiles
-  0x428680 stayed DIFF(60) BYTE-FOR-BYTE (position-insensitive ⇒ intrinsic reg-coloring), and it slightly
-  WORSENED DrawWeaponIcon — so I REVERTED it. ⚠ NEW LESSON: for a /Gy COMDAT build the LINKER lays out
-  COMDATs, so final .text ADDRESS order ≠ our .obj/source COMDAT order — do NOT reorder source functions
-  to chase address order; it's not the missing context. (Reorder patch in job-tmp/Worldgen.cpp.bak, discarded.)
-- Ghidra: NO writes this session. Nothing pending.
+**▶ v39 RESULTS (no exact change — closed the LAST cheap lever + fully characterized the residual class):**
+- **⭐ COMDAT-SET LEVER (v38's #1 START-HERE) is DEAD — proven, not assumed (lesson #29).** Four experiments
+  on the bellwether DetonateAdjacentTiles 0x428680 ALL left it byte-for-byte identical (total=1060, align=0,
+  reg_pen=4, identity_miss=60): (a) v38 reorder; (b) a brand-new COMDAT inserted IMMEDIATELY before it
+  (`CRgn` local → ??_GCRgn+??1CRgn+probe fn, emitted-set 111→114); (c) a reg-pressure predecessor fn; (d)
+  the MINIMAL-TU probe (function ALONE with just `#include "Worldgen.h"` scores IDENTICALLY to the full
+  95-func TU). ⇒ the reg-coloring residual is INTRINSIC to (body + header decl-set), NOT TU-position — so
+  neither the emitted-COMDAT set, emission order, nor neighbors can rotate it. Worldgen's "over-emitted GDI
+  dtors" cannot help. And ??_GCPalette was a lesson-#28 MISATTRIBUTION: it's correctly odr-emitted by the
+  World ctor (`new CPalette` in WorldDoc.cpp:475 → build/WorldDoc.obj DOES emit ??_GCPalette); 0x41e8b0 is
+  just where the linker FOLDED that copy into Worldgen's address span. Both halves of lever #1 are closed.
+- **⭐ THE RESIDUAL CLASS = symmetric 2-register ROLE swap, ABI-pinned, not faithfully steerable.** Dumps:
+  DetonateAdjacentTiles = pure ESI↔EDI param swap; GetZoneIndex 0x423dc0 = ECX↔EDX (walker vs pZone);
+  ReenableHotspotObjects 0x40ebe0 = ESI↔EDX (loop index vs count). DECL/PARAM ORDER **can** flip it — I
+  swapped Detonate's sig to (int y,int x)+caller and it collapsed **60→2 bytes** (reg_pen=0 identity_miss=0,
+  registers then EXACT; the 2 residual bytes = y landing in param1's 0x10 frame slot vs orig's 0x14). BUT
+  that swap is UNFAITHFUL: the caller StepDetonatorEffect pushes nDetonatorX(@0x15c) as arg1, nDetonatorY
+  (@0x160) as arg2 → the TRUE sig is (int x,int y) as written; reverted. For the non-param cases the levers
+  are inert/structural: GetZoneIndex cmp-operand flip = inert; ReenableHotspot stmt-reorder = breaks
+  structure (align 0→16); decl-order hoist = inert (matches the ParseSnds 24-perm park). CONCLUSION: with
+  faithful source our cl deterministically picks the OPPOSITE symmetric register from the original on
+  identical IR. **This is the genuine 212 per-TU ceiling** — and since it's compile-time + intrinsic, even
+  G2 LINKING won't move it. Closing it needs the exact original source form (unrecoverable per-function) or
+  a subtly-different cl build/state (the standing central open problem; version hypo killed v37).
+- **ParseSnds 0x4233f0 (closest non-exact, 5B)** re-confirmed as the frame-slot-order park (orig ascending
+  {ext,fname,name,path} size-sorted, ours swaps fname/name). v36's 24-perm exhaustion stands; the untested
+  first-USE-order axis is fixed by the algorithm (path Read first, then _splitpath, then name) — not steerable.
+- Ghidra: NO writes this session. Nothing pending. Only source change: an expanded EFFECTIVE annotation on
+  DetonateAdjacentTiles (byte-neutral #line shift, Worldgen still 34/91).
 
-**▶ v37 RESULTS:**
-- **⭐ THE afxcmn HEADER-DIAL WIN (+3 exact; lesson #26).** Several TUs were compiled WITHOUT `afxcmn.h`
-  — but the app is a common-controls MFC 4.2 app, so its AppWizard stdafx.h had afxwin+afxext+**afxcmn**
-  in EVERY TU. Adding `#include <afxcmn.h>` textually rotates reg/insn-selection tie-breaks toward the
-  original: **GameData 12→13** (FindTile 0x403aa0 [a survey.py top near-miss!] + PlaceZoneObjectTiles →
-  EXACT), **WorldDoc 7→8** (`~World` dtor → EXACT), **Iact 1→2**; ZERO regressions on 8 TUs tested
-  (Records/Frame/App/Dlg/IactScript neutral). ADOPTED in src/GameData/WorldStub.h (→GameData+Iact) and
-  src/WorldDoc/WorldDoc.h. Proven a DECL effect (identical result textual vs a /Yu afxcmn PCH), NOT PCH.
-  ⚠ It DEMOTED one lucky match: GameData LoadStoryHistoryOregon was EXACT (jg) sans afxcmn, now non-exact
-  under the correct context (its source was matching a FALSE dial) ⇒ a legit v38 jl/jg re-grind target.
-- **⭐ /Yu PCH axis KILLED (lesson #27, ends Fable's central v36 hypothesis).** PCH IS a real dial axis
-  but (a) net-NEGATIVE — afxcmn PCH: GameData +1 / Iact 0 / Worldgen **−2**, and the −2 is the PCH
-  MECHANISM (content-independent — afxwin-only PCH also −2); (b) does NOT flip jl/jg — Nevada 0x401ac0
-  @+0x30b stays `jl 0x240` under EVERY config, orig is `jg 0x240`; (c) its only win (afxcmn decls) is
-  fully textual. Do NOT re-open PCH.
-- **COMDAT lever (lever 1, PARTIAL — Iact ruled out, Worldgen untested).** Iact's emitted COMDAT set is
-  IDENTICAL (11 funcs) across the f1ca459 ReadIzon regression (built the parent-commit Iact.obj + diffed
-  via match.coff_functions) ⇒ that rotation is header-DECL-context, not a COMDAT-set change. Worldgen
-  OVER-EMITS GDI dtor COMDATs MID-TU (emission order: ??1CBrush/CGdiObject #91-94, ??1CPen #98-99 — all
-  BEFORE DetonateAdjacentTiles #108) — still a live candidate, but "did the original emit them?" is
-  obscured by link-folding; NOT tested this session.
-- Ghidra: NO writes this session. Nothing pending.
-
-**▶ START HERE (v39) — the cheap per-TU levers (header set, emission order, PCH, flags, body grind) are
-ALL EXHAUSTED (v36/v37/v38). The remaining ~48 non-exact are the reg-coloring + jl/jg class, proven
-POSITION-INSENSITIVE (DetonateAdjacentTiles stayed byte-identical across a full tail-block reorder) ⇒ they
-need the G2 JOINT FIXED POINT, not more per-TU tweaking. Two paths, in order:**
-1. **⭐ Worldgen emitted-COMDAT reconciliation (the ONE cheap lever left untested; biggest pool, 34/91).**
-   Worldgen over-emits CPen/CBrush/CGdiObject/CObject dtor COMDATs mid-TU (emission #91-99, BEFORE the
-   DetonateAdjacentTiles/UseWeapon block) and UNDER-emits ??_GCPalette (orig has it @0x41e8b0, between
-   PlaceBlockades and PickItemFromZone). Per the corrected dial, the emitted-DEF SET (not order — v38
-   proved order is linker-owned) rotates codegen. TEST THE MECHANISM DIRECTLY before investing: (a) find
-   what odr-uses each GDI dtor in our source (a CPen/CBrush/CGdiObject LOCAL in a drawing fn) and whether
-   the original's drawing code would emit the SAME set — if we can drop an over-emitted dtor via odr-use
-   hygiene (e.g. construct via pointer, or the object's dtor is trivial/inlined in the orig), does
-   DetonateAdjacentTiles move? (b) add the CPalette odr-use that yields ??_GCPalette at the right source
-   position. If (a)/(b) don't move the bellwether, the COMDAT-set is NOT the axis either → go to #2.
-   ⚠ HIGH-uncertainty: v38's reorder (a related emitted-set/order perturbation) left DetonateAdjacentTiles
-   byte-identical, so temper expectations.
-2. **⭐ Begin G2 groundwork (the real remaining path).** The reg-coloring/jl-jg residuals are seeded by the
-   MSVC 4.2 allocator's TU-global state, reproducible only by the EXACT original build. link_exe.sh already
-   links a runnable image (0/0/exit0). G2 = the byte-identical whole-image: (1) reproduce the link (app
-   .objs in address order, then LIBCMT/NAFXCW); (2) map COMDAT fold-vs-survive geography (docs note the
-   CException family survives per-TU @head; CObject no-ops fold to 0x401060/70/80); (3) .rdata/.data/.rsrc
-   + vtable/msgmap/string-pool layout; (4) EH funclets + 0x424fb0 thunk + PE timestamp/checksum mask; (5)
-   reccmp-style whole-image diff. This is where the jl/jg family actually resolves — NOT per-function.
-3. **Map first each session:** `tools/frontier.py` + `tools/survey.py` (need build/*.obj — compile all).
-   Body-grinding EXHAUSTED (v36); header-set EXHAUSTED (v37/v38); emission-order is linker-owned (v38);
-   PCH dead (v37). The joint G2 fixed point is the only remaining lever for the reg-coloring class.
+**▶ START HERE (v40) — ALL per-TU levers are now provably exhausted (body v36, header v37/v38, emission-order
+v38-linker-owned, PCH v37, COMDAT-set v39). The ~48 non-exact are the intrinsic symmetric-register class,
+NOT source-steerable with faithful code (lesson #29). The ONLY remaining path to raise exact is G2 groundwork
+OR cracking the central open problem (why our cl picks the opposite symmetric register). Do NOT re-grind
+per-function. Concrete options, in order:**
+1. **⭐ G2 whole-image build (the real remaining path — main-thread).** link_exe.sh already links a runnable
+   yoda.exe (0/0/exit0). G2 = byte-identical image: (1) reproduce the link (app .objs in address order, then
+   LIBCMT/NAFXCW — link 3.10 vs 4.20 note in toolchain/README); (2) map COMDAT fold-vs-survive geography
+   (CException family survives per-TU @head; CObject no-ops fold to 0x401060/70/80; ??_GCPalette folds from
+   WorldDoc); (3) .rdata/.data/.rsrc + vtable/msgmap/string-pool layout; (4) EH funclets + 0x424fb0 thunk +
+   PE timestamp/checksum mask; (5) reccmp-style whole-image diff → progress.py toward ~100%. ⚠ NOTE: G2
+   does NOT fix the reg-coloring residuals (they're compile-time); G2's goal is the byte-identical IMAGE
+   (the user's ~100% goal) and a runnable/verifiable artifact — the .text won't be byte-identical until the
+   central open problem is solved, so G2 gives a linkable/runnable image with the known residual .text deltas.
+2. **⭐ The CENTRAL OPEN PROBLEM (highest-value, uncertain): why does our cl pick the opposite symmetric
+   register on identical IR?** Lesson #29 proves DECL/param ORDER flips it — so our cl's allocation worklist
+   order differs from the original's. Hypotheses to probe CHEAPLY: (a) is there a cl.exe build/patch diff
+   (10.20a vs 10.20b) that reorders the allocator worklist? (b) does a compiler FLAG we haven't tried
+   (/Ox vs /O2, /Oy, /Gr register-calling, /Gd/Gz) flip the symmetric choice globally WITHOUT breaking the
+   200+ existing exact matches? Test a flag on ONE TU (Worldgen) and diff exact-count — if any flip is net-
+   positive it's a huge unlock. If a flag helps Detonate's ESI/EDI it likely helps the whole class at once.
+3. **Map each session:** `tools/survey.py` (nearest non-exact) + `tools/frontier.py` (need build/*.obj).
+   Closest non-exact today: ParseSnds(5B frame-slot,park), BlitMasked(4B MMX,park), GetZoneIndex(4B ECX/EDX),
+   ReenableHotspotObjects(7B), UpdatePlayerWalkFrame(11B) — all lesson-#29 intrinsic/park class.
 5. **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
    combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
@@ -776,6 +774,31 @@ need the G2 JOINT FIXED POINT, not more per-TU tweaking. Two paths, in order:**
      NOT a per-TU lever — the reg-coloring/jl-jg residuals need the G2 joint build. (GameData's emission
      order happens to already match its address order — 0 mismatches — yet Nevada still emits jl; that
      seals it: correct header + correct order + correct flags, still position-locked to the whole-image build.)
+  29. **⭐ The reg-coloring residual class is INTRINSIC to (function body + its headers), NOT TU-position —
+     and the emitted-COMDAT-SET is a DEAD lever (v39, corrects/bounds lesson #7).** Proven on the bellwether
+     DetonateAdjacentTiles 0x428680 (align=0, the pure symmetric-register class) by FOUR experiments, ALL
+     leaving it byte-for-byte identical: (a) v38's full tail-block reorder; (b) inserting a brand-new COMDAT
+     (`CRgn` local => ??_GCRgn+??1CRgn+the probe fn, 3 new sections, emitted-set 111→114) IMMEDIATELY before
+     it; (c) inserting a register-pressure predecessor fn immediately before it; (d) the MINIMAL-TU probe —
+     extract the function ALONE with just `#include "Worldgen.h"` and asmscore it: IDENTICAL score
+     (total=1060, align=0, reg_pen=4, identity_miss=60) as in the full 95-func TU. So lesson #7's "context-
+     sensitive, needs the whole TU" does NOT apply to this class — the score is fixed by the function's own
+     IR + header decl-set, and neither preceding functions, emission order, nor the emitted-COMDAT set
+     perturb it. ⇒ Worldgen's "over-emitted GDI-dtor COMDATs" cannot rotate its neighbors (the v38-pickup
+     lever #1 is CLOSED), and ??_GCPalette was a lesson-#28 misattribution (correctly odr-emitted by the
+     World ctor in the WorldDoc TU; its 0x41e8b0 address is just where the linker folded that copy).
+     WHAT the residual IS: a symmetric 2-register ROLE swap (ESI↔EDI on Detonate; ECX↔EDX on GetZoneIndex
+     0x423dc0; ESI↔EDX loop index/count on ReenableHotspotObjects 0x40ebe0). DECL/PARAM ORDER *can* flip it
+     — DetonateAdjacentTiles's faithful (int x,int y) → our cl enregisters param1(x)→ESI; swapping the sig to
+     (int y,int x)+caller collapsed it 60→2 bytes (registers then EXACT). BUT it is NOT faithfully steerable:
+     the true param order is ABI-pinned by the caller (proven: nDetonatorX@0x15c is pushed as arg1), and for
+     loop LOCALS the levers are inert or structural — GetZoneIndex cmp-operand flip: inert; ReenableHotspot
+     stmt-reorder: breaks structure (align 0→16); decl-order hoist: inert (matches the ParseSnds 24-perm
+     park). CONCLUSION: with the faithful source our cl deterministically picks the OPPOSITE symmetric
+     register from the original cl on identical IR. This is the true 212 per-TU ceiling; since the residual
+     is COMPILE-time + intrinsic, even G2 LINKING won't move it — closing the gap needs either the exact
+     original source form (unrecoverable per-function) or a subtly different cl build/state (the standing
+     central open problem; version hypothesis already killed v37). Do NOT re-grind this class per-function.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
