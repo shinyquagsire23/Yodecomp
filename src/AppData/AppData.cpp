@@ -33,13 +33,6 @@ protected:
     DECLARE_MESSAGE_MAP()
 };
 
-BEGIN_MESSAGE_MAP(AppWnd, CWnd)
-    //{{AFX_MSG_MAP(AppWnd)
-    ON_WM_TIMER()
-    ON_WM_PAINT()
-    //}}AFX_MSG_MAP
-END_MESSAGE_MAP()
-
 // FUNCTION: YODA 0x00401000
 void AppWnd::OnTimer(UINT nIDEvent)
 {
@@ -113,6 +106,10 @@ InvItem::~InvItem()
 }
 
 // ============================== WorldgenZoneEntry ==============================
+// NOTE (Phase G2 layout): the original emits ??_GWorldgenZoneEntry (0x401370) BEFORE the ctor
+// (0x401390) but the ~ body AFTER it (0x401400) — the scalar-deleting dtor COMDAT is detached
+// from the dtor body and pulled in early. Simple ctor/dtor source reorder does NOT reproduce it
+// (swapping put the dtor BODY at 0x401370); this is a compiler-internal emission quirk. PARKED.
 
 // FUNCTION: YODA 0x00401390
 WorldgenZoneEntry::WorldgenZoneEntry(short zoneId, short val)

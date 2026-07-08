@@ -21,6 +21,33 @@ Started v41 (2026-07-08).
 `total paired 378/378 · LAYOUT 2/378 · CONTENT 226/378 · BOTH 1/378`. Only the very first functions land
 correctly; everything drifts by small (0x10–0x50) accumulating deltas.
 
+## v42 progress (AppData reconciled → LAYOUT 39/378, BOTH 32/378)
+Fixed AppData's two head divergences → the ENTIRE World scorer region + most of GameData snapped into place
+(the cascade cancelled). Two changes in src/AppData/AppData.cpp, both CONTENT-neutral (still 14/14 exact):
+1. **Removed `BEGIN_MESSAGE_MAP(AppWnd,...)` entirely.** It emitted a `GetMessageMap` COMDAT that the
+   original AppData.obj does NOT have (all 9 real GetMessageMaps live at >0x408000; AppWnd's belongs to the
+   class's primary TU elsewhere / was REF-dropped). Our copy emitted FIRST → shoved OnTimer off 0x401000,
+   and (once moved to the tail) still added +0x10 that cascaded to every downstream TU. Deleting it makes
+   OnTimer emit first at 0x401000 AND makes AppData the correct total length → World UpdateScore lands at
+   0x401450 and the whole World scorer run + LoadStory*/SaveStory* head are LAYOUT-correct. The whole-image
+   link (link_exe.sh) still resolves 0/0 — nothing referenced AppWnd::messageMap symbolically (the msgmap
+   DATA @0x44b000 comes from the verbatim-copied .rsrc/.rdata, not our TUs). The `DECLARE_MESSAGE_MAP()` in
+   the class decl stays (harmless — declares members, emits nothing).
+2. (attempted, reverted) WorldgenZoneEntry ctor/dtor SOURCE swap to move ??_G before the ctor — did NOT
+   work (put the dtor BODY at 0x401370 instead). See the two PARKED residuals below.
+
+### AppData residuals (both self-correcting — do NOT cascade past 0x401450; ~5 local funcs)
+- **CObject trio position (-0x30):** Disable/Enable/MapZone-ctor land 0x30 low because the original emits
+  `CObject::Serialize/AssertValid/Dump` (0x401060/70/80) right after OnPaint (before Disable), whereas our
+  obj emits them later with MapZone's vtable (after MapZone ctor + ??_GCObject/??1CObject). The trio is a
+  CObject-vtable-default cluster; the original pulls it in early — almost certainly because the REAL AppWnd
+  class had its vtable emitted here (full class w/ msgmap+DYNCREATE), which we deliberately don't model.
+  Re-adding a msgmap brings back the GetMessageMap +0x10 problem (tension). The shift RE-CONVERGES at
+  ??_GMapZone (0x401160). PARKED — costs 3 local funcs, self-corrects.
+- **WorldgenZoneEntry ??_G-before-ctor:** original = ??_G@0x401370, ctor@0x401390, ~body@0x401400 (the
+  scalar-deleting dtor COMDAT is detached from the dtor BODY and pulled early). Simple ctor/dtor source
+  reorder does NOT reproduce it (moves the body, not ??_G). Compiler-internal emission quirk. PARKED.
+
 ## The layout model (two mechanisms, both proven v41)
 
 **1. `/OPT:REF` eliminates unreferenced COMDATs.** link.exe's default (`/OPT:REF`) drops any COMDAT not
