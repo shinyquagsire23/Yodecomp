@@ -48,6 +48,59 @@ int    g_dat459450;          // 0x00459450  cleared by the GameView ctor (music/
 int    g_waveHandles[64];    // 0x00459458..0x00459558  loaded-wave handle table (SoundInit fills)
 
 // =============================================================================
+// GameView-TU-private option dialogs (0x416810-0x4186e0). Declared here (not in the
+// shared GameView.h) so the doc TU that includes that header does not see them and its
+// codegen dial stays put. StatsDlg (demo stats, 4 CString DDX fields, template 0xe1) +
+// three near-identical CDialog sliders (CDialog + int m_nValue@0x5c; OnInitDialog sizes
+// a scrollbar control to the setting's range and seeds the thumb; OnHScroll steps it).
+// Class names follow the Ghidra namespaces (by the OnCmd* handler that runs each).
+// =============================================================================
+class StatsDlg : public CDialog
+{
+public:
+    int      unk5c;                  // +0x5c
+    World   *pWorld;                 // +0x60  ctor arg (the doc)
+    CString  m_str0;                 // +0x64  DDX 0x98
+    CString  m_str1;                 // +0x68  DDX 0x97
+    CString  m_str2;                 // +0x6c  DDX 0x95
+    CString  m_str3;                 // +0x70  DDX 0x96
+    StatsDlg(CWnd *pParent, World *pDoc);                // 0x00416810
+    virtual void DoDataExchange(CDataExchange *pDX);     // 0x004169e0
+    virtual BOOL OnInitDialog();                         // 0x00416a40
+    DECLARE_MESSAGE_MAP()
+};
+
+class DifficultyDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    DifficultyDlg(CWnd *pParent);                        // 0x00417e50 (template 0x6f)
+    virtual BOOL OnInitDialog();                         // 0x00417f50 (ctrl 0x67, 1..100)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00417fa0
+    DECLARE_MESSAGE_MAP()
+};
+
+class GameSpeedDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    GameSpeedDlg(CWnd *pParent);                         // 0x00418130 (template 0xd7)
+    virtual BOOL OnInitDialog();                         // 0x00418230 (ctrl 0x8f, 1..0x5a)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418280
+    DECLARE_MESSAGE_MAP()
+};
+
+class WorldSizeDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    WorldSizeDlg(CWnd *pParent);                         // 0x00418410 (template 0xda)
+    virtual BOOL OnInitDialog();                         // 0x00418510 (ctrl 0x90, 1..3)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418560
+    DECLARE_MESSAGE_MAP()
+};
+
+// =============================================================================
 // DYNCREATE + message maps (macro-generated: CreateObject 0x4084f0,
 // GetRuntimeClass 0x408560, GameView::GetMessageMap 0x408570,
 // InvScrollBar::GetMessageMap 0x408580). Class string is "GameView" not the
@@ -7652,6 +7705,115 @@ void GameView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
 void GameView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 {
     pCmdUI->Enable(0);
+}
+
+// ===========================================================================
+// StatsDlg (0x416810-0x416a40) — the demo stats dialog. ClassWizard CDialog with 4
+// CString DDX fields; OnCmdStatsMaybe (0x416620, deferred) fills them.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416810
+// StatsDlg::StatsDlg — CDialog(template 0xe1); store the doc pointer and empty the 4
+// DDX strings (the //{{AFX_DATA_INIT block).
+// ---------------------------------------------------------------------------
+StatsDlg::StatsDlg(CWnd *pParent, World *pDoc) : CDialog(0xe1, pParent)
+{
+    pWorld = pDoc;
+    //{{AFX_DATA_INIT(StatsDlg)
+    m_str0 = "";
+    m_str1 = "";
+    m_str2 = "";
+    m_str3 = "";
+    //}}AFX_DATA_INIT
+}
+
+// FUNCTION: YODA 0x004169e0
+void StatsDlg::DoDataExchange(CDataExchange *pDX)
+{
+    //{{AFX_DATA_MAP(StatsDlg)
+    DDX_Text(pDX, 0x98, m_str0);
+    DDX_Text(pDX, 0x97, m_str1);
+    DDX_Text(pDX, 0x95, m_str2);
+    DDX_Text(pDX, 0x96, m_str3);
+    //}}AFX_DATA_MAP
+}
+
+// FUNCTION: YODA 0x00416a40
+BOOL StatsDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    CenterWindow();
+    return TRUE;
+}
+
+BEGIN_MESSAGE_MAP(StatsDlg, CDialog)
+    //{{AFX_MSG_MAP(StatsDlg)
+    //}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416a60
+// GameView::OnDialogCloseBtn (BN 0x1389): the in-game text balloon's CLOSE button
+// just sets the "close was clicked" flag; the frame loop tears the dialog down.
+// ---------------------------------------------------------------------------
+void GameView::OnDialogCloseBtn()
+{
+    bDialogCloseClicked = 1;
+}
+
+// FUNCTION: YODA 0x00416a70
+void GameView::OnDialogUpBtnNop()
+{
+}
+
+// FUNCTION: YODA 0x00416a80
+void GameView::OnDialogDownBtnNop()
+{
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416a90
+// GameView::OnCtlColor (WM_CTLCOLOR): paint the balloon's edit control on a white
+// background with white text (ctl type 1 = CTLCOLOR_MSGBOX); everything else defers.
+// EFFECTIVE (DIFF 1, align=0/reg=0/identity=0): a single benign byte (masked-reloc
+// edge / immediate). All 27 insns structurally + register-identical. G1.
+// ---------------------------------------------------------------------------
+HBRUSH GameView::OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
+{
+    HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
+    if (nCtlColor == 1)
+    {
+        pDC->SetTextColor(0xffffff);
+        return hBrush;
+    }
+    return CView::OnCtlColor(pDC, pWnd, nCtlColor);
+}
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00416ae0
+// GameView::OnChar (WM_CHAR): while a text balloon is up in the intro zone
+// (mode 7 / reason 4), accumulate the cheat-code letters (only the chars used by
+// "goyoda"/"gojedi") into strCheatBuffer, then run CheckCheat.
+// ---------------------------------------------------------------------------
+void GameView::OnChar(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+    if (pWorld->nFrameMode == 7 && pWorld->nMapChangeReason == 4)
+    {
+        switch (nChar)
+        {
+        case 'a': strCheatBuffer += 'a'; break;
+        case 'd': strCheatBuffer += 'd'; break;
+        case 'e': strCheatBuffer += 'e'; break;
+        case 'g': strCheatBuffer += 'g'; break;
+        case 'i': strCheatBuffer += 'i'; break;
+        case 'j': strCheatBuffer += 'j'; break;
+        case 'o': strCheatBuffer += 'o'; break;
+        case 'y': strCheatBuffer += 'y'; break;
+        }
+    }
+    CheckCheat();
+    Default();
 }
 
 // ===========================================================================
