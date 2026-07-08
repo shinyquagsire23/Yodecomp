@@ -7931,17 +7931,20 @@ void GameView::OnDialogDownBtnNop()
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416a90
-// GameView::OnCtlColor (WM_CTLCOLOR): paint the balloon's edit control on a white
-// background with white text (ctl type 1 = CTLCOLOR_MSGBOX); everything else defers.
-// EFFECTIVE (DIFF 1, align=0/reg=0/identity=0): a single benign byte (masked-reloc
-// edge / immediate). All 27 insns structurally + register-identical. G1.
+// GameView::OnCtlColor (WM_CTLCOLOR): give the balloon's edit control (ctl type 1 =
+// CTLCOLOR_EDIT) a WHITE background BRUSH and a white text-BACKGROUND (SetBkColor), leaving
+// the text color at its default (black) so it renders visibly; everything else defers.
+// Byte-EXACT. NOTE (v33 bugfix): this was `SetTextColor(0xffffff)` (white-on-white =
+// invisible bubble text) — the original calls CDC::SetBkColor, at vtable slot +0x34, one
+// slot BEFORE SetTextColor (+0x38). The disasm `CALL [EAX+0x34]` pins it to SetBkColor; the
+// old "DIFF 1 benign byte" was that vtable-slot displacement — a real semantic bug, not noise.
 // ---------------------------------------------------------------------------
 HBRUSH GameView::OnCtlColor(CDC *pDC, CWnd *pWnd, UINT nCtlColor)
 {
     HBRUSH hBrush = (HBRUSH)GetStockObject(WHITE_BRUSH);
     if (nCtlColor == 1)
     {
-        pDC->SetTextColor(0xffffff);
+        pDC->SetBkColor(0xffffff);
         return hBrush;
     }
     return CView::OnCtlColor(pDC, pWnd, nCtlColor);

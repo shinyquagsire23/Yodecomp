@@ -385,13 +385,14 @@ Written to be followable without prior context: each phase lists concrete steps 
   tables extracted from the binary; tools/extract_res.py copies the .rsrc verbatim. Exact dipped
   21.24→20.57 % as the shared-header signature fixes rotated the dial (Worldgen ParseZaux/ParseZax2/
   SetCurrentToIntroZone + 1 WorldDoc fn → PHASE-DISPLACED; recoverable in G1). Objs moved to repo
-  build/. docs/link-audit.md** → **99.17 % coverage / 208 exact funcs — v33 (2026-07-08): G1 begun.
-  InvScrollBar dtors matched (parked mini #1 done): explicit `~InvScrollBar(){DestroyWindow();}` →
-  ??1 0x4086b0 (91B) + thin ??_G 0x408690 (30B), both byte-exact. New codegen lesson #23: a mid-file
-  def DISPLACED 6 exact funcs via #line-provenance dial rotation (208→204); #line-neutral placement
-  (decl on ctor's line, def at file end) kept all 208 + the 2 dtors. User reported a functional lead:
-  running yoda.exe's speech-bubble text doesn't render (chain traced faithful; suspect Layout 0x4176f0
-  / wine — memory textbubble-render-lead).** Full per-session milestone history in PLAN_COMPLETED.md.
+  build/. docs/link-audit.md** → **99.17 % coverage / 209 exact funcs — v33 (2026-07-08): G1 begun +
+  first RUNTIME bugfix. (1) Fixed the invisible-bubble-text bug: OnCtlColor called SetTextColor where
+  the original calls SetBkColor (adjacent CDC vtable slots +0x38/+0x34) → white-on-white; now byte-EXACT
+  (lesson #24: a 1-byte CALL-disp diff = wrong virtual method, not benign). (2) InvScrollBar dtors
+  matched (mini #1): explicit `~InvScrollBar(){DestroyWindow();}` → ??1 0x4086b0 (91B) + thin ??_G
+  0x408690 (30B), byte-exact; lesson #23: #line-neutral placement (decl on ctor's line, def at file end)
+  avoided the mid-file dial rotation that had displaced 6 funcs (208→204). The running image is now a
+  first-class bug oracle.** Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
@@ -437,11 +438,19 @@ Written to be followable without prior context: each phase lists concrete steps 
 Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`):
 `tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py
 src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/
-GameData.cpp` → **12/27**; `progress.py` → **208 exact funcs** (best-fit under-counts the 2 new
+GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs** (best-fit under-counts the 2 new
 InvScrollBar dtors — they DO match, see below). Ghidra: `list_open_programs` current=YodaDemo.exe.
 If a baseline differs, a header drifted — bisect first.
 
 **▶ v33 RESULTS (committed):**
+- **⭐ INVISIBLE-BUBBLE-TEXT BUG FIXED (functional + byte win).** User ran yoda.exe: speech-bubble
+  frame drew but text was invisible (inventory text + original YodaDemo.exe in the SAME env rendered
+  fine ⇒ our bug). Root cause: `GameView::OnCtlColor` (0x416a90) was `pDC->SetTextColor(0xffffff)` but
+  the original calls `pDC->SetBkColor(0xffffff)` — SetBkColor is one CDC vtable slot BEFORE SetTextColor
+  (+0x34 vs +0x38), so the disasm `CALL [EAX+0x34]` = SetBkColor. We set white TEXT on white (invisible)
+  instead of a white text-BACKGROUND with default-black text (visible). Fix flipped it to SetBkColor ⇒
+  OnCtlColor now byte-EXACT (the old "DIFF 1 benign byte" WAS this vtable-slot displacement — a real
+  semantic bug; new lesson #24). Exact 208→209. Rebuilt build/yoda.exe for the user to re-test.
 - **InvScrollBar dtors matched (parked mini #1 DONE).** 0x408690 (??_G, 30B) + 0x4086b0 (??1, 91B)
   now byte-exact. Discovery: the original ??1 has a SEPARATE body + thin ??_G (⇒ EXPLICIT dtor, not
   implicit — MFC lesson #1) and its 91-byte body calls `DestroyWindow()` (empty body = only 79B; the
@@ -460,11 +469,13 @@ If a baseline differs, a header drifted — bisect first.
   logging of nTextW/nTextH/rectText + wndDialogText.m_hWnd. See memory [[textbubble-render-lead]].
 
 **▶ START HERE (v34):**
-1. **Chase the text-bubble bug (user-facing, high signal).** Best done by running yoda.exe under wine
-   with a real WAVMIX32.DLL + YODADEMO.DTA and logging Layout's edit rect/size, OR by a close
-   disasm-vs-source semantic diff of TextDialog::Layout's MIDDLE (0x4176f0, rectText/nMode coord
-   conversion + MoveWindow). If the size/coords are right at runtime, it's a wine/child-window-paint
-   env issue, not our code. This also validates the decomp behaviorally.
+1. **⭐ RUN THE EXE AS A BUG ORACLE (new, high-value — v33 proved it).** The linked yoda.exe runs; the
+   invisible-text bug was a wrong-CDC-vtable-slot mistranscription that byte-% ignored but the running
+   image exposed instantly. Do a FUNCTIONAL sweep: play through, watch for wrong colors / missing
+   glyphs / misplaced UI / wrong behavior, and for each map the symptom to the responsible function
+   and diff it vs disasm (esp. lone `CALL [reg+disp]` byte diffs = adjacent-vtable-slot / wrong-method
+   bugs, lesson #24). Needs a real WAVMIX32.DLL + YODADEMO.DTA under wine. This finds SEMANTIC bugs
+   the byte-match tolerates (EFFECTIVE funcs can hide them).
 2. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine
    workers around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED
    funcs per TU (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Use
@@ -631,6 +642,17 @@ If a baseline differs, a header drifted — bisect first.
      own bytes don't depend on phase, end-of-file definition is the free-lunch placement. ⚠
      progress.py/match.py best-fit MIS-PAIRS these clone-shaped dtors (assigns 0x4086b0 to
      TextDialog::Run) and under-counts — confirm with a name-keyed coff_functions + M.mask compare.
+  24. **A 1-byte `CALL [reg+disp]` diff is a WRONG-VIRTUAL-METHOD bug, NEVER a "benign immediate"
+     (v33, the invisible-bubble-text fix).** The disp IS the vtable slot. `GameView::OnCtlColor`
+     was `pDC->SetTextColor(0xffffff)` (slot +0x38) but the original `CALL [EAX+0x34]` = CDC::
+     SetBkColor (one slot earlier — SetBkColor precedes SetTextColor in the MFC 4.2 CDC attribute-
+     DC virtual cluster). Result: the balloon edit got white text on white (invisible) instead of a
+     white text-BACKGROUND with default-black text (visible) — a real FUNCTIONAL bug the running
+     EXE exposed, mis-annotated as a "DIFF 1 benign byte" for versions. Whenever a lone byte diff
+     lands on a `CALL [reg+disp]` displacement, map disp→exact vtable slot and check whether the
+     source named an ADJACENT method (Set/Get attribute-DC pairs, the CObArray/CDC clusters). The
+     RUNNING IMAGE is now a first-class oracle: functional bugs (invisible text, wrong colors)
+     point straight at these adjacent-slot / wrong-method mistranscriptions that byte-% shrugs off.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
