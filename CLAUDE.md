@@ -433,13 +433,16 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v33 — G1 begun: InvScrollBar dtors matched #line-neutral; text-bubble lead)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the v33 commit.
-Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`):
-`tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py
-src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/
-GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs** (best-fit under-counts the 2 new
-InvScrollBar dtors — they DO match, see below). Ghidra: `list_open_programs` current=YodaDemo.exe.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v33 — invisible-bubble-text bug FIXED + InvScrollBar dtors matched)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at **`6a88217` "v33: fix
+invisible speech-bubble text — OnCtlColor SetTextColor -> SetBkColor"** (below it: 94a2a2b InvScrollBar
+dtors, 953c910 Build and run script). A dirty tree is EXPECTED and fine: `M run.sh` + `?? YodaDemoCopy/`
+are the USER's app-run script + test copy — do NOT commit or revert them. Baselines (rm obj + recompile
+per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` → **0 duplicates, 0
+unresolved, exit 0, yoda.exe built**; `verify.py src/AppData/AppData.cpp` → **14/14**;
+`src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/GameData.cpp` → **12/27**; `progress.py` →
+**209 exact funcs** (best-fit under-counts the 2 new InvScrollBar dtors — they DO match, see below).
+Ghidra: `list_open_programs` current=YodaDemo.exe before any write.
 If a baseline differs, a header drifted — bisect first.
 
 **▶ v33 RESULTS (committed):**
@@ -461,12 +464,11 @@ If a baseline differs, a header drifted — bisect first.
   dtor match with a name-keyed compare (best-fit mis-pairs it): `coff_functions` → `??1InvScrollBar` →
   `M.mask` vs exe@0x4086b0 (was masked-diff 0).
 - Ghidra: NO writes this session. Nothing pending.
-- **⚠ NEW LEAD from the user (running yoda.exe): the speech-bubble text does NOT render** (frame
-  draws, text missing). Traced the whole chain — ShowTextDialog copies strText, OnInitialUpdate
-  (0x426c40, struct-exact) creates the CEdit+font, Run→Position→Layout show/size it, Layout's tail
-  matches the disasm byte-for-byte. No logic bug found by inspection. Suspect: Layout (0x4176f0,
-  EFFECTIVE align~374 — weakest link) sizing/coord slip, OR wine/font/child-blit env. Needs runtime
-  logging of nTextW/nTextH/rectText + wndDialogText.m_hWnd. See memory [[textbubble-render-lead]].
+- **Method note:** the text bug was found by comparing our yoda.exe vs the stock YodaDemo.exe in the
+  same wine env (inventory text worked, bubble didn't ⇒ narrowed to the balloon-edit paint), then
+  byte-diffing OnCtlColor (name-keyed coff_functions + M.mask). The whole TextDialog chain
+  (ShowTextDialog/OnInitialUpdate/Run/Position/Layout) was verified faithful along the way — the
+  ONLY defect was the OnCtlColor slot. Full write-up: memory [[textbubble-render-lead]] (RESOLVED).
 
 **▶ START HERE (v34):**
 1. **⭐ RUN THE EXE AS A BUG ORACLE (new, high-value — v33 proved it).** The linked yoda.exe runs; the
