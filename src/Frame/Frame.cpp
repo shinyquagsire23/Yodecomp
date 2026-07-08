@@ -39,6 +39,80 @@ CMainFrame::~CMainFrame()
 {
 }
 
+// NOTE (Phase G2 layout): the message-handler definitions below are ordered to match the
+// original Frame.obj emission (= source) order — OnSysCommand, PreCreateWindow, OnGetMinMaxInfo,
+// OnSize, OnCreate, OnCreateClient, OnPaletteChanged, OnPaletteIsChanging, OnQueryNewPalette,
+// OnActivate, OnShowWindow, OnQueryEndSession — so this TU is internally in-order (tools/g2_order.py
+// --scramble). Content-neutral (14/18 exact holds); order does not affect any function's bytes.
+
+// FUNCTION: YODA 0x00419170
+// Pause the game while the user drags/sizes the window (WM_SYSCOMMAND SC_MOVE/SIZE), resume
+// on restore; intercept SC_CLOSE to route through the game's exit confirmation.
+void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
+{
+    GameView *pView = (GameView *)GetActiveView();
+    switch (nID & 0xfff0) {
+    case SC_MINIMIZE:
+        pView->bBusy = 1;
+        CFrameWnd::OnSysCommand(nID, lParam);
+        return;
+    case SC_MAXIMIZE:
+    case SC_RESTORE:
+        pView->bBusy = 0;
+        CFrameWnd::OnSysCommand(nID, lParam);
+        return;
+    case SC_CLOSE:
+        if (pView->pWorld->nFrameMode != 0xc) {
+            pView->ConfirmExit();
+            return;
+        }
+        CFrameWnd::OnSysCommand(nID, lParam);
+        return;
+    default:
+        CFrameWnd::OnSysCommand(nID, lParam);
+        return;
+    }
+}
+
+// FUNCTION: YODA 0x00419210  [EFFECTIVE MATCH: structurally identical (instr-selection all
+//   correct); residual is CRect stack-slot placement + the base-return spill (orig parks bRet
+//   in a stack slot and reloads; ours keeps it in EDI → our frame is 4B smaller). Pure
+//   allocator/scheduling tie-break — endgame/permuter territory. GetSystemMetrics raw args
+//   7/8/0xf/4/0/1 and the cs field-write order verified against disasm.]
+BOOL CMainFrame::PreCreateWindow(CREATESTRUCT &cs)
+{
+    BOOL bRet = CFrameWnd::PreCreateWindow(cs);
+    CRect rc;
+    rc.right = GetSystemMetrics(7) * 2 + 0x20d;
+    int cy = GetSystemMetrics(8) * 2 + 0x136;
+    cy += GetSystemMetrics(0xf);
+    rc.bottom = GetSystemMetrics(4) + cy;
+    rc.top = 0;
+    rc.left = 0;
+    int dx = GetSystemMetrics(0) / 2 - 0x106;
+    int dy = GetSystemMetrics(1) / 2 - 0x9b;
+    rc.OffsetRect(dx, dy);
+    cs.x = rc.left;
+    cs.y = rc.top;
+    cs.style = 0x110a0000;
+    cs.dwExStyle &= 0xfffffdff;
+    cs.cx = rc.right - rc.left;
+    cs.cy = rc.bottom - rc.top;
+    return bRet;
+}
+
+// FUNCTION: YODA 0x004192d0
+void CMainFrame::OnGetMinMaxInfo(MINMAXINFO *lpMMI)
+{
+    Default();
+    lpMMI->ptMaxSize.x = 0x20d;
+    lpMMI->ptMaxSize.y = 0x136;
+    lpMMI->ptMaxSize.y = 0x136 + GetSystemMetrics(SM_CYCAPTION);
+    lpMMI->ptMaxSize.y += GetSystemMetrics(SM_CYMENU);
+    lpMMI->ptMaxTrackSize.x = lpMMI->ptMaxSize.x;
+    lpMMI->ptMaxTrackSize.y = lpMMI->ptMaxSize.y;
+}
+
 // FUNCTION: YODA 0x00419320
 void CMainFrame::OnSize(UINT nType, int cx, int cy)
 {
@@ -52,35 +126,6 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpcs)
         return -1;
     CenterWindow();
     return 0;
-}
-
-// FUNCTION: YODA 0x004196a0
-void CMainFrame::OnShowWindow(BOOL bShow, UINT nStatus)
-{
-    if (nStatus == 0)
-        CenterWindow();
-    Default();
-}
-
-// FUNCTION: YODA 0x004196c0
-BOOL CMainFrame::OnQueryEndSession()
-{
-    GameView *pView = (GameView *)GetActiveView();
-    if (pView->pWorld->nFrameMode != 0xc)
-        pView->ConfirmExit();
-    return FALSE;
-}
-
-// FUNCTION: YODA 0x004192d0
-void CMainFrame::OnGetMinMaxInfo(MINMAXINFO *lpMMI)
-{
-    Default();
-    lpMMI->ptMaxSize.x = 0x20d;
-    lpMMI->ptMaxSize.y = 0x136;
-    lpMMI->ptMaxSize.y = 0x136 + GetSystemMetrics(SM_CYCAPTION);
-    lpMMI->ptMaxSize.y += GetSystemMetrics(SM_CYMENU);
-    lpMMI->ptMaxTrackSize.x = lpMMI->ptMaxSize.x;
-    lpMMI->ptMaxTrackSize.y = lpMMI->ptMaxSize.y;
 }
 
 // FUNCTION: YODA 0x00419370
@@ -143,33 +188,6 @@ BOOL CMainFrame::OnQueryNewPalette()
     return TRUE;
 }
 
-// FUNCTION: YODA 0x00419210  [EFFECTIVE MATCH: structurally identical (instr-selection all
-//   correct); residual is CRect stack-slot placement + the base-return spill (orig parks bRet
-//   in a stack slot and reloads; ours keeps it in EDI → our frame is 4B smaller). Pure
-//   allocator/scheduling tie-break — endgame/permuter territory. GetSystemMetrics raw args
-//   7/8/0xf/4/0/1 and the cs field-write order verified against disasm.]
-BOOL CMainFrame::PreCreateWindow(CREATESTRUCT &cs)
-{
-    BOOL bRet = CFrameWnd::PreCreateWindow(cs);
-    CRect rc;
-    rc.right = GetSystemMetrics(7) * 2 + 0x20d;
-    int cy = GetSystemMetrics(8) * 2 + 0x136;
-    cy += GetSystemMetrics(0xf);
-    rc.bottom = GetSystemMetrics(4) + cy;
-    rc.top = 0;
-    rc.left = 0;
-    int dx = GetSystemMetrics(0) / 2 - 0x106;
-    int dy = GetSystemMetrics(1) / 2 - 0x9b;
-    rc.OffsetRect(dx, dy);
-    cs.x = rc.left;
-    cs.y = rc.top;
-    cs.style = 0x110a0000;
-    cs.dwExStyle &= 0xfffffdff;
-    cs.cx = rc.right - rc.left;
-    cs.cy = rc.bottom - rc.top;
-    return bRet;
-}
-
 // FUNCTION: YODA 0x00419540  [EFFECTIVE MATCH: structure identical (align 452->134 after
 //   ordering the deactivate path as the fall-through); residual is the this/nState EDI<->ESI
 //   register 2-cycle + the original's zero-in-EBP CSE (it parks 0 in EBP and reuses it for the
@@ -225,31 +243,19 @@ void CMainFrame::OnActivate(UINT nState, CWnd *pWndOther, BOOL bMinimized)
     CFrameWnd::OnActivate(nState, pWndOther, bMinimized);
 }
 
-// FUNCTION: YODA 0x00419170
-// Pause the game while the user drags/sizes the window (WM_SYSCOMMAND SC_MOVE/SIZE), resume
-// on restore; intercept SC_CLOSE to route through the game's exit confirmation.
-void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
+// FUNCTION: YODA 0x004196a0
+void CMainFrame::OnShowWindow(BOOL bShow, UINT nStatus)
+{
+    if (nStatus == 0)
+        CenterWindow();
+    Default();
+}
+
+// FUNCTION: YODA 0x004196c0
+BOOL CMainFrame::OnQueryEndSession()
 {
     GameView *pView = (GameView *)GetActiveView();
-    switch (nID & 0xfff0) {
-    case SC_MINIMIZE:
-        pView->bBusy = 1;
-        CFrameWnd::OnSysCommand(nID, lParam);
-        return;
-    case SC_MAXIMIZE:
-    case SC_RESTORE:
-        pView->bBusy = 0;
-        CFrameWnd::OnSysCommand(nID, lParam);
-        return;
-    case SC_CLOSE:
-        if (pView->pWorld->nFrameMode != 0xc) {
-            pView->ConfirmExit();
-            return;
-        }
-        CFrameWnd::OnSysCommand(nID, lParam);
-        return;
-    default:
-        CFrameWnd::OnSysCommand(nID, lParam);
-        return;
-    }
+    if (pView->pWorld->nFrameMode != 0xc)
+        pView->ConfirmExit();
+    return FALSE;
 }
