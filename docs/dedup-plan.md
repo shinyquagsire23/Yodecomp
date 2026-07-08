@@ -42,6 +42,26 @@ GameView}; Canvas.h←Canvas; App.h←App (also pulled via Worldgen.h); Frame.h�
    environment (rotates its dial, and MFC's `CDC` is larger/virtual) OR forces the stub `CDC`
    into an MFC TU (redefinition conflict). Resolve the CDC representation FIRST, then Canvas.
 
+## Progress (2026-07-07 session)
+
+- **Step 1 Records: was already done** (Records.h includes RecordClasses.h; its GameView/World
+  stubs are step-5/6 scope — the World one remains).
+- **Step 2 MapZone: DONE** (canonical src/Worldgen/MapZone.h). WorldStub's shifted variant was
+  compensated by zones@0x4b4 + a 121-int pointer array swallowing cell 0's vptr; the real grid
+  is 0x4b0. ⭐ Fixed StartGame 0x4037a0 DIFF(254)→DIFF(79) — the shifted stub's off-by-4
+  displacements were silently poisoning every cell store. Commit 60ac1c8^..
+- **Steps 3+4 CDC+Canvas: DONE** (canonical src/Canvas/Canvas.h: full fields, .text decl
+  order, 0x407df0=ctor / 0x407eb0=dtor; `class CDC;` fwd only — the 2-field CDC stub is
+  PRIVATE to Canvas.cpp, MFC TUs see the real CDC). Canvas 8/11→9/11 (Clear EXACT);
+  Worldgen +4. Stale dtor addresses 0x408010/0x408400 in the old copies were comment errors.
+- **Step 5 GameView+InvItem: DONE** (WorldStub stubs retired; GameData/Iact include the real
+  GameView.h + afxext.h). Stub lies fixed: OnWalk=ZoneTransitionStep(short,short),
+  PlayerMove=PlaySound, bSuppressWalkSound=bWeaponIactActiveMaybe. Dial cost GameData −3 /
+  Iact −1 (small same-length tie-breaks, annotated, G1).
+- **Step 6 World: REMAINING** — the gating field-reconciliation job (~102 errors' worth,
+  granularity mismatches like nWeaponBoxLeft→rectWeaponBox.left). Also retires Records.h's
+  World stub. Do as its own session; net-positive on the dial per the v27 dry-run.
+
 ## Recommended order (least-entangled first)
 
 1. **Records** — `Records.h`'s local stubs → include `RecordClasses.h`. Records TU only;
