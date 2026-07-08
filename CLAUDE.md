@@ -74,47 +74,22 @@ Examples (note the mandatory `program=` param):
 
 The richer `mcp__ghidra__*` tools are also available and take a `program`/instance argument.
 
-**WRITE GOTCHA (worse than the read one) — STILL LIVE as of 2026-07-08:** `program=` is honored only for
-**reads**. **Mutations** (rename, set-comment, set-prototype, etc. — both `mcp__ghidra__*` and the HTTP
-endpoints) always act on the **currently-active** program, and `switch_program` returns `success` but does
-NOT persist. Passing `program=X` to a write is silently ignored → you will corrupt whatever is ACTIVE.
-**To rename/annotate YodaDemo you must make YodaDemo.exe the ACTIVE program in the Ghidra GUI first**
-(open/focus it in the CodeBrowser). Confirm with `list_open_programs` → `current_program` must read
-`YodaDemo.exe` before any write. Then writes land correctly. ⚠ Other programs ARE open now (v50:
-libKOTOR.so/KOTOR2sub/libkotor2.so — the user's KOTOR project), so a mis-routed write corrupts THEIR work.
-- **⭐ v51 DIAGNOSIS — the PLUGIN is fixed, the BRIDGE is not.** Ghidra runs plugin **5.15.0** (verified:
-  `curl localhost:8089/get_version`) from `feature/program-param-write-routing`. v51 tested post-restart:
-  - **Direct HTTP with `program=` in the QUERY string ROUTES CORRECTLY** — `curl -s
-    "localhost:8089/set_plate_comment?program=libkotor2.so" -X POST -d '{"address":"0x400e70","comment":"..."}'`
-    lands on libkotor2.so and leaves the active YodaDemo untouched (proven: the call returned libkotor2.so's
-    own "No function at 0x401000" and YodaDemo's OnTimer comment was unchanged).
-  - **The `mcp__ghidra__*` tools STILL mis-route** — `mcp__ghidra__set_plate_comment(program="libkotor2.so",…)`
-    hit the ACTIVE YodaDemo. The Python MCP BRIDGE sends `program` where the plugin's regular @McpTools don't
-    read it (body vs the required QUERY), or the running bridge predates the fix. Restarting Ghidra did NOT fix
-    the bridge (separate process).
-  - **⭐ v51 ROOT CAUSE (the MCP server points at an OUTDATED bridge script):** `~/.claude.json` →
-    `mcpServers.ghidra` runs `/opt/homebrew/bin/python3 /Users/maxamillion/Programs/bridge_mcp_ghidra.py` — the
-    OLD monolithic bridge (1326 lines, Apr 10) whose `dispatch_post` sends EVERY POST param (incl. `program`)
-    in the JSON BODY, with NO schema-driven query/body split. The plugin's regular `@McpTool`s read `program`
-    only from the QUERY → never see it on writes → fall back to active program. The UPDATED package bridge
-    `~/workspace/ghidra-mcp/python/bridge_mcp_ghidra/` FIXES this (registry.py:99 puts `source==query` params in
-    the query; dispatch.py:182 POSTs them as query params). **FIX = repoint the MCP config** at the new bridge:
-    `{"command":"/opt/homebrew/bin/python3","args":["-m","bridge_mcp_ghidra"],
-    "env":{"PYTHONPATH":"/Users/maxamillion/workspace/ghidra-mcp/python"}}` (default stdio + 127.0.0.1:8089, same
-    as now) — then RESTART Claude Code (MCP servers launch at startup). Verify deps (`mcp`, `requests`) import
-    under that python3. AFTER repoint+restart, re-run the cross-program comment test; if it routes, relax these
-    warnings.
-  - **v51 APPLIED the fix (pending a Claude Code RESTART to take effect):** the old bridge needed `mcp>=1.28.1`
-    but system python3 had `mcp 1.5.0`, so built a dedicated venv `~/workspace/ghidra-mcp/.venv`
-    (`python3 -m venv` + `pip install -e ~/workspace/ghidra-mcp`, mcp 1.28.1) and repointed
-    `~/.claude.json`→`mcpServers.ghidra` to `{"command":".../.venv/bin/python","args":["-m","bridge_mcp_ghidra"]}`
-    (backup at `~/.claude.json.bak-v51`). Smoke-tested: the new bridge starts + registers tools. ⚠ It prefers
-    UDS AUTO-DISCOVERY and connected to instance **"JK_re"**, NOT YodaDemo/8089 — after the CC restart, use
-    `list_instances`/`connect_instance` to reach the YodaDemo instance if it didn't auto-pick it. THEN re-run
-    the cross-program comment test; if writes route by `program=`, relax the WRITE GOTCHA warnings.
-  - **⇒ SAFE-WRITE RULES until the bridge is repointed+restarted:** (a) write to a NON-active program via
-    **direct HTTP `?program=<name>` in the query** (routes correctly); (b) for `mcp__ghidra__*` writes keep the
-    TARGET program **ACTIVE** (`list_open_programs`→current) — they ignore `program=`.
+**WRITE ROUTING — RESOLVED as of v51 (2026-07-08). `program=` now routes correctly on writes.** ALWAYS pass
+`program=YodaDemo.exe` explicitly on every mutation (rename/comment/prototype/struct) — with it set, the write
+lands on the named program regardless of which is active. VERIFIED v51 via a cross-program comment test through
+the mcp tools: `set_plate_comment(program="libkotor2.so",…)` landed on libkotor2.so and left the active YodaDemo
+untouched (before the fix it clobbered the active program). ⚠ MANY programs are open in this shared Ghidra
+(the user's KOTOR/JK projects) — so OMITTING `program=` still targets the active program; don't omit it.
+- **What the fix was (history):** the Ghidra plugin is **5.15.0** (`feature/program-param-write-routing`) and
+  reads `program` from the QUERY on writes; it was already correct. The bug was the **MCP bridge** — the config
+  ran the OLD monolithic `/Users/maxamillion/Programs/bridge_mcp_ghidra.py` which put `program` in the POST BODY
+  (plugin never saw it → fell back to active). v51 built a venv `~/workspace/ghidra-mcp/.venv` (mcp 1.28.1,
+  `pip install -e`) and repointed `~/.claude.json`→`mcpServers.ghidra` to
+  `{"command":".../.venv/bin/python","args":["-m","bridge_mcp_ghidra"]}` (backup `~/.claude.json.bak-v51`); the
+  new package bridge sends `source==query` params (incl. `program`) in the query. Bridge auto-connects via UDS
+  to the "JK_re" Ghidra project (which holds YodaDemo.exe + the KOTOR programs on port 8089); `list_instances`/
+  `connect_instance` switch instances if needed. (`switch_program` for the ACTIVE program still doesn't persist,
+  but that no longer matters since `program=` routes.)
 
 ## Binary facts (established 2026-07-04)
 
@@ -632,10 +607,10 @@ Written to be followable without prior context: each phase lists concrete steps 
    — confirm the recorded exact-count reproduces BEFORE changing anything (if not, a header drifted;
    bisect first). **⚠ OBJS LIVE IN `build/` (repo root), not next to the .cpp** (v32 hygiene change):
    all tooling (verify/match/progress/asmscore + link_exe.sh) reads/writes `build/<TU>.obj` via `/Fo`.
-2. **Ghidra check:** `curl -s localhost:8089/list_open_programs` → `current_program` must be
-   `YodaDemo.exe` before ANY write (renames/comments/struct edits hit the ACTIVE program, and
-   `program=` is honored only for reads). If not active, queue the writes in the pickup block
-   instead of writing.
+2. **Ghidra check:** writes now ROUTE by `program=` (v51 fix). ALWAYS pass `program=YodaDemo.exe`
+   on every mutation (rename/comment/struct) — it lands on the named program regardless of which is
+   active. (No longer need YodaDemo to be the active program; just don't OMIT `program=`, or it
+   targets the active one — many KOTOR/JK programs share this Ghidra.)
 3. **Work loop per function:** read the ORIGINAL disasm first (Ghidra `disassemble_function`,
    dump to a tmp file); transcribe idiomatically; compile fresh; `tools/asmscore.py <TU>.cpp
    0xADDR [--dump]` (dump columns: LEFT = original, RIGHT = ours). `align>0` ⇒ structural — hunt
@@ -690,14 +665,11 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
 **▶ START HERE (v51) — content phase is DONE; the two live threads are both PAUSED pending EXTERNAL action (the
 user is obtaining things). Don't manufacture busywork — check the two threads, else ask the user.**
 
-**THREAD 1 — Ghidra write-routing: PLUGIN fixed, BRIDGE not (v51 diagnosed; see the WRITE GOTCHA block above).**
-Ghidra runs plugin 5.15.0 (`feature/program-param-write-routing`). v51 proved: **direct HTTP with `?program=`
-in the QUERY routes correctly** (write to a non-active program lands there, active untouched), but the
-**`mcp__ghidra__*` bridge still mis-routes** to the active program (it doesn't put `program` in the query the
-plugin reads). So until the BRIDGE is fixed/restarted: use direct HTTP `curl "localhost:8089/<ep>?program=<name>"`
-for cross-program writes, OR keep the target program ACTIVE for mcp writes. NEXT: if the user updates/restarts
-the MCP bridge, RE-RUN the cross-program comment test via the mcp tool; if it routes, relax the WRITE GOTCHA
-block. ⚠ KOTOR programs share this Ghidra — a mis-routed mcp write corrupts THEIR work.
+**THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
+(venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
+cross-program comment test PASSED (mcp `set_plate_comment(program="libkotor2.so")` landed on libkotor2.so, active
+YodaDemo untouched). ⇒ writes now route by `program=`. Rule: ALWAYS pass `program=YodaDemo.exe` on mutations
+(see the WRITE ROUTING block above). Nothing pending on this thread.
 
 **THREAD 2 — the compiler hunt (PAUSED; waiting on a candidate build).** CORRECTION to the old "unobtainable cl"
 framing: **we HAVE + use a genuine VC++ 4.2, cl `10.20.6166` (CL.EXE + C1XX.EXE + C2.EXE) at `toolchain/vc42/`**
@@ -1249,5 +1221,5 @@ CreateGapFunctions/FillFunctionHoles) are REAL body-repair tools kept for Phase 
   (v26) — restarting Ghidra clears it (v28: confirmed working again). The compile-error noise
   from old ~/ghidra_scripts *.java files in every run is normal; check for your own println.
 - HTTP writes: JSON bodies only; rename key = `"function_address"`, plate key = `"address"`;
-  `program=` is honored on READS only — writes always hit the ACTIVE program (verify with
-  list_open_programs first; see the WRITE GOTCHA at the top of this file).
+  `program=` now routes writes correctly (v51 fix) — pass it in the QUERY string (`?program=YodaDemo.exe`)
+  for raw curl writes; for `mcp__ghidra__*` just pass the `program` arg. See the WRITE ROUTING block at the top.
