@@ -185,6 +185,26 @@ public:
     virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);    // 0x0041b8a0
     virtual void Serialize(CArchive& ar);                 // (doc TU; vcall slot +8)
 
+    // ---- command/update handlers referenced by the message map (data @0x44c2d0) ----
+    // Bodies live in the GameData & Worldgen source files (this=World); declared here only so
+    // BEGIN_MESSAGE_MAP below can take their addresses. Address-only refs (no call sites in this
+    // TU) ⇒ codegen-neutral for the WorldDoc functions; they exist to keep the handlers alive
+    // under /OPT:REF (the original references them via this map) + reproduce the .rdata array.
+    afx_msg void OnToggleSound();                         // 0x004242a0
+    afx_msg void OnUpdateToggleSound(CCmdUI *pCmdUI);     // 0x004242f0
+    afx_msg void OnToggleMusic();                         // 0x00424310
+    afx_msg void OnUpdateToggleMusic(CCmdUI *pCmdUI);     // 0x00424360
+    afx_msg void OnNewWorld();                            // 0x00424450
+    afx_msg void OnSaveWorld();                           // 0x00424540
+    afx_msg void OnLoadWorld();                           // 0x00424fc0
+    afx_msg void OnReplayStory();                         // 0x00403620
+    afx_msg void OnUpdateFileSave(CCmdUI *pCmdUI);        // 0x00403510
+    afx_msg void OnUpdateAppExit(CCmdUI *pCmdUI);         // 0x00403520
+    afx_msg void OnUpdateHideMe(CCmdUI *pCmdUI);          // 0x00403550
+    afx_msg void OnUpdateNewWorld(CCmdUI *pCmdUI);        // 0x00403580
+    afx_msg void OnUpdateLoadWorld(CCmdUI *pCmdUI);       // 0x00403600
+    afx_msg void OnUpdateReplayStory(CCmdUI *pCmdUI);     // 0x00403610
+
 protected:
     DECLARE_DYNCREATE(World)                              // CreateObject 0x00419ed0
     DECLARE_MESSAGE_MAP()                                 // GetMessageMap 0x00419f50

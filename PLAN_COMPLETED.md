@@ -1225,3 +1225,14 @@ order → Frame internally in-order (14/18 holds). (3) Code cleanup (user req): 
 fields (with usage comments) to proper names + synced Ghidra (created 6 missing fields, aligned 5 stale
 *Maybe); PlanToken enum → decimal. All codegen-neutral (212 stands, link 0/0/exit0, bugscan 0/0/0). Then v44
 closed the remaining App(3)+Worldgen-tail(3) scrambles and settled /OPT (original = /OPT:REF; lesson #31).
+
+### ⏮ PRIOR PICKUP — v44 (2026-07-08, condensed; superseded by v45)
+PHASE G2: emission-order scrambles closed + /OPT:REF settled (all CONTENT-neutral, 212 stood). (1) App.cpp
+reordered to original emission order (msgmap→ctor→theApp→InitInstance→OnIdle→LogWrite→CAboutDlg ctor→
+DoDataExchange→msgmap→OnAppAbout→OnInitDialog) → App in-order. (2) Worldgen GameView-tail reordered to
+ascending addr (UseWeapon→DetonateAdjacentTiles→OnCmdMinimize→DrawWeaponBox→DrawWeaponIcon→BlitViewport
+Dither→PreCreateWindow→AddItemToInv→RemoveItem) → Worldgen 4→1 inversions. All steerable emission-order
+scrambles closed; 3 residual inversions are compiler-placed lib COMDATs (BENIGN). (3) /OPT SETTLED (lesson
+#31): the original is a /OPT:REF build — our REF .text is within 1.7% of the original (302,716 B) vs NOREF
++19%; overturned the v43 NOREF guess (that used .rsrc-distorted full-file sizes). Then v45 reconstructed the
+World document message map (REF-drop oracle, lesson #32): 22→7 REF-drops, ~World PHASE-DISPLACED 212→211.

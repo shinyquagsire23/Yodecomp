@@ -82,8 +82,25 @@ World *gpWorld;                       // 0x004561dc — set by the ctor
 IMPLEMENT_DYNCREATE(World, CDocument)
 
 // FUNCTION: YODA 0x00419f50  (GetMessageMap)
+// The document's command/update-UI map (AFX_MSGMAP_ENTRY array @0x44c2d0, 14 entries + terminator).
+// Reconstructed byte-for-byte from the binary in v45: IDs read from the array (0xe103=ID_FILE_SAVE,
+// 0xe141=ID_APP_EXIT, the 0x800x are this app's menu-command IDs), handlers matched by pfn address.
+// Referencing these here keeps them alive under /OPT:REF (they were dropped as unreferenced before).
 BEGIN_MESSAGE_MAP(World, CDocument)
-    // TODO: reproduce the original entry list (data @0x44c2c8) — code matches regardless
+    ON_COMMAND(0x8000, OnToggleSound)
+    ON_UPDATE_COMMAND_UI(0x8000, OnUpdateToggleSound)
+    ON_COMMAND(0x8004, OnToggleMusic)
+    ON_UPDATE_COMMAND_UI(0x8004, OnUpdateToggleMusic)
+    ON_COMMAND(0x8008, OnNewWorld)
+    ON_COMMAND(0xe103, OnSaveWorld)                       // ID_FILE_SAVE
+    ON_COMMAND(0x800a, OnLoadWorld)
+    ON_COMMAND(0x800b, OnReplayStory)
+    ON_UPDATE_COMMAND_UI(0xe103, OnUpdateFileSave)        // ID_FILE_SAVE
+    ON_UPDATE_COMMAND_UI(0xe141, OnUpdateAppExit)         // ID_APP_EXIT
+    ON_UPDATE_COMMAND_UI(0x8001, OnUpdateHideMe)
+    ON_UPDATE_COMMAND_UI(0x8008, OnUpdateNewWorld)
+    ON_UPDATE_COMMAND_UI(0x800a, OnUpdateLoadWorld)
+    ON_UPDATE_COMMAND_UI(0x800b, OnUpdateReplayStory)
 END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419f60
@@ -525,9 +542,14 @@ World::World()
 }
 
 // FUNCTION: YODA 0x0041b2d0  (scalar deleting dtor ??_G — emitted by the compiler)
-// FUNCTION: YODA 0x0041b2f0  [EXACT again since the MapZone.h de-dup (2026-07-07) — the
-//   esi/edi 2-cycle from the GetLocatorIcon/DrawPlayer-era dial un-rotated. History: matched
-//   at 854fba2, PHASE-DISPLACED DIFF(6) for a while (align=0), now back. Dial breathing.]
+// FUNCTION: YODA 0x0041b2f0  [PHASE-DISPLACED again (v45): DIFF(6), align=0 reg_pen=8 — the same
+//   esi/edi symmetric 2-cycle this function has oscillated on for versions (matched at 854fba2 and
+//   after the MapZone.h de-dup; displaced here). CAUSE: v45 restored the World document message map
+//   (below) — the original WorldDoc.obj was compiled WITH that map, so the map is the TRUE TU context;
+//   its presence re-rotates ~World's intrinsic register choice in our partial-context build. Source is
+//   proven correct (align=0 structural identity, 405/405 insns); this is the lesson-#29 reg-coloring
+//   ceiling, NOT a source miss. Trade accepted: the correct map keeps 15 handlers alive under /OPT:REF
+//   + byte-matches the .rdata array (see the map comment), vs this one 6-byte .text displacement.]
 // World destructor: write the options back to the registry, then destroy all assets.
 World::~World()
 {

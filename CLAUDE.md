@@ -517,7 +517,19 @@ Written to be followable without prior context: each phase lists concrete steps 
   SETTLED /OPT:REF vs NOREF (lesson #31): the original is a **/OPT:REF** build — our REF .text is within
   1.7 % of the original (302,716 B) while NOREF is +19 % (keeps ~57 KB the original dropped). Overturns
   the v43-pickup NOREF guess (that used .rsrc-distorted full-file sizes). The G2 final image targets REF +
-  reference-graph completion; the −5 KB REF gap = we slightly under-reference (COMDAT geography work).**
+  reference-graph completion; the −5 KB REF gap = we slightly under-reference (COMDAT geography work).** →
+  **211 exact / 99.17 % coverage — v45 (2026-07-08): PHASE G2 — World document message map reconstructed
+  (the REF-drop oracle in action). Built the REF-vs-NOREF symbol-diff oracle (lesson #32): 22 app functions
+  were dropped under /OPT:REF as unreferenced, 19 of them the World doc's command/update-UI handlers because
+  BEGIN_MESSAGE_MAP(World,CDocument) was an empty TODO stub. Reconstructed the 14-entry AFX_MSGMAP_ENTRY
+  array byte-for-byte from the binary @0x44c2d0 (IDs read from the array, handlers matched by pfn address:
+  6 ON_COMMAND ToggleSound/ToggleMusic/NewWorld/SaveWorld/LoadWorld/ReplayStory + 8 ON_UPDATE_COMMAND_UI)
+  into WorldDoc.cpp + declared the handlers afx_msg in WorldDoc.h's World class → all 14 fixed-field entries
+  byte-match; REF-dropped 22→7. COST: ~World 0x41b2f0 PHASE-DISPLACED (212→211, DIFF 6 align=0 — the original
+  .obj was built WITH the map so it's the true TU context; adding it re-rotates ~World's known intrinsic
+  esi/edi reg 2-cycle). Net IMAGE gain (not shown by the .text-marker counters): byte-exact .rdata msgmap +
+  15 REF-recovered functions the original keeps. The map is FUNCTIONALLY ESSENTIAL (menu-command dispatch)
+  so it's required source. link 0/0/exit0, bugscan 0/0/0, g2 LAYOUT 39 / CONTENT 225.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -559,59 +571,59 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v44 — PHASE G2: emission-order scrambles CLOSED + /OPT:REF settled; 212 CONTENT stands)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v44** commit(s) (App +
-Worldgen-tail reorder + /OPT finding); below: b2b1b88 v43 docs, 8082a13/94b0da0/8f8dbe5 v43. Tree CLEAN
-(USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
-`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX
-/O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh`
-which compiles all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs /
-99.17% coverage** (STABLE — name-keyed); `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU
-exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124,
-**Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen 34/91. ⚠ verify.py
-per-TU can UNDERCOUNT ~10 (lesson #30): trust progress.py's 212. **G2 baseline: `bash tools/g2_link.sh &&
-python3 tools/g2_diff.py` → LAYOUT 39/378, CONTENT 226/378, BOTH 32/378** (also `python3 tools/g2_order.py
---walls` / `--scramble`). Ghidra: current=YodaDemo.exe (nothing pending — v43 synced fields; v44 was
-source-only). ⚠ BUDGET: Fable weekly usage was ~94% before reset 2026-07-09 23:00 America/Boise (G2 is
-all main-thread anyway — no Fable needed).
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v45 — PHASE G2: World document message map reconstructed; 211 exact)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v45** commit (World msgmap
+reconstruct); below: 13d6d72 v44 (App+Worldgen reorder + /OPT), b2b1b88 v43. Tree CLEAN (USER gitignored
+YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into `build/` first —
+`cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D
+NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh` which compiles
+all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **211 exact funcs / 99.17% coverage**
+(⚠ was 212 through v44 — v45 traded ~World to PHASE-DISPLACEMENT for the essential msgmap, see RESULTS);
+`bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas
+9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12, Records
+26/33, World 6/8, **WorldDoc 7/13 (was 8 — ~World displaced)**, Worldgen 34/91. ⚠ verify.py per-TU can
+UNDERCOUNT ~10 (lesson #30): trust progress.py's 211. **G2 baseline: `bash tools/g2_link.sh && python3
+tools/g2_diff.py` → LAYOUT 39/378, CONTENT 225/378 (was 226 — ~World), BOTH 32/378.** Ghidra:
+current=YodaDemo.exe (nothing pending; the msgmap array @0x44c2c8/0x44c2d0 could OPTIONALLY be labeled but
+isn't required). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (G2 is all main-thread anyway).
 
-**▶ v44 RESULTS (all CONTENT-neutral — 212 holds, link 0/0/exit0, bugscan clean, g2 LAYOUT 39 / CONTENT 226):**
-- **App.cpp reordered to original emission order** → `g2_order.py --scramble` **App: in-order**. New def order:
-  msgmap(CTheApp)→ctor→`theApp`→InitInstance→OnIdle→LogWrite→CAboutDlg ctor→DoDataExchange→msgmap(CAboutDlg)
-  →OnAppAbout→OnInitDialog.
-- **Worldgen GameView-tail reordered to ascending addr** (script in git history / same technique) → Worldgen
-  4→1 inversions. Tail is now UseWeapon(427d20)→DetonateAdjacentTiles(428680)→OnCmdMinimize→DrawWeaponBox→
-  DrawWeaponIcon→BlitViewportDither→PreCreateWindow→AddItemToInv→RemoveItem(429150).
-- **ALL steerable emission-order scrambles CLOSED.** The 3 residual inversions are compiler-placed LIBRARY
-  COMDATs, BENIGN/not source-steerable: AppData `??_GWorldgenZoneEntry` (self-corrects), GameView lib-dtor
-  interleavings + end-placed `InvScrollBar` dtor (lesson #23), Worldgen `??_GCProgressCtrl` (0x425e10, emits
-  at FIRST odr-use = LoadWorld's local `CProgressCtrl progress;` @Worldgen.cpp:3999; original's first use was
-  a later function → moving it is a CONTENT change, not a reorder — LEFT).
-- **⭐ /OPT SETTLED (lesson #31, docs/g2-layout.md): original is a `/OPT:REF` build.** .text vsize of the SAME
-  obj set: original 302,716 B; our REF 297,671 B (−1.7 %); our NOREF 359,927 B (+19 %). NOREF keeps ~57 KB the
-  original dropped ⇒ NOT NOREF. Overturns the v43-pickup guess (that used .rsrc-distorted full-FILE sizes).
+**▶ v45 RESULTS — World document message map reconstructed (the REF-drop oracle in action):**
+- **⭐ REF-drop oracle (lesson #32):** link the SAME build/*.obj set twice — `/OPT:REF` and `/OPT:NOREF`, each
+  `/MAP` — diff the app-obj symbol sets (`NOREF − REF`) = functions REF drops as UNREFERENCED = real gaps in
+  our reproduced reference graph. Baseline **22 dropped**; 19 were the World doc's command/update handlers
+  because `BEGIN_MESSAGE_MAP(World,CDocument)` was an empty TODO stub.
+- **Reconstructed the 14-entry map byte-for-byte** from `@0x44c2d0` (24-byte AFX_MSGMAP_ENTRY records; pfns
+  matched to handlers by address): 6 ON_COMMAND (0x8000 ToggleSound / 0x8004 ToggleMusic / 0x8008 NewWorld /
+  0xe103 SaveWorld / 0x800a LoadWorld / 0x800b ReplayStory) + 8 ON_UPDATE_COMMAND_UI (…ToggleSound/Music,
+  0xe103 FileSave, 0xe141 AppExit, 0x8001 HideMe, 0x8008 NewWorld, 0x800a LoadWorld, 0x800b ReplayStory).
+  Written in WorldDoc.cpp; handlers declared `afx_msg` in WorldDoc.h's World class. **All 14 fixed-field
+  entries byte-match; REF-dropped 22→7.**
+- **COST accepted:** `~World` 0x41b2f0 PHASE-DISPLACED (212→211, DIFF 6 align=0 — the original .obj was built
+  WITH the map so it's the TRUE TU context; adding it re-rotates ~World's known intrinsic esi/edi reg 2-cycle,
+  a documented oscillator). Net IMAGE gain (invisible to the .text-marker counters): byte-exact .rdata msgmap
+  + 15 REF-recovered functions. The map is FUNCTIONALLY ESSENTIAL (menu-command dispatch) ⇒ required source.
 
-**▶ START HERE (v45) — PHASE G2, main-thread. Emission-order + the /OPT question are DONE. The remaining G2
-work is the reference-graph/COMDAT-geography + non-.text layout, all under the standing cap: absolute LAYOUT
-is gated by ~43 intrinsic length walls == the cl reg-alloc wall (= the 212 content ceiling). The achievable
-G2 bar is a runnable /OPT:REF image with correct RELATIVE layout + the known reg-coloring length deltas.**
-1. **Switch the FINAL image to /OPT:REF + close the −5 KB under-reference gap (COMDAT fold-vs-survive
-   geography, docs/g2-layout.md worklist #3).** Our REF build is ~5 KB UNDER the original — we odr-use a few
-   FEWER real MFC/GDI COMDATs than the complete original (the ??_GCPalette-style under-emit). Find which
-   COMDATs the original .text has that our REF image lacks (diff the original's function list vs our REF map)
-   and reconcile (add the missing odr-uses / fix the fold set). NOTE: `link_exe.sh` + `g2_link.sh` still use
-   NOREF as a layout-analysis SCAFFOLD — leave those; make a SEPARATE REF target for the final-image work.
-2. **First length wall = the absolute-LAYOUT frontier** (`g2_order.py --walls`): SaveStoryHistoryNevada
-   0x402670 (GameData, +0x10, ours over-allocates EBX). Everything ≤ that addr can be made absolute-LAYOUT-
-   correct; past it, cumulative drift oscillates. Cracking a wall needs the reg-alloc problem (unobtainable
-   cl) — do NOT grind. Focus layout work on the pre-wall region + relative order.
-3. **Non-.text layout** (worklist #4-6): .rdata (vtables/msgmaps/string pools), .data, .rsrc (already copied
-   verbatim by extract_res.py); then EH funclets + 0x424fb0 bare-jmp thunk + 0x424f69 CxxFrameHandler thunk;
-   PE timestamp/checksum mask; reccmp-style whole-image diff → image-level %.
+**▶ START HERE (v46) — PHASE G2, main-thread. Continue closing the reference-graph gaps + non-.text layout.**
+1. **Close the remaining 7 REF-drops** (same oracle: REF vs NOREF `/MAP` symbol diff). They are: (a)
+   `AppWnd::Disable/Enable/OnPaint/OnTimer` — the AppData CWnd's handlers; check whether AppWnd has a real
+   message map / vtable that should reference them (likely another stubbed/absent map like the World one was);
+   (b) `World::IsModified` + `SetModifiedFlag` — CDocument VIRTUAL overrides (UAEHXZ/UAEXH@) referenced only
+   via the World vtable — verify our World vtable (classWorld) actually lists them (declare them virtual in
+   the vtable-emitting World class if missing); (c) `??_H@YGXPAXIHP6EX0@Z@Z` = `__vector_constructor_iterator`
+   CRT helper — a compiler COMDAT emitted at an array-of-objects-with-ctor site; find the original odr-use.
+   ⚠ EXPECT the same tradeoff risk as v45: adding a real reference can PHASE-DISPLACE a currently-exact
+   function via the dial (lesson #29/#32). Weigh image-completeness vs the headline per case; keep essential
+   program structure (maps/vtables), annotate any displacement PHASE-DISPLACED.
+2. **Non-.text layout** (worklist #4-6): .rdata (vtables/msgmaps/string pools — the v45 msgmap is a start),
+   .data, .rsrc (already copied verbatim by extract_res.py); then EH funclets + 0x424fb0 bare-jmp thunk +
+   0x424f69 CxxFrameHandler thunk; PE timestamp/checksum mask; reccmp-style whole-image diff → image-level %.
+3. **Absolute-LAYOUT frontier is the first length wall** (`g2_order.py --walls`): SaveStoryHistoryNevada
+   0x402670 (GameData, +0x10). Everything ≤ that can be absolute-LAYOUT-correct; past it drift oscillates.
+   Cracking a wall needs the reg-alloc problem (unobtainable cl) — do NOT grind; focus on the pre-wall region.
 - **PARKED / blocked (unchanged):** AppData CObject-trio -0x30 + WorldgenZoneEntry ??_G (self-correct).
   **Canvas-gap mini** BLOCKED on owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6**
-  (World, ~102 fields) — docs/dedup-plan.md (v43 already reconciled ~29 World field names/defs).
-- **Map non-exact:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — all remaining non-exact are
+  (World, ~102 fields) — docs/dedup-plan.md.
+- **Map non-exact:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — remaining non-exact are
   lesson-#29 intrinsic/park class, NOT content-fixable and (when same-length) layout-neutral.
 
 
@@ -883,6 +895,23 @@ G2 bar is a runnable /OPT:REF image with correct RELATIVE layout + the known reg
      slightly UNDER-reference (a few real MFC/GDI COMDATs the complete original odr-used that our stubbed
      source doesn't — the ??_GCPalette-style under-emit); closing it is the COMDAT fold-vs-survive geography
      work (docs/g2-layout.md worklist #3), NOT a flag change. Do NOT re-test REF-vs-NOREF.
+  32. **⭐ The REF-vs-NOREF symbol diff is a precise "reproduced-reference-graph gap" oracle — and empty
+     message-map stubs are the #1 leak (v45).** Link the SAME obj set twice (`/OPT:REF` and `/OPT:NOREF`,
+     each `/MAP`), diff the app-obj symbol sets: `NOREF − REF` = functions REF drops as unreferenced. In the
+     COMPLETE original each IS referenced, so every dropped symbol is a real hole in OUR reference graph.
+     v45: 22 dropped, 19 of them the World doc's command/update-UI handlers because
+     `BEGIN_MESSAGE_MAP(World,CDocument)` was an empty TODO. **Reconstructing an MFC 4.2 message map from the
+     binary:** GetMessageMap returns `&messageMap` = `AFX_MSGMAP{pBaseMap, lpEntries}` (8B); `lpEntries` → a
+     24-byte `AFX_MSGMAP_ENTRY{UINT nMessage,nCode,nID,nLastID,nSig; PMSG pfn}` array + a zeroed terminator.
+     Read the fixed fields, match each `pfn` to a handler by ADDRESS, recover the macros (ON_COMMAND: nCode=0
+     nSig=0x0c; ON_UPDATE_COMMAND_UI: nCode=-1 nSig=0x2c), write them in ARRAY order + declare the handlers
+     `afx_msg` in the class the map's TU compiles against (address-only refs ⇒ codegen-inert for that TU's
+     functions). The 14 entries' fixed fields byte-matched; REF-dropped 22→7. ⚠ **A correct map can still
+     PHASE-DISPLACE a previously-exact function:** the original .obj was built WITH the map, so the map is the
+     TRUE TU context; adding it re-rotated `~World`'s intrinsic reg 2-cycle (212→211, align=0, lesson #29). A
+     functionally-essential map (menu-command dispatch) is REQUIRED source — keep it, annotate the displaced
+     function PHASE-DISPLACED. progress.py/g2_diff count only .text markers, so a byte-exact .rdata data COMDAT
+     + REF-recovered functions are real IMAGE gains they don't show — weigh the image, not just the headline.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in

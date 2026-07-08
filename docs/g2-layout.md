@@ -192,6 +192,33 @@ the known ~48 reg-coloring .text deltas until/unless the central open problem (a
    already displaced them, so fixing relative order is a health/correctness win, not an absolute-address
    one until the walls crack (= the reg-alloc ceiling, same as 212 content).
 
+## v45 — the REF-DROP oracle + World document message map reconstructed (closes 15 of 22 gaps)
+The concrete way to find "which functions the original references that our partial call-graph doesn't":
+link the SAME obj set twice (`/OPT:REF` and `/OPT:NOREF`, each with `/MAP`), diff the app-obj symbol sets
+(Lib:Object ∈ our 13 objs); `NOREF − REF` = the functions REF drops as unreferenced. In the complete
+original these ARE referenced, so each is a real gap in our reproduced reference graph. v45 baseline: **22
+dropped**, of which **19 were the World document's command/update-UI handlers** — because our
+`BEGIN_MESSAGE_MAP(World, CDocument)` was an EMPTY TODO stub, so nothing referenced the handlers.
+
+**Reconstructed the map byte-for-byte from the binary.** GetMessageMap (0x419f50) returns `&messageMap`
+@0x44c2c8 = `AFX_MSGMAP{ pBaseMap=CDocument::messageMap@0x44d108, lpEntries=0x44c2d0 }`; the entries are a
+24-byte `AFX_MSGMAP_ENTRY{UINT nMessage,nCode,nID,nLastID,nSig; AFX_PMSG pfn}` array (14 entries + a zeroed
+terminator). Read the fixed fields, matched each `pfn` to a handler by address (7 in Worldgen @0x424xxx, 7 in
+GameData @0x403xxx — both are World-TU source files), recovered the macro list (ON_COMMAND nCode=0 nSig=0x0c;
+ON_UPDATE_COMMAND_UI nCode=-1 nSig=0x2c). Wrote the 14 macros in array order into WorldDoc.cpp + declared the
+handlers `afx_msg` in WorldDoc.h's World class (address-only refs, no call sites ⇒ codegen-inert for the WorldDoc
+functions). Result: **all 14 entries' fixed fields byte-match** the binary's `@0x44c2d0`; REF-dropped 22→7.
+- **COST (accepted): `~World` 0x41b2f0 PHASE-DISPLACED, DIFF(6) align=0 (212→211 exact).** The original
+  WorldDoc.obj was compiled WITH this map, so the map is the TRUE TU context; adding it re-rotates ~World's
+  intrinsic esi/edi symmetric register 2-cycle (a KNOWN oscillator on this function). Source proven correct
+  (align=0, 405/405 insns) — the lesson-#29 reg-coloring ceiling, not a miss. Net for the IMAGE is positive:
+  a byte-exact `.rdata` msgmap array + 15 `.text` functions the original keeps (were REF-dropped) vs one
+  6-byte intrinsic .text displacement. The msgmap is FUNCTIONALLY ESSENTIAL (dispatches File>New/Save/Load/
+  Replay + sound/music toggles + their menu enable states) — a faithful decomp must have it.
+- **7 REF-drops REMAIN (next):** `AppWnd::Disable/Enable/OnPaint/OnTimer` (AppData CWnd — its msgmap/vtable
+  refs, likely another stubbed map), `World::IsModified`/`SetModifiedFlag` (CDocument virtual overrides —
+  need the World vtable to list them), `??_H@YGXPAXIHP6EX0@Z@Z` (`__vector_constructor_iterator` CRT helper).
+
 ### ⭐ v44 — /OPT:REF vs /OPT:NOREF SETTLED: the original is a `/OPT:REF` build.
 Measured `.text` vsize of three links of the SAME build/*.obj set (from repo root, +wavmix32.lib):
 
