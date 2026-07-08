@@ -92,10 +92,21 @@ libKOTOR.so/KOTOR2sub/libkotor2.so — the user's KOTOR project), so a mis-route
     hit the ACTIVE YodaDemo. The Python MCP BRIDGE sends `program` where the plugin's regular @McpTools don't
     read it (body vs the required QUERY), or the running bridge predates the fix. Restarting Ghidra did NOT fix
     the bridge (separate process).
-  - **⇒ SAFE-WRITE RULES until the bridge is fixed/restarted:** (a) for a write to a NON-active program, use
-    **direct HTTP with `?program=<name>` in the query** (routes correctly); (b) for `mcp__ghidra__*` writes,
-    keep the TARGET program **ACTIVE** (`list_open_programs`→current) — they ignore `program=`. Re-test the
-    bridge (the cross-program comment test) after it's updated/restarted; then relax these warnings.
+  - **⭐ v51 ROOT CAUSE (the MCP server points at an OUTDATED bridge script):** `~/.claude.json` →
+    `mcpServers.ghidra` runs `/opt/homebrew/bin/python3 /Users/maxamillion/Programs/bridge_mcp_ghidra.py` — the
+    OLD monolithic bridge (1326 lines, Apr 10) whose `dispatch_post` sends EVERY POST param (incl. `program`)
+    in the JSON BODY, with NO schema-driven query/body split. The plugin's regular `@McpTool`s read `program`
+    only from the QUERY → never see it on writes → fall back to active program. The UPDATED package bridge
+    `~/workspace/ghidra-mcp/python/bridge_mcp_ghidra/` FIXES this (registry.py:99 puts `source==query` params in
+    the query; dispatch.py:182 POSTs them as query params). **FIX = repoint the MCP config** at the new bridge:
+    `{"command":"/opt/homebrew/bin/python3","args":["-m","bridge_mcp_ghidra"],
+    "env":{"PYTHONPATH":"/Users/maxamillion/workspace/ghidra-mcp/python"}}` (default stdio + 127.0.0.1:8089, same
+    as now) — then RESTART Claude Code (MCP servers launch at startup). Verify deps (`mcp`, `requests`) import
+    under that python3. AFTER repoint+restart, re-run the cross-program comment test; if it routes, relax these
+    warnings.
+  - **⇒ SAFE-WRITE RULES until the bridge is repointed+restarted:** (a) write to a NON-active program via
+    **direct HTTP `?program=<name>` in the query** (routes correctly); (b) for `mcp__ghidra__*` writes keep the
+    TARGET program **ACTIVE** (`list_open_programs`→current) — they ignore `program=`.
 
 ## Binary facts (established 2026-07-04)
 
