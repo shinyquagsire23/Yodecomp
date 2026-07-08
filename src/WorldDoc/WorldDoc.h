@@ -184,6 +184,12 @@ public:
     virtual BOOL OnNewDocument();                         // 0x0041bb10
     virtual BOOL OnOpenDocument(LPCTSTR lpszPathName);    // 0x0041b8a0
     virtual void Serialize(CArchive& ar);                 // (doc TU; vcall slot +8)
+    // CDocument overrides whose bodies live in the Worldgen source file (this=World). Declared
+    // here (the IMPLEMENT_DYNCREATE TU) so the emitted World vtable slots point at OUR overrides
+    // — else /OPT:REF drops them as unreferenced. Existing base slots (no new slot / sizeof
+    // change) ⇒ codegen-neutral for this TU's functions.
+    virtual BOOL IsModified();                            // 0x00422f40
+    virtual void SetModifiedFlag(BOOL bModified = TRUE);  // 0x00422f50
 
     // ---- command/update handlers referenced by the message map (data @0x44c2d0) ----
     // Bodies live in the GameData & Worldgen source files (this=World); declared here only so

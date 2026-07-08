@@ -215,9 +215,25 @@ functions). Result: **all 14 entries' fixed fields byte-match** the binary's `@0
   a byte-exact `.rdata` msgmap array + 15 `.text` functions the original keeps (were REF-dropped) vs one
   6-byte intrinsic .text displacement. The msgmap is FUNCTIONALLY ESSENTIAL (dispatches File>New/Save/Load/
   Replay + sound/music toggles + their menu enable states) — a faithful decomp must have it.
-- **7 REF-drops REMAIN (next):** `AppWnd::Disable/Enable/OnPaint/OnTimer` (AppData CWnd — its msgmap/vtable
-  refs, likely another stubbed map), `World::IsModified`/`SetModifiedFlag` (CDocument virtual overrides —
-  need the World vtable to list them), `??_H@YGXPAXIHP6EX0@Z@Z` (`__vector_constructor_iterator` CRT helper).
+### v46 — World vtable overrides close 2 more (REF-dropped 7→5, ZERO content regression)
+`World::IsModified`/`SetModifiedFlag` were dropped because WorldDoc.h's World class (the `IMPLEMENT_DYNCREATE`
+TU that emits the vtable) didn't declare them `virtual` — so the emitted World vtable pointed at CDocument's
+base versions and our overrides went unreferenced. Added `virtual BOOL IsModified();` +
+`virtual void SetModifiedFlag(BOOL=TRUE);` to WorldDoc.h → the vtable slots now target OUR overrides →
+kept under REF. UNLIKE the v45 message map this was **codegen-neutral (211 held)**: overriding EXISTING base
+slots changes only the vtable DATA's slot targets (relocations), not slot ORDER / sizeof / any function body.
+
+**5 REF-drops REMAIN — the genuinely-hard tail (each risks a regression for ≤2 functions; left, documented):**
+- `AppWnd::OnPaint`(0x401010)/`OnTimer`(0x401000) — AppWnd HAS a real message map (entries @0x44b008:
+  `ON_WM_TIMER`→OnTimer sig 0x0d, `ON_WM_PAINT`→OnPaint sig 0x0c) but v42 PROVED the original AppData.obj
+  emits NO GetMessageMap (all 9 real ones are >0x408000) ⇒ AppWnd's map lives in a DIFFERENT TU in the
+  original. Putting `BEGIN_MESSAGE_MAP(AppWnd,CWnd)` in AppData.obj (anywhere) adds a COMDAT the original
+  lacks → re-breaks the v42 layout cascade. Correct fix = emit AppWnd's map in its true (unidentified) TU.
+- `AppWnd::Disable`(0x401090=`DisableSelfWindow`, `EnableWindow(m_hWnd,FALSE)`)/`Enable`(0x4010a0) — the 12-byte
+  bodies are ICF-FOLDED with trivial MFC vtable methods (0x401090 has 19 vtable DATA xrefs in the original);
+  they survive there via the fold + a game call site we don't reproduce. Needs the fold set + the caller.
+- `??_H@YGXPAXIHP6EX0@Z@Z` = `__vector_constructor_iterator` CRT helper — emitted at an array-of-objects-with
+  -ctor site (`new T[n]`); find the original odr-use (a needle-hunt).
 
 ### ⭐ v44 — /OPT:REF vs /OPT:NOREF SETTLED: the original is a `/OPT:REF` build.
 Measured `.text` vsize of three links of the SAME build/*.obj set (from repo root, +wavmix32.lib):

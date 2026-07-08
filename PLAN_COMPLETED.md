@@ -1236,3 +1236,13 @@ scrambles closed; 3 residual inversions are compiler-placed lib COMDATs (BENIGN)
 #31): the original is a /OPT:REF build — our REF .text is within 1.7% of the original (302,716 B) vs NOREF
 +19%; overturned the v43 NOREF guess (that used .rsrc-distorted full-file sizes). Then v45 reconstructed the
 World document message map (REF-drop oracle, lesson #32): 22→7 REF-drops, ~World PHASE-DISPLACED 212→211.
+
+### ⏮ PRIOR PICKUP — v45 (2026-07-08, condensed; superseded by v46)
+PHASE G2: reconstructed the World document message map via the REF-drop oracle (lesson #32 — link build/*.obj
+twice /OPT:REF vs /OPT:NOREF, diff app-obj symbols → the functions REF drops as unreferenced = reproduced-
+reference-graph gaps). 22 dropped, 19 were the World doc command/update handlers because BEGIN_MESSAGE_MAP(
+World,CDocument) was an empty TODO stub. Rebuilt the 14-entry AFX_MSGMAP_ENTRY array byte-for-byte from
+@0x44c2d0 (6 ON_COMMAND + 8 ON_UPDATE_COMMAND_UI, handlers matched by pfn address) into WorldDoc.cpp + afx_msg
+decls in WorldDoc.h → all 14 fixed fields byte-match, REF-drops 22→7. COST: ~World 0x41b2f0 PHASE-DISPLACED
+(212→211, DIFF 6 align=0 intrinsic — the original .obj was built WITH the map). Then v46 closed 2 more
+(World vtable overrides IsModified/SetModifiedFlag, codegen-neutral, REF-drops 7→5).
