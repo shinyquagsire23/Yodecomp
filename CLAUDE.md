@@ -384,6 +384,12 @@ Written to be followable without prior context: each phase lists concrete steps 
   field_name=offset:0xN). Also fixed Dlg.h CTextDialog sizeof 0xc8→0x6c (was the unrelated
   game TextDialog@0x416b90's size; OnKeyDown's stack frame proves 0x6c; Dlg TU still 5/5).
   (2026-07-07 v26)**;
+  **94.42 % coverage — v27: GameView tail 0x415820–0x4186e0 transcribed (GameView.cpp 55/100
+  markers) — cheat/key/destroy/scroll/exit handlers + cmd/UI handlers + StatsDlg cluster +
+  3 slider option dialogs (all 3 ctors + all 3 OnInitDialog EXACT). Global %exact reads ~flat
+  (ClassifyTile 1569B flipped to PHASE-DISPLACED by the real StatsDlg decl — dial breathing;
+  track COVERAGE this phase). Struct de-dup surveyed + planned (docs/dedup-plan.md), not yet
+  executed (field-name/granularity reconciliation is the gating work) (2026-07-07 v27)**;
   ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
   (they count for G, not for %).
 
@@ -421,7 +427,57 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v26 — OnRButtonDown/UpdatePlayerWalkFrame/OnKeyDown; 17.30% exact / 92.28% coverage)
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v27 — GameView tail handlers + option dialogs; 94.42% coverage)
+**▶ v27 RESULTS: GameView.cpp = 55/100 markers (6557B exact); marker coverage 94.42% globally.
+Transcribed the whole 0x415820–0x4186e0 tail EXCEPT CyclePalette/TextDialog (deferred).**
+- **New EXACT:** OnDestroy 0x415ac0, OnHScroll 0x415ff0, OnTogglePause 0x416220, OnUpdatePauseUi
+  0x4162a0 (per-arm `Enable(0)`/`Enable(1)` cross-jump, NOT a bEnable var), OnUpdateGameSpeedUi
+  0x416460, OnUpdateDifficultyUi 0x4165b0, OnCmdGameSpeed 0x416310 (int-temp for reused
+  `0xba-m_nValue`), OnCmdWorldSizeMaybe 0x4164d0, StatsDlg ctor/DoDataExchange/OnInitDialog
+  (0x416810/9e0/a40), OnDialogCloseBtn 0x416a60 + 2 nop btns, OnChar 0x416ae0 (per-arm
+  `strCheatBuffer += 'x'` cross-jump), all 3 slider-dialog ctors + all 3 OnInitDialog
+  (0x417e50/f50, 0x418130/230, 0x418410/510).
+- **EFFECTIVE (autopsies in-source):** CheckCheat 0x415820 (align 232; &strCheatBuffer CSE
+  reg-swap this=edi vs esi), OnKeyUp 0x415a50 (GetAsyncKeyState scheduling), ConfirmExit
+  0x416030 + OnAppExit 0x416110 twins (AfxGetApp-inline scheduling), OnCmdDifficulty 0x416120
+  (align 0, this↔nSavedMode esi/edi swap), OnUpdateWorldSizeUi/OnUpdateStatsUi (6B unused-this
+  eax-hop), OnCtlColor 0x416a90 (1 benign byte), the 3 slider OnHScroll clones
+  (0x417fa0/418280/418560 — lesson #7 position-dependent reg-alloc; DifficultyDlg DIFF(5)).
+- **⭐ Slider dialogs are sizeof 0x60** (CDialog + `int m_nValue`@0x5c; Ghidra mis-sized the
+  OnCmd stack arrays as [92]). **StatsDlg sizeof 0x74** (CDialog + unk5c@0x5c + World*@0x60 +
+  4 CString@0x64-0x70; ClassWizard DDX dialog, empty msgmap @0x44b558). The OnCmd handlers seed
+  `dlg.m_nValue`/the 4 CStrings BEFORE DoModal (the Ghidra "local CStrings" overlap the array).
+- **⭐ Dialog classes moved OUT of shared GameView.h INTO GameView.cpp** (TU-private; the doc TU
+  that includes GameView.h must not see them). Do this for future TU-private types.
+- **Dial breathing (v27):** the real StatsDlg decl flipped **ClassifyTile 0x40fca0 (1569B) to
+  PHASE-DISPLACED** (source proven; its ctor matching confirms the layout) — the reason global
+  %exact reads ~flat (17.4%) despite +32 markers. DrawEntities/ReenableHotspot/UpdatePlayerWalk
+  also breathed. All resolve at G1. Track coverage (94.42%), not %exact, this phase.
+
+**▶ START HERE (v28): the last two GameView-TU monsters + the 3 OnHScroll clones.**
+1. **CyclePalette 0x415af0 (1280B)** — palette-cycle ring-shift. Needs the inline animated
+   palette modeled: World+0x2e6c = RGBQUAD[256] mirroring `pSysColorTable` (index i at
+   0x2e6c+i*4; AnimatePalette/SetPalette use idx 10 cnt 5 @0x2e94 and idx 0xa0 cnt 0x56 @0x30ec).
+   Slot held in GameView.cpp (comment placeholder between OnDestroy and OnHScroll).
+2. **The game TextDialog 0x416b90 Ctor + 0x416c40 Run (2022B) + helpers** (0x417570 Position,
+   0x4176f0 Layout 1419B, 0x417c90/d30 ScrollTextLine, 0x417dc0 UpdateDialogButtons, 0x417e... 
+   CtorMaybe). ⚠ This is the PLAIN non-CDialog TextDialog (sizeof 0xc8 in GameView.h), DISTINCT
+   from Dlg.h's CTextDialog@0x418dd0 (CDialog, sizeof 0x6c). Do NOT conflate.
+3. **OnCmdStatsMaybe 0x416620** (deferred; needs StatsDlg — now declared). Formats
+   highScore/lastScore/completionCount/lastCount into dlg.m_str0-3 via a temp CString + Format,
+   then DoModal. Placeholder slot in GameView.cpp.
+4. StatsDlg **ScalarDtor 0x416920** + **GetMessageMap 0x416a30** are unclaimed COMDATs (come
+   free from the class; add markers or confirm they emit).
+
+**▶ STRUCT DE-DUP (user directive v27) — see docs/dedup-plan.md.** Full survey + the two real
+obstacles (field-name/granularity divergence: World needs ~50 per-field offset reconciliations,
+proven 102 compile errors; and the Canvas stub-CDC-vs-MFC-CDC environment split) + recommended
+order (Records→MapZone→CDC→Canvas→GameView→World) + the mandatory per-flip annotation protocol.
+The v27 dry-run (adding the 7 doc decls to Worldgen.h's World) was REVERTED but showed the World
+merge is net-positive on the dial (GameView +2, Worldgen −1). Each struct is a churn-and-reverify
+job; do ONE per commit, updating flipped functions' annotations (user requirement).
+
+### ⏮ PRIOR (2026-07-07 v26 — OnRButtonDown/UpdatePlayerWalkFrame/OnKeyDown; 17.30% exact / 92.28% coverage)
 **▶ v26 RESULTS: GameView.cpp = 36/68 markers (6141B exact); 92.28% coverage / 17.30% exact
 globally. New EXACT: OnRButtonDown 0x413c10 (WM_RBUTTONDOWN — was the UNIDENTIFIED 445B gap;
 switch(nFrameMode){case 3: fire in facing; case 7: close map}; the fire dir-resolve + camera
