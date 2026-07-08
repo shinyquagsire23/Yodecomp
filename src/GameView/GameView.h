@@ -18,6 +18,9 @@ public:
     CString name;                    // +0x08  copied from pTile->name
     InvItem();                                            // 0x004011d0 (first app TU)
     InvItem(Tile *pTile, const char *pszName);            // 0x00401270 (first app TU)
+    virtual ~InvItem();                                   // 0x00401300 (first app TU) — declared
+                                                          // out-of-line so ??_G stays thin (28B)
+                                                          // and chains a separate ??1
 };
 
 // Canvas — canonical declaration promoted to ../Canvas/Canvas.h (de-dup steps 3+4);
