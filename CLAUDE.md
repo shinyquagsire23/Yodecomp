@@ -477,6 +477,14 @@ The v27 dry-run (adding the 7 doc decls to Worldgen.h's World) was REVERTED but 
 merge is net-positive on the dial (GameView +2, Worldgen −1). Each struct is a churn-and-reverify
 job; do ONE per commit, updating flipped functions' annotations (user requirement).
 
+**▶ GHIDRA SYNC PENDING (no writes done v27 — do when YodaDemo is ACTIVE; run_script_inline was
+BLOCKED per v26, use HTTP endpoints):** name the 4 option-dialog classes (Ghidra has partial
+DifficultyDlg::/StatsDlg:: namespaces but the OnInitDialogs 0x417f50/0x418230/0x418510 and
+several ctors are still `GameView::FUN_*`). Model them as CDialog-derived: slider dialogs
+sizeof 0x60 (m_nValue@0x5c); StatsDlg sizeof 0x74 (unk5c@0x5c/pWorld@0x60/4 CString@0x64-0x70).
+Mark the StatsDlg ScalarDtor 0x416920 + GetMessageMap 0x416a30 COMDATs. GameView struct/field
+names are already synced from prior sessions; nothing new there this session.
+
 ### ⏮ PRIOR (2026-07-07 v26 — OnRButtonDown/UpdatePlayerWalkFrame/OnKeyDown; 17.30% exact / 92.28% coverage)
 **▶ v26 RESULTS: GameView.cpp = 36/68 markers (6141B exact); 92.28% coverage / 17.30% exact
 globally. New EXACT: OnRButtonDown 0x413c10 (WM_RBUTTONDOWN — was the UNIDENTIFIED 445B gap;
