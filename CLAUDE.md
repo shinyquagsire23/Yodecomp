@@ -392,7 +392,17 @@ Written to be followable without prior context: each phase lists concrete steps 
   matched (mini #1): explicit `~InvScrollBar(){DestroyWindow();}` → ??1 0x4086b0 (91B) + thin ??_G
   0x408690 (30B), byte-exact; lesson #23: #line-neutral placement (decl on ctor's line, def at file end)
   avoided the mid-file dial rotation that had displaced 6 funcs (208→204). The running image is now a
-  first-class bug oracle.** Full per-session milestone history in PLAN_COMPLETED.md.
+  first-class bug oracle.** → **99.17 % coverage / 209 exact funcs — v34 (2026-07-08): STATIC bug-oracle
+  sweep + AfxGetResourceHandle fix. Built a static complement to v33's running-EXE oracle (decode both
+  reloc-masked streams, NW-align, flag aligned same-key non-stack mem pairs with matching base reg +
+  differing disp). It proved ZERO remaining v33-class `call [reg+disp]` vtable-slot bugs and zero field
+  bugs in drift-free funcs, and surfaced ONE real mis-transcription: OnInitialUpdate (11 LoadCursor) +
+  DrawDirectionArrows (8 LoadIcon) used AfxGetInstanceHandle (module-state +0x8) where the orig calls
+  AfxGetResourceHandle (+0xc) — both inline through AfxGetModuleState, differ only in the field. Swapped
+  all 19 → 14 field bytes closed (OnInitialUpdate DIFF 31→21, DrawDirectionArrows −4); NOT runtime-
+  observable (static-MFC EXE: instance==resource handle) so the EXE oracle would MISS it (lesson #25).
+  Both funcs stay EFFECTIVE ⇒ 209 exact / Worldgen 34/91 / link 0/0/exit0 unchanged.** Full per-session
+  milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
@@ -433,52 +443,46 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v33 — invisible-bubble-text bug FIXED + InvScrollBar dtors matched)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at **`6a88217` "v33: fix
-invisible speech-bubble text — OnCtlColor SetTextColor -> SetBkColor"** (below it: 94a2a2b InvScrollBar
-dtors, 953c910 Build and run script). A dirty tree is EXPECTED and fine: `M run.sh` + `?? YodaDemoCopy/`
-are the USER's app-run script + test copy — do NOT commit or revert them. Baselines (rm obj + recompile
-per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` → **0 duplicates, 0
-unresolved, exit 0, yoda.exe built**; `verify.py src/AppData/AppData.cpp` → **14/14**;
-`src/Worldgen/Worldgen.cpp` → **34/91**; `src/GameData/GameData.cpp` → **12/27**; `progress.py` →
-**209 exact funcs** (best-fit under-counts the 2 new InvScrollBar dtors — they DO match, see below).
-Ghidra: `list_open_programs` current=YodaDemo.exe before any write.
-If a baseline differs, a header drifted — bisect first.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v34 — static bug-oracle sweep + AfxGetResourceHandle fix)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v34** commit
+(below it: f2d3019 v33 CLAUDE.md finalize, 6a88217 v33 OnCtlColor fix). A dirty tree is EXPECTED and
+fine: `M run.sh` + `?? YodaDemoCopy/` are the USER's app-run script + test copy — do NOT commit or
+revert them. Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`):
+`tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0, yoda.exe built**; `verify.py
+src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**;
+`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs**.
+Ghidra: `list_open_programs` current=YodaDemo.exe before any write. If a baseline differs, a header
+drifted — bisect first.
 
-**▶ v33 RESULTS (committed):**
-- **⭐ INVISIBLE-BUBBLE-TEXT BUG FIXED (functional + byte win).** User ran yoda.exe: speech-bubble
-  frame drew but text was invisible (inventory text + original YodaDemo.exe in the SAME env rendered
-  fine ⇒ our bug). Root cause: `GameView::OnCtlColor` (0x416a90) was `pDC->SetTextColor(0xffffff)` but
-  the original calls `pDC->SetBkColor(0xffffff)` — SetBkColor is one CDC vtable slot BEFORE SetTextColor
-  (+0x34 vs +0x38), so the disasm `CALL [EAX+0x34]` = SetBkColor. We set white TEXT on white (invisible)
-  instead of a white text-BACKGROUND with default-black text (visible). Fix flipped it to SetBkColor ⇒
-  OnCtlColor now byte-EXACT (the old "DIFF 1 benign byte" WAS this vtable-slot displacement — a real
-  semantic bug; new lesson #24). Exact 208→209. Rebuilt build/yoda.exe for the user to re-test.
-- **InvScrollBar dtors matched (parked mini #1 DONE).** 0x408690 (??_G, 30B) + 0x4086b0 (??1, 91B)
-  now byte-exact. Discovery: the original ??1 has a SEPARATE body + thin ??_G (⇒ EXPLICIT dtor, not
-  implicit — MFC lesson #1) and its 91-byte body calls `DestroyWindow()` (empty body = only 79B; the
-  disasm shows CALL CWnd::DestroyWindow in the try). Source: `InvScrollBar::~InvScrollBar(){ Destroy
-  Window(); }` — DECL appended to the ctor's existing line in GameView.h, DEF at the END of
-  GameView.cpp. **KEY: mid-file placement DISPLACED 6 exact funcs (208→204) via #line-provenance dial
-  rotation; #line-neutral placement kept all 208 + the 2 dtors → new codegen lesson #23.** Verify the
-  dtor match with a name-keyed compare (best-fit mis-pairs it): `coff_functions` → `??1InvScrollBar` →
-  `M.mask` vs exe@0x4086b0 (was masked-diff 0).
+**▶ v34 RESULTS (committed):**
+- **⭐ STATIC BUG-ORACLE SWEEP (complement to v33's running-EXE oracle).** Built a scan (job tmp
+  vtscan*.py): decode both reloc-masked streams, Needleman-Wunsch align (asmscore._align), flag aligned
+  same-key pairs with a non-stack mem operand, matching base reg, DIFFERING disp. Address-keyed diffing
+  is UNRELIABLE for align>0 funcs (stream drift collides unrelated insns) — must gate on structural
+  identity OR use NW-alignment. Results: **ZERO remaining v33-class `call [reg+disp]` vtable-slot bugs**,
+  **zero field bugs in drift-free funcs**. Nearly all drifted-func mem-disp flags are reg-alloc noise
+  (same reg NAME, different pointer/loop-structure — e.g. StartGame [esi+0x4b4]/[esi+0x4b0] both write
+  the same absolute grid addr, NOT an off-by-4 bug).
+- **⭐ AfxGetResourceHandle fix (the one real find).** OnInitialUpdate 0x426c40 (11 LoadCursor) +
+  DrawDirectionArrows 0x4270f0 (8 LoadIcon) called `AfxGetInstanceHandle()` (AfxGetModuleState()->
+  m_hCurrentInstanceHandle @+0x8); orig reads @+0xc = m_hCurrentResourceHandle ⇒ **AfxGetResourceHandle()**
+  (AFX_MODULE_STATE:CNoTrackObject ⇒ WinApp@+4/Instance@+8/Resource@+0xc). Swapped all 19; closed 14
+  field bytes (OnInitialUpdate DIFF 31→21, DrawDirectionArrows −4). Both stay EFFECTIVE (scheduling
+  residual). NOT runtime-observable (static-MFC EXE: the two handles are equal), so ONLY byte-diff catches
+  it — lesson #25, memory [[afx-resource-vs-instance-handle]]. No regression: 209 exact / 34/91 / 0-0-exit0.
 - Ghidra: NO writes this session. Nothing pending.
-- **Method note:** the text bug was found by comparing our yoda.exe vs the stock YodaDemo.exe in the
-  same wine env (inventory text worked, bubble didn't ⇒ narrowed to the balloon-edit paint), then
-  byte-diffing OnCtlColor (name-keyed coff_functions + M.mask). The whole TextDialog chain
-  (ShowTextDialog/OnInitialUpdate/Run/Position/Layout) was verified faithful along the way — the
-  ONLY defect was the OnCtlColor slot. Full write-up: memory [[textbubble-render-lead]] (RESOLVED).
 
-**▶ START HERE (v34):**
-1. **⭐ RUN THE EXE AS A BUG ORACLE (new, high-value — v33 proved it).** The linked yoda.exe runs; the
-   invisible-text bug was a wrong-CDC-vtable-slot mistranscription that byte-% ignored but the running
-   image exposed instantly. Do a FUNCTIONAL sweep: play through, watch for wrong colors / missing
-   glyphs / misplaced UI / wrong behavior, and for each map the symptom to the responsible function
-   and diff it vs disasm (esp. lone `CALL [reg+disp]` byte diffs = adjacent-vtable-slot / wrong-method
-   bugs, lesson #24). Needs a real WAVMIX32.DLL + YODADEMO.DTA under wine. This finds SEMANTIC bugs
-   the byte-match tolerates (EFFECTIVE funcs can hide them).
-2. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine
+**▶ START HERE (v35):**
+1. **⭐ RUN THE EXE AS A BUG ORACLE (still high-value — v33 proved it; v34's static scan is the
+   complement, NOT a replacement).** v34 cleared the static byte-diff bug classes, but SEMANTIC bugs
+   with NO byte diff (right instruction, wrong constant that's reloc-masked; wrong logic that still
+   compiles identically to a DIFFERENT-but-plausible disasm; missing behavior) only show at runtime.
+   Play through yoda.exe: watch for wrong colors / missing glyphs / misplaced UI / wrong behavior, map
+   each symptom to its function, diff vs disasm (lone `CALL [reg+disp]` = wrong vtable method #24;
+   inlined mem-disp = wrong MFC accessor #25). Needs real WAVMIX32.DLL + YODADEMO.DTA under wine.
+2. **Re-run the static scan after any new transcription** (job tmp vtscan4.py = drift-free field/slot;
+   the NW-aligned variant = all funcs). Cheap regression guard for the #24/#25 bug classes.
+3. **G1 joint residual passes (biggest exact-% wins).** Build the parallel permuter loop (N wine
    workers around permute.py --mode all, asmscore oracle) and sweep parked EFFECTIVE/PHASE-DISPLACED
    funcs per TU (Worldgen 57, GameView 62, Records 7, Iact 9, WorldDoc 6, GameData 15, scorers). Use
    the minimal-TU probe to tell header-dial vs TU-position. **NOTE re v32-displaced trio:** the
@@ -488,12 +492,12 @@ If a baseline differs, a header drifted — bisect first.
    resolve at the joint fixed point / G2 whole-TU build, NOT individually. SetCurrentToIntroZone
    (0x423d20) is align=12 (structural, harder). UseWeapon binding flip + loader/saver clones are the
    better G1 targets.
-3. **Canvas-gap pair (parked mini #2):** 0x407d90/0x407dc0 — IDENTICAL 21-byte funcs, each
+4. **Canvas-gap pair (parked mini #2):** 0x407d90/0x407dc0 — IDENTICAL 21-byte funcs, each
    `field68 = SendMessage(GetDlgItem(0x9e)->m_hWnd, CB_GETCURSEL,0,0) + 1` (a combo-select handler).
    They're message-map pfns (DATA-ref'd from AFX_MSGMAP entries @0x44b1f4/0x44b20c) for two small
    dialog classes NOT yet in src/ (they sit just before Canvas TU, 0x407df0). Needs modeling the two
    dialog classes + their message maps — a small untranscribed dialog TU.
-4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
+5. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
   thunk, 0x4161bd/…/424f69), COMDAT-folded lib defaults (0x40e3f0 CView no-op, 0x41c180/41c340/
   41bf30/41e8b0 ??_G/??1 + ??_GCPalette), static-init/atexit thunks, PE timestamp/checksum. G2 also
@@ -655,6 +659,19 @@ If a baseline differs, a header drifted — bisect first.
      source named an ADJACENT method (Set/Get attribute-DC pairs, the CObArray/CDC clusters). The
      RUNNING IMAGE is now a first-class oracle: functional bugs (invisible text, wrong colors)
      point straight at these adjacent-slot / wrong-method mistranscriptions that byte-% shrugs off.
+  25. **Wrong inlined-accessor field offset = wrong MFC helper (v34, AfxGetResourceHandle fix).**
+     A same-mnemonic mem read whose base reg matches the orig but whose DISP differs by a small
+     amount (here `[eax+0xc]` orig vs `[eax+0x8]` ours, ×14 across two funcs) is the twin of #24
+     for INLINED accessors: both sides go through the same base call (`AfxGetModuleState()` @0x448e7e)
+     and differ only in the field. `AFX_MODULE_STATE : public CNoTrackObject` ⇒ m_pCurrentWinApp@+4,
+     **m_hCurrentInstanceHandle@+8** (AfxGetInstanceHandle), **m_hCurrentResourceHandle@+0xc**
+     (AfxGetResourceHandle). The 11 LoadCursor / 8 LoadIcon loads in OnInitialUpdate/DrawDirection
+     Arrows read +0xc ⇒ orig used **AfxGetResourceHandle()**; we had InstanceHandle (+0x8). Swap →
+     14 field bytes closed. NOT runtime-observable (static-MFC EXE: instance==resource handle), so
+     the running-EXE oracle MISSES this — the complementary oracle is a STATIC scan: decode both
+     reloc-masked streams, NW-align (asmscore._align), flag aligned same-key pairs with a non-stack
+     mem operand, matching base reg, differing disp. That scan proved ZERO remaining v33-class
+     `call [reg+disp]` vtable-slot bugs and zero field bugs in drift-free funcs (only this Afx class).
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in

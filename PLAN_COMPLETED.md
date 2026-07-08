@@ -1094,3 +1094,14 @@ gNeedleTable(25)@0x456938, Iact_szCmdTextBuf[2048]@0x459558. DIAL COST: exact 21
 — shared-header sig changes flipped Worldgen ParseZaux/ParseZax2/SetCurrentToIntroZone + 1 WorldDoc
 fn to PHASE-DISPLACED (source proven; G1 recovers). Objs moved to repo build/ (gitignored). Ghidra:
 no writes.
+
+⏮ PRIOR v33 (2026-07-08): first RUNTIME bugfix + InvScrollBar dtors. (1) Invisible-bubble-text bug:
+GameView::OnCtlColor 0x416a90 called pDC->SetTextColor(0xffffff) where orig calls SetBkColor (CDC
+vtable slots +0x38 vs +0x34) → white-on-white text; user saw the bubble frame but no text (inventory
+text + stock YodaDemo.exe rendered fine in the same wine env ⇒ our bug). Fixed → OnCtlColor byte-EXACT;
+the long-standing "DIFF 1 benign byte" WAS this slot displacement (lesson #24: a 1-byte CALL-disp diff
+= wrong virtual method). Exact 208→209. (2) InvScrollBar dtors (parked mini #1): explicit
+`~InvScrollBar(){DestroyWindow();}` → ??1 0x4086b0 (91B, calls CWnd::DestroyWindow) + thin ??_G 0x408690
+(30B), byte-exact. #line-neutral placement (decl appended to ctor's line, def at end of GameView.cpp)
+avoided the mid-file dial rotation that had displaced 6 funcs 208→204 (lesson #23). Method: found by
+diffing our yoda.exe vs stock in the same wine env. Memory [[textbubble-render-lead]]. Ghidra: no writes.

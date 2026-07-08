@@ -6375,10 +6375,13 @@ Zone *World::ReadZone(CFile *pFile, int idx)
 // The doc TU ends with a block of GameView (CDeskcppView) methods, 0x426c40-0x429150.
 
 // FUNCTION: YODA 0x00426c40
-// [EFFECTIVE: DIFF~31, insns 351/351, align residual = two 1-insn scheduling rotations
+// [EFFECTIVE: DIFF~21, insns 351/351, align residual = two 1-insn scheduling rotations
 // (the &nGameSpeed/&bInitialized cache loads vs neighboring pushes — arg-push scheduling
 // family; SetTimer temp form inert) + one small reg pair. First compile was already
-// structurally exact; the &field pointer caches emerge from plain field accesses here.]
+// structurally exact; the &field pointer caches emerge from plain field accesses here.
+// v34 FIX: the 11 cursor loads use AfxGetResourceHandle() (NOT AfxGetInstanceHandle) — the
+// orig reads AfxGetModuleState()->m_hCurrentResourceHandle @+0xc, we had InstanceHandle @+0x8
+// (10 field bytes; DIFF 31->21). Both inline through AfxGetModuleState; see lesson #25.]
 // CView::OnInitialUpdate override (vft +0xe8), one-shot via bInitialized: load the 11 game
 // cursors, wire pWorld/nGameSpeed, create the inventory scrollbar + 0x1d1d game timer +
 // 32x32 drag-tile canvas, and create (hidden) the 3 dialog balloon CBitmapButtons and the
@@ -6387,18 +6390,18 @@ void GameView::OnInitialUpdate()
 {
     if (bInitialized == 0)
     {
-        AfxGetInstanceHandle();
-        hCursor3 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6a));
-        hCursor9 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6b));
+        AfxGetResourceHandle();
+        hCursor3 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6a));
+        hCursor9 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6b));
         hCursor = LoadCursor(NULL, IDC_ARROW);
-        hCursor2 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x71));
-        hCursor4 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x73));
-        hCursor5 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6c));
-        hCursor7 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x72));
-        hCursor8 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x74));
-        hCursor6 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x6d));
-        hCursor10 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0x76));
-        hCursor11 = LoadCursor(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc2));
+        hCursor2 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x71));
+        hCursor4 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x73));
+        hCursor5 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6c));
+        hCursor7 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x72));
+        hCursor8 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x74));
+        hCursor6 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6d));
+        hCursor10 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x76));
+        hCursor11 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc2));
         unkB8_always1 = 1;
         nMoveDY = 0;
         nMoveDX = 0;
@@ -6471,7 +6474,10 @@ void GameView::OnInitialUpdate()
 // each arrow is a DUPLICATED full LoadIcon call per arm (cross-jumped tails), `== 0`
 // disabled-icon-first arm order (VC4.2 jumps TO the then-arm here), per-call x/y int
 // locals ahead of DrawIcon (block 1 x-first, blocks 2-4 y-first), rectArrowBox is a
-// struct-copied RECT, dirs mask held as a char local.]
+// struct-copied RECT, dirs mask held as a char local.
+// v34 FIX: the 8 icon loads use AfxGetResourceHandle() (NOT AfxGetInstanceHandle) — orig reads
+// AfxGetModuleState()->m_hCurrentResourceHandle @+0xc, we had InstanceHandle @+0x8 (4 field
+// bytes closed). Both inline through AfxGetModuleState; see lesson #25.]
 // Fill the arrow panel (rectArrowBox widened 4px left/bottom, COLOR_3DFACE) and draw the
 // four zone-exit arrows from pWorld->GetExitDirections()'s bitmask (bits 1/2/4/8 =
 // N/S/E/W), enabled/disabled icon pairs 0xcb/0xca, 0xc5/0xc4, 0xc9/0xc8, 0xc7/0xc6. A NULL
@@ -6492,41 +6498,41 @@ void GameView::DrawDirectionArrows(CDC *pDC)
     rc.left -= 4;
     rc.bottom += 4;
     char nDirs = (char)pWorld->GetExitDirections();
-    AfxGetInstanceHandle();
+    AfxGetResourceHandle();
     CBrush br(GetSysColor(COLOR_3DFACE));
     ::FillRect(pDC->m_hDC, &rc, (HBRUSH)br.m_hObject);
     HICON hIcon;
     if ((nDirs & 1) == 0)
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xca));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xca));
     else
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xcb));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xcb));
     {
         int x = pWorld->rectArrowBox.left + 0xb;
         int y = pWorld->rectArrowBox.top;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 8) == 0)
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc6));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc6));
     else
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc7));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc7));
     {
         int y = pWorld->rectArrowBox.top + 0xe;
         int x = pWorld->rectArrowBox.left - 3;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 2) == 0)
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc4));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc4));
     else
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc5));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc5));
     {
         int y = pWorld->rectArrowBox.top + 0x1d;
         int x = pWorld->rectArrowBox.left + 0xb;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 4) == 0)
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc8));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc8));
     else
-        hIcon = LoadIcon(AfxGetInstanceHandle(), MAKEINTRESOURCE(0xc9));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc9));
     {
         int y = pWorld->rectArrowBox.top + 0xe;
         int x = pWorld->rectArrowBox.left + 0x1a;
