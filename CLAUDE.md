@@ -176,7 +176,7 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
 | **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ✅ PHASE E step 4 COMPLETE (src/GameView/GameView.cpp): 72/122 exact + rest eff. v30: TextDialog::Layout 0x4176f0 transcribed (eff., align 374 — jump table + TriPoint[3] tail triangle + bitmap-button matrix) and TriPoint::TriPoint 0x4186e0 EXACT (the TU's last function, an out-of-line empty point ctor). ZERO FUN_* / unclaimed code left in the view TU range — remainder is Phase F/G |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
-| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: **9/13 exact (v37 +afxcmn: `~World` dtor gained)** + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
+| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: **8/13 exact (v37 +afxcmn: `~World` dtor gained)** + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
 | **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen **91 markers** = EVERY function incl. the GameView tail block + GameView::RemoveItem 0x429150 (v31: the TU's true last function, EXACT — was missed by the sweep, found via the G0 link audit); **35/91 exact** (the v29/v30 TextDialog field renames in GameView.h rotated its dial ~2 off the old "36" tally; pre-existing, not a v31 regression) + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
 
 With the doc TU transcribed (v14), the untranscribed remainder is essentially ONE monster: the
@@ -475,17 +475,35 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v37 — the afxcmn HEADER-DIAL win +3; PCH KILLED)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v37** commit (below it:
-a8c764b v36 finalize, f3df959 v36 Fable, b741458/48b157b USER README+gitignore). Tree CLEAN (USER
-gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
-`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3
-/GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` →
-**0 dup / 0 unresolved / exit 0**; `progress.py` → **212 exact funcs / 99.17% coverage**; `bugscan.py --all`
-→ **0 HIGH / 0 SHIFT / 0 SWAP** (exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5,
-Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World
-6/8, **WorldDoc 9/13**, Worldgen 34/91. Ghidra: current=YodaDemo.exe before any write. v37 job-tmp scripts
-(pchtest/pchtu/pchcfg/hdrtest/bisect) are gone with the job; RESULTS captured below + in lessons #26/#27.
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v38 — header audit CLOSED + reorder refuted; v37 afxcmn +3 stands)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v38** commit (below it:
+b3938ac v37 afxcmn, a8c764b v36 finalize). Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime
+copy — don't touch). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> && rm -f
+../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`): `tools/link_exe.sh` → **0 dup / 0 unresolved / exit 0**;
+`progress.py` → **212 exact funcs / 99.17% coverage**; `bugscan.py --all` → **0 HIGH / 0 SHIFT / 0 SWAP**
+(exit 0). Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**,
+GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen
+34/91. Ghidra: current=YodaDemo.exe before any write. v37/v38 job-tmp scripts (pchtest/pchtu/pchcfg/
+hdrtest/bisect) are gone with the job; RESULTS captured below + in lessons #26/#27.
+
+**▶ v38 RESULTS (no exact change — closed 2 of v38's 3 START-HERE levers with negative results):**
+- **HEADER AUDIT CLOSED — every TU is at its optimal MFC header set; no more header wins.** afxcmn is the
+  ONLY beneficial add (v37). afxext is REQUIRED for GameData/Iact (GameView.h uses CBitmapButton) but
+  HURTS the record/doc TUs that don't include GameView.h: canonical afxwin/afxext/afxcmn REGRESSES Records
+  26→25, WorldDoc 8→7, IactScript 11→10. afxdlgs / the full Worldgen-order set also regress. So the
+  original did NOT use one uniform afxext stdafx for all TUs — the record TUs saw a minimal afxwin/afxcoll
+  (+afxcmn-neutral) set. Don't add afxext/afxdlgs anywhere it isn't already needed to COMPILE.
+- **EMISSION-ORDER REORDER REFUTED (Worldgen tail block).** GameData's function emission order already
+  EXACTLY matches its .text address order (0 mismatches) — the jl/jg family (Nevada 0x401ac0 jl vs exact-
+  twin Oregon 0x402280 jg) is pure TU-position under the now-correct header, needs G2. Worldgen's
+  GameView-tail block (UseWeapon 0x427d20 … RemoveItem 0x429150) was in a SCRAMBLED source order; I
+  reordered it to strict .text-address order → **net-neutral 34/91**, the bellwether DetonateAdjacentTiles
+  0x428680 stayed DIFF(60) BYTE-FOR-BYTE (position-insensitive ⇒ intrinsic reg-coloring), and it slightly
+  WORSENED DrawWeaponIcon — so I REVERTED it. ⚠ NEW LESSON: for a /Gy COMDAT build the LINKER lays out
+  COMDATs, so final .text ADDRESS order ≠ our .obj/source COMDAT order — do NOT reorder source functions
+  to chase address order; it's not the missing context. (Reorder patch in job-tmp/Worldgen.cpp.bak, discarded.)
+- Ghidra: NO writes this session. Nothing pending.
 
 **▶ v37 RESULTS:**
 - **⭐ THE afxcmn HEADER-DIAL WIN (+3 exact; lesson #26).** Several TUs were compiled WITHOUT `afxcmn.h`
@@ -510,34 +528,32 @@ Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/1
   obscured by link-folding; NOT tested this session.
 - Ghidra: NO writes this session. Nothing pending.
 
-**▶ START HERE (v38) — bank more header-dial wins, then re-attack jl/jg under the CORRECT context.**
-1. **⭐ FINISH the afxcmn universality audit (cheapest remaining wins).** v37 adopted afxcmn only on the
-   TUs where it was net-positive; the original had it in ALL TUs. The neutral standalone TUs (Records,
-   Frame, App, Dlg, IactScript) were measured neutral — but re-test them TOGETHER with any OTHER missing
-   AppWizard headers. Worldgen.h's set is the reconstructed stdafx: `afxwin, afxcoll, afxcmn, afxdlgs,
-   afxext` — note **afxdlgs** (common dialogs) + afxext-LAST. Test that FULL set/order on every TU that
-   lacks pieces (GameData currently afxwin/afxext/afxcmn/afxcoll — try the Worldgen order; WorldDoc;
-   Records; etc.). Harness pattern: strip a header's `#include <afx*.h>` lines, insert the candidate set,
-   rebuild textual, verify, restore (job-tmp/hdrtest.sh in v37). Any net-positive → adopt.
-2. **⭐ Re-grind the jl/jg family UNDER afxcmn (the context is now correct).** The A/B pair is intact:
-   LoadStoryHistoryNevada 0x401ac0 (jl, non-exact) vs LoadStoryHistoryOregon 0x40258b (was jg+exact, now
-   demoted by afxcmn). Both are in GameData which NOW has afxcmn. With the true header context, the
-   remaining jl/jg drift is purely TU-emission-ORDER/position (lesson #7) — so the lever is the emitted
-   FUNCTION-DEFINITION set + order, or the CALLED-helper signature shapes (lesson #14). Check whether
-   GameData's function EMISSION order matches the original .text order exactly; a mismatch is a real
-   lesson-#7 rotation you can fix by reordering source functions. (Do NOT grind function bodies — proven
-   exhausted; do NOT touch PCH.)
-3. **⭐ Worldgen emitted-COMDAT reconciliation (the untested half of lever 1; biggest pool, 34/91).**
-   Worldgen over-emits CPen/CBrush/CGdiObject/CObject dtor COMDATs mid-TU (#91-99) and UNDER-emits
-   ??_GCPalette (orig has it @0x41e8b0, between PlaceBlockades and PickItemFromZone). Per the corrected
-   dial, the emitted-def SET rotates everything after it — DetonateAdjacentTiles 0x428680 (align=0/1042B)
-   is the bellwether that goes EXACT once Worldgen's context is right. Determine whether the original
-   Worldgen.obj emitted these GDI dtors (folding obscures the linked image — need the .obj-level truth,
-   e.g. from the emission POSITIONS vs the exception-COMDATs-survive pattern) and add the CPalette odr-use
-   in the right source position. Higher-effort/uncertain — attempt after 1&2.
-4. **Map first each session:** `tools/frontier.py` + `tools/survey.py` (need build/*.obj — compile all).
-   The ~50 non-exact are the reg-coloring + jl/jg class; body-grinding is EXHAUSTED (v36). Header-set +
-   emission-order + the joint G2 fixed point are the only remaining levers.
+**▶ START HERE (v39) — the cheap per-TU levers (header set, emission order, PCH, flags, body grind) are
+ALL EXHAUSTED (v36/v37/v38). The remaining ~48 non-exact are the reg-coloring + jl/jg class, proven
+POSITION-INSENSITIVE (DetonateAdjacentTiles stayed byte-identical across a full tail-block reorder) ⇒ they
+need the G2 JOINT FIXED POINT, not more per-TU tweaking. Two paths, in order:**
+1. **⭐ Worldgen emitted-COMDAT reconciliation (the ONE cheap lever left untested; biggest pool, 34/91).**
+   Worldgen over-emits CPen/CBrush/CGdiObject/CObject dtor COMDATs mid-TU (emission #91-99, BEFORE the
+   DetonateAdjacentTiles/UseWeapon block) and UNDER-emits ??_GCPalette (orig has it @0x41e8b0, between
+   PlaceBlockades and PickItemFromZone). Per the corrected dial, the emitted-DEF SET (not order — v38
+   proved order is linker-owned) rotates codegen. TEST THE MECHANISM DIRECTLY before investing: (a) find
+   what odr-uses each GDI dtor in our source (a CPen/CBrush/CGdiObject LOCAL in a drawing fn) and whether
+   the original's drawing code would emit the SAME set — if we can drop an over-emitted dtor via odr-use
+   hygiene (e.g. construct via pointer, or the object's dtor is trivial/inlined in the orig), does
+   DetonateAdjacentTiles move? (b) add the CPalette odr-use that yields ??_GCPalette at the right source
+   position. If (a)/(b) don't move the bellwether, the COMDAT-set is NOT the axis either → go to #2.
+   ⚠ HIGH-uncertainty: v38's reorder (a related emitted-set/order perturbation) left DetonateAdjacentTiles
+   byte-identical, so temper expectations.
+2. **⭐ Begin G2 groundwork (the real remaining path).** The reg-coloring/jl-jg residuals are seeded by the
+   MSVC 4.2 allocator's TU-global state, reproducible only by the EXACT original build. link_exe.sh already
+   links a runnable image (0/0/exit0). G2 = the byte-identical whole-image: (1) reproduce the link (app
+   .objs in address order, then LIBCMT/NAFXCW); (2) map COMDAT fold-vs-survive geography (docs note the
+   CException family survives per-TU @head; CObject no-ops fold to 0x401060/70/80); (3) .rdata/.data/.rsrc
+   + vtable/msgmap/string-pool layout; (4) EH funclets + 0x424fb0 thunk + PE timestamp/checksum mask; (5)
+   reccmp-style whole-image diff. This is where the jl/jg family actually resolves — NOT per-function.
+3. **Map first each session:** `tools/frontier.py` + `tools/survey.py` (need build/*.obj — compile all).
+   Body-grinding EXHAUSTED (v36); header-set EXHAUSTED (v37/v38); emission-order is linker-owned (v38);
+   PCH dead (v37). The joint G2 fixed point is the only remaining lever for the reg-coloring class.
 5. **Canvas-gap mini (parked #2):** BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
    combo ctrl 0x9e). **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler thunk,
@@ -745,6 +761,18 @@ Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**, IactScript 11/1
      ⚠ Tooling gotcha: a `/Yc` PCH must be rebuilt IMMEDIATELY before each `/Yu` consume (stale .pch →
      silent 0/27), and the cl wrapper needs flags passed INLINE (a `$VAR` of flags reaches cl as one
      arg → D4002 → cl drops /c and tries to LINK, leaving a truncated obj).
+  28. **Final-.text ADDRESS order ≠ source/.obj COMDAT order — do NOT reorder source to chase addresses
+     (v38).** For a /Gy C++ COMDAT build, each function is its own section and the LINKER lays them out in
+     the final image; the address order you read from the EXE is the linker's arrangement, not the .obj
+     emission order (which is source order). Proven: reordering Worldgen's GameView-tail block (UseWeapon
+     0x427d20 … AddItemToInv 0x428f50) to strict .text-address order was net-NEUTRAL (34/91), left the
+     bellwether DetonateAdjacentTiles byte-for-byte identical (DIFF 60 → 60), and slightly WORSENED
+     DrawWeaponIcon ⇒ address order is not the original source order, and this block's residuals are
+     position-INSENSITIVE intrinsic reg-coloring. Corollary to lesson #7: emission-ORDER only matters
+     WITHIN an .obj for the allocator's forward carry; you cannot recover it from EXE addresses, and it is
+     NOT a per-TU lever — the reg-coloring/jl-jg residuals need the G2 joint build. (GameData's emission
+     order happens to already match its address order — 0 mismatches — yet Nevada still emits jl; that
+     seals it: correct header + correct order + correct flags, still position-locked to the whole-image build.)
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
