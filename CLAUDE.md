@@ -486,6 +486,9 @@ copy — don't touch). Baselines (compile EVERY TU into `build/` first — `cd s
 GameView 73/124, **Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 8/13**, Worldgen
 34/91. Ghidra: current=YodaDemo.exe before any write. v37/v38 job-tmp scripts (pchtest/pchtu/pchcfg/
 hdrtest/bisect) are gone with the job; RESULTS captured below + in lessons #26/#27.
+⚠ BUDGET (as of 2026-07-08): Fable weekly usage ~94% (resets 2026-07-09 23:00 America/Boise) — the
+step-7 Fable-escalation is nearly out of budget this week; prefer main-thread analysis for v39 (G2
+groundwork is main-thread anyway), and don't burn Fable on speculative probes.
 
 **▶ v38 RESULTS (no exact change — closed 2 of v38's 3 START-HERE levers with negative results):**
 - **HEADER AUDIT CLOSED — every TU is at its optimal MFC header set; no more header wins.** afxcmn is the
