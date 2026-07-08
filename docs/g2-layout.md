@@ -200,6 +200,15 @@ data COMDAT + its relocations → per-slot target symbol), and checks the two ov
 class methods. The data-side complement to bugscan.py — a MISSING override = a virtual we forgot to declare (the
 base runs — a runtime bug), exactly the class of `World::IsModified` before v46. Result: **World 8/8 and GameView
 8/8 override slots match — CLEAN.** (v45/v46's .rdata work confirmed correct.)
+- **v48 — made vtcheck FULLY AUTOMATIC + swept all modeled classes.** No hardcoded vtable bases: it now builds
+  `mangled_name → original address` from our own `// FUNCTION: YODA` markers (via `match.pair_by_name`), then
+  LOCATES each original vtable by scanning `.rdata` for ≥2 override addresses at consistent relative offsets
+  (the auto-found GameView 0x44b638 / World 0x44c438 match the v47 manual bases — finder validated). **10 classes
+  CLEAN: CTheApp, CAboutDlg, CTextDialog, CMainFrame, GameView, StatsDlg, DifficultyDlg, GameSpeedDlg,
+  WorldSizeDlg, World** — every UI/dialog/frame/view/doc class where a missing override would matter. The 13
+  skipped (Zone/Tile/Character/MapEntity/Puzzle/ZoneObj/Iact*/InvItem/MapZone/WorldgenZoneEntry/InvScrollBar)
+  are single-`??_E`-dtor-override data classes — un-anchorable (<2 override addrs) and low-risk. So the entire
+  modeled-class vtable set is now either validated-clean or a trivial-dtor data class.
 - **World dtor slot (+0x04) `??_E` vs orig `??_G` — BENIGN (ICF).** Our vtable references `??_EWorld` (vector
   deleting dtor) where the original slot → 0x41b2d0 (`??_G` scalar, disasm-confirmed `call ~World; test flag;
   delete`). But `??_EWorld` and `??_GWorld` link to the SAME address (0x41b350) under BOTH /OPT:REF and NOREF —

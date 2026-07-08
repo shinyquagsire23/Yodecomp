@@ -551,7 +551,16 @@ Written to be followable without prior context: each phase lists concrete steps 
   folds trivial BASE methods to app-region addrs (FOLDED_BASE whitelist: CObject defaults 0x401060/70/80,
   DisableSelfWindow/Enable 0x401090/a0, CView no-op 0x40e3f0), and the compare must be BOUNDED to our vtable's
   real slot extent (else it reads past into adjacent .rdata — embedded Balloon sub-vtables, ??_GCPalette). link
-  0/0/exit0, bugscan 0/0/0, progress 211 (unchanged).**
+  0/0/exit0, bugscan 0/0/0, progress 211 (unchanged).** →
+  **211 exact / 99.17 % coverage — v48 (2026-07-08): PHASE G2 — vtcheck made FULLY AUTOMATIC + swept ALL modeled
+  classes (no source change; verification). Rewrote tools/vtcheck.py to drop hardcoded vtable bases: it builds
+  mangled_name→original-address from our own // FUNCTION markers (match.pair_by_name) then LOCATES each original
+  vtable by scanning .rdata for ≥2 override addresses at consistent offsets (auto-found GameView 0x44b638 / World
+  0x44c438 match the v47 manual bases — finder validated). Result: 10 classes CLEAN — CTheApp, CAboutDlg,
+  CTextDialog, CMainFrame, GameView, StatsDlg, DifficultyDlg, GameSpeedDlg, WorldSizeDlg, World — every
+  UI/dialog/frame/view/doc class where a missing override would be a runtime bug. 13 skipped = single-??_E-dtor
+  data classes (Zone/Tile/Character/Iact*/…), un-anchorable + low-risk. Whole modeled-class vtable set now
+  validated-clean or trivial-dtor. link 0/0/exit0, bugscan 0/0/0, progress 211.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -593,43 +602,44 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v47 — PHASE G2: vtable-content oracle; World/GameView vtables validated; 211 exact)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v47** commit (vtcheck.py +
-vtable validation); below: ec4015c v46 (World vtable overrides), 4f56b58 v45 (World msgmap), 13d6d72 v44. Tree
-CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU into
-`build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2
-/D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh` which
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v48 — PHASE G2: vtcheck auto-locating; ALL modeled-class vtables validated; 211 exact)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v48** commit (vtcheck
+auto-locating); below: e961bf9 v47 (vtcheck.py), ec4015c v46 (World vtable overrides), 4f56b58 v45 (World msgmap).
+Tree CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). Baselines (compile EVERY TU
+into `build/` first — `cd src/<TU> && rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX
+/O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or just `tools/link_exe.sh` which
 compiles all): `link_exe.sh` → **0 dup / 0 unresolved / exit 0**; `progress.py` → **211 exact funcs / 99.17%
-coverage** (⚠ was 212 through v44 — v45 traded ~World to PHASE-DISPLACEMENT for the essential msgmap; v46/v47
-neutral); `bugscan.py --all` → **0/0/0** (exit 0); **`vtcheck.py` → World 8/8 + GameView 8/8 CLEAN** (exit 0).
-Per-TU exact: AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124,
-**Iact 2/10**, IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 7/13**, Worldgen 34/91. ⚠ verify.py per-TU
-can UNDERCOUNT ~10 (lesson #30): trust progress.py's 211. **G2 baseline: `g2_link.sh && g2_diff.py` → LAYOUT
-39/378, CONTENT 225/378, BOTH 32/378.** **REF-drop oracle (lesson #32): link build/*.obj twice /OPT:REF vs
-/OPT:NOREF each /MAP, diff app-obj symbols → 5 dropped (was 22 at v45 start).** Ghidra: current=YodaDemo.exe
-(nothing pending). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (G2 is all main-thread anyway).
+coverage** (⚠ was 212 through v44 — v45 traded ~World to PHASE-DISPLACEMENT for the essential msgmap; v46-v48
+neutral); `bugscan.py --all` → **0/0/0** (exit 0); **`vtcheck.py` → 10 classes CLEAN** (exit 0). Per-TU exact:
+AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, **GameData 13/27**, GameView 73/124, **Iact 2/10**,
+IactScript 11/12, Records 26/33, World 6/8, **WorldDoc 7/13**, Worldgen 34/91. ⚠ verify.py per-TU can UNDERCOUNT
+~10 (lesson #30): trust progress.py's 211. **G2 baseline: `g2_link.sh && g2_diff.py` → LAYOUT 39/378, CONTENT
+225/378, BOTH 32/378.** **REF-drop oracle (lesson #32): link build/*.obj twice /OPT:REF vs /OPT:NOREF each /MAP,
+diff app-obj symbols → 5 dropped (was 22 at v45 start).** Ghidra: current=YodaDemo.exe (nothing pending).
+⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (G2 is all main-thread anyway).
 
-**▶ v45–v47 RESULTS — reference graph closed 22→5 + .rdata content validated:**
-- **v45 — World document message map** reconstructed byte-for-byte from `@0x44c2d0` (14 AFX_MSGMAP_ENTRY: 6
-  ON_COMMAND + 8 ON_UPDATE_COMMAND_UI) into WorldDoc.cpp + `afx_msg` decls in WorldDoc.h → REF-drops 22→7. COST:
-  `~World` 0x41b2f0 PHASE-DISPLACED (212→211, DIFF 6 align=0 intrinsic — the original .obj was built WITH the
-  map). Map is FUNCTIONALLY ESSENTIAL (menu dispatch) ⇒ required source.
-- **v46 — World vtable overrides** (CODEGEN-NEUTRAL): `IsModified`/`SetModifiedFlag` weren't declared virtual in
-  WorldDoc.h → vtable pointed at CDocument base → dropped. Added both `virtual` → slots target our overrides →
-  kept, 211 held (overriding existing base slots is inert). REF-drops 7→5.
-- **v47 — vtable-content oracle** (`tools/vtcheck.py`, no source change): World 8/8 + GameView 8/8 override
-  slots match the original → v45/v46 .rdata confirmed correct. World dtor slot ??_E-vs-??_G is BENIGN (folds).
+**▶ v45–v48 RESULTS — reference graph closed 22→5 + ALL modeled-class .rdata vtables validated:**
+- **v45 — World document message map** reconstructed byte-for-byte from `@0x44c2d0` (14 AFX_MSGMAP_ENTRY) →
+  REF-drops 22→7. COST: `~World` 0x41b2f0 PHASE-DISPLACED (212→211, DIFF 6 align=0 intrinsic). Map is FUNCTIONALLY
+  ESSENTIAL (menu dispatch) ⇒ required source.
+- **v46 — World vtable overrides** (CODEGEN-NEUTRAL): `IsModified`/`SetModifiedFlag` declared `virtual` in
+  WorldDoc.h → vtable slots target our overrides → kept. REF-drops 7→5.
+- **v47/v48 — vtable-content oracle** (`tools/vtcheck.py`, no source change): auto-locates each original vtable
+  by scanning .rdata for override addresses. **10 classes CLEAN** — CTheApp, CAboutDlg, CTextDialog, CMainFrame,
+  GameView, StatsDlg, DifficultyDlg, GameSpeedDlg, WorldSizeDlg, World (every UI/dialog/frame/view/doc class).
+  13 single-??_E-dtor data classes skipped (un-anchorable, low-risk). No missing-override bugs anywhere.
 
-**▶ START HERE (v48) — PHASE G2, main-thread. The reference graph (22→5) + .rdata vtable content are validated;
-the remaining big pieces are all either wall-blocked (absolute layout) or the hard-tail 5. Pick from:**
-1. **Extend vtcheck.py to more classes** (cheap, could catch a real missing-override bug like IsModified was):
-   add CMainFrame, TextDialog, the option dialogs, InvScrollBar to its CLASSES map. Each needs the ORIG vtable
-   base VA — find via the ctor's `mov [reg],offset vftable` (disasm the class ctor). If any reports a MISSING
-   override, that's a real runtime bug to fix (declare the virtual). If all CLEAN, .rdata vtable content is fully
-   validated. (This is the clearest remaining VALUE — a correctness sweep of every modeled class's vtable.)
-2. **msgmap-content check** — the analogue for message maps: verify each class's emitted AFX_MSGMAP_ENTRY array
-   matches the original (fixed fields, like v45 did manually for World). Could be a vtcheck sibling.
-3. **The 5 REMAINING REF-drops are the hard tail — documented in docs/g2-layout.md (v46 section), do NOT force
+**▶ START HERE (v49) — PHASE G2, main-thread. Reference graph (22→5) + ALL modeled-class vtables are validated.
+Content correctness is now well-covered; the remaining pieces are the hard-tail 5 (leave) or wall-blocked layout.
+Highest remaining VALUE, pick one:**
+1. **msgmap-content oracle (the vtcheck sibling — clearest remaining correctness sweep).** vtcheck validated
+   vtables; the analogous gap is MESSAGE MAPS. Build a tool that, for each class with a `?GetMessageMap@Cls@@`,
+   locates the original AFX_MSGMAP_ENTRY array (GetMessageMap returns `&messageMap` = {pBaseMap, lpEntries};
+   the ctor/GetMessageMap body gives the VA) and compares the fixed fields (nMessage/nCode/nID/nLastID/nSig)
+   entry-for-entry to OUR emitted map — like v45 did MANUALLY for World (all 14 matched). Would catch a wrong/
+   missing ON_* entry (a menu command silently not dispatched). Classes with maps: World (✓v45), CMainFrame,
+   CTheApp, GameView, the dialogs. A wrong entry = a real functional bug.
+2. **The 5 REMAINING REF-drops = hard tail — documented in docs/g2-layout.md (v46 section), do NOT force
    (each ≤2 funcs, each risks a regression):** AppWnd `OnPaint`/`OnTimer` (real msgmap @0x44b008 but in a
    DIFFERENT original TU per v42 — adding to AppData re-breaks the v42 layout), AppWnd `Disable`(0x401090)/
    `Enable`(0x4010a0) (ICF-folded, 19 vtable xrefs + a game caller), `??_H` __vector_constructor_iterator (CRT
@@ -1001,17 +1011,17 @@ the remaining big pieces are all either wall-blocked (absolute layout) or the ha
   name-matching COMDAT pairs against the wrong function) — for a specific finding, RE-RUN on the single
   owning TU (bugscan.py src/<owner>/<owner>.cpp) to confirm. Validated: clean tree = 0 findings; reverting
   the v34 Afx fix re-flags it 10×+4× as SHIFT.
-- **`vtcheck.py`** (v47) — ⭐ the **.rdata vtable-content oracle** (data-side complement to bugscan). For each
-  class in its CLASSES map it reads the ORIGINAL vtable from the exe (VA→file offset) + OUR vtable from
-  `build/<TU>.obj` (the `??_7<Class>@@6B@` data COMDAT + its relocations → per-slot target symbol) and checks
-  both override the SAME slots with the SAME class methods. A **MISSING override** = a virtual we forgot to
-  declare (the base runs instead — a runtime bug; caught `World::IsModified` class of gap). Exit 1 on any real
-  mismatch. Two baked-in gotchas: (a) ICF folds trivial base methods to app-region addrs → the `FOLDED_BASE`
-  whitelist (CObject defaults 0x401060/70/80, DisableSelfWindow/Enable 0x401090/a0, CView no-op 0x40e3f0)
-  treats them as base; (b) the compare is BOUNDED to our vtable's real slot extent (max reloc offset) — reading
-  past walks into adjacent .rdata (embedded sub-vtables, ??_GCPalette) and false-flags. Currently World +
-  GameView (both CLEAN 8/8); add classes to the map as needed (needs the orig vtable base VA from Ghidra —
-  the ctor's `mov [reg],offset vftable`).
+- **`vtcheck.py`** (v47; auto-locating v48) — ⭐ the **.rdata vtable-content oracle** (data-side complement to
+  bugscan). FULLY AUTOMATIC: for every `??_7<Class>@@6B@` data COMDAT we emit, it reads the relocations →
+  per-slot target symbol, looks up each override target's ORIGINAL address from our `// FUNCTION` markers
+  (match.pair_by_name), LOCATES the original vtable by scanning .rdata for ≥2 of those addresses at consistent
+  relative offsets, then compares override patterns. A **MISSING override** = a virtual we forgot to declare
+  (the base runs — a runtime bug; caught the `World::IsModified` class of gap). Exit 1 on any real mismatch. Two
+  baked-in gotchas: (a) ICF folds trivial base methods to app-region addrs → `FOLDED_BASE` whitelist (CObject
+  defaults 0x401060/70/80, DisableSelfWindow/Enable 0x401090/a0, CView no-op 0x40e3f0) treats them as base; (b)
+  the compare is BOUNDED to our vtable's real slot extent (max reloc offset) — reading past walks into adjacent
+  .rdata (embedded sub-vtables, ??_GCPalette) and false-flags. v48: 10 classes CLEAN (all UI/dialog/frame/view/
+  doc); 13 single-??_E-dtor data classes SKIPPED (un-anchorable, <2 override addrs — low-risk). No config needed.
 - **`permute.py <src.cpp> 0xADDR [--iters N] [--mode all|stmt|cmp|decl]`** — the **permuter**. Searches
   source variations of one function (statement order; comparison form; leading local-declaration order →
   register/x87-slot allocation), cl-compiles each, and uses the **graded `asmscore`** (below) as the oracle.

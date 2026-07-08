@@ -1255,3 +1255,13 @@ Declared both virtual → vtable slots target our overrides → kept. Overriding
 sizeof change) is codegen-inert (211 held). REF-drops 7→5 (running 22→5 across v45+v46). The 5 remaining are
 the hard tail (AppWnd OnPaint/OnTimer msgmap in a different TU; AppWnd Disable/Enable ICF-folded; ??_H CRT
 helper). Then v47 built tools/vtcheck.py and validated World+GameView vtable content (8/8 each, CLEAN).
+
+### ⏮ PRIOR PICKUP — v47 (2026-07-08, condensed; superseded by v48)
+PHASE G2: built tools/vtcheck.py, the .rdata vtable-content oracle (data-side complement to bugscan — a MISSING
+override = a virtual we forgot to declare = the base runs = a runtime bug, e.g. World::IsModified before v46).
+Reads the ORIGINAL vtable from the exe + OUR vtable from build/<TU>.obj (??_7<Class>@@6B@ COMDAT + relocs →
+per-slot target) and checks both override the same slots with the same class methods. v47: World 8/8 + GameView
+8/8 CLEAN. The World dtor slot's ??_E-vs-orig-??_G is benign (??_E/??_G fold to one address, REF and NOREF).
+Then v48 made it FULLY AUTOMATIC (auto-locates each vtable by scanning .rdata for override addresses from our
+markers) and swept all modeled classes → 10 CLEAN (all UI/dialog/frame/view/doc), 13 single-dtor data classes
+skipped. No missing-override bugs anywhere.
