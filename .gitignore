@@ -10,6 +10,9 @@
 *.pdb
 *.ilk
 build/
+build-link/
+tmp/
+*.exe
 
 # macOS
 .DS_Store
