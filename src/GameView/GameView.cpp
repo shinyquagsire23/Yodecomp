@@ -75,6 +75,7 @@ class DifficultyDlg : public CDialog
 public:
     int m_nValue;                    // +0x5c  slider value
     DifficultyDlg(CWnd *pParent);                        // 0x00417e50 (template 0x6f)
+    virtual void DoDataExchange(CDataExchange *pDX);     // 0x00417f30 EMPTY (vtable slot +0x88; bare RET 4)
     virtual BOOL OnInitDialog();                         // 0x00417f50 (ctrl 0x67, 1..100)
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00417fa0
     DECLARE_MESSAGE_MAP()
@@ -85,6 +86,7 @@ class GameSpeedDlg : public CDialog
 public:
     int m_nValue;                    // +0x5c  slider value
     GameSpeedDlg(CWnd *pParent);                         // 0x00418130 (template 0xd7)
+    virtual void DoDataExchange(CDataExchange *pDX);     // 0x00418210 EMPTY (bare RET 4)
     virtual BOOL OnInitDialog();                         // 0x00418230 (ctrl 0x8f, 1..0x5a)
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418280
     DECLARE_MESSAGE_MAP()
@@ -95,6 +97,7 @@ class WorldSizeDlg : public CDialog
 public:
     int m_nValue;                    // +0x5c  slider value
     WorldSizeDlg(CWnd *pParent);                         // 0x00418410 (template 0xda)
+    virtual void DoDataExchange(CDataExchange *pDX);     // 0x004184f0 EMPTY (bare RET 4)
     virtual BOOL OnInitDialog();                         // 0x00418510 (ctrl 0x90, 1..3)
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418560
     DECLARE_MESSAGE_MAP()
@@ -7526,8 +7529,9 @@ void GameView::OnAppExit()
 // GameView::OnCmdDifficulty (WM_COMMAND 0x8005): pause the game (nFrameMode 0), run
 // the difficulty slider dialog seeded from World.difficulty, and (on OK) read the new
 // value back. bBusy is held across DoModal; the frame mode is restored afterward.
-// EFFECTIVE (align 0, 9B): pure this<->nSavedMode esi/edi allocator swap (orig this=esi,
-// nSavedMode=edi; ours reversed). Allocator tie-break, not source-steerable. G1.
+// EXACT since the slider DoDataExchange decls landed (was EFFECTIVE align 0, 9B: a pure
+// this<->nSavedMode esi/edi allocator swap under the pre-DDX dial — the dial fixed it,
+// vindicating the fixed-point rule).
 // ---------------------------------------------------------------------------
 void GameView::OnCmdDifficulty()
 {
@@ -7728,6 +7732,10 @@ StatsDlg::StatsDlg(CWnd *pParent, World *pDoc) : CDialog(0xe1, pParent)
     //}}AFX_DATA_INIT
 }
 
+// FUNCTION: YODA 0x00416920  (??_GStatsDlg@@UAEPAXI@Z — compiler-emitted scalar dtor, 188B:
+// EH-framed body destroying the 4 CString members + handler thunk + funclet. The ctor's own
+// EH-handler thunk sits at 0x416902, inside the ctor COMDAT's 260B extent.)
+
 // FUNCTION: YODA 0x004169e0
 void StatsDlg::DoDataExchange(CDataExchange *pDX)
 {
@@ -7739,6 +7747,13 @@ void StatsDlg::DoDataExchange(CDataExchange *pDX)
     //}}AFX_DATA_MAP
 }
 
+// FUNCTION: YODA 0x00416a30  (?GetMessageMap@StatsDlg@@MBEPBUAFX_MSGMAP@@XZ — empty msgmap
+// @0x44b558)
+BEGIN_MESSAGE_MAP(StatsDlg, CDialog)
+    //{{AFX_MSG_MAP(StatsDlg)
+    //}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
 // FUNCTION: YODA 0x00416a40
 BOOL StatsDlg::OnInitDialog()
 {
@@ -7746,11 +7761,6 @@ BOOL StatsDlg::OnInitDialog()
     CenterWindow();
     return TRUE;
 }
-
-BEGIN_MESSAGE_MAP(StatsDlg, CDialog)
-    //{{AFX_MSG_MAP(StatsDlg)
-    //}}AFX_MSG_MAP
-END_MESSAGE_MAP()
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416a60
@@ -7836,6 +7846,26 @@ DifficultyDlg::DifficultyDlg(CWnd *pParent) : CDialog(0x6f, pParent)
 {
 }
 
+// FUNCTION: YODA 0x00417ec0  (??_GDifficultyDlg@@UAEPAXI@Z — compiler-emitted scalar dtor,
+// 97B: EH-framed body + handler thunk @0x417f0f + dtor funclet @0x417f19 that tail-jmps
+// ~CDialog. Our COMDAT is the same 97B; the funclet's jmp target is a masked reloc.)
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00417f30
+// DifficultyDlg::DoDataExchange — EMPTY, does NOT call CDialog::DoDataExchange (the
+// binary is a bare RET 4; vtable-slot-pinned at +0x88, same delta as StatsDlg's DDX).
+// The dev deleted the ClassWizard base call (no DDX fields — OnHScroll reads the
+// scrollbar directly). Same in GameSpeedDlg/WorldSizeDlg.
+// ---------------------------------------------------------------------------
+void DifficultyDlg::DoDataExchange(CDataExchange *pDX)
+{
+}
+
+// FUNCTION: YODA 0x00417f40  (?GetMessageMap@DifficultyDlg@@MBEPBUAFX_MSGMAP@@XZ)
+BEGIN_MESSAGE_MAP(DifficultyDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
+
 // FUNCTION: YODA 0x00417f50
 BOOL DifficultyDlg::OnInitDialog()
 {
@@ -7904,10 +7934,6 @@ void DifficultyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
     }
 }
 
-BEGIN_MESSAGE_MAP(DifficultyDlg, CDialog)
-    ON_WM_HSCROLL()
-END_MESSAGE_MAP()
-
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00418130
 // GameSpeedDlg::GameSpeedDlg — CDialog(template 0xd7).
@@ -7915,6 +7941,20 @@ END_MESSAGE_MAP()
 GameSpeedDlg::GameSpeedDlg(CWnd *pParent) : CDialog(0xd7, pParent)
 {
 }
+
+// FUNCTION: YODA 0x004181a0  (??_GGameSpeedDlg@@UAEPAXI@Z — compiler-emitted scalar dtor,
+// same 97B EH shape as DifficultyDlg's)
+
+// FUNCTION: YODA 0x00418210
+// GameSpeedDlg::DoDataExchange — EMPTY (bare RET 4; see DifficultyDlg::DoDataExchange).
+void GameSpeedDlg::DoDataExchange(CDataExchange *pDX)
+{
+}
+
+// FUNCTION: YODA 0x00418220  (?GetMessageMap@GameSpeedDlg@@MBEPBUAFX_MSGMAP@@XZ)
+BEGIN_MESSAGE_MAP(GameSpeedDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00418230
 BOOL GameSpeedDlg::OnInitDialog()
@@ -7984,10 +8024,6 @@ void GameSpeedDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
     }
 }
 
-BEGIN_MESSAGE_MAP(GameSpeedDlg, CDialog)
-    ON_WM_HSCROLL()
-END_MESSAGE_MAP()
-
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00418410
 // WorldSizeDlg::WorldSizeDlg — CDialog(template 0xda).
@@ -7995,6 +8031,20 @@ END_MESSAGE_MAP()
 WorldSizeDlg::WorldSizeDlg(CWnd *pParent) : CDialog(0xda, pParent)
 {
 }
+
+// FUNCTION: YODA 0x00418480  (??_GWorldSizeDlg@@UAEPAXI@Z — compiler-emitted scalar dtor,
+// same 97B EH shape as DifficultyDlg's)
+
+// FUNCTION: YODA 0x004184f0
+// WorldSizeDlg::DoDataExchange — EMPTY (bare RET 4; see DifficultyDlg::DoDataExchange).
+void WorldSizeDlg::DoDataExchange(CDataExchange *pDX)
+{
+}
+
+// FUNCTION: YODA 0x00418500  (?GetMessageMap@WorldSizeDlg@@MBEPBUAFX_MSGMAP@@XZ)
+BEGIN_MESSAGE_MAP(WorldSizeDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00418510
 BOOL WorldSizeDlg::OnInitDialog()
@@ -8063,7 +8113,3 @@ void WorldSizeDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
         m_nValue = nVal;
     }
 }
-
-BEGIN_MESSAGE_MAP(WorldSizeDlg, CDialog)
-    ON_WM_HSCROLL()
-END_MESSAGE_MAP()
