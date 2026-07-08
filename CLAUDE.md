@@ -593,6 +593,17 @@ Records-style (real MFC base + members = ctor/dtor codegen free). Also the tiny 
 - **CFrameWnd fields:** sizeof(CFrameWnd)=0xbc, sizeof(CDialog)=0x5c, CWinApp m_hPrevInstance@0x6c/
   m_lpCmdLine@0x70, App+0xc4 frame-delay -> World+0x74. GameView pWorld@0x44/bBusy@0x4c/
   nDragSlot@0x144/bDragActive@0x148/pMusicThread@0x2fc.
+- **Out-of-line empty ctor ⇒ custom type, not MFC CPoint/CRect (v30, TextDialog::Layout).** When
+  the disasm shows a stack `T arr[N]` construction LOOP calling an out-of-line `mov eax,ecx; ret`
+  ctor, the source type is NOT MFC's CPoint/CRect — their default ctors are `_AFXWIN_INLINE` (get
+  inlined at /O2, so no call emits). Model a custom class (`struct T : public tagPOINT { T(); };`)
+  with the empty ctor DEFINED out-of-line and AFTER the use site (cl compiles top-down, so it
+  can't inline what it hasn't seen) — it emits as this TU's own COMDAT (TriPoint 0x4186e0 EXACT).
+- **A big jump-table function with two CDCs + a this-swap is EFFECTIVE-by-construction (v30).**
+  TextDialog::Layout (1419B) landed align 374: the wins are structural (store per-branch not
+  hoisted; per-case `ShowWindow(K)` cross-jumped via #18 instead of a `nShow` var), but cl's
+  trace-driven duplication of dead range-compares (#15), pointer-reload aliasing (#19), and the
+  this-in-ESI landing are not source-steerable — annotate and defer to G1, don't grind.
 
 
 ### Tooling (`tools/`, all Python; run from repo root)
