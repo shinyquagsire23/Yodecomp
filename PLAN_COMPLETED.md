@@ -1049,3 +1049,18 @@ synced, saved.
   Run 0x416c40 eff. 622/622 insns — full structure; residual = this-in-ESI vs orig EDI.
 - Added g_pszDialogFont @0x4561cc (CreateFont face-name global, distinct from g_pszFontName).
 - v30 finished the cluster: Layout 0x4176f0 transcribed (eff.), TriPoint::TriPoint 0x4186e0 EXACT.
+
+### ⏮ v30 PICKUP (2026-07-07 — PHASE E COMPLETE; 98.47% coverage) — demoted at v31
+- v30 RESULTS: TextDialog::Layout 0x4176f0 transcribed (EFFECTIVE, align 374, 1419B jump-table
+  balloon painter) + TriPoint::TriPoint 0x4186e0 EXACT. GameView TU ZERO unclaimed. 72/122 exact.
+- Layout autopsy: 5-entry jump table (switch nVisibleLines 1/2-4/5), tail triangle from a
+  `TriPoint point[3]` custom point type (MFC CPoint ctor inline → no call; TriPoint derives
+  tagPOINT + non-inline empty ctor → array construction calls 0x4186e0 3×). Wins align 418→374:
+  (a) store point[0].x/[1].x INSIDE each x-branch not hoisted; (b) drop `nShow` var, write
+  `btnDialogUp.ShowWindow(0/5)` per case so cl cross-jumps (lesson #18). Parked residual = cl
+  trace-driven duplication of a dead `cmp bx,0x20/0x100` fragment (#15) + pointer-reload aliasing
+  (#19) + this-in-ESI. → G1.
+- NEW SUB-LESSON (out-of-line empty ctor for array construction): a stack `T arr[N]` loop CALLING
+  an out-of-line `mov eax,ecx; ret` ctor ⇒ NOT MFC CPoint/CRect (their ctors are _AFXWIN_INLINE).
+  Model a custom class with the empty ctor DEFINED out-of-line AND AFTER the use site. (Now in the
+  permanent MFC lessons list.)

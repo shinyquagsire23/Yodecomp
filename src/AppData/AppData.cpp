@@ -5,16 +5,64 @@
 //   - InvItem           (an inventory slot;                     vftable 0x44b068)
 //   - WorldgenZoneEntry (a worldgen dedup entry;                vftable 0x44b080)
 // The CObject Serialize/AssertValid/Dump no-op COMDATs (0x401060/70/80) and CObject's own
-// ??_G/??1 (0x401130/0x401150) are pulled in for free by <afxwin.h> and fold at link (Phase G2).
+// ??_G/??1 (0x401130/0x401150) are pulled in for free by <afxwin.h>; this .obj emits them and
+// they byte-match their folded addresses exactly (verified) — reconciled at link (Phase G2).
 // The class declarations live in their canonical headers (MapZone.h, GameView.h, Worldgen.h),
 // all reachable through Worldgen.h — which fixes the TU-phase dial for this file.
+// It also opens with a small CWnd-derived UI class (message map @0x44b000) — see AppWnd below.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS  (static MFC).
-//
-// Still un-transcribed in this TU (next session): the small CWnd class whose message map is at
-// 0x44b000 (WM_TIMER 0x401000 -> Default(), WM_PAINT 0x401010 -> CPaintDC) and the two adjacent
-// virtual overrides 0x401090/0x4010a0 (EnableWindow(m_hWnd, FALSE/TRUE)) that appear in many
-// derived vtables (0x44b5f0 …). Their owning class is not yet identified.
+// STATUS: 14/14 app functions EXACT. Zero unclaimed app code remains in this TU.
 #include "../Worldgen/Worldgen.h"
+
+// ====================== AppWnd (small CWnd UI class) ======================
+// The TU opens with a tiny CWnd-derived UI class (message map @0x44b000: WM_TIMER, WM_PAINT).
+// Its Disable()/Enable() are EnableWindow(FALSE/TRUE) overrides that COMDAT-FOLD with the
+// identical overrides in ~15 other UI classes (InvScrollBar's vtable 0x44b578 slots 36/37
+// point at these folded copies) — the body only touches m_hWnd (this+0x1c), universal to every
+// CWnd-derived class, so all copies are byte-identical and the linker keeps this one.
+// (Exact class name / base message map 0x44c510 not yet pinned — bodies are what byte-match;
+// the message-map + vtable DATA reconcile in the Phase-G whole-image build.)
+class AppWnd : public CWnd
+{
+public:
+    virtual void Disable();                  // 0x00401090
+    virtual void Enable();                   // 0x004010a0
+protected:
+    afx_msg void OnTimer(UINT nIDEvent);     // 0x00401000
+    afx_msg void OnPaint();                  // 0x00401010
+    DECLARE_MESSAGE_MAP()
+};
+
+BEGIN_MESSAGE_MAP(AppWnd, CWnd)
+    //{{AFX_MSG_MAP(AppWnd)
+    ON_WM_TIMER()
+    ON_WM_PAINT()
+    //}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
+// FUNCTION: YODA 0x00401000
+void AppWnd::OnTimer(UINT nIDEvent)
+{
+    Default();
+}
+
+// FUNCTION: YODA 0x00401010
+void AppWnd::OnPaint()
+{
+    CPaintDC dc(this);
+}
+
+// FUNCTION: YODA 0x00401090
+void AppWnd::Disable()
+{
+    ::EnableWindow(m_hWnd, FALSE);
+}
+
+// FUNCTION: YODA 0x004010a0
+void AppWnd::Enable()
+{
+    ::EnableWindow(m_hWnd, TRUE);
+}
 
 // ============================== MapZone ==============================
 
