@@ -313,4 +313,40 @@ public:
     int Run();                                            // 0x00416c40 (GameView TU)
 };
 
+// Three near-identical slider option dialogs embedded in the GameView TU
+// (0x417e50-0x4186e0). Each = CDialog + an int m_nValue@0x5c, an OnInitDialog that
+// sizes a scrollbar control to the setting's range and seeds the thumb from m_nValue,
+// and an OnHScroll that steps the slider (SB_LINE/PAGE/THUMB) and stores back into
+// m_nValue. All demo-disabled (their ON_UPDATE_COMMAND_UI handlers grey the items).
+// Class names follow the Ghidra namespaces (by the OnCmd* handler that runs each).
+class DifficultyDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    DifficultyDlg(CWnd *pParent);                        // 0x00417e50 (template 0x6f)
+    virtual BOOL OnInitDialog();                         // 0x00417f50 (ctrl 0x67, 1..100)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00417fa0
+    DECLARE_MESSAGE_MAP()
+};
+
+class GameSpeedDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    GameSpeedDlg(CWnd *pParent);                         // 0x00418130 (template 0xd7)
+    virtual BOOL OnInitDialog();                         // 0x00418230 (ctrl 0x8f, 1..0x5a)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418280
+    DECLARE_MESSAGE_MAP()
+};
+
+class WorldSizeDlg : public CDialog
+{
+public:
+    int m_nValue;                    // +0x5c  slider value
+    WorldSizeDlg(CWnd *pParent);                         // 0x00418410 (template 0xda)
+    virtual BOOL OnInitDialog();                         // 0x00418510 (ctrl 0x90, 1..3)
+    afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar); // 0x00418560
+    DECLARE_MESSAGE_MAP()
+};
+
 #endif

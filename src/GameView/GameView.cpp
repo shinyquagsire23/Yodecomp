@@ -7469,9 +7469,25 @@ void GameView::OnAppExit()
 }
 
 // ---------------------------------------------------------------------------
-// (OnCmdDifficulty 0x00416120 slot — needs DifficultyDlg; transcribed with the
-//  options-dialog cluster.)
+// FUNCTION: YODA 0x00416120
+// GameView::OnCmdDifficulty (WM_COMMAND 0x8005): pause the game (nFrameMode 0), run
+// the difficulty slider dialog seeded from World.difficulty, and (on OK) read the new
+// value back. bBusy is held across DoModal; the frame mode is restored afterward.
+// EFFECTIVE (align 0, 9B): pure this<->nSavedMode esi/edi allocator swap (orig this=esi,
+// nSavedMode=edi; ours reversed). Allocator tie-break, not source-steerable. G1.
 // ---------------------------------------------------------------------------
+void GameView::OnCmdDifficulty()
+{
+    DifficultyDlg dlg(this);
+    bBusy = 1;
+    int nSavedMode = pWorld->nFrameMode;
+    pWorld->nFrameMode = 0;
+    dlg.m_nValue = pWorld->difficulty;
+    if (dlg.DoModal() == 1)
+        pWorld->difficulty = dlg.m_nValue;
+    pWorld->nFrameMode = nSavedMode;
+    bBusy = 0;
+}
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416220
@@ -7523,9 +7539,33 @@ void GameView::OnUpdatePauseUi(CCmdUI *pCmdUI)
 }
 
 // ---------------------------------------------------------------------------
-// (OnCmdGameSpeed 0x00416310 slot — needs GameSpeedDlg; transcribed with the
-//  options-dialog cluster.)
+// FUNCTION: YODA 0x00416310
+// GameView::OnCmdGameSpeed (WM_COMMAND 0x800c): run the game-speed slider dialog. The
+// slider edits the *inverted* speed (0xba - nGameSpeed, clamped 1..0x5a); on OK the
+// value is un-inverted (clamped 0x60..0xb9) into nGameSpeed, mirrored to World.gameSpeed,
+// and the frame timer is restarted at the new interval.
 // ---------------------------------------------------------------------------
+void GameView::OnCmdGameSpeed()
+{
+    GameSpeedDlg dlg(this);
+    dlg.m_nValue = 0xba - nGameSpeed;
+    if (dlg.m_nValue < 1)
+        dlg.m_nValue = 1;
+    if (dlg.m_nValue > 0x5a)
+        dlg.m_nValue = 0x5a;
+    if (dlg.DoModal() == 1)
+    {
+        int nSpeed = 0xba - dlg.m_nValue;
+        nGameSpeed = nSpeed;
+        if (nSpeed > 0xb9)
+            nGameSpeed = 0xb9;
+        if ((int)nGameSpeed < 0x60)
+            nGameSpeed = 0x60;
+        pWorld->gameSpeed = nGameSpeed;
+        ::KillTimer(m_hWnd, 0x1d1d);
+        nTimerId = ::SetTimer(m_hWnd, 0x1d1d, nGameSpeed, NULL);
+    }
+}
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416460
@@ -7552,9 +7592,17 @@ void GameView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
 }
 
 // ---------------------------------------------------------------------------
-// (OnCmdWorldSizeMaybe 0x004164d0 slot — needs WorldSizeDlg; transcribed with the
-//  options-dialog cluster.)
+// FUNCTION: YODA 0x004164d0
+// GameView::OnCmdWorldSizeMaybe (WM_COMMAND 0x800d): run the world-size slider dialog
+// seeded from World.worldSize; read it back on OK. Demo-disabled via the UI handler.
 // ---------------------------------------------------------------------------
+void GameView::OnCmdWorldSizeMaybe()
+{
+    WorldSizeDlg dlg(this);
+    dlg.m_nValue = pWorld->worldSize;
+    if (dlg.DoModal() == 1)
+        pWorld->worldSize = dlg.m_nValue;
+}
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x004165a0
@@ -7605,3 +7653,255 @@ void GameView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 {
     pCmdUI->Enable(0);
 }
+
+// ===========================================================================
+// Options-dialog cluster (0x417e50-0x4186e0). Three near-identical CDialog slider
+// dialogs. NOTE: in .text these follow StatsDlg (0x416810) and the game TextDialog
+// (0x416b90), which are transcribed separately — until those land above, these three
+// blocks sit at a slightly displaced TU position (may read EFFECTIVE where they will
+// be EXACT once the gap is filled).
+// RESULTS: all 3 ctors + all 3 OnInitDialog EXACT; the 3 OnHScroll are the byte-identical
+// clone family (lesson #7) - DifficultyDlg DIFF(5), GameSpeed/WorldSize larger (they get
+// distinct reg allocations purely by TU position, like ParseZaux/Zax2/Zax3). Expect them
+// to converge once StatsDlg/TextDialog fill the .text gap; parked for G1.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00417e50
+// DifficultyDlg::DifficultyDlg — CDialog(template 0x6f).
+// ---------------------------------------------------------------------------
+DifficultyDlg::DifficultyDlg(CWnd *pParent) : CDialog(0x6f, pParent)
+{
+}
+
+// FUNCTION: YODA 0x00417f50
+BOOL DifficultyDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    CenterWindow();
+    CWnd *pCtrl = GetDlgItem(0x67);
+    ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 100, FALSE);
+    ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
+    return TRUE;
+}
+
+// FUNCTION: YODA 0x00417fa0
+void DifficultyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+    CWnd *pCtrl = GetDlgItem(0x67);
+    if (pCtrl == pScrollBar)
+    {
+        int nVal = m_nValue;
+        int nMin = 1;
+        int nMax = 100;
+        ::GetScrollRange(pScrollBar->m_hWnd, SB_CTL, &nMin, &nMax);
+        int nPage = ((nMax - nMin) + 1) / 10;
+        switch (nSBCode)
+        {
+        case SB_LINEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nMin < nVal)
+                nVal--;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_LINEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nVal < nMax)
+                nVal++;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal -= nPage;
+            if (nVal <= nMin)
+                nVal = nMin;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal += nPage;
+            if (nMax <= nVal)
+                nVal = nMax;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_THUMBPOSITION:
+        case SB_THUMBTRACK:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nPos, TRUE);
+            nVal = nPos;
+            break;
+        case SB_TOP:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMin, TRUE);
+            nVal = nMin;
+            break;
+        case SB_BOTTOM:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMax, TRUE);
+            nVal = nMax;
+            break;
+        }
+        m_nValue = nVal;
+    }
+}
+
+BEGIN_MESSAGE_MAP(DifficultyDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00418130
+// GameSpeedDlg::GameSpeedDlg — CDialog(template 0xd7).
+// ---------------------------------------------------------------------------
+GameSpeedDlg::GameSpeedDlg(CWnd *pParent) : CDialog(0xd7, pParent)
+{
+}
+
+// FUNCTION: YODA 0x00418230
+BOOL GameSpeedDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    CenterWindow();
+    CWnd *pCtrl = GetDlgItem(0x8f);
+    ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 0x5a, FALSE);
+    ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
+    return TRUE;
+}
+
+// FUNCTION: YODA 0x00418280
+void GameSpeedDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+    CWnd *pCtrl = GetDlgItem(0x8f);
+    if (pCtrl == pScrollBar)
+    {
+        int nVal = m_nValue;
+        int nMin = 1;
+        int nMax = 0x5a;
+        ::GetScrollRange(pScrollBar->m_hWnd, SB_CTL, &nMin, &nMax);
+        int nPage = ((nMax - nMin) + 1) / 10;
+        switch (nSBCode)
+        {
+        case SB_LINEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nMin < nVal)
+                nVal--;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_LINEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nVal < nMax)
+                nVal++;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal -= nPage;
+            if (nVal <= nMin)
+                nVal = nMin;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal += nPage;
+            if (nMax <= nVal)
+                nVal = nMax;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_THUMBPOSITION:
+        case SB_THUMBTRACK:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nPos, TRUE);
+            nVal = nPos;
+            break;
+        case SB_TOP:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMin, TRUE);
+            nVal = nMin;
+            break;
+        case SB_BOTTOM:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMax, TRUE);
+            nVal = nMax;
+            break;
+        }
+        m_nValue = nVal;
+    }
+}
+
+BEGIN_MESSAGE_MAP(GameSpeedDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
+
+// ---------------------------------------------------------------------------
+// FUNCTION: YODA 0x00418410
+// WorldSizeDlg::WorldSizeDlg — CDialog(template 0xda).
+// ---------------------------------------------------------------------------
+WorldSizeDlg::WorldSizeDlg(CWnd *pParent) : CDialog(0xda, pParent)
+{
+}
+
+// FUNCTION: YODA 0x00418510
+BOOL WorldSizeDlg::OnInitDialog()
+{
+    CDialog::OnInitDialog();
+    CenterWindow();
+    CWnd *pCtrl = GetDlgItem(0x90);
+    ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 3, TRUE);
+    ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
+    return TRUE;
+}
+
+// FUNCTION: YODA 0x00418560
+void WorldSizeDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
+{
+    CWnd *pCtrl = GetDlgItem(0x90);
+    if (pCtrl == pScrollBar)
+    {
+        int nVal = m_nValue;
+        int nMin = 1;
+        int nMax = 3;
+        ::GetScrollRange(pScrollBar->m_hWnd, SB_CTL, &nMin, &nMax);
+        int nPage = ((nMax - nMin) + 1) / 10;
+        switch (nSBCode)
+        {
+        case SB_LINEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nMin < nVal)
+                nVal--;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_LINEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            if (nVal < nMax)
+                nVal++;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEUP:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal -= nPage;
+            if (nVal <= nMin)
+                nVal = nMin;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_PAGEDOWN:
+            nVal = ::GetScrollPos(pScrollBar->m_hWnd, SB_CTL);
+            nVal += nPage;
+            if (nMax <= nVal)
+                nVal = nMax;
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nVal, TRUE);
+            break;
+        case SB_THUMBPOSITION:
+        case SB_THUMBTRACK:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nPos, TRUE);
+            nVal = nPos;
+            break;
+        case SB_TOP:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMin, TRUE);
+            nVal = nMin;
+            break;
+        case SB_BOTTOM:
+            ::SetScrollPos(pScrollBar->m_hWnd, SB_CTL, nMax, TRUE);
+            nVal = nMax;
+            break;
+        }
+        m_nValue = nVal;
+    }
+}
+
+BEGIN_MESSAGE_MAP(WorldSizeDlg, CDialog)
+    ON_WM_HSCROLL()
+END_MESSAGE_MAP()
