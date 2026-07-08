@@ -411,8 +411,17 @@ Written to be followable without prior context: each phase lists concrete steps 
   AfxGetResourceHandle (+0xc) — both inline through AfxGetModuleState, differ only in the field. Swapped
   all 19 → 14 field bytes closed (OnInitialUpdate DIFF 31→21, DrawDirectionArrows −4); NOT runtime-
   observable (static-MFC EXE: instance==resource handle) so the EXE oracle would MISS it (lesson #25).
-  Both funcs stay EFFECTIVE ⇒ 209 exact / Worldgen 34/91 / link 0/0/exit0 unchanged.** Full per-session
-  milestone history in PLAN_COMPLETED.md.
+  Both funcs stay EFFECTIVE ⇒ 209 exact / Worldgen 34/91 / link 0/0/exit0 unchanged.** →
+  **209 exact / 99.17 % coverage — v36 (2026-07-08): MECHANISM/STRATEGY session, no exact-count change.
+  (1) CORRECTED the TU-phase dial: inert (non-virtual/never-called/undefined) decls, new appended
+  virtuals, and #line shifts are ALL byte-neutral (proven) — only CALLED-sig shape / vtable-slot-ORDER /
+  sizeof / emitted-func-set rotate a TU. ⇒ reconstructing the full ~200-method class is over-broad; lesson
+  #8 + the dial rule rewritten. (2) Frontier analysis (tools/frontier.py + survey.py): the ~50 closest
+  non-exact are all `this`/counter reg-coloring + jl/jg cmp-direction, proven inert to source forms +
+  compiler flags (/O2 unique). (3) Fable consult: jl/jg VERSION hypothesis KILLED (our cl emits jg
+  back-edges — LoadStoryHistoryOregon 0x40258b exact+jg vs sibling Nevada jl); variable NAMES ruled out;
+  whole-image LINKING proven irrelevant to codegen; NEW leads = per-TU emitted-COMDAT reconciliation +
+  the /Yu PCH axis (v37 START HERE).** Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
@@ -453,15 +462,20 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v36 — DIAL MECHANISM CORRECTED + residual survey)
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -3` tops out at the **v36** commit
-(below it: 47b6805 v35, e8ed6af "asdf" = USER's link_exe.sh tweak, 15472c2 v34). A dirty tree is EXPECTED
-and fine: `?? YodaDemoCopy/` is the USER's runtime test copy (has WAVMIX32.DLL + YodaDemo.dta + our
-yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompile per protocol — objs in
-`build/`, `/Fo../../build/<TU>.obj`): `tools/link_exe.sh` → **0 duplicates, 0 unresolved, exit 0**;
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v36 — DIAL MECHANISM CORRECTED + Fable consult; PCH/COMDAT leads)
+**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline -6` tops out at **f3df959 "v36: Fable
+consult…"** (below: b741458/48b157b = USER's README+gitignore, 6ba8dc3 v36 G1 tools, 534bbe6 v36 dial
+correction, 47b6805 v35). Tree is now CLEAN (USER gitignored YodaDemoCopy/ = their wine runtime copy —
+don't touch it). Baselines (rm obj + recompile per protocol — objs in `build/`, `/Fo../../build/<TU>.obj`;
+compile EVERY TU first for progress/bugscan/link): `tools/link_exe.sh` → **0 dup, 0 unresolved, exit 0**;
 `verify.py src/AppData/AppData.cpp` → **14/14**; `src/Worldgen/Worldgen.cpp` → **34/91**;
-`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs**; `python3 tools/bugscan.py`
-(needs ALL build/*.obj) → **0 HIGH/0 SHIFT/0 SWAP** (exit 0). Ghidra: current=YodaDemo.exe before writes.
+`src/GameData/GameData.cpp` → **12/27**; `progress.py` → **209 exact funcs / 99.17% coverage**;
+`tools/bugscan.py` → **0 HIGH/0 SHIFT/0 SWAP** (exit 0). New v36 tools: `tools/survey.py` (rank non-exact
+by closeness), `tools/frontier.py` (first non-exact per TU). Ghidra: current=YodaDemo.exe before writes.
+⚠ v36 was a MECHANISM/STRATEGY session — NO source or exact-count change; USER is driving yoda.exe under
+wine themselves as a runtime bug oracle (reports functional; subtle bugs may surface — a README screenshot
+exists). Job-tmp experiment scripts (jgaudit/nameprobe/tryorder/findtile/readizon/bdiff) are gone with the
+job; their RESULTS are captured below + in-source annotations.
 
 **▶ v36 RESULTS (no exact-count change — this was a MECHANISM + strategy session):**
 - **⭐⭐ THE DIAL MECHANISM WAS WRONG — CORRECTED (see the ⭐ THE TU-PHASE DIAL standing rule + KEY
@@ -535,26 +549,32 @@ yoda.exe under wine) — do NOT commit or revert it. Baselines (rm obj + recompi
     (today), not just a G2 layout chore. This is the concrete next lever.
 - Ghidra: NO writes this session. Nothing pending.
 
-**▶ START HERE (v37) — the closest funcs are provably joint-pass-bound, so pick a lever that MOVES:**
-1. **⭐ RUN THE EXE AS A BUG ORACLE (now highest-value; v33 proved it, setup is READY).** USER's
-   `YodaDemoCopy/` has yoda.exe + WAVMIX32.DLL + MSVCRT40.DLL + YodaDemo.dta + wavemix.ini, and `wine`
-   is installed (/opt/homebrew/bin/wine). bugscan already clears the static #24/#25 byte-diff classes, so
-   the remaining bugs are SEMANTIC-with-no-byte-diff (right insn, reloc-masked wrong constant; wrong logic
-   that compiles to a plausible-but-different disasm; missing behavior) — visible ONLY at runtime. Launch
-   under wine, play through, map any wrong color/missing glyph/misplaced-UI symptom → function → diff vs
-   disasm. (Observing a GUI game headless is the hard part — may need screenshots or USER to drive.)
-2. **G1 reg-swap/cmp-family residuals — main-thread per-function grinding is EXHAUSTED (v36 proof).**
-   Run `tools/frontier.py` + `tools/survey.py` for the map. The closest ~50 non-exact funcs are all the
-   `this`/counter register-coloring + jl/jg cmp-direction class, and v36 proved them inert to source
-   forms, decl/body order, AND compiler flags (/O2 uniquely correct). They need the JOINT FIXED-POINT,
-   which realistically means **G2 whole-image** (link all TUs in original order — the allocator is
-   deterministic, so identical source + identical whole-TU context reproduces the original coloring;
-   any residual = a source/context difference still to find). DetonateAdjacentTiles 0x428680 (align=0/
-   1042B) goes EXACT the instant Worldgen's TU context is right. Do NOT re-grind the parked near-misses
-   per-function. The ONE still-actionable per-function class: a CALLED helper with a WRONG signature
-   (mistranscribes its call sites AND rotates the dial) — hunt via align>0 hits AT call sites; but the
-   align=0 frontier funcs already have correct call-site structure, so this is rare now.
-3. **Canvas-gap mini (parked #2):** still BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
+**▶ START HERE (v37) — G1 reg-swap fix = per-TU CONTEXT, not per-function (Fable-clarified). Two concrete
+levers, both bounded, both real exact-% upside. Per-function body grinding is PROVEN EXHAUSTED — don't.**
+1. **⭐ COMDAT-set reconciliation (most concrete; entry = the ReadIzon bisect).** Under the corrected dial,
+   EMITTED function definitions rotate a TU's codegen. Our TUs OVER-EMIT library COMDATs the original TU
+   lacks (Worldgen: CPen/CBrush/CGdiObject/CObject dtors; Iact: ??3CObject operator delete). STEP 1 — the
+   ReadIzon regression: `git show f1ca459` changed WorldStub.h to #include the real GameView.h; ReadIzon
+   0x405ae0 was byte-EXACT before, DIFF(7) after. Diff Iact.obj's COMDAT set pre/post that commit
+   (match.coff_functions over both objs — build one in a temp dir from the parent commit). Whatever COMDAT
+   appeared/changed is the non-inert rotation source (an odr-used inline, a vtable, a sizeof-driven ctor).
+   Reconcile it (drop the over-emitted COMDAT via include/odr-use hygiene, or match the original's set) and
+   re-verify Iact — ReadIzon + the other 8 Iact non-exacts may cascade back. Repeat per TU (Worldgen next).
+   ⚠ Iact GENUINELY needs GameView (calls pView->ShowTextDialog@Iact.cpp:833) — the fix is COMDAT/odr-use
+   parity, NOT dropping the include.
+2. **⭐ PCH axis (higher-risk, could flip the WHOLE jl/jg family at once).** MFC 4.2 AppWizard builds every
+   TU with `/Yu"stdafx.h"` (a precompiled-header memory snapshot of the afx headers) — the ONLY legit
+   cross-TU compiler-state input, and the plausible single switch behind the systematic jl/jg drift.
+   Reconstruct a plausible `stdafx.h` (afxwin/afxext/afxcmn), `/Yc` it once, `/Yu` per TU with the TU's own
+   headers included AFTER, re-verify GameData + Iact. WATCH the A/B pair: LoadStoryHistoryNevada 0x401ac0
+   (currently jl, non-exact) vs its exact twin LoadStoryHistoryOregon 0x40258b (jg) — if PCH flips Nevada
+   to jg it's a breakthrough; a null cleanly kills the hypothesis. (Compiler-VERSION is already ruled out:
+   our cl emits jg back-edges in 5 exact funcs incl. Oregon — jgaudit, v36.)
+3. **Map first:** `tools/frontier.py` (per-TU frontier) + `tools/survey.py` (closeness rank) before either.
+   The ~50 non-exact are the `this`/counter register-coloring + jl/jg class; all proven inert to source
+   forms/decl-order/flags. DetonateAdjacentTiles 0x428680 (align=0/1042B) goes EXACT the instant Worldgen's
+   TU context is right — a good bellwether for the COMDAT/PCH work.
+4. **Canvas-gap mini (parked #2):** still BLOCKED on identifying the owning dialog class (msgmap 0x44b1d8,
    combo ctrl 0x9e — nothing references the msgmap head; class ctor/OnInitDialog out of range). Small.
 4. **De-dup step 6** (World, ~102 field reconciliations) — docs/dedup-plan.md.
 - **Phase-G2 plumbing (NOT hand-written source):** EH funclets (0x405320, 0x408c2a CxxFrameHandler
