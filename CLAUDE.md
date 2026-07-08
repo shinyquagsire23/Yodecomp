@@ -165,18 +165,18 @@ match piecemeal only until the TU around them changes. So the plan is TU-by-TU, 
 | TU / module | range | ~size | state |
 |---|---|---|---|
 | World scorers (doc-TU fragment) | 0x401450–0x401ab9 | 1.6 KB | ✅ 5/6 exact (07-06: CalcTimeScore matched); CalcSolvedScore x87 park proven permuter-immune |
-| **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE 07-06: 11/27 exact (src/GameData/), rest effective/PHASE-DISPLACED; BQP +9B |
+| **GameData** (2nd doc-TU src file) | 0x401ac0–0x4042b0 | ~10 KB | ✅ DONE: 9/27 exact under the v28 dial (real GameView.h), rest effective/PHASE-DISPLACED; StartGame DIFF 79 (was 254 pre-de-dup) |
 | **Records** (6 record classes) | 0x4042b0–0x405ae0 | 5.5 KB | ✅ DONE 25/33 exact + 8 annotated eff. |
-| **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE 07-06: all 10 funcs transcribed, 88% insn-identical; 2 exact + 8 annotated tie-break residuals |
-| **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 8/11 + 3 eff. (parked) |
+| **Iact** (`.obj`: Zone readers + IACT) | 0x405ae0–0x407cf4 | ~9 KB | ✅ TU COMPLETE: all 10 funcs transcribed, 88% insn-identical; 1 exact + 9 annotated tie-breaks under the v28 dial |
+| **Canvas** (DIBSection blitter) | 0x407df0–0x4084e8 | 1.8 KB | ✅ DONE 9/11 + 2 eff. (parked); v28: canonical Canvas.h, 0x407df0=ctor / 0x407eb0=dtor, CDC stub private to Canvas.cpp |
 | **IactScript** (3 script record classes) | 0x418700–0x418dd0 | ~1.7 KB | ✅ 11/12 exact (src/IactScript/) |
 | **Dlg TU** (CTextDialog) | 0x418dd0–0x419000 | ~0.6 KB | ✅ DONE 07-06 (src/Dlg/): 5/5 EXACT. Implicit-dtor lesson (??_G inline) |
 | **Frame TU** (CMainFrame) | 0x419000–0x419720 | ~1.8 KB | ✅ DONE 07-06 (src/Frame/): 14/18 exact + 4 eff. (2 palette sbb, PreCreateWindow, OnActivate). Owns g_strReplayPath |
 | ~~Core utils~~ = GameView TU head | 0x408c60–0x40a560 | 6.5 KB | ⚠ mislabel: GameView methods (Dtor/OnDraw/DrawZoneCell/ZoneTransitionStep) + the ~CGdiObject/GDI COMDAT copies — Phase E, not a warm-up |
-| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 ACTIVE (src/GameView/GameView.cpp). v23: 28/53 exact — transcribed through 0x4115b0(excl) minus OnDragItem; ClassifyTile (1569B) EXACT, ShowWinMessage/ScrollZoneTransition eff., 6 COMDATs vtable-pinned. REMAINING ~32KB: OnDragItem 0x4102d0, SoundInit 0x411520, OnLButtonDown 0x411730, 0x412250, 0x413df0 (4.6KB), OnKeyDown 0x4150f0, TextDialog ctor/Run, options dialogs |
+| **GameView TU** (view/UI/AI monster) | 0x4084f0–0x418700 | ~64 KB | ⭐ PHASE E step 4 nearly done (src/GameView/GameView.cpp). v28: 70/114 markers (7605B exact) incl. StatsDlg + 3 slider dialogs complete (empty DoDataExchange discovery), CyclePalette eff., OnCmdStats EXACT. REMAINING = the TextDialog cluster ONLY (0x416b90/0x416c40/0x417570/0x4176f0/0x417c90/0x417d30/0x417dc0 + the 0x4186e0 return-this helper, ~4.3KB) |
 | **App TU** (CTheApp + CAboutDlg + Log_Write) | 0x419720–0x419ed0 | ~2 KB | ✅ DONE 07-06 (src/App/): 15/16 exact + InitInstance eff. (CPUID hand-asm) |
-| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 7/13 exact incl. the 1441B DTOR + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
-| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 34/90 exact + 56 annotated EFFECTIVE (reg/slot/dial tie-breaks, per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
+| **WorldDoc TU** (doc main src file) | 0x419ed0–0x41bee0 | ~8 KB | src/WorldDoc/: 8/13 exact (v28: the 1441B DTOR back IN) + ctor-derived REAL World class; ctor/OnNew/OnOpen/GetLocatorIcon parked (imm-store batching + block-layout opens) — joint-pass fodder |
+| **World/doc TU** (dta-load+worldgen+wld+doc) | 0x41bee0–0x429150 | ~54 KB | ✅ TRANSCRIPTION COMPLETE v14/v15: src/Worldgen 90 markers = EVERY function incl. the GameView tail block; 36/90 exact under the v28 dial + the rest annotated EFFECTIVE (per-function autopsies in-source); zero FUN_*. Unclaimed in range: 4 exception COMDATs @head, ??_GCPalette 0x41e8b0, EH thunk 0x424f69, jmp 0x424fb0 (all Phase G). Joint pass AFTER Phase E (shared Worldgen.h ⇒ E's GameView decls re-rotate this TU) |
 
 With the doc TU transcribed (v14), the untranscribed remainder is essentially ONE monster: the
 GameView TU + its mislabeled head (~63 KB ≈ 26 % of the app region). Its struct is complete and its
@@ -188,20 +188,21 @@ Coverage = defined-bytes ÷ sizeof; unk = fields still named unk*/field_*/…May
 
 | struct | size | cover | unk | state / phase to finish |
 |---|---|---|---|---|
-| Zone / ZoneObj / Tile / Canvas | 0x848/0x10/0x40c/0x43c | 100 % | 0 | ✅ done (byte-match-proven) |
+| Zone / ZoneObj / Tile / Canvas | 0x848/0x10/0x40c/0x43c | 100 % | 0 | ✅ done (byte-match-proven); Canvas CANONICAL in src/Canvas/Canvas.h (de-dup steps 3+4, v28) |
 | MapEntity | 0x64 | 96 % | 5 | ✅ good; unk10/18/20/2c/60 have no readers found (runtime-only scratch?) |
 | Puzzle | 0x2c | 95 % | 3 | ✅ good; unk2/unk3/unk14 parse-only (unknown in DA too) |
 | Character | 0x4c | 94 % | 3 | ✅ good; unk40/unk44 parse-only, unk48 tail pad |
 | CObArray family / CDWordArray / BITMAPINFO256 | 0x14/0x428 | 100 % | 0 | ✅ modeling helpers |
 | **World** | **0x33c0** | **~98 %** | few | ✅ v10 full Ghidra↔Worldgen.h mirror + v15 rect-block/tail sync. Worldgen.h IS the emerging real CDeskcppDoc header. Residual unks (unk2e58/unk2e60/unk3378/unk33b8…) are semantics-only — layout is ctor/byte-match-proven |
 | **GameView** | **0x310** | **~95 %** | ~10 | ✅ struct COMPLETE, now in src/GameView/GameView.h (v16, promoted from Worldgen.h) + Ghidra synced. METHOD decl set reconstructed v16 (overrides via vtable-diff, afx_msg via msgmap, ~35 helpers). Open: byte-prove "(sig?)" helper widths + AFX_MSG order during step-4 transcription |
-| MapZone (10×10 grid cell) | 0x34 | 100 % | few | ✅ v10 vptr-true rebuild (vftable@0, id@4, zoneType@8 as ZoneType enum); save/load semantics from v13 |
+| MapZone (10×10 grid cell) | 0x34 | 100 % | few | ✅ CANONICAL src/Worldgen/MapZone.h (de-dup step 2, v28) — the GameData shifted-by-4 stub is retired; grids START at 0x4b0 |
 | IactScript | 0x30 | 100 % | 0 | ✅ solved 2026-07-05: vtbl@0 (0x44bc68) + 2 inline CObArray (conditions@4, commands@0x18) + doneFlag@0x2c — Zone-pattern. Whole Iact-script TU (0x418700–0x418dd0) renamed Records-style: IactScript/IactCondition/IactCommand ::Ctor/ScalarDtor/Dtor/Read |
 | IactCondition / IactCommand | 0x1c/0x20 | 100 % | 0 | ✅ vftable@0 added (0x44bc80/98); opcode@4 + args[5]@8 (+text@0x1c for commands) |
 | InvScrollBar | 0x44 | good | 0 | ✅ v14/v15: CScrollBar-derived, scrollMax@0x3c, scrollPos@0x40; Ctor=0x4085c0 (its own mini-TU) |
 | TextDialog | 0xc8 | good | 3 | ✅ v14/v15: NOT CDialog-derived (plain class). unk10/unk14/unk54 (ShowTextDialog args a/b/c), strText@0xb8 (CString), pParentView@0xc0, soundSession@0xc4; Ctor 0x416b90 / Run() 0x416c40 / ??1 0x427440 (Run is 0-arg, byte-match-proven) |
 | InvItem | 0xc | 100 % | 0 | ✅ v15: CObject-derived (vftable/pTile/name); Ctor 0x4011d0 + CtorTileName 0x401270 (first app TU); element of World.inventory@0xa8 |
 | CFile (stub) | 0x40 | 6 % | 0 | intentional — DB stub only pins Read@vtbl+0x3c; real MFC used at compile time |
+| StatsDlg / 3 slider dialogs | 0x74 / 0x60 | 100 % | 1 | ✅ v27/v28 (GameView-TU-private, declared in GameView.cpp): sliders = CDialog + m_nValue@0x5c + EMPTY DoDataExchange; StatsDlg = CDialog + unk5c + World*@0x60 + 4 CString@0x64-0x70 (m_str2←highScore etc.); Ghidra structs synced |
 
 **Class-modeling status (updated v15):** the old TODO list is largely resolved — `Frame`/`App`/`Dlg`
 were matched from real MFC class decls in their src/ TUs (Ghidra structs never needed); "Settings" and
@@ -342,56 +343,15 @@ Written to be followable without prior context: each phase lists concrete steps 
   or any length-shifted body; compare main-body-to-main-body (split at first ret) via capstone.
 - **Agents for RE sweeps, main thread for matching.** Reader-analysis naming sweeps parallelize well
   (see the MapEntity/Puzzle sweep); matching iterations don't.
-- **Milestones** (progress.py %exact + transcribed): 7.02 % after A; 13.52 % mid-D (v7);
-  **59.54 % transcribed / 13.78 % exact late-D (2026-07-06 v12)**;
-  **73.63 % transcribed / 15.14 % exact, doc TU fully transcribed + Ghidra synced (2026-07-06 v15)**;
-  **73.63 % transcribed / 15.21 % exact — Phase E steps 1-3 (GameView.h promoted + full
-  method decl set reconstructed) (2026-07-07 v16)**;
-  **76.50 % transcribed / 16.03 % exact — Phase E step 4 begun: GameView TU head block
-  0x4084f0–0x409460 (10 exact + 5 eff) (2026-07-07 v17)**;
-  **76.86 % transcribed / 16.31 % exact — Phase E step 4: DrawZoneCell EXACT +
-  DrawZoneCellRect/DrawWholeZone eff. (11/18 GameView markers) (2026-07-07 v18)**;
-  **82.07 % transcribed / 16.71 % exact — Phase E step 4: ZoneTransitionStep→FireWeaponStep
-  block done, 19/31 GameView markers (2026-07-07 v19)**;
-  **89.09 % transcribed / 16.84 % exact — Phase E step 4: DrawEntities EXACT +
-  FindEntityAt eff. + the 10.8KB Tick transcribed (align 3588→2202), 22/34 markers
-  (2026-07-07 v20)**;
-  **92.19 % transcribed / 16.46 % exact — v21: OnTimer 0x40d470 transcribed (align 802) +
-  GetVictoryZoneIndex/GetLossZone MATCH in the scorers TU; exact% breathed from the
-  Worldgen.h decl adds (35→31, fixed-point rule) (2026-07-07 v21)**;
-  **95.28 % transcribed / 16.02 % exact — v22: hotspot/transition/inventory block
-  0x40e400–0x40f3c0 done (3 EXACT + 6 eff., 21/44 GameView markers); World::DrawRect
-  proven __thiscall member; per-label jump-table mechanism found (2026-07-07 v22)**;
-  **17.41 % exact / 79.71 % HONEST coverage — v23: ClassifyTile (1569B) EXACT +
-  ShowWinMessage/ScrollZoneTransition eff. + 6 COMDATs (28/53 markers). ⚠ progress.py's
-  old transcribed% was INFLATED (our-COMDAT lengths vs the 128158 denominator); it now
-  also prints marker coverage against TRUE Ghidra extents (toolchain/test/app_funcs.txt,
-  156054 bytes incl. funclets/tables) — use THAT for coverage from now on
-  (2026-07-07 v23)**;
-  **15.93 % exact / 85.60 % coverage — v24: SoundInit EXACT + OnDragItem/OnLButtonDown/
-  OnLButtonUp effective (29/57 markers); nFrameMode@0x5c identified; per-case
-  trailing-copy + &field-pointer refill recipes (2026-07-07 v24)**;
-  **16.02 % exact / 90.95 % coverage — v25: UpdateDragCursor/OnSetCursor/OnMouseMove/
-  OnBumpTile(4.6KB) effective + SoundFlush/RedrawPlayerCell/EmptyFrameHook EXACT
-  (33/65 markers); ⭐ memcpy operand-provenance rule (field-to-field ⇒ lone rep movsb)
-  (2026-07-07 v25)**;
-  **17.30 % exact / 92.28 % coverage — v26: OnRButtonDown 0x413c10 (was unidentified) +
-  UpdatePlayerWalkFrame 0x4150a0 EXACT; OnKeyDown 0x4150f0 (1538B) effective (36/68 markers).
-  ⭐ ROOT-CAUSE STRUCT FIXES (user directive): Ghidra GameView.pWorld@0x44 was typed `-BAD-`
-  (dangling) ⇒ every World-field access in GameView decompiled as raw `*(int*)(pWorld+off)`,
-  which is what made me pick gameState(0x68) over nMapChangeReason(0x60). Retyped World*
-  (via modify_struct_field_type HTTP; it clobbers the name, restore with modify_struct_field
-  field_name=offset:0xN). Also fixed Dlg.h CTextDialog sizeof 0xc8→0x6c (was the unrelated
-  game TextDialog@0x416b90's size; OnKeyDown's stack frame proves 0x6c; Dlg TU still 5/5).
-  (2026-07-07 v26)**;
-  **94.42 % coverage — v27: GameView tail 0x415820–0x4186e0 transcribed (GameView.cpp 55/100
-  markers) — cheat/key/destroy/scroll/exit handlers + cmd/UI handlers + StatsDlg cluster +
-  3 slider option dialogs (all 3 ctors + all 3 OnInitDialog EXACT). Global %exact reads ~flat
-  (ClassifyTile 1569B flipped to PHASE-DISPLACED by the real StatsDlg decl — dial breathing;
-  track COVERAGE this phase). Struct de-dup surveyed + planned (docs/dedup-plan.md), not yet
-  executed (field-name/granularity reconciliation is the gating work) (2026-07-07 v27)**;
-  ~90 % after E, 100 % = G's whole-image build. Track effective-match bytes separately
-  (they count for G, not for %).
+- **Milestones** (progress.py; since v23 track the Ghidra-extent COVERAGE % — the old
+  transcribed% was inflated): 7.02 % after A → 13.52 % mid-D (v7) → 73.63 % transcribed at
+  doc-TU completion (v15) → 92.28 % coverage / 17.30 % exact (v26) → 94.42 % coverage (v27,
+  GameView tail + option dialogs) → **95.64 % coverage / 19.39 % exact — v28 (2026-07-07):
+  slider DoDataExchange discovery (+13 GameView exacts), struct de-dup steps 1-5
+  (MapZone/CDC/Canvas/GameView canonical; StartGame DIFF 254→79), CyclePalette eff. +
+  OnCmdStats EXACT; remaining unclaimed = the TextDialog cluster only**. Full per-session
+  milestone history in PLAN_COMPLETED.md. ~90 % after E, 100 % = G's whole-image build.
+  Track effective-match bytes separately (they count for G, not for %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
 1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f <TU>.obj &&
@@ -414,7 +374,9 @@ Written to be followable without prior context: each phase lists concrete steps 
    the residual is header-dial/intrinsic, different means TU-position; (c) then park with the
    probe results in the annotation. ~30 min per function max before parking.
 5. **Session end (do ALL of these):** update the ⏭ pickup block (new findings → instincts,
-   done items removed, next steps concrete); demote the old pickup to a condensed ⏮ PRIOR;
+   done items removed, next steps concrete); demote the old pickup to a condensed ⏮ PRIOR
+   block APPENDED TO PLAN_COMPLETED.md (since v28, CLAUDE.md carries only the current pickup —
+   distill any new mechanism into the numbered KEY lessons / MFC / Ghidra-gotcha lists instead);
    update the TU/struct tables + milestone line if they changed; sync any new struct
    fields/renames to Ghidra if it's ACTIVE (else list them as PENDING in the pickup);
    `save_program`; commit with a descriptive message. Run `python3 tools/progress.py` for the
@@ -427,829 +389,60 @@ Written to be followable without prior context: each phase lists concrete steps 
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-07 v27 — GameView tail handlers + option dialogs; 94.42% coverage)
-**▶ v27 RESULTS: GameView.cpp = 55/100 markers (6557B exact); marker coverage 94.42% globally.
-Transcribed the whole 0x415820–0x4186e0 tail EXCEPT CyclePalette/TextDialog (deferred).**
-- **New EXACT:** OnDestroy 0x415ac0, OnHScroll 0x415ff0, OnTogglePause 0x416220, OnUpdatePauseUi
-  0x4162a0 (per-arm `Enable(0)`/`Enable(1)` cross-jump, NOT a bEnable var), OnUpdateGameSpeedUi
-  0x416460, OnUpdateDifficultyUi 0x4165b0, OnCmdGameSpeed 0x416310 (int-temp for reused
-  `0xba-m_nValue`), OnCmdWorldSizeMaybe 0x4164d0, StatsDlg ctor/DoDataExchange/OnInitDialog
-  (0x416810/9e0/a40), OnDialogCloseBtn 0x416a60 + 2 nop btns, OnChar 0x416ae0 (per-arm
-  `strCheatBuffer += 'x'` cross-jump), all 3 slider-dialog ctors + all 3 OnInitDialog
-  (0x417e50/f50, 0x418130/230, 0x418410/510).
-- **EFFECTIVE (autopsies in-source):** CheckCheat 0x415820 (align 232; &strCheatBuffer CSE
-  reg-swap this=edi vs esi), OnKeyUp 0x415a50 (GetAsyncKeyState scheduling), ConfirmExit
-  0x416030 + OnAppExit 0x416110 twins (AfxGetApp-inline scheduling), OnCmdDifficulty 0x416120
-  (align 0, this↔nSavedMode esi/edi swap), OnUpdateWorldSizeUi/OnUpdateStatsUi (6B unused-this
-  eax-hop), OnCtlColor 0x416a90 (1 benign byte), the 3 slider OnHScroll clones
-  (0x417fa0/418280/418560 — lesson #7 position-dependent reg-alloc; DifficultyDlg DIFF(5)).
-- **⭐ Slider dialogs are sizeof 0x60** (CDialog + `int m_nValue`@0x5c; Ghidra mis-sized the
-  OnCmd stack arrays as [92]). **StatsDlg sizeof 0x74** (CDialog + unk5c@0x5c + World*@0x60 +
-  4 CString@0x64-0x70; ClassWizard DDX dialog, empty msgmap @0x44b558). The OnCmd handlers seed
-  `dlg.m_nValue`/the 4 CStrings BEFORE DoModal (the Ghidra "local CStrings" overlap the array).
-- **⭐ Dialog classes moved OUT of shared GameView.h INTO GameView.cpp** (TU-private; the doc TU
-  that includes GameView.h must not see them). Do this for future TU-private types.
-- **Dial breathing (v27):** the real StatsDlg decl flipped **ClassifyTile 0x40fca0 (1569B) to
-  PHASE-DISPLACED** (source proven; its ctor matching confirms the layout) — the reason global
-  %exact reads ~flat (17.4%) despite +32 markers. DrawEntities/ReenableHotspot/UpdatePlayerWalk
-  also breathed. All resolve at G1. Track coverage (94.42%), not %exact, this phase.
+### ⏭ NEXT SESSION PICKUP (2026-07-07 v28 — DoDataExchange discovery + struct de-dup 1-5 + CyclePalette/OnCmdStats; 95.64% coverage)
+**▶ v28 RESULTS (commits 60ac1c8..): GameView TU = 70/114 markers (7605B exact); 95.64%
+coverage / 19.39% exact globally. Ghidra: YodaDemo ACTIVE all session; run_script_inline
+WORKS again (a Ghidra restart cleared the v26 phantom-script cache); all writes landed +
+saved. PRIOR blocks migrated to PLAN_COMPLETED.md (user directive); their distilled
+knowledge = KEY lessons 15-22 + the consolidated MFC/Ghidra blocks below.**
+- **⭐ The 3 slider dialogs have EMPTY DoDataExchange overrides** (bare RET 4 @0x417f30/
+  0x418210/0x4184f0; vtable-slot-pinned at +0x88 = StatsDlg's DDX slot delta): NO base
+  call — the dev deleted it. Added to the classes + 11 COMDAT markers (4 ??_G scalar
+  dtors, 4 GetMessageMaps, 3 DoDataExchanges) — ALL MATCH first compile. Message maps
+  moved to their .text-proven position (ctor → DoDataExchange → BEGIN_MESSAGE_MAP →
+  OnInitDialog, ClassWizard layout).
+- **⭐ STRUCT DE-DUP steps 1-5 DONE** (docs/dedup-plan.md has the full log; one commit per
+  step): canonical **MapZone.h** (vptr-true; retired GameData's shifted-by-4 stub whose
+  off-by-4 displacements had been poisoning StartGame — DIFF 254→79); canonical
+  **Canvas.h** (0x407df0 = the real CTOR, 0x407eb0 = ~Canvas; `class CDC;` fwd-decl only,
+  the 2-field CDC stub now PRIVATE to Canvas.cpp; Canvas 8/11→9/11, Worldgen +4); **real
+  GameView.h into GameData/Iact** (stub lies fixed: "OnWalk(int,short)" was really
+  ZoneTransitionStep(short,short), "PlayerMove" was PlaySound, bSuppressWalkSound@0x2f4 =
+  bWeaponIactActiveMaybe; cost GameData −3 / Iact −1, all small same-length tie-breaks,
+  annotated). **Step 6 (World merge, ~102 field/granularity reconciliations) REMAINS —
+  do as its own session.**
+- **CyclePalette 0x415af0 (1280B) EFFECTIVE first compile** (304/304 insns, align 0, 6B:
+  one eax↔ecx swap in the FIRST ::AnimatePalette setup — the orig gives its two IDENTICAL
+  statements opposite allocations; parity-crossing family, G1). Palette region modeled in
+  Worldgen.h + Ghidra: bPaletteAnimEnabledMaybe@0x2e5c gates it, inline-LOGPALETTE WORDs
+  @0x2e68, sysPalette PALETTEENTRY[256]@0x2e6c (AnimatePalette source), pSysColorTable
+  retyped RGBQUAD* (WorldDoc keeps byte-math via its own header until step 6). Key shape:
+  NO pointer-caching locals — every store may alias, cl reloads per statement (lesson 19).
+- **OnCmdStats 0x416620 EXACT first compile** (296B; Maybe dropped in src+Ghidra): stack
+  StatsDlg + ONE reused CString, Format "%ld" ×4 in member order 2,3,1,0 (m_str2←highScore
+  @0x33ac, m_str3←lastScore@0x33b0, m_str1←completionCount@0x332c, m_str0←lastCount
+  @0x33a8). **??1StatsDlg = 0x416750 MATCH** (out-of-line dtor emitted by the stack
+  instance; Ghidra function created — its body was a broken 1-byte stub).
+- Dial flips all annotated in-source per protocol: IN OnCmdDifficulty + DrawEntities (the
+  DoDataExchange decls), IsZoneUsed out→in round trip, WorldDoc ??1World (1441B) back IN,
+  Canvas Clear IN; OUT FindTile, StepDetonatorEffect, ReadIzon, PlaceZoneObjectTiles,
+  FindZoneCellById; LoadStoryHistoryAlaska = the perpetual 2-byte breather (noted as such).
 
-**▶ START HERE (v28): the last two GameView-TU monsters + the 3 OnHScroll clones.**
-1. **CyclePalette 0x415af0 (1280B)** — palette-cycle ring-shift. Needs the inline animated
-   palette modeled: World+0x2e6c = RGBQUAD[256] mirroring `pSysColorTable` (index i at
-   0x2e6c+i*4; AnimatePalette/SetPalette use idx 10 cnt 5 @0x2e94 and idx 0xa0 cnt 0x56 @0x30ec).
-   Slot held in GameView.cpp (comment placeholder between OnDestroy and OnHScroll).
-2. **The game TextDialog 0x416b90 Ctor + 0x416c40 Run (2022B) + helpers** (0x417570 Position,
-   0x4176f0 Layout 1419B, 0x417c90/d30 ScrollTextLine, 0x417dc0 UpdateDialogButtons, 0x417e... 
-   CtorMaybe). ⚠ This is the PLAIN non-CDialog TextDialog (sizeof 0xc8 in GameView.h), DISTINCT
-   from Dlg.h's CTextDialog@0x418dd0 (CDialog, sizeof 0x6c). Do NOT conflate.
-3. **OnCmdStatsMaybe 0x416620** (deferred; needs StatsDlg — now declared). Formats
-   highScore/lastScore/completionCount/lastCount into dlg.m_str0-3 via a temp CString + Format,
-   then DoModal. Placeholder slot in GameView.cpp.
-4. StatsDlg **ScalarDtor 0x416920** + **GetMessageMap 0x416a30** are unclaimed COMDATs (come
-   free from the class; add markers or confirm they emit).
+**▶ START HERE (v29): the TextDialog cluster — the LAST unclaimed app code (~4.3KB).**
+1. The plain non-CDialog TextDialog (sizeof 0xc8; decl already in GameView.h): Ctor
+   0x416b90 (161B), **Run 0x416c40 (2022B — the monster)**, Position 0x417570 (384B),
+   Layout 0x4176f0 (1419B), ScrollTextLine pair 0x417c90/0x417d30 (160B each),
+   UpdateDialogButtons 0x417dc0 (144B). ⚠ Distinct from Dlg.h's CTextDialog (sizeof 0x6c)
+   — do NOT conflate. Structs-before-transcription: pin the 0xc8 layout from the Ctor.
+2. **0x4186e0 = a trivial `mov eax,ecx; ret` member** (returns this), sole caller inside
+   Layout @0x417857 — identify + claim while transcribing Layout. 0x4186f0 = bare jmp
+   thunk to CWnd::Default sitting in the StatsDlg vtable slot @0x44b91c (same family as
+   the 0x424fb0 ILT thunk; Phase-G artifact, plate-commented, NO source needed).
+3. Then the Phase F audit: FUN_00407d90/FUN_00407dc0 (unclaimed gap before the Canvas TU
+   head), the first app TU (0x401000–0x401450: InvItem/MapZone/WorldgenZoneEntry ctors +
+   CObject no-op COMDATs), InvScrollBar ??_G/??1 (0x408690/0x4086b0, PARKED).
+4. Then de-dup **step 6 (World)** or the G1 joint passes per the roadmap.
 
-**▶ STRUCT DE-DUP (user directive v27) — see docs/dedup-plan.md.** Full survey + the two real
-obstacles (field-name/granularity divergence: World needs ~50 per-field offset reconciliations,
-proven 102 compile errors; and the Canvas stub-CDC-vs-MFC-CDC environment split) + recommended
-order (Records→MapZone→CDC→Canvas→GameView→World) + the mandatory per-flip annotation protocol.
-The v27 dry-run (adding the 7 doc decls to Worldgen.h's World) was REVERTED but showed the World
-merge is net-positive on the dial (GameView +2, Worldgen −1). Each struct is a churn-and-reverify
-job; do ONE per commit, updating flipped functions' annotations (user requirement).
-
-**▶ GHIDRA SYNC PENDING (no writes done v27 — do when YodaDemo is ACTIVE; run_script_inline was
-BLOCKED per v26, use HTTP endpoints):** name the 4 option-dialog classes (Ghidra has partial
-DifficultyDlg::/StatsDlg:: namespaces but the OnInitDialogs 0x417f50/0x418230/0x418510 and
-several ctors are still `GameView::FUN_*`). Model them as CDialog-derived: slider dialogs
-sizeof 0x60 (m_nValue@0x5c); StatsDlg sizeof 0x74 (unk5c@0x5c/pWorld@0x60/4 CString@0x64-0x70).
-Mark the StatsDlg ScalarDtor 0x416920 + GetMessageMap 0x416a30 COMDATs. GameView struct/field
-names are already synced from prior sessions; nothing new there this session.
-
-### ⏮ PRIOR (2026-07-07 v26 — OnRButtonDown/UpdatePlayerWalkFrame/OnKeyDown; 17.30% exact / 92.28% coverage)
-**▶ v26 RESULTS: GameView.cpp = 36/68 markers (6141B exact); 92.28% coverage / 17.30% exact
-globally. New EXACT: OnRButtonDown 0x413c10 (WM_RBUTTONDOWN — was the UNIDENTIFIED 445B gap;
-switch(nFrameMode){case 3: fire in facing; case 7: close map}; the fire dir-resolve + camera
-bounds are shared with OnKeyDown/OnBumpTile), UpdatePlayerWalkFrame 0x4150a0 (23 insns),
-+ a Dlg-include dial flip-in. New EFFECTIVE: OnKeyDown 0x4150f0 (1538B, ~83% bytes, autopsy
-in-source — shared-tail block placement + 2 movsx are the only residuals).**
-- **⭐⭐ ROOT-CAUSE STRUCT FIXES (user directive — "decomp errors point to wrong Ghidra
-  structs; fix sooner not later"):** (a) Ghidra `GameView.pWorld@0x44` AND `m_pDocument@0x3c`
-  were typed **`-BAD-`** (dangling type refs — the ONLY -BAD- fields in the whole DB, audited
-  all 15 key structs). Effect: EVERY World-field access through pWorld decompiled as raw
-  `*(int*)(pWorld+off)` (an intermediate `iVarN`), which is exactly what made me pick
-  gameState(0x68) over the correct nMapChangeReason(0x60) in OnRButtonDown. Retyped `World *`
-  via **`modify_struct_field_type` HTTP** (JSON body {struct_name,field_name,new_type}) — it
-  CLOBBERS the field name, restore with `modify_struct_field` field_name=`offset:0xN`
-  (renamer auto-prefixes 'p' → m_pDocument became pM_pDocument, cosmetic). Decompiles now
-  render `pWorld->nMapChangeReason` etc. (b) **Dlg.h CTextDialog sizeof was 0xc8, really 0x6c**:
-  the `_pad6c[0x5c]` was copied from the unrelated game TextDialog@0x416b90; OnKeyDown's stack
-  frame proves 0x6c (dlg@[EBP-0x94], SUB ESP,0x88, members end +0x6c). Removed the pad, Dlg TU
-  still 5/5 (ctor/dtor/DDX don't encode sizeof). GameView.cpp now `#include "../Dlg/Dlg.h"`.
-- **⚠ run_script_inline is BLOCKED**: a phantom stale `McpInline_2bf5a8636ec45.java` (raw
-  top-level stmts, no class wrapper) is cached IN THE MCP PLUGIN's memory (not on disk — find
-  turns up nothing), breaking every inline-script compile. Use the dedicated HTTP endpoints
-  (modify_struct_field_type / modify_struct_field) for struct edits until the Ghidra session
-  is restarted.
-- **⭐ `*(CPoint *)&nMouseX`** (OnKeyDown tail): reinterpret adjacent nMouseX/nMouseY as a
-  CPoint by-value (LEA &nMouseX + deref both dwords). `CPoint(x,y)` spills a stack temp;
-  `*(POINT*)&nMouseX` adds a POINT→CPoint conversion copy — BOTH worse (v25's POINT note was
-  for a raw ::PtInRect POINT* arg; a CPoint-param call wants the CPoint cast).
-- **⭐ Switch shared-tail placement (block-sinking family, PARKED like v8/v9):** cl 4.2 emits
-  the post-switch merge block after whichever case it makes the fall-through predecessor.
-  OnKeyDown's `if(bMoved)` tail: orig places it LAST (after case VK_F8, no-break fall-through);
-  cl here always makes `default:` the fall-through pred (tail right after default, others JMP
-  back). default first/mid/last + VK_F8 break/fall-through ALL inert — governed by trace/EH
-  ordering cl doesn't expose. Do NOT keep grinding these; annotate + G1.
-- **Prior v25 cracks retained (in-source):** memcpy operand-provenance (field-to-field ⇒ lone
-  rep movsb); bare `return CONST` cross-jump only as branch target; positive-test else-arm
-  deferral; OnBumpTile flags-in-EAX + (short)-cast int locals for GetTile/GetZoneCell.
-- **⭐ MEMCPY OPERAND-PROVENANCE RULE (probe-proven, the UpdateDragCursor crack):** the
-  intrinsic emits the LONE `rep movsb` form when BOTH args are struct-FIELD loads (any
-  pointed type; a value-local copied from a field keeps field-ness); any param/global/
-  call-result/deref-of-&field-local operand ⇒ the movsd+movsb split. SEPARATELY, the
-  count expression is value-tracked: provably 4-aligned count ((n/8)<<10, n*1024) drops
-  the movsb tail ⇒ LONE movsd; tracking dies when the value crosses a call/spill. `n&3`
-  does NOT drop the movsd phase (no range analysis, only low-bit zeros).
-- **⭐ Bare `return CONST` cross-jumps into the function-end epilogue ONLY as a BRANCH
-  TARGET** (OnSetCursor crack): write `if (==) {store; return TRUE;} return TRUE;` — the
-  guard's false-jump lands on the bare return and merges with the end block; NESTED
-  fall-out of two scopes = a FALL-THROUGH return = inline epilogue copy (not mergeable).
-- **⭐ PtInRect/POINT overlay:** adjacent int fields ARE the POINT — pass
-  `*(POINT *)&nMouseX` (a `POINT pt` local costs 8 frame bytes + stores); in OnMouseMove a
-  `POINT *pMouse = (POINT *)&nMouseX` pointer local also pins the x/y reg roles.
-- **⭐ Positive-test nesting defers else-arms** (OnMouseMove): `if (P_out) { if (!P_in) {
-  if (P_cell) A else B } } else C` — then-arms inline, else-arms (B, C) deferred to the
-  end in discovery order; C's final no-return edge falls into the shared epilogue.
-- **FireWeaponStep flags-test axis CONFIRMED in OnBumpTile:** `UINT nFlags = pTile->flags;`
-  with TWO uses (character + push tests) keeps flags in EAX (test ah,1 / test al,8);
-  single-use tests narrow to byte-mem. Also: ALL GetTile/GetZoneCell results route through
-  INT locals with (short) casts (`int t = (short)zone->GetTile(...)`); edge-case arms are
-  `if (nCell >= 0) {big} else PlaySound(6);` (else lands at case end); flat push guard
-  `if (bPush && (nFlags&8)) {..} if (bPush) break;` (one-deep test elimination); pull
-  block uses NEGATED int locals (ndx=-dx) + (short) casts at the DrawZoneCell site.
-- OnEraseBkgnd: h/w as locals (h FIRST) batches both subtractions before the PATCOPY push.
-- New Worldgen.h fields (Ghidra synced+saved): nQueuedMoveDXMaybe@0x3338,
-  nQueuedMoveDYMaybe@0x333c (OnBumpTile tail zeroes DY→copies to DX; transition arms chain
-  `nMoveDX = nMoveDY = queuedDX`). asmscore GOTCHA: its want-name regex greps the first
-  `Class::Method(` AFTER the marker — a comment like "Character::Get(Walk)FrameTile"
-  mispairs the COMDAT (returns None) — keep :: out of marker comments.
-- **Parked (autopsies in-source):** UpdateDragCursor's >8bpp pixel-loop import-caching
-  (ours caches SetPixel in EDI, demotes y2 to memory — v24 reg-pressure family; minimal-TU
-  probe: identical solo ⇒ header-dial); OnBumpTile's this=EDI-vs-ESI prologue swap + the
-  (nMask&0x2a) dialog arm inline-vs-deferred (orig's arm owns the shared DrawPlayer/
-  DrawGameArea tail — merge-partner family) + six 1-insn GetFrameTile site swaps;
-  OnMouseMove imm-vs-reg zero stores + rcOuter.bottom wedge; OnEraseBkgnd stub order.
-
-**▶ START HERE (v27): remaining ~12KB of GameView TU, .text order (progress.py largest
-unclaimed):** OnKeyUp 0x415a50 + OnDestroy 0x415ac0 + OnHScroll 0x415ff0 (small handlers
-near 0x415820), CheckCheat 0x415820 (552B), CyclePalette 0x415af0 (1280B), ConfirmExit
-0x416030, then the biggest remaining: **TextDialog::Ctor 0x416b90 + Run 0x416c40 (2022B,
-the game's plain-class TextDialog, NOT CDialog — sizeof 0xc8, distinct from Dlg.h's
-CTextDialog!)**, 0x4176f0 (1419B, identify), options dialogs 0x417ec0–0x4186e0 (three mini
-CDialog classes — model per v16 notes; 0x418280 397B / 0x417570 384B unclaimed).
-- **⚠ Two DISTINCT "TextDialog" classes — do NOT conflate (this session's near-miss):**
-  Dlg.h `CTextDialog` @0x418dd0 = CDialog-derived debug dialog, **sizeof 0x6c** (used by
-  OnKeyDown Ctrl+F8). The game's `TextDialog` @0x416b90 = plain non-CDialog class,
-  **sizeof 0xc8** (ShowTextDialog). Their sizes got cross-contaminated once already.
-- **OnKeyDown residual (PARKED, G1):** shared-tail block placement + the 2 GetAsyncKeyState
-  `& 0x8000` movsx (orig keeps `movsx eax,ax` before `test ah,0x80`; short/int locals both
-  failed to reproduce). ~83% bytes; all case bodies match 1:1.
-3. **Open items (carried):** InvScrollBar ??_G/??1 (0x408690/0x4086b0) PARKED;
-   World.unk50 → nCurrentZoneIdMaybe rename (4-TU re-verify); MapZone.field30 →
-   quest-list selector rename candidate (1=listA, else listB — ShowWinMessage).
-4. **G1 dial axes (carried):** ZTS↔WES + AHC/XWing arms parity crossings;
-   DrawZoneCellRect/DrawWholeZone rotations; FireWeaponStep erase-block;
-   Tick cmp-direction/fire-block/reg-roles; OnTimer + ScrollZoneTransition
-   this-reload/import-caching; UpdateItemObjects this/pO swap; DrawText pTile-EBX
-   CSE; ShowWinMessage tx/ty homing; plain-helper param widths; AFX_MSG map-order;
-   v24/v25 parked lists above.
-5. **Re-verify ALL TUs after ANY Worldgen.h/GameView.h/RecordClasses.h/Dlg.h edit** (v26
-   sweep: GameView 36/68, Dlg 5/5; re-run the others — Worldgen/WorldDoc/Records/GameData/
-   World/Iact — after any shared-header change, the CTextDialog decl add rotated the dial).
-
-### ⏮ PRIOR (2026-07-07 v24 — mouse handlers, condensed)
-**▶ v24 RESULTS (2026-07-07, commits e9caa34+): GameView.cpp = 29/57 markers; 85.60%
-marker coverage / 15.93% exact globally. SoundInit 0x411520 EXACT FIRST COMPILE (527B —
-WaveMix session + strcpy/strcat intrinsics over World.soundNames[64] + g_waveHandles
-free-loops; error arms duplicate the 4-statement close tail in source, cl cross-jumps).
-OnDragItem 0x4102d0 EFFECTIVE-WIP (945/924 insns), OnLButtonDown 0x411730 EFFECTIVE
-(70/2845 bytes!), OnLButtonUp 0x412250 EFFECTIVE (align 274) — full autopsies in-source.**
-- **⭐ World+0x5c is nFrameMode, NOT gameState** (gameState=0x68): OnDragItem's mode-9
-  pickup / IactRun save-restore all write 0x5c. Check every old "gameState" reading.
-- **⭐ Per-case trailing-copy pattern (OnLButtonUp crack, -63 insns):** paths that skip a
-  shared trailing store do a plain `break` to ONE `Default()` after the switch; paths that
-  store write their OWN `bMouseCaptured = 0;` copy at case end — cl cross-jumps the copies
-  into one block. Do NOT write `Default(); return;` copies (they emit full epilogues).
-- **More v24 cracks:** ammo refill arms are &field POINTER LOCALS (`short *p = &field;
-  short a = *p; if (a <= 0) { *p = K; a = pWorld->field; }` → the add-reg,0xNNNN form);
-  value-ternary with the multiply DUPLICATED per arm ((gy == 0) ? gy*28 : (gy+1)*28,
-  polarity load-bearing); CString balloon arms in INNER SCOPES so the dtor runs before
-  the trailing store; `if (field30 != 1) B; else A;` then-jump polarity; eager `int
-  nQuestIdx` widening before a selector branch; a reward scan DECREMENTS its count var
-  (separate `int n = count` leaves a self-move); characters walks use GetData() hoisted
-  pointers, tiles/objects use GetAt (per-iteration reloads); 2-case type dispatch = switch.
-- **OnDragItem minimal-TU probe: identical score solo ⇒ its global reg-rotation is
-  HEADER-DIAL, not TU-position (G1).** ClassifyTile PHASE-DISPLACED by the v24 adds
-  (was EXACT v23; plate updated). Exact-count breathes: 28→31→29 across the session.
-- New World fields (Ghidra synced): unk2e30 (equip char idx+8, write-only),
-  ammoTheForceMaybe/ammoLightsaberMaybe @0x3348/4a, nWalkTargetX/YMaybe @0x3340/44.
-  TileFlags adds: TILE_KEYCARD/PUZZLE_ITEM_1/2/SEED_END (ITEM aliases of bits 16-19),
-  TILE_ITEM_HARMFUL_MAYBE (1<<21). engine-bugs.md #14: Artoo cases 0x13/0x14 leak the DC.
-- **Parked (autopsies in-source):** the PS(6)+DrawText(0) tail merge (orig cross-jumps
-  full-health→else; ours picks the IACT PlaySound tail as merge partner — not steerable);
-  heal-ladder arm cluster/shared-0x32/jle-polarity (BOTH OnDragItem + OnLButtonUp, lesson
-  #6 canonicalization); load/TEST/store drift in the 0x12/0x1fe arms; walk-target X/Y
-  chain interleave (int locals were +36 insns — TZD family); import-pointer caching
-  flips WITH the restructure (reg-pressure-coupled).
-
-
-### ⏮ PRIOR (2026-07-07 v22+v23 — hotspot/inventory block + ClassifyTile, kept verbatim)
-**v22 session results. src/GameView/GameView.cpp = 21 exact + 15 effective + 6 COMDAT / 44
-markers, contiguous 0x4084f0–0x40f3c0(excl). New EXACT: StepDetonatorEffect 0x40e400,
-TransitionZoneScript 0x40e750 (sig byte-proven: (int nUnused, int nZoneId), ret 8, arg1
-never read — "(sig?)" tag cleared), ReenableHotspotObjects 0x40ebe0. New EFFECTIVE (all
-with in-source autopsies): ApplyHotspotCamera 0x40e500, TransitionZoneXWing 0x40e7c0,
-TransitionZoneDoor 0x40e9d0 (align=22, ONE xor-position residual), TriggerHotspotsMaybe
-0x40ec30 (was "DrawObjects" — fires vehicle/xwing hotspots at the camera tile, returns int),
-UpdateItemObjectsMaybe 0x40ed90 (was "DrawMap" — item pickup/re-place pass), DrawText
-0x40f060 (the inventory-panel painter; windows.h renames it DrawTextA — marker carries the
-mangled hint; asmscore.py now PARSES `(?mangled)` marker hints like verify.py).**
-- **⭐ World::DrawRect is a __thiscall World MEMBER, not free __stdcall** (proven: DrawText
-  loads ECX=pWorld deliberately at call sites; body ignores this, which is why the free
-  model byte-matched in v13). Worldgen.h decl moved into class World; all sites are now
-  pWorld->DrawRect(...); Worldgen re-verified 31/90 IDENTICAL bytes; Ghidra moved to
-  World:: + thiscall. DrawText dropped 219k→179k from this alone.
-- **⭐ NEW MECHANISM — per-label jump-table indices** (UpdateItemObjectsMaybe, proven via
-  the dword table at 0x40f024): cl 4.2 assigns a table arm-index PER CASE LABEL in VALUE
-  order — grouped labels (case 0: case 2: case 6: case 8:) get 4 distinct indices at the
-  SAME arm address, and an explicit empty `case 4: case 10: case 15: break;` arm widens
-  the byte table to 16 entries (its indices point at the exit block). A lone empty case
-  folds away (max label drops); duplicating shared bodies NEVER folds (cl 4.2 doesn't
-  merge duplicate arms — +155 insns). Read the dword table to recover the source labels.
-- **MFC 4.2: the ONLY virtual CDC::SelectObject overload is (CFont*)** — a vcall at
-  vtbl+0x30 means the source passed CFont::FromHandle(hFont) (CGdiObject* selects the
-  non-virtual INLINE overload → m_hObject-extraction shape, wrong). Evaluate-callee-first:
-  `CFont *pFont = CFont::FromHandle(h);` before the SelectObject. The CBrush* overload is
-  the out-of-line non-virtual (0x440c92).
-- More v22 cracks: `int slot = nScroll;` dedicated IV strength-reduces to the scroll<<2
-  byte walker while bounds tests spell `nScroll + i` (DrawText inventory loop);
-  `int vx = 0;` declared AFTER a call statement folds its xor into the call setup
-  (AHC/TZD; but exact position inside arg-eval is NOT always steerable — TZD's single
-  residual); the AHC/XWing clone pairs are parity-CROSSED like ZTS↔WES (pre-call xor =
-  vx in arm1 but i in arm2 — identical source can't produce both, G1); UpdateItemObjects'
-  quest-arm flags test (orig loads flags to ECX, ours folds to byte-mem test) = the SAME
-  axis as FireWeaponStep's parked flags-test.
-- Renames (Ghidra synced + saved): ZoneObj.visible → **arg** (door/vehicle target zone id,
-  DA "arg"; Records/GameData/Iact/Worldgen re-verified unchanged); Zone.zoneUnk83c/840 →
-  **doorReturnX/Y** (TransitionZoneDoor return pos); BlitTile prototype fixed (queue item
-  cleared). NOTE modify_struct_field API silently no-opped on these — used
-  run_script_inline setFieldName instead (add to the gotcha list).
-- Dial churn: the FindZoneCellById decl add (real method, 0x403250, GameData TU) flipped
-  OnActivateView/DrawEntities/BlitTile OUT of exact and moved FireWeaponStep/Tick closer
-  (fixed-point rule — do NOT revert). GameData 13/27, Records 24/33, Worldgen 31/90,
-  WorldDoc 6/13, World 6/8, Iact 2/10 all at expected levels.
-
-**▶ v23 RESULTS (2026-07-07, committed): GameView.cpp = 28/53 markers, contiguous
-0x4084f0–0x4115b0(excl) minus OnDragItem.**
-- **ClassifyTile 0x40fca0 EXACT first compile (1569B — biggest exact yet):** three
-  sequential switches + guards; asmscore's dump showed table-region noise but the
-  masked byte-compare was 0 diffs — for table-heavy functions ALWAYS confirm with a
-  direct masked byte-compare before touching anything.
-- COMDAT identities pinned via vtable evidence (byte-compare can't disambiguate thin
-  ??_Gs — the reloc IS the identity): 0x40f3d0/0x40f420 = ??1/??_G CBrush (DrawText's
-  local); 0x40f490 = ??_GCEdit (vft 0x44dcd4 = wndDialogText@0x298, dtor in the ctor
-  funclet); 0x40fc80 = ??_GCScrollBar (vft 0x44dda4 via InvScrollBar's inline base
-  ctor); 0x411010/0x4110d0 = ??_G/??1 CBitmapButton. All 6 MATCH marker-only.
-- **ShowWinMessage 0x40f4b0 EFFECTIVE-WIP** (495/491, autopsy in-source): the orig
-  homes tx/ty to slots and pre-loads playerX/Y/equipped/m_pData in regs above the
-  3-arm dispatch — one global rank tie-break; PLUS an intra-function arm-pair reg-role
-  crossing (field30 if/else pairs) that blocks cl's cross-jump. int-id locals
-  (xor+mov dx), int a/b hoisted in arm C, str += " " (0x456108 literal).
-- **ScrollZoneTransition 0x411180 EFFECTIVE-WIP** (255/264, ours 9 shorter): orig
-  spills this to [esp] + n2 to a slot, giving all 4 callee-saved regs to
-  pDC/n/scratch (the OnTimer this-reload family). Cracks: int *pHide = &field
-  pointer-local, CWinApp *pApp = AfxGetApp() local, GetSafeHdc() for BitBlt src,
-  one-test three-way dispatch, clock()+50 busy-wait.
-- Renames/retypes (Ghidra synced+saved): World.equippedItem int→Tile* (UseWeapon's
-  ternary keeps an (int) cast — sic, pointer value degrades into nType);
-  scrollDirX/Y@0x3360/4, unk3370 added. ⚠ modify_struct_field silently NO-OPs on
-  field renames — use run_script_inline setFieldName (confirmed twice).
-- ⚠ progress.py fix: PARTIAL used our-COMDAT lengths (funclets+tables) → inflated
-  transcribed%. Now also prints Ghidra-extent coverage (regen app_funcs.txt via the
-  dump script when Ghidra body-repairs change extents).
-
-### ⏮ PRIOR (2026-07-07 v20+v21 — Tick + OnTimer transcribed, condensed)
-OnTimer 0x40d470 EFFECTIVE-WIP (align 802, autopsy in-source; duplicated head condition,
-default-before-case-8, blink blit-first, chained camera zero; parked: this-reload role,
-nFrameMode=3 copies, import-pointer caching). Tick 0x40b270 (10.8KB) EFFECTIVE-WIP (align
-2202; autopsy in-source). ⭐ v20 layout mechanisms: (a) cl 4.2 DEFERS any block ending in
-an unconditional transfer, preferring fall-through continuity (`if (c) goto L;` with L
-unemitted inlines L as fall-through); (b) an arm that falls through stays inline; (c)
-switch comparison-trees survive only with duplicated bodies; (d) GetTile is SIGNED —
-`short t = GetTile(...)` temps everywhere (ushort decl makes ==-1 dead). DrawEntities
-0x40b160 EXACT (countdown recipe: `int i=0; int n=nCount; do{...i++;n--;}while(n!=0)`
-under `if (nCount>=1)`; `int nFrame = pChar->currentFrame;` between calls). FindEntityAt
-0x40b210 eff. (decl order pZone/nCharId/n/i load-bearing; short nCharId=-1 AX-resident).
-Tick G1 families: cmp-direction mirror on ~40 entity-vs-player compares (frame +4-shift
-correlated); bullet/erase reg-role rotation; FIRE/SHOOT block placement (7 shapes probed).
-0x424fb0 jmp thunk = OnLoadWorld's ILT entry (plain call in source). v21: scorers TU 6/8
-(GetVictoryZoneIndexMaybe/GetLossZoneMaybe MATCH — branchless demo-hardcoded zones[76]/[77]
-ternaries); g_pszFontName@0x456130; Canvas stub gained hdc@0; ZONE_TYPE_VICTORY/LOSS enum.
-
-### ⏮ PRIOR (2026-07-07 v19 — ZTS/WES/FireWeaponStep block, condensed)
-ZTS 0x409650 eff. (441/441, align=48; no-`x`-local CSE-temp lesson; span IS a local); WES
-0x409c10 eff. (349/349, align=8, pure parity crossing vs ZTS — loader-triplet family, G1;
-ZTS's GetDC-via-reg + nStep→BX head VINDICATED by WES). Engine bug #13: both step-10 arms
-read the IactRun mask uninitialized when skipped. DrawGameArea 0x40a200 EXACT (separate
-COLORREF/DWORD locals; redundant ||-term = dev code). IsUsableTileMaybe 0x40a620 EXACT
-(66-case range-folded switch). BlitTile/DrawTileAt eff. (reg-role; BlitTile sig byte-proven
-`(short y, short x, int nUnused, Tile*)`; sx/sy hoisted locals mandatory). FireWeaponStep
-0x40a710 eff. (820/828): int nWeaponTile local + conditions re-mention frames[7]; nStep==0
-duplicated into both head conditions; ⚠ flags-test axis PARKED (every spelling narrows
-`test eax,0x60000` to `test byte [pT+0x406],6`; orig uses the WIDE form here, narrow in
-Detonate). 6 GDI COMDATs (CGdiObject/CBitmap trios) byte-match marker-only; verify.py now
-honors explicit mangled hints over LIB_OWNERS. World+0x2e44 = bWeaponHitPendingMaybe.
-
-**Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
-`{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
-parser); NO import statements — fully-qualify every Ghidra class in the Java snippet;
-struct field over an existing named field: `replaceAtOffset` works 1-for-1, but growing a
-RECT over four ints needs `getComponentAt(off)` + `clearComponent(ordinal)` for each byte
-range FIRST (it won't consume neighbors); renames into class namespaces:
-`f.getSymbol().setName(...)` + `f.setParentNamespace(symbolTable.getNamespace/createClass)`
-— this also auto-retypes `this` when a same-named Structure exists; clear stray params with
-`f.replaceParameters(DYNAMIC_STORAGE_ALL_PARAMS, true, USER_DEFINED, new Parameter[0])`;
-finish with POST `save_program`. The compile-error noise from old *.java files in
-~/ghidra_scripts is expected — those 4 scripts (MergeEhFunclets/ParentGapFunclets/
-CreateGapFunctions/FillFunctionHoles) are REAL body-repair tools kept for Phase E step 1.
-### ⏮ PRIOR (2026-07-07 v18 — DrawZoneCell trio, condensed)
-**DrawZoneCell 0x409460 EXACT (361B)**, sig `void DrawZoneCell(short x, short y)` (Ghidra ABI
-confusion corrected in DB). Cracks: (a) hoist `x<<5`/`y<<5` into `short sx,sy` locals (persistent
-ESI/EBX residency — lesson #13 inverse); (b) tile id is a SIGNED short (`(short)GetTile(...)` ⇒
-movsx; -1 = empty); (c) the bounds-guard inlines `pWorld->currentZone` INSIDE the `||` after the
-x<0 term (lazy short-circuit load + CSE across width/height/layer-0; a statement-form pZone hoists
-the load above the branch — a STEERABLE lazy-load knob, pairs with duplicated-call-arms). Engine
-quirk reproduced: valid x is [0,width) but valid y is [0,height]. DrawZoneCellRect + DrawWholeZone
-EFFECTIVE (pure reg-role; DrawWholeZone was exact under the prior dial, PHASE-DISPLACED by
-DrawZoneCell's CSE form — G1).
-
-### ⏮ PRIOR (2026-07-07 v17 — Phase E step 4 head block, condensed)
-src/GameView/GameView.cpp created; HEAD BLOCK 0x4084f0–0x409460 = 10 exact + 5 eff. SINGLE-TU
-settled: NO exception-COMDAT cluster in 0x4084f0–0x418700 + InvScrollBar ctor/dtor interleaved
-between GameView's DYNCREATE statics and GameView::GameView ⇒ ONE .obj (head is NOT a separate
-source file). EXACT: CreateObject/GetRuntimeClass (IMPLEMENT_DYNCREATE), both GetMessageMap (two
-BEGIN_MESSAGE_MAP in MAP order), MusicThreadProc, InvScrollBar::Ctor, ~GameView, ??_GGameView,
-OnActivateView, InvScrollBar::OnHScroll. EFFECTIVE: GameView ctor (imm/reg store-scheduling),
-OnUpdate (block-layout), OnDraw (const-0 in EDI), PlaySound (EAX/EDX swap), OnVScroll. Cracks:
-switch(x) not if/else-if for 0/1/other dispatch (test-0/cmp-1/jmp-default); declaring `int *p=arr`
-AFTER a call lets the scheduler fold `mov esi,offset` into that call's pushes; CBitmapButton members
-ARE real MFC (CButton+4 CBitmap=0x5c) — "BalloonButton/Bitmap" was over-analysis; strCheatBuffer=
-CString, wndDialogText=CEdit (implicit member ctor/dtor free). GameView.cpp globals wired
-(g_bStopMusicThread@0x456134, g_hWaveMixEvent@0x459454, g_waveHandles[64]@0x459458, MIXPLAYPARAMS).
-
-### ⏮ PRIOR (2026-07-07 v16 — Phase E steps 1-3, condensed)
-GameView.h promoted out of Worldgen.h (InvItem/Canvas/InvScrollBar/GameView/TextDialog); it does
-NOT re-include MFC/Records (a token-neutral split still rotates the dial via #line/blank-line
-provenance — keep the physical byte layout stable, not just tokens). Full GameView method decl set
-reconstructed: overrides pinned by VTABLE DIFF (GameView 0x44b638 vs base CView 0x44d4ac = exactly 6
-differ: ~GameView/PreCreateWindow/OnInitialUpdate/OnActivateView/OnUpdate/OnDraw); afx_msg from
-msgmap @0x44b240 in MAP order; ~35 plain helpers from a fable disasm sweep (some widths "(sig?)"
-unproven). Debunked (all plate-commented in Ghidra): **0x40e3f0 = folded CView no-op DEFAULT, not an
-override**; 0x40a560/0x411010 = embedded BalloonBitmap/BalloonButton vtables (slot 73 terminates
-GameView's); 0x413be0 = EmptyFrameHookMaybe (real empty method from OnTimer); **0x417ec0–0x4186e0 =
-THREE embedded options-dialog classes** (GameSpeed ctrl0x67 / Sound ctrl0x8f / Difficulty ctrl0x90;
-each CDialog+OnInitDialog @0x417f50/0x418230/0x418510 + ??_G + msgmap) — model as mini-classes in
-step-4/F. OnKeyDown 0x4150f0 healed (0x4156f2+ = its EH cleanup funclet, comes free).
-
-### ⏮ PRIOR (2026-07-06 v14 — Phase D COMPLETE-TRANSCRIBED: 90 markers, condensed)
-**src/Worldgen = 90 markers covering 0x41bee0–0x429150 — every function of the doc TU
-including the whole GameView tail block (OnInitialUpdate, DrawDirectionArrows,
-ShowTextDialog EXACT, ??1TextDialog, DrawHealthDial/Needle, AddHealth, UseWeapon,
-DetonateAdjacentTiles, OnCmdMinimize EXACT, DrawWeaponBox/Icon, BlitViewportDither,
-PreCreateWindow EXACT, AddItemToInv; plus the v13 World half). GameView (0x310) +
-TextDialog (0xc8, NOT CDialog-derived) + InvScrollBar (0x44) + InvItem (0xc) fully
-modeled in Worldgen.h; Zone gained DamageEntityAt/HitEntityAt decls (Records TU
-re-verified 25/33 ✓; Iact breathed 2→1 exact, its 8 annotated tie-breaks unaffected).**
-
-**v14 net-new cracks (fold into instincts):**
-- **Duplicated-call arms are EVERYWHERE in this dev's code**: LoadIcon per arrow arm,
-  IactRun + flag set/clear per UseWeapon arm, GetSysColor+GetNearest+Fill per weapon-box
-  arm — write the FULL call in each arm; the compiler cross-jumps the common tail leaving
-  per-arm constant/coordinate pushes. Value-ternaries on adjacent constants go BRANCHLESS
-  (sbb/add) even via pointer-typed locals or if/else — when the orig has branchy push-imm
-  arms, the CALL is in the arms, period.
-- **VC4.2 jumps TO the then-arm in value-assign if/else** (DrawDirectionArrows needed
-  `== 0` disabled-icon-first) but in statement-arm if/else around calls the layout is NOT
-  source-steerable (weapon boxes, AddItemToInv scrollbar — both spellings identical).
-- **BOOL fall-off = C2561 hard error**: PreCreateWindow matched via `BOOL bRet = base();
-  cs.style |= ...; return bRet;` — the result rides EAX across mem-ops for free
-  (PlaceItemOnLock family).
-- **`AfxGetInstanceHandle();` as a bare statement** = the recurring dead
-  AfxGetModuleState call (result load dropped, call kept) — OnInitialUpdate/DrawDirection-
-  Arrows both.
-- **evaluate-callee-first locals**: `CFrameWnd *pFrame = GetParentFrame();` before
-  PostMessage (call-before-pushes = a local, not an inline arg).
-- **A guarded `new Canvas(w,h)` shape proves ctor-hood** — Canvas TU's "Init" 0x407df0 is
-  really Canvas::Canvas(int,int) (stub decl added; Canvas TU rename pending).
-- **Struct-copy RECTs**: `rc = pWorld->rectArrowBox; rc.left -= 4;` (4-dword copy + edits).
-- **movsx-immediately int for GetTile results** (Detonate hit align=0 with it) and NEVER
-  cast to short at DrawZoneCell call sites — but UseWeapon's DrawZoneCell args ARE
-  short-arithmetic ((short)x + sdx*2 with short sdx/sdy locals): read each site.
-- **The early-return dtor block lesson holds in the view code too** (DrawHealthNeedle's
-  `if (nLo == 0) return;`).
-
-### ⏮ PRIOR (2026-07-06 v13 — condensed; the save/load session, lessons still in force)
-**Session result (commits 5ad13c3..04458c4): World-half of the TU finished — LoadWorldState-
-File + Serialize (EFFECTIVE DIFF-2 each), DrawLocatorMap + DrawRect (EFFECTIVE), OnNewWorld
-(EXACT), OnSaveWorld/OnLoadWorld (EFFECTIVE-WIP, autopsies in-source), ??_GCProgressCtrl
-(MATCH via marker only — our TU already emitted it).**
-- **.wld save format ("YODASAV44")**: seed/planet/unk33b8; quest-item word lists (the LAST
-  element re-seeds nCurrentGoalItem + startItem/startItem2 from Puzzle.itemA/B on load);
-  center-2x2 quest cells (mapScratch when unk33b8==0, else mapGrid[44..]); full 10x10
-  (mapGrid vs mapGridBackup by the same flag) as 15-field cell dumps; -1,-1-terminated
-  SaveZoneRecursive/LoadZoneRecursive streams; inventory as tile ids (re-NEWed InvItems);
-  player/weapon(char index + unk48 ammo)/camera/health/difftime-elapsed tail; unk248 saved
-  as count+SUM, rebuilt as count copies of the AVERAGE.
-- **&field pointer locals are REAL source** (`int *pHealth = &healthLo;` — the lea+spill+
-  deref pattern; OnSave/OnLoad cache gameState/nFrameMode/bStartingGame/&pWorld the same
-  way; OnInitialUpdate proved plain field writes ALSO produce compiler-made caches — write
-  plain first, add the pointer local only when the lea+slot shape demands).
-- **Never Read(&i,4) into a live loop counter** — taking its address memory-homes it
-  TU-wide and wrecks reg-alloc; the original uses fresh x/y pairs per sentinel loop.
-- **OnSaveWorld/OnLoadWorld shapes**: unk33b8 selectors are `!= 0` grid/backup-arm-FIRST
-  (all sites); recursive-save blocks materialize `MapZone *pCell` (base-folded [reg+4] id
-  reads); DoModal success arm = the if-body fall-through; story-history planet dispatch is
-  a SWITCH with per-arm vGoal/pArr temps + one cross-jumped SetAtGrow tail (SelectPuzzle's
-  planet dispatch is a LADDER — always read the disasm); Open-fail switches: OnSave 9/7/9,
-  OnLoad all-8 in the same three groups.
-- **CFileDialog**: needs <afxdlgs.h> (afxwin.h only fwd-declares — silent C2228/C2541 on
-  members otherwise); m_ofn.lpstrInitialDir = World.lpszSaveDirMaybe@0x33bc stored BEFORE
-  the pDlg null check in BOTH dialogs (sic, #8 family); save flags 0x80006 "wld"/
-  "savegame", open flags 0x1006 "*.wld" + Flags &= ~OFN_SHOWHELP(0x10); GetPathName chain:
-  `strPath = pDlg->GetPathName().GetBuffer(200);`.
-- **inc-vs-add-with-CSE'd-reg**: a 2-byte instruction-selection family (orig
-  `add [nDone],ecx` reusing ECX=1 from neighboring =1 stores; ++/+=1/n=n+1 all inert).
-- **DrawRect (free __stdcall, bevel)**: per-use strength-reduced IVs = copy-variable named
-  locals (`int y2 = y1;`) in source; edge-4 decl order x1,x2,nBottom,y1-LAST aligned the
-  pRect reload (align 26->8); explicit `int n = nThickness; do{..n--}while(n)` countdowns.
-- **asmscore best-fit trap**: free functions (no `Class::` after the marker) fall back to
-  global best-fit and can silently mispair (OnToggleSound stole DrawRect) — score by
-  explicit COMDAT name via match.coff_functions, or add `(?FuncName@)`-style marker hints.
-- **World vtable base = 0x44c438** (GetFirstViewPosition=+0x68 anchor): +0x58 SetTitle-4?
-  ... +0x60 IsModified, +0x64 SetModifiedFlag, +0x68/+0x6c GetFirstViewPosition/GetNextView,
-  +0x70/+0x74 OnChangedViewList/DeleteContents, +0x78/+0x7c OnNewDocument/OnOpenDocument
-  (app overrides), +0x80 OnSaveDocument, **+0x84 OnCloseDocument** (OnNewWorld's 0-arg
-  vcall — plain C++, the "GetFile bug" theory was retracted), +0x88 ReportSaveLoadException,
-  +0x8c GetFile (0x441f5d), +0x90 ReleaseFile. RecordDataFileOwner is #ifdef _MAC (absent).
-
-### ⏮ PRIOR (2026-07-06 v10 FINAL — Phase D: 63 markers; 14.86% exact, 48.72% transcribed; Ghidra World struct fully synced)
-**State: src/Worldgen = 63 markers (all 9 placers + the 3 gap queries transcribed); global
-14.86% exact + 33.86% partial = 48.72% transcribed. Session commits: 8d8402b (gap + queries +
-5 placers + enums), then the World.h consolidation commit. Worldgen exact-count breathes with
-the dial (29->26 after the scorer decls landed in Worldgen.h — bytes UP 5267->5588); do not
-grind, the per-function EFFECTIVE annotations carry the autopsies.**
-
-**▶ START HERE — the hub is now mechanical:** WorldgenPlaceQuestNodeMaybe 0x41f120 (2KB) —
-its ENTIRE callee set is transcribed (SelectPuzzle excepted). Then SelectPuzzle 0x41eab0,
-CarveQuestPath 0x41d940, PlaceBlockades 0x41e350, Generate 0x41f960 (6.6KB), the save/load
-monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile — CArchive+CATCH_ALL, WorldDoc
-OnOpenDocument recipe), then the GameView methods 0x426c40-0x429150.
-
-**✅ GAP 0x41bee0-0x41c340 SOLVED (v10):** the Worldgen TU actually STARTS at 0x41bee0, not
-0x41c340. Contents: ??1CException 0x41bee0 + ??_GCException 0x41bf30 (vftable 0x44d064) and
-??_GCFileException 0x41c180 + ??1CFileException 0x41c340 (vftable 0x44d2b4; CString
-m_strFileName@+0x10 destroyed via ~CString 0x43d4e9, base ~CException) — the LINKED MFC
-COMDAT copies (lib code at 0x4294xx calls them too; verify.py LIB_OWNERS filters them, no
-source needed). Interleaved with them sit the TU's first 3 source functions, all transcribed:
-ZoneHasIzxItemMaybe 0x41bfa0 (bool twin of ZoneFindInIzxList, cobArray4/5 by sel),
-ZoneRequiresItemMaybe 0x41c0b0 (genCandidateA/IZAX), PickUnplacedItemMaybe 0x41c200 (random
-genCandidateB item not in the dedup set). All renamed + plate-commented in Ghidra.
-
-**v10 placer results:** PlaceUsefulDropChainMaybe 0x41cbe0 was byte-EXACT (then
-PHASE-DISPLACED by later decls — source proven); AssignTransitItem 0x41d480 align=12;
-LockChain 0x41d0c0 align=56; PlaceUsefulObject 0x41d260 align=80; PopulateGoalZone 0x41c8f0
-align=92 (annotated EFFECTIVE-WIP). **New cracks (add to instincts):**
-- **In EH functions, early-return guards SHARE ONE dtor+return-0 block** emitted as the FIRST
-  guard's fall-through; later `return 0`s cross-jump BACK to it. Write guards as separate
-  early returns, NOT nested ifs (AssignTransit 176->12). In non-EH functions each `return 0`
-  gets its own epilogue copy (PopulateGoalZone/LockChain) — EXCEPT when the original wrote one
-  `if (a || b || (p = ...) == NULL || ...) return 0;` ||-chain with embedded assignments =
-  ONE shared return-0 (PlaceUsefulObject 170->80; Ghidra's comma-expr rendering is literal).
-- **`if (sel != 0)`-first arm order** (A-arm fall-through) cracked DropChain to EXACT; but
-  LockChain needed `== 0`-first — mirror the JE/JNE from disasm per function, never assume.
-- **Params used at 2+ sites CSE-spill on their own** — do NOT invent `int nA = iA;` locals
-  (PopulateGoalZone 108->92 from deleting them). `int v = wordArray.GetAt(i)` (int, not
-  ushort) is what hoists the xor zero-extend out of a loop.
-- Engine bug #11 (docs/engine-bugs.md): LockChain's failure path removes item1a TWICE, never
-  item2. Plus two always-true `>= 0` guards on zero-extended WORDs (bug-#10 family).
-
-**⭐ ENUMS (new standing rule, user directive — see memory/prefer-enums-over-comments):**
-magic field values get NAMED ENUMS, not comments. ZoneType (map_flags roles), ZoneObjType
-(OBJ_TYPE), TileFlags now live in src/Records/RecordClasses.h AND the Ghidra DB (fields
-Zone.type/ZoneObj.type/Tile.flags typed with them; decompiles now print OBJ_DOOR_IN etc.).
-GOTCHA: modify_struct_field_type clobbers the field NAME — restore with modify_struct_field
-using field_name="offset:0xN". HTTP writes need JSON bodies (form-POST returns "address is
-required"); key is "function_address" for renames, "address" for plate comments.
-
-**✅ GHIDRA WORLD-STRUCT SYNC COMPLETE (v10-FINAL — do not redo):** the Ghidra `World`
-(0x33c0) now mirrors Worldgen.h exactly: m_bModified@0x44, the full 0x54-0x7c block
-(score/unk74/timeBase/timeOffset...), **tiles/zones/inventory/characters/puzzles as real
-CObArrays** (the old exploded tileArray/zoneObjects/puzzles-as-Puzzle** fields are GONE —
-decompiles now render `(this->zones).m_pData[i]`, matching our GetAt-inline idiom),
-questItemsA/B (Maybe dropped — semantics proven), **uniqueRequiredItemsMaybe@0x234** (named
-from AssignTransitItem: one-shot dedup of single-IZAX required items; renamed in Worldgen.h/
-WorldDoc.h/Worldgen.cpp too — codegen-neutral, 26/62+4/6 verified), unk248@0x248, worldgen
-CObArray lists@0x25c/0x270, apZoneGrid Zone*[100]@0x2d0, apUiTiles Tile*[20]@0x460,
-**mapGrid/mapGridBackup/mapScratch as MapZone[100]/[100]/[4] @0x4b0/0x1900/0x2d50** (vptr-TRUE
-anchoring — Ghidra's MapZone was rebuilt to the ctor-proven layout: vftable@0, id@4,
-zoneType@8 typed with the ZoneType enum), pSysColorTable@0x326c, 3 RECTs@0x3274, and the whole
-0x32a4-0x33b0 tail. GameView struct: NOT touched this pass (Phase-E prep as planned).
-
-**⚠ STRUCT-EDIT GOTCHAS learned the hard way (v10-FINAL):**
-- **`recreate_struct` force IGNORES field offsets** (packs sequentially from 0) AND its
-  naming filter auto-prefixes (id→nId, score→nScore). NEVER use it for offset-precise
-  structs. **`remove_struct_field` on packed structs DELETES the bytes and SHIFTS everything
-  after** (it silently shrank World 13248→11770 mid-edit).
-- **The reliable tool is `run_script_inline`** (POST JSON key `"code"`, JAVA source injected
-  into a GhidraScript): `Structure.deleteAll(); growStructure(size)` (deleteAll leaves a
-  notional length-1 — re-grow to target), then `replaceAtOffset(off, dt, len, name, comment)`
-  per field. Honors offsets and exact names. Old broken *.java files in ~/ghidra_scripts
-  produce compile-error NOISE in every run's output — ignore them, check for your println.
-- **Force-recreating a struct broke ~24 World-namespace functions' conventions** (this-typing
-  degraded to __fastcall(int)); swept back to __thiscall via script over
-  fm.getFunctions + setCallingConvention, then cleared leftover spurious EDX params on the
-  void methods. CreateObject 0x419ed0 / FUN_00419f50 are genuinely __stdcall DYNCREATE
-  statics — do NOT thiscall them. The 4 exception dtors were moved OUT of World into real
-  CException/CFileException class namespaces (rename_function_by_address does NOT parse `::`
-  — it had made flat "CException::Dtor" names inside World).
-- HTTP writes: JSON bodies only; rename key = "function_address", plate key = "address";
-  modify_struct_field addresses unnamed fields as field_name="offset:0xN" (its renamer also
-  auto-prefixes: probe→nProbe).
-
-**World.h consolidation (user directive, v10):** src/World/World.h DELETED — the scorers TU
-(src/World/World.cpp) now includes ../Worldgen/Worldgen.h (shared World facade; score/
-timeBase/timeOffset/gameState/etc. fields filled in from WorldDoc.h's ctor-proven names, six
-scorer method decls added as cross-TU section). The old local "Zone" 0x34 struct was really
-MapZone shifted by 4 (exists==id, field18==flagSolved, field20==flagA, field24==flagB).
-Scorers stay 4/6 exact: the indexed `mapGrid[n].field` form keeps the lea anchor at
-this+0x4b4 (grid-copy recipe) — CalcCompletionScore is now PHASE-DISPLACED (pure 3-reg
-rotation, walker-temp rank not source-steerable), CalcTimeScore matches. Long-term: Worldgen.h
-IS the emerging real CDeskcppDoc header — keep growing it with real decls only; GameData/Iact
-still use their own stubs (consolidating those = endgame dial re-verification).
-
-### ⏮ PRIOR (2026-07-06 v9 FINAL — condensed; recipes still in force)
-**State: src/Worldgen = 54 markers, 27 exact; global 14.10% exact + 31.97% partial = 46.07%
-transcribed (progress.py now prints both tiers; PARTIAL = has marker+COMDAT but not byte-exact).
-Session commits: 7961680 (3 parsers + dispatchers), ac69ef0 (PlacePuzzle WIP + LogWrite id),
-8199d58 (PlacePuzzle effective + WorldgenPlacePuzzles), 36c3781 (4 placers), then progress.py
-partial tier + Ghidra sync. All .obj files current; the jump-table probe battery (sw*.cpp)
-lived in the job tmp dir — DISPOSABLE, its conclusions are in Load's in-source annotation.**
-
-**▶ START HERE — remaining 5 placers (0x41c8f0-0x41d660), then the hub:**
-PopulateGoalZone 0x41c8f0 (752B), PlaceUsefulDropChainMaybe 0x41cbe0 (480B),
-PlaceItemForLockChainMaybe 0x41d0c0 (416B), PlaceUsefulObjectMaybe 0x41d260 (544B),
-AssignTransitItemMaybe 0x41d480 (480B). **These are exactly PlaceQuestNode's callee set** —
-the 2KB hub (0x41f120, 94 blocks, cc=86, already declared in Worldgen.h) calls:
-SelectPuzzle(Maybe), IsZoneUsed, AddZoneEntry, PickItemFromZone, AssignTransitItem,
-PlaceUsefulObject, PlaceUsefulDropChain, PlaceItemForLockChain, ShuffleList,
-PopulateGoalZone, **FUN_0041c0b0 (UNNAMED — identify first!)**. So: finish the 5 placers +
-0x41c0b0, then PlaceQuestNode becomes mechanical, then SelectPuzzle 0x41eab0, CarveQuestPath
-0x41d940, PlaceBlockades 0x41e350, Generate 0x41f960, save/load monsters, GameView methods.
-**⚠ UNCLAIMED GAP 0x41bee0-0x41c340** (between WorldDoc TU end and Worldgen TU start):
-0x41bee0 = WorldDoc's own CFileException-dtor COMDAT copy (proof the linker does NOT fold
-these across TUs — each TU's copy survives); 0x41c0b0 = the unnamed PlaceQuestNode callee;
-map what else is in there before assuming TU boundaries.
-
-**Placer-family recipes (4/9 done — FillQuestItemSpot 0x41c580 / FillSpawn 0x41c730 clone
-pair, FillQuestItemSpot2Maybe 0x41cf10, PlaceItemOnLock 0x41cdc0; all EFFECTIVE 20-90B,
-pure reg-role/cmp-mirror tie-breaks):** local CWordArray spot-list + rand-pick
-`objects.GetAt(paSpots.GetAt(rand() % n))`; DOOR_IN (type 9) recursion tail-loop; guard+
-do-while UP-count loops (calls inside kill the countdown transform); `if (zoneId < 0)
-return 0;` early form; `short v` 16-bit local for the candidate value; FillQuestItemSpot2:
-conditionally-SCOPED CWordArray inside `if (bFound)` + in-condition recursion assignment
-`(nResult = recurse(...)) == 1`. ⭐ **PlaceItemOnLock crack: `int nResult = 0` lives in EAX
-END-TO-END** — entry xor eax,eax; `nResult = 1` in the success arm; in-condition recursion;
-`return nResult` costs ZERO bytes everywhere. VC4.2 hard-errors C2561 (no return at all) and
-C2202 (a path falls off) — so a "void-looking" original whose callers test EAX ALWAYS has an
-EAX-resident result var. PlaceItemOnLock's sel!=0 arm (cobArray5) is the fall-through.
-
-v9 mid-session delta (PlacePuzzle/WorldgenPlacePuzzles), kept for the recipes:
-- **PlacePuzzle refined to EFFECTIVE (39B, insns 255/255)** — the in-source annotation lists
-  three NEW STRUCTURE RECIPES that cracked it: (a) hoisting `int nIso = GetSize()` re-keys
-  ARRAY frame slots (use-count driven!) and yields mov+test/idiv-reg; (b) the pick is
-  sequential-if + `goto cleanup` in the far arm (only shape where the far store cross-jumps
-  into the B-arm tail while the log arm falls through dead re-tests); (c) **the delete/scan
-  countdown recipe**: `int i = 0; int n = GetSize(); do { ...GetAt(i); i++; n--; } while
-  (n != 0);` under a separate `GetSize() > 0` guard — produces the DEC/JNE countdown that
-  plain `while (i < n)` NEVER does. Recipe reused successfully twice in WorldgenPlacePuzzles.
-- **WorldgenPlacePuzzles (0x421930, 1310B) transcribed, EFFECTIVE-WIP** (annotation has the
-  autopsy). More cracks: `int nVal = pEntry->val` kills 66-prefix short loads at dual call
-  sites; the flag-if needs the call arm FIRST + `if (bRetry == 0) call; else = nBanned;`
-  inner shape; n++ precedes the lastX/lastY stores in all FOUR duplicated accept copies
-  (real source duplication, one per worldSize case + first-tele). Residual = the OPEN
-  block-sinking family (accept copies + retry sunk past the switch) + slot rotation.
-- New fields: worldSize@0x3328 (teleporter min-distance tier), genSkipTeleCheckMaybe@0x2e64.
-  New decls: PlaceQuestNode (7-arg, 0x41f120), WorldgenPlacePuzzles, PlacePuzzle.
-✅ Ghidra sync DONE (v9 late,
-YodaDemo was ACTIVE): World fields added (zoneCountLoadedMaybe@0x54, genSkipTeleCheckMaybe
-@0x2e64, bDtaLoadedMaybe@0x32f8), 0x32d4 quad renamed nView* (+ WorldDoc.h/.cpp updated),
-EnterZone→GetZoneIndex, 0x41c340→CFileExceptionDtorTUEmitted (+plate), Log_Write→LogWrite
-(+CTheApp-member plate). Ghidra's richer names BACKPORTED into Worldgen.h pads (startItem
-pair@0x2e38, weaponHit pair@0x2e48, bHidePlayer@0x2e54, arrowBox quad@0x32e4, bWorldReady
-@0x32f4, nextCamera pair+pPendingZone@0x3300, healthLo/Hi+difficulty+counter+gameSpeed
-@0x3314-0x3324) — codegen-neutral, verified 27/54 + 7/13 unchanged. progress.py now also
-reports the PARTIAL tier (transcribed-not-exact): 14.10% exact + 31.97% partial = 46.07%
-transcribed. GOTCHA: the MCP add_struct_field auto-prefixes names (bX→nX) — fix with
-modify_struct_field after; rename_function_by_address needs strict_mode=off to bypass the
-token-collision filter.
-
-### ⏮ PRIOR (2026-07-06 v8 — Phase D: 48 funcs incl. BOTH IFF dispatchers; 13.85%)
-**Progress 13.85% byte-exact (was 13.52% at v7).** v8 delta on top of the v7 block below:
-- **ParseActn (402B) + ParseHtsp (407B) EXACT on first compile** — the ParseChar TRY/CATCH
-  recipe + an inner SetSize/SetAt loop. Mirror details that mattered: Actn tests `id == -1`
-  and looks the zone up BEFORE reading the count, SetAt-then-Read; Htsp tests `id < 0`,
-  count-read first, Read-then-SetAt, and calls FlagQuestObjects after the loop (also when
-  count<=0). Inner loops = explicit guard+do-while, `while (nCount > i)` backedge form.
-  Inlined `(Zone *)zones.GetAt(id)` = m_pData indexing via World+0x98 comes free.
-- **ParseSnds EFFECTIVE (5B)**: only residual = char-buffer frame-slot ORDER (orig is
-  size-ascending ext/fname/name/path; ours swaps name/fname). Probes ALL inert — decl order
-  x2, nested strcat(strcpy()), scope splits: array slot keys are compiler-internal. PARKED.
-- **LoadWorld (0x421fd0, 1690B) + Load (0x422670, 2245B) transcribed, EFFECTIVE-WIP ~95-97%
-  insn-identical** (in-source annotations carry the full residual autopsy). New cracks:
-  (a) **CRect built from two CPoints** — `CRect(CPoint(l,t), CPoint(r,b))` computes r,b
-  BEFORE l,t (right-to-left arg eval); the flat 4-arg ctor computes l,t first and CSEs the
-  sums differently — the CPoint form halved LoadWorld's align score. (b) `AfxGetApp()->
-  DoWaitCursor(1)` written directly (BeginWaitCursor() emits an out-of-line lib call).
-  (c) MFC inlines verified: AfxGetMainWnd = double AfxGetThread + vcall+0x7c; CProgressCtrl
-  SetRange/SetStep/StepIt = raw ::SendMessage PBM_*; CFileException ctor fully inline; and
-  a local `CFileException e` makes the TU emit ~CFileException as its FIRST function —
-  that's what 0x41c340 really is (docs called it "load/save helper ctor"; fix pending).
-  (d) `if (x == 0) x++;` ≠ `x = 1` (load/test/inc/store vs cmp-mem/store-imm).
-  (e) planet-pick logic: switch(currentPlanet) x2 (milestone completionCount 5/10/15 vs
-  normal), rand()%2 arms, then DEMO HARDCODE currentPlanet=2 overrides it all.
-  (f) .dta open failure: CFileException-cause switch → AfxMessageBox(5/6/0xe01e) →
-  **AfxAbort()**, then dead-but-emitted cleanup (engine-bugs #7 family).
-- **⚠ TWO OPEN codegen problems, both in the dispatchers** (park; joint/endgame or
-  decomp.me): (1) loop-exit-cleanup block placement — orig glues it after the FIRST parse
-  arm mid-ladder (both dispatchers!), ours after the loop tail; if(nDone==0)-nesting proven
-  IL-equivalent. (2) Load's m_cause switch: orig = DIRECT 13-entry table pointing at 3
-  MERGED arm blocks; sw*.cpp probe battery proved VC4.2 byte-maps any ≤5-arm switch and
-  never merges ≥6 written arms — combo unreachable from source shape alone.
-- New World fields: bStartingGameMaybe@0x2e40, completionCount@0x332c, bDtaLoaded@0x32f8,
-  zoneCountLoaded@0x54. Worldgen.h now includes afxcmn.h + ../App/App.h (CTheApp.m_str@0xc0
-  = the .dta path). Cross-TU decls added: ParseTilesMaybe/CacheUiTilePtrsMaybe (WorldDoc).
-- Dial churn this round: Randomize flipped OUT (30B), RemoveZoneEntry2 flipped IN, the
-  Zaux/Zax2/Zax3 trio rotated again. Standing rule unchanged: don't grind these.
-- **PlacePuzzle semantics** (function now EFFECTIVE, see v9): 3 CPoint* CObArrays
-  (isolated / adjacent-to-306 / past-order-cutoff), rand-pick priority isolated>adjacent,
-  far only when both empty; `!!!!No Place to put Find Puzzle` log via
-  `((CTheApp *)AfxGetApp())->LogWrite(...)` — **Log_Write@0x419cb0 is really a CTheApp
-  MEMBER** (call sites set ECX=pApp; body ignores this, so App TU's free-function form
-  still matches; member decl in App.h, App TU re-verified 11/12).
-  `new CPoint(x,y)` = the raw new(8)+inline-ctor null-check shape.
-
-### ⏮ PRIOR (2026-07-06 v7 — PHASE D underway: 43 doc-TU funcs transcribed; 13.52%)
-**Progress 13.52% byte-exact (was 10.01% at v6).** src/Worldgen/ now carries **43 functions,
-~26 exact depending on the current dial** (the count breathes as functions are added — see
-"dial churn" below). Everything below the fold in v6 still applies; this block is the delta.
-
-**What is DONE in src/Worldgen (exact at least under one dial, all structurally proven):**
-leaves+list helpers (IsItemPlaced, Push/Remove/Add ZoneEntry, IsZoneUsed, AddPlacedZoneId,
-IsTileInGoalList, GetZoneGridOrder, IsModified/SetModifiedFlag), recursive queries
-(CheckZoneItemsAvailable, WorldgenCollectZoneRefs; ZoneProvidesItem/ZoneFindInIzxList are
-structurally converged, reg-tie-break parked), WorldgenPickItemFromZone (392B EXACT),
-Randomize (204B EXACT), grid copies Backup/RestoreZoneGrid (189B each EXACT),
-Backup/RestoreRecords (773B each EXACT — they copy the center 2x2 quest cells
-mapGrid[44,45,54,55] <-> mapScratch[0..3] with constant id tags 0x5e/0x5f/0x5d/0x60),
-SetupGrid, ReadZone (575B EXACT — demo zone-id whitelist switch), ReadStupCanvas,
-SetCurrentToIntroZone, GetZoneIndex (Ghidra name: EnterZone), UpdateCamera (EXACT — writes
-the 288x288 view window rect @0x32d4..e0; WorldDoc.h misnames these nHealthDial*, reconcile),
-the 4 audio toggles (OnToggle/OnUpdateToggle Sound/Music, all EXACT first compile),
-7 chunk parsers (ParseZone/Zaux/Zax3/Zax2/Tnam exact-or-rotating; ParseCaux/Chwp have a
-block-layout+reg residual the arm-order knob cannot steer), Populate (DIFF~13, one
-per-case store slot), PlaceZone (WIP: reg 2-cycle + EH-state placement residual),
-WorldgenShuffleList (structurally complete; reg cascade parked; **engine bug #10** — its
-`GetAt(k) != -1` guard never fires, WORD zero-extend vs -1).
-
-**⭐ NEW codegen cracks from this sprint (add to instincts):**
-- **Indexed one-array copy anchors the walker at the first-accessed FIELD** — the grid
-  copies only matched as `mapGrid[n].f = mapGrid[n+100].f; n++` inside the 10x10 loops
-  (two-pointer and single-pointer [100]-displacement forms put the anchor at struct base).
-- **Identical if/else arms are REAL dev code**: PickItemFromZone tests the dead a2 flag and
-  does the same SetAtGrow either way; the compiler cross-jumps the arms leaving a dead
-  `cmp [n],0` wedged between arg pushes and the call. Grep for flags-unused cmps.
-- **`x <<= s; x &= m;` as SEPARATE statements never combine** (Randomize matched only in
-  this form, keeping even the no-op `& 0xff000000` after `<< 0x18`); a single
-  `(x << s) & m` expression canonicalizes to mask-first `and 0xff; shl`.
-- **Switch, not if-ladder, for type dispatches**: all-compares-up-front + out-of-line arms
-  (CollectZoneRefs/CheckZoneItemsAvailable OBJ_TYPE ladders, ReadZone's 13-case demo zone
-  whitelist with range folding, Populate, Randomize).
-- **Per-case constant args cross-jump a shared call tail**: Populate ends each switch case
-  with `PlaceZoneObjectTiles(CONST);` — per-case `push CONST` + one shared call+jmp; the
-  switch default lands AFTER the call (was the tell).
-- **`return found;` vs `return 1;`** distinguishable: `mov eax,edi` vs `mov eax,1` at the
-  duplicated epilogue (ZoneProvidesItem).
-- **Early-return rotation trap**: a `for` with an early `return` does NOT rotate into
-  guard+do-while; write `if (n > 0) { do { ... } while (i < n); }` explicitly (IsItemPlaced,
-  all the list scans). `break`-form loops DO rotate.
-- MFC idioms compile exact for free: GetFirstViewPosition/GetNextView vcalls (+0x68/+0x6c),
-  CCmdUI::SetCheck (slot +4), CFile::Seek(x, CFile::current) (+0x30), the branchy
-  `n = (n == 0)` cmp/sbb/neg, and CFile-vcall CSE into a register across a loop.
-- `m_bModified` is CDocument+0x44 → 0x422f40/50 are IsModified/SetModifiedFlag overrides.
-
-**⚠ DIAL CHURN is the dominant residual now.** Every added function rotates reg-alloc
-tie-breaks TU-wide; matches flip in and out (IsItemPlaced, the RemoveZoneEntry pair, the
-Zaux/Zax2/Zax3 clone trio rotate phases like the GameData loader triplet). Do NOT grind a
-2-20 byte reg/cmp-direction residual mid-build — finish the TU first, then one JOINT pass
-(the standing rule). ZoneProvidesItem (found-var in EDI vs stack) and ShuffleList (the
-{bAnyEmpty,nMoved,k*2-offset} contest) are the two structured parks with notes in-source.
-
-**NEXT (in order):** (1) ParseChar (17B eff.) + ParsePuz2 done via the ParseTiles TRY/CATCH
-recipe (hand-expanded CATCH_ALL + THROW_LAST + dead OOM box; pNew declared WITHOUT `= NULL` —
-the null-init emits extra stores the original lacks). Their residual = the "nDone++-arm at
-function end" block-layout family (also ParseCaux/Chwp) — arm-order/continue knobs proven
-inert, park it. (2) ParseSnds 0x4233f0 (splitpath) / ParseActn 0x423510 / ParseHtsp 0x4236b0. (3) LoadWorld 0x421fd0 + Load 0x422670 (the IFF dispatcher, big switch on
-FourCC tags — string cmps like Puzzle::Read). (4) PlacePuzzle 0x421620 + WorldgenPlacePuzzles
-0x421930, then the placer family 0x41c580-0x41d660, CarveQuestPath 0x41d940, PlaceBlockades
-0x41e350, SelectPuzzle 0x41eab0, PlaceQuestNode 0x41f120, and last Generate 0x41f960 (6.6KB)
-+ the save/load monsters (OnSaveWorld/OnLoadWorld/Serialize/LoadWorldStateFile — CArchive+
-CATCH_ALL, use the WorldDoc OnOpenDocument recipe). (5) The GameView methods embedded in
-this TU (0x426c40-0x429150: OnInitialUpdate, DrawDirectionArrows, ShowTextDialog,
-DrawHealthDial/Needle, AddHealth, UseWeapon, DetonateAdjacentTiles, DrawWeaponBox/Icon,
-BlitViewportDither, PreCreateWindow, AddItemToInv) need the real GameView layout — do them
-after the World:: half, growing the GameView stub the same way.
-**src/Dta/ RETIRED (v15)** — its 3 addresses live here (Zaux/Zax2 MATCH; Zax3 = the rotating clone).
-**Ghidra renames pending (needs YodaDemo ACTIVE for writes):** EnterZone→GetZoneIndex
-(0x423dc0); the 0x32d4 quad nHealthDial*→view-window rect (also fix WorldDoc.h comments).
-
-### ⏮ PHASE-D WORKING NOTES (was the v6 pickup — facts still in force)
-- **Build/verify loop (any TU):** `cd src/<TU> && rm -f <TU>.obj && ../../toolchain/bin/cl /nologo /c
-  /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS <TU>.cpp`, then from repo root
-  `python3 tools/verify.py src/<TU>/<TU>.cpp` and `python3 tools/asmscore.py ... 0xADDR --dump`.
-- **The Worldgen facade** (src/Worldgen/Worldgen.h) grows one REAL member/method at a time toward
-  WorldDoc.h's ctor-proven layout (grids@0x4b0, MapZone HAS a vptr, apZoneGrid@0x2d0, worldgen lists
-  @0x25c/0x270, genScratch@0x3380). DON'T consolidate WorldStub.h→WorldDoc.h yet — whole-image
-  endgame step (dial re-verification across GameData/Iact).
-- **Cross-TU calls are masked relocs** — declare with correct arg widths (GetZoneById/RefreshZone/
-  PlaceZoneObjectTiles live in the GameData TU; Canvas/GameView stubs are local to Worldgen.h;
-  rand/time via stdlib.h/time.h).
-- **Doc TU fully documented (3-agent sweep):** zero FUN_*, all worldgen/save Maybe functions named +
-  plate-commented in Ghidra; algorithm bible = docs/worldgen.md (Generate → CarveQuestPath ×3 →
-  PlaceQuestNode hub → Fisher-Yates shuffle → leaf placers; two zone-entry lists {u16 zoneId@4,
-  u16 val@6} ctor 0x401390; .wld = FourCC container, VERS==0x200; STUP = 288×288 canvas snapshot).
-  Corrections: 0x41c340 = load/save helper ctor (NOT the doc ctor); 0x41eab0 = WorldgenSelectPuzzle.
-- **After Phase D:** GameView TU (Phase E: 0x40a560–0x418700 + its head 0x408c60–0x40a560 mislabeled
-  "Core utils", ~57 KB, InvScrollBar/option dialogs embedded); parked scorers + joint residual
-  passes; Phase G whole-image build.
-
-[v5 sprint, all committed: **name-based COMDAT pairing** in match/verify/progress (mangled-name
-pairing; explicit `(??_G...)` marker hints; stacked markers OK) — re-baselined the honest %; trust
-per-NAME diffs for clone families. App TU 15/16 exact; Frame TU 14/18; Dlg TU 5/5.]
-
-**⭐ NEW MFC-matching lessons (fold into instincts):**
-- **Implicit vs explicit dtor controls the ??_G shape.** An empty `virtual ~T(){}` forces a
-  separate ??1 + a THIN ??_G that calls it. The IMPLICIT dtor (declare none) makes MSVC INLINE
-  member destruction into ??_G. Match the original's inline-vs-call shape: CTextDialog needed
-  implicit (orig ??_G is 188B inlined); CMainFrame needed explicit (orig ??_G is 30B, calls ??1).
-- **Message maps/DYNCREATE/ON_WM_* compile byte-exact** — write the real macros; sizeof from the
-  CRuntimeClass struct; handler order = the map-entry order (dump `.rdata` map).
-- **Log_Write was __stdcall** (the RET 4); a bare free func can be stdcall.
-- **CPUID needs `_emit 0x0f, 0xa2`** (VC4.2 predates it, like the Canvas MMX blits).
-- **Version-byte compare widens only as `(int)(BYTE)(x>>8)`** (signed movzx) vs staying in AH.
-- **`CString s; s = p;` (default-ctor-then-assign) ≠ `CString s = p;` (copy-ctor)** — different shape.
-- **OnActivate/OnSysCommand: order branches so the original's fall-through is the primary path**
-  (deactivate fall-through; SC_CLOSE's ConfirmExit fall-through). Switch on message codes gives
-  the compiler's comparison-tree; write cases in the map order.
-- **The `sbb` boolean idiom vs push-1/push-0 branch** (bForceBackground = this!=pFocusWnd) is
-  instruction-selection MSVC picks internally — cmp-direction family, not source-steerable.
-- **CFrameWnd fields:** sizeof(CFrameWnd)=0xbc, sizeof(CDialog)=0x5c, CWinApp m_hPrevInstance@0x6c/
-  m_lpCmdLine@0x70, App+0xc4 frame-delay -> World+0x74. GameView pWorld@0x44/bBusy@0x4c/
-  nDragSlot@0x144/bDragActive@0x148/pMusicThread@0x2fc.
-
-### ⏮ PRIOR (2026-07-06 v4 — App TU, condensed)
-src/App 15/16 exact + InitInstance effective (992B CPUID/MMX hand-asm). Unique cracks not in the
-lessons block: OnAppAbout's parent = `AfxGetApp()->m_pMainWnd` (NOT AfxGetMainWnd()); `short nBpp`
-keeps the 16-bit store; the four CRT dynamic-init thunks a global `CTheApp theApp;` emits are
-matchable (reloc-masked); GetMessageMap @0x419720 had been mislabeled Frame::.
-
-### ⏮ PRIOR (2026-07-06 v3 — WorldDoc TU, condensed)
-**"Settings" was never a TU** — 0x419ed0–0x41bee0 is the doc class's MAIN source file
-(src/WorldDoc/): "Settings::Save" was `World::~World` (the 1441B dtor byte-matched on the FIRST
-compile, proving WorldDoc.h's ctor-derived member order); "App::LoadSettings" was `World::World`.
-7/13 exact incl. IMPLEMENT_DYNCREATE and OnOpenDocument (624B modified MFC DOCCORE copy — the dead
-`IsModified()` vcall from the Release-stripped TRACE0 head was the last crack).
-Codegen finds: **MFC macros byte-match for free** (write the real macros; `AFX_EXCEPTION_LINK
-_afxExceptionLink` is referencable by name for hand-expanded CATCH_ALL). **Unreachable code after
-THROW_LAST() is EMITTED** (no DCE — engine-bugs.md #7; reproduce dead statements). **OPEN PROBLEM —
-imm-vs-reg store batching** (WorldDoc ctor DIFF~510: our compiles sink `= imm` stores to the end of
-reg-store runs; the original interleaves at source positions; repositioning moves SOME imms, braces
-inert). **OPEN — block layout** (GetLocatorIcon: orig sinks early-return bodies to function END;
-mechanism unmapped; write its case-10 as an explicit case). verify.py LIB_OWNERS filters
-inline-emitted MFC COMDATs. WIP there: ctor, OnNewDocument palette block, GetLocatorIcon, DrawPlayer.
-
-### ⏮ PRIOR (2026-07-06 v2 — Iact TU, condensed)
-Phase B COMPLETE: src/Iact = all 10 funcs, 88% insn-identical (2 exact + 8 annotated tie-breaks;
-the two interpreters carry only reg/cmp/schedule residuals). Interpreter cracks:
-- **A duplicated epilogue = two `return` statements in source.** Frame-slot order is
-  USAGE-COUNT-driven, not decl-order (decl permutations proven inert twice; changing a var's use
-  count re-ranks its slot — the permuter's decl mode cannot crack slot cycles).
-- ctype.h `_toupper` is the blind `-0x20` MACRO; the original CALLS the CRT `toupper` function.
-- **Never cast an EXPRESSION to short at a short-param call site** (emits 66-prefix `shl ax`);
-  route through int temps and push the dword.
-- **In-condition assignment forces CSE**: BumpTile's `args[1] != (ty = y + dy)` keeps the add-form
-  compare AND reuses ty (the bare sum canonicalizes to sub-form, killing the CSE).
-- Engine bug reproduced: COND_CheckCellItems reuses the SCRIPT loop index for its inventory scan —
-  visible as init-store + final-value replacement (a fingerprint worth recognizing).
-- IACT semantics: events 1=walk 2=BumpTile 3=DragItem 4=enter-zone 5=enter-vehicle; RunCommands
-  returns a dirty mask (0x20=tiles 0x800=warp); 0x456104/0x45610c = item-name placeholders;
-  World+0x2e48/4c = nWeaponHit{X,Y}Maybe. IactCondOp/IactCmdOp enums in IactScriptClasses.h.
-
-### ⏮ PRIOR (2026-07-05 late — GameData savers + GameView sweep, condensed)
-Saver cracks: an inner-scoped `{ CString key = prefix + buf; ...; }` block puts the temp at the
-frame BOTTOM (a bare op+ temp) — fixed frame layout; duplicated full-sprintf if/else arms (the
-original cross-jumps the common tail); `n >= 0` emits test/jl only when n lands in ESI. PROVEN: the
-ORIGINAL binary has TU phase drift (its 3 identical-source loaders emit jg/jl/jg backedges).
-GameView RE sweep (saved in Ghidra): ~50 struct fields + ~60 function renames (OnTimer,
-ZoneTransitionStep, PlaySound, DrawZoneCell), message map @0x44b240 mapped, sizeof(CView)=0x40.
-⚠ **OnKeyDown (0x4150f0) body not fully claimed by Ghidra** (0x41526f–0x415658 orphaned;
-FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
-
-### ⏮ PRIOR (2026-07-05 — MFC linkage, Records TU, references; condensed)
-- **Static-MFC linkage stood up** (toolchain/bin/link + NAFXCW.LIB; recipe + linker-3.10-vs-4.20
-  endgame flag in toolchain/README.md). GOTCHA: run `bin/cl`/`bin/link` DIRECTLY, never
-  `wine bin/cl` (they are bash wrappers calling wine; double-wrapping fails silently → stale .obj).
-- Zone byte-matching found a real mis-model: ZoneObj true layout = type@4/state@8/x@a/y@c (fixed).
-- **Records TU cracks** (src/Records, ~26/33 exact): `unk38=-1` placed AFTER an arg-consuming store
-  → forced immediate; a nested `int id = e->charId` local → one movsx serving two range tests;
-  `int` vs `short` of a local decides zero-reg reuse vs imm compares; SetTile's val param is `short`
-  (2-byte `push -1` at call sites); a tail-merged `return 1` = nest the drop logic under
-  `if (numItems != 0)`. TU-context effects PROVEN live (adding decls flipped matches both ways) —
-  residuals are allocator tie-breaks for the JOINT endgame pass, not piecemeal work.
-- Runtime engine fully documented: docs/game-logic.md (frame loop `switch(World.nFrameMode)` 1..8 +
-  enemy AI switch on Character+0x36), docs/worldgen.md, docs/settings.md.
-- **DESKADV.EXE** (Indiana Jones Desktop Adventures, 1995, 16-bit NE/WinG) is open in Ghidra
-  (`program=DESKADV.EXE`) as a structure/naming cross-ref for DTA/zone/IACT/worldgen — NOT
-  byte-matchable. **Fable** (model `fable`) is available for planning/review/walls.
 
 ### Matching progress + tooling (Phase 4 underway)
 - **`src/World/World.{h,cpp}`** — first matched module, written as C++ (Yoda Stories is C++/MFC; member
@@ -1338,6 +531,50 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
      dword-load + 16-bit-add-from-mem = int vars narrowed by the param; word-load = a real
      short local. Site operand order is mirrored: mem-first (`x + dx*2`) folds to a 32-bit
      LEA; mul-first (`dx*3 + x`) goes 16-bit IMUL+ADD.
+  15. **Block layout is trace-driven and mostly NOT source-steerable (the block-sinking family).**
+     cl 4.2 defers any block ending in an unconditional transfer, prefers fall-through continuity
+     (`if (c) goto L;` with L not yet emitted inlines L as the fall-through), and places a
+     switch's merge-tail after whichever arm it makes the fall-through predecessor (usually
+     `default:`). When the only residual is such placement, annotate EFFECTIVE + park (v8/v9/
+     v20/v26 evidence; probes on default-position and break/fall-through were all inert).
+  16. **Per-label jump-table indices.** cl assigns a table arm-index per case LABEL in value
+     order — grouped labels (`case 0: case 2:`) get distinct indices at the same arm address; an
+     explicit empty `case a: case b: break;` widens the byte table (its indices point at the
+     exit block); a LONE empty case folds away (max label drops); duplicated arm bodies never
+     merge (+insns). Read the dword table to recover the source labels (v22).
+  17. **memcpy/memset intrinsics are operand-provenance- and value-tracked.** Lone `rep movsb`
+     iff BOTH memcpy args are struct-FIELD loads (a value-local copied from a field keeps
+     field-ness); any param/global/call-result/deref-of-&field operand ⇒ the movsd+movsb split.
+     A provably 4-aligned count drops the movsb tail (LONE movsd); the tracking dies across
+     calls/spills; `n&3` does NOT drop the movsd phase (v25, probe-proven).
+  18. **Cross-jump geography.** A bare `return CONST` merges into the function-end epilogue only
+     as a BRANCH TARGET (write `if (c) { ...; return K; } return K;`); nested fall-out of two
+     scopes = an inline epilogue copy. Shared trailing stores are written PER CASE and
+     cross-jumped into one block; paths that skip the store plain `break` to a single
+     post-switch call (never `F(); return;` copies — full epilogues). Duplicated call-in-each-arm
+     source cross-jumps the common tail leaving per-arm constant pushes (v14/v24/v25).
+  19. **Aliasing dictates locals.** If the original reloads pWorld/table pointers per statement,
+     the source had NO caching locals — stores through pointer lvalues (RGBQUAD*/char*/struct*)
+     may alias them, so cl must reload each time (CyclePalette: 300 insns of per-statement
+     [this+0x44] reloads = plain member expressions). Conversely a `T *p = &field;` POINTER
+     local is real source (the lea+spill+deref shape, v13 save/load + v24 ammo-refill families).
+     Match the reload pattern you see, not your taste.
+  20. **Short results & POINT overlays.** GetTile/GetZoneCell results route through int/short
+     locals with (short) casts (movsx; -1 = empty; a ushort local makes ==-1 dead code, v20).
+     Adjacent int x/y fields ARE the POINT/CPoint at call sites: pass `*(POINT *)&nMouseX` (raw
+     ::PtInRect arg) or `*(CPoint *)&nMouseX` (CPoint param) — a real POINT local costs 8 frame
+     bytes + stores (v25/v26).
+  21. **Vtable DATA-xrefs are identity proofs.** Thin ??_G/??1 dtors and tiny overrides
+     byte-match anything — the vtable-slot RELOC is the identity (v23 pinned six COMDATs that
+     way; v28 pinned the sliders' empty `RET 4` DoDataExchange by its slot delta vs StatsDlg's
+     known DDX slot). An unexplained tiny function referenced from a dialog vtable = an empty
+     override that does NOT call the base.
+  22. **Stubs can poison silently (the de-dup lesson).** A partial/shifted stub can byte-match
+     leaf functions while corrupting others: GameData's shifted MapZone fed off-by-4 grid
+     displacements into StartGame's residual for days (DIFF 254→79 once fixed), and its
+     GameView stub mis-widened ZoneTransitionStep's short arg as "OnWalk(int,...)". When a WIP
+     shows systematic displacement/width deltas, audit the stub against the real layout FIRST
+     — and prefer promoting the real shared header (docs/dedup-plan.md) over growing the stub.
 - **MFC vtable calls** (e.g. `CFile::Read`): VC4.2 rejects the `__thiscall` keyword on free funcs/typedefs.
   Model the class with N dummy `virtual` methods so the real one lands at the observed vtable offset
   (`Read` = slot 15 = `+0x3c`); call it as a normal virtual. Works — see the CFile stub in
@@ -1347,6 +584,27 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
 - **Completion-% endgame** (user goal): the rigorous version is an **asm-first build** — disassemble all,
   assemble+link a byte-identical EXE with link.exe 3.10, then swap asm→C keeping it identical. Heavy infra;
   `tools/progress.py` gives the byte-% now without it.
+
+**⭐ MFC-matching lessons (consolidated; distilled from the v2–v14 sessions, logs in PLAN_COMPLETED.md):**
+- **Implicit vs explicit dtor controls the ??_G shape.** An empty `virtual ~T(){}` forces a
+  separate ??1 + a THIN ??_G that calls it. The IMPLICIT dtor (declare none) makes MSVC INLINE
+  member destruction into ??_G. Match the original's inline-vs-call shape: CTextDialog needed
+  implicit (orig ??_G is 188B inlined); CMainFrame needed explicit (orig ??_G is 30B, calls ??1).
+- **Message maps/DYNCREATE/ON_WM_* compile byte-exact** — write the real macros; sizeof from the
+  CRuntimeClass struct; handler order = the map-entry order (dump `.rdata` map).
+- **Log_Write was __stdcall** (the RET 4); a bare free func can be stdcall.
+- **CPUID needs `_emit 0x0f, 0xa2`** (VC4.2 predates it, like the Canvas MMX blits).
+- **Version-byte compare widens only as `(int)(BYTE)(x>>8)`** (signed movzx) vs staying in AH.
+- **`CString s; s = p;` (default-ctor-then-assign) ≠ `CString s = p;` (copy-ctor)** — different shape.
+- **OnActivate/OnSysCommand: order branches so the original's fall-through is the primary path**
+  (deactivate fall-through; SC_CLOSE's ConfirmExit fall-through). Switch on message codes gives
+  the compiler's comparison-tree; write cases in the map order.
+- **The `sbb` boolean idiom vs push-1/push-0 branch** (bForceBackground = this!=pFocusWnd) is
+  instruction-selection MSVC picks internally — cmp-direction family, not source-steerable.
+- **CFrameWnd fields:** sizeof(CFrameWnd)=0xbc, sizeof(CDialog)=0x5c, CWinApp m_hPrevInstance@0x6c/
+  m_lpCmdLine@0x70, App+0xc4 frame-delay -> World+0x74. GameView pWorld@0x44/bBusy@0x4c/
+  nDragSlot@0x144/bDragActive@0x148/pMusicThread@0x2fc.
+
 
 ### Tooling (`tools/`, all Python; run from repo root)
 - **`match.py <src.cpp> [--exe ...]`** — compile the `.cpp`'s object (must exist next to it), then for each
@@ -1460,3 +718,36 @@ FUN_004156f2 = its split EH tail) — needs a body-repair pass before Phase E.
   `Namespace::Method`** (see the convention block at the top of this file) — `Module_Function` flat names
   are legacy/provisional, to be migrated into namespaces.
 - Progress artifacts live in `docs/`. The toolchain lives in `toolchain/`.
+
+**Ghidra write recipes (v15-verified, keep):** `run_script_inline` = POST JSON
+`{"code": "..."}` built with json.dumps (literal newlines in hand-written JSON break the
+parser); NO import statements — fully-qualify every Ghidra class in the Java snippet;
+struct field over an existing named field: `replaceAtOffset` works 1-for-1, but growing a
+RECT over four ints needs `getComponentAt(off)` + `clearComponent(ordinal)` for each byte
+range FIRST (it won't consume neighbors); renames into class namespaces:
+`f.getSymbol().setName(...)` + `f.setParentNamespace(symbolTable.getNamespace/createClass)`
+— this also auto-retypes `this` when a same-named Structure exists; clear stray params with
+`f.replaceParameters(DYNAMIC_STORAGE_ALL_PARAMS, true, USER_DEFINED, new Parameter[0])`;
+finish with POST `save_program`. The compile-error noise from old *.java files in
+~/ghidra_scripts is expected — those 4 scripts (MergeEhFunclets/ParentGapFunclets/
+CreateGapFunctions/FillFunctionHoles) are REAL body-repair tools kept for Phase E step 1.
+
+**Ghidra struct-edit + write gotchas (consolidated):**
+- `modify_struct_field` silently NO-OPs field renames — use `run_script_inline` `setFieldName`
+  (confirmed twice, v22/v23). `modify_struct_field_type` clobbers the field NAME — restore with
+  modify_struct_field `field_name="offset:0xN"` (its renamer auto-prefixes p/n onto names).
+- `recreate_struct` force IGNORES offsets (packs from 0) and auto-prefixes names;
+  `remove_struct_field` on packed structs DELETES the bytes and SHIFTS the tail. Never use
+  either on offset-precise structs — `run_script_inline` + `replaceAtOffset` is the tool.
+- `Structure.deleteAll()` leaves a notional length-1 that VANISHES on the first grow — grow
+  with `while (getLength() < size) growStructure(size - getLength());` (one-shot arithmetic
+  leaves the struct 1 byte short — the v28 StatsDlg trap).
+- Audit key structs for `-BAD-` dangling field types (v26: GameView.pWorld/m_pDocument) — they
+  silently degrade every dependent decompile to raw `*(int*)(p+off)` math and CAUSE
+  misidentifications downstream.
+- `run_script_inline` can wedge on a phantom broken script cached in the MCP plugin's MEMORY
+  (v26) — restarting Ghidra clears it (v28: confirmed working again). The compile-error noise
+  from old ~/ghidra_scripts *.java files in every run is normal; check for your own println.
+- HTTP writes: JSON bodies only; rename key = `"function_address"`, plate key = `"address"`;
+  `program=` is honored on READS only — writes always hit the ACTIVE program (verify with
+  list_open_programs first; see the WRITE GOTCHA at the top of this file).
