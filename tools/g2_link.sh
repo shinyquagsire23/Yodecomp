@@ -15,7 +15,7 @@ BD="${CLAUDE_JOB_DIR:-$ROOT}/tmp/g2"
 mkdir -p "$BD"; rm -f "$BD"/*.obj "$BD"/yoda.* "$BD"/link.log 2>/dev/null
 
 # App TUs in first-function-address order (v40).
-ORDER="AppData World GameData Records Iact Canvas GameView IactScript Dlg Frame App WorldDoc Worldgen"
+ORDER="GameTypes Score WorldgenHelpers GameObjects Iact Canvas DeskcppView IactScript TextDialog MainFrm Deskcpp DeskcppDoc Worldgen"
 OBJS=""
 for tu in $ORDER; do
   [ -f "build/$tu.obj" ] || { echo "missing build/$tu.obj — compile first"; exit 1; }

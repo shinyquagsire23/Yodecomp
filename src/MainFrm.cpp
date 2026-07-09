@@ -1,6 +1,6 @@
 // Frame TU (0x419000–0x419720): CMainFrame (CFrameWnd-derived).
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-#include "Frame.h"
+#include "MainFrm.h"
 
 extern "C" long   time(long *);          // CRT _time (0x0042a400)
 extern "C" double difftime(long, long);  // CRT       (0x0042a3e0)

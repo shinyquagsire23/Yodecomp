@@ -12,11 +12,11 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import match as M
 
-TUS = ['AppData','World','GameData','Records','Iact','Canvas','GameView',
-       'IactScript','Dlg','Frame','App','WorldDoc','Worldgen']
+TUS = ['GameTypes','Score','WorldgenHelpers','GameObjects','Iact','Canvas','DeskcppView',
+       'IactScript','TextDialog','MainFrm','Deskcpp','DeskcppDoc','Worldgen']
 def cpp(tu):
     import glob
-    g = glob.glob(f'src/{tu}/*.cpp')
+    g = glob.glob(f'src/{tu}.cpp')
     return g[0] if g else None
 
 ORIG = sorted(int(x,16) for x in open('toolchain/test/orig_func_addrs.txt'))

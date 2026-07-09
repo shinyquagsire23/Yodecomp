@@ -5,9 +5,9 @@
 // Residuals are annotated per-function — all tie-break class (reg/cmp/schedule/slot), judged
 // jointly at endgame per the TU-phase doctrine.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS  (static MFC).
-#include "../Records/RecordClasses.h"
-#include "../IactScript/IactScriptClasses.h"
-#include "../GameData/WorldStub.h"
+#include "GameObjectClasses.h"
+#include "IactScript.h"
+#include "DeskcppStub.h"
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>

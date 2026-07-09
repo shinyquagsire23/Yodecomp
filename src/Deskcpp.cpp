@@ -8,7 +8,7 @@
 // address within the TU) so the linked image lays this obj's COMDATs out to match the
 // original: msgmap → ctor → theApp → InitInstance → OnIdle → LogWrite → CAboutDlg ctor →
 // DoDataExchange → CAboutDlg msgmap → OnAppAbout → OnInitDialog. Codegen-neutral (212 stands).
-#include "App.h"
+#include "Deskcpp.h"
 #include <stdio.h>
 #include <stdlib.h>
 

@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import match, asmscore
 
 exe = open(os.path.join(ROOT, "YodaDemo/YodaDemo.exe"), "rb").read()
-for cpp in sorted(glob.glob(os.path.join(ROOT, "src/*/*.cpp"))):
+for cpp in sorted(glob.glob(os.path.join(ROOT, "src/*.cpp"))):
     tu = os.path.splitext(os.path.basename(cpp))[0]
     obj = os.path.join(ROOT, "build", tu + ".obj")
     if not os.path.exists(obj):

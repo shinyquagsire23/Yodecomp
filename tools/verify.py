@@ -9,9 +9,9 @@ NAFXCW.LIB at link time and are not ours to match.
 Usage:
     # 1. compile the module's .obj (MFC classes need /D_MBCS):
     toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS \\
-        src/Zone/Zone.cpp     # run from src/Zone/ ; produces Zone.obj
+        src/GameObjects.cpp     # run from src/Zone/ ; produces Zone.obj
     # 2. verify:
-    python3 tools/verify.py src/Zone/Zone.cpp
+    python3 tools/verify.py src/GameObjects.cpp
 Add -v to dump the first differing offsets (orig vs ours byte) for each non-exact function.
 """
 import re, sys, os

@@ -7,7 +7,7 @@ original address (in source order), pairs them positionally with the .obj's COMD
 function sections (MSVC emits one .text COMDAT per C++ function), trims trailing
 int3/nop padding to get each function's true length, and diffs against the exe.
 
-Usage:  tools/match.py src/World/World.cpp [--exe YodaDemo/YodaDemo.exe]
+Usage:  tools/match.py src/Score.cpp [--exe YodaDemo/YodaDemo.exe]
         (expects the compiled .obj next to the .cpp, same basename)
 """
 import re, struct, sys, os, subprocess

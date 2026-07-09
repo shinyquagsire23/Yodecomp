@@ -1,6 +1,6 @@
 // Dlg TU (0x418dd0–0x419000): CTextDialog.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-#include "Dlg.h"
+#include "TextDialog.h"
 
 // FUNCTION: YODA 0x00418dd0
 // FUNCTION: YODA 0x00418ed0  (??_GCTextDialog scalar-deleting dtor — implicit, member-dtors inlined)

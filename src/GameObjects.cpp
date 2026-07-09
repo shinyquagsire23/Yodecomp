@@ -4,7 +4,7 @@
 // TODO (v2): Puzzle::Read (0x404480), Character::Read (0x4047a0),
 //            Character::GetProjectileTile (0x404910); then fold in ZoneObj.cpp + Zone.cpp
 //            (same TU!) and retire those files — full-TU context may fix Zone's 3 residuals.
-#include "Records.h"
+#include "GameObjects.h"
 #include <string.h>
 #pragma intrinsic(memset, memcpy, strcmp)
 

@@ -15,7 +15,7 @@ Transformations (the ones proven to move MSVC 4.2 codegen):
   * toggle constant comparison form  `x < N` <-> `x <= N-1`, `x > N` <-> `x >= N+1`
   * flip relational operands          `a < b` <-> `b > a`   (cheap; sometimes helps)
 
-Usage:  tools/permute.py src/Zone/Zone.cpp 0x405330 [--iters 4000] [--mode all|stmt|decl]
+Usage:  tools/permute.py src/GameObjects.cpp 0x405330 [--iters 4000] [--mode all|stmt|decl]
 
 The target function is the one whose `// FUNCTION: YODA 0xADDR` marker matches.
 Only that function's body is mutated; the rest of the file is kept (TU context).

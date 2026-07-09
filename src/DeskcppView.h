@@ -26,7 +26,7 @@ public:
 // Canvas — canonical declaration promoted to ../Canvas/Canvas.h (de-dup steps 3+4);
 // included HERE to preserve the original declaration order (dial rule). The old local
 // stub's `~Canvas() 0x408400` was a stale comment error — the dtor is 0x407eb0.
-#include "../Canvas/Canvas.h"
+#include "Canvas.h"
 
 class CDeskcppDoc;
 class CDeskcppView;

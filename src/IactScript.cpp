@@ -2,7 +2,7 @@
 //   IactScript (vtable 0x44bc68) · IactCondition (0x44bc80) · IactCommand (0x44bc98)
 // A Records-TU clone: three CObject-derived record classes, Ctor/??_G/Dtor/Read each.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS  (static MFC).
-#include "IactScriptClasses.h"
+#include "IactScript.h"
 
 // Shared scratch for IACT command text (.data 0x459558). Only real reader/writer is
 // IactCommand::Read — the SoundInit/GameView::Dtor "refs" are the END bound of the

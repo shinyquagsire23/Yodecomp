@@ -13,7 +13,7 @@
                                          // 12→13). Proven a DECL effect, NOT a /Yu PCH effect (PCH
                                          // itself is net-negative + can't flip jl/jg — v37).
 #include <afxcoll.h>
-#include "../Records/RecordClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
+#include "GameObjectClasses.h"   // real (byte-match-proven) Puzzle/Character/MapEntity/
                                         // Tile/ZoneObj/Zone — never stub matched modules
 
 // InvItem / Canvas / InvScrollBar / GameView / TextDialog — the real shared view header
@@ -21,12 +21,12 @@
 // Stub fixups folded into the .cpps: OnWalk(int,short) was really ZoneTransitionStep
 // (short,short) — the (0x5d, i) walk-in call; PlayerMove was PlaySound;
 // bSuppressWalkSound@0x2f4 is bWeaponIactActiveMaybe.
-#include "../GameView/GameView.h"
+#include "DeskcppView.h"
 
 // A 10x10 world-map grid cell — canonical vptr-true definition (de-dup step 2). The old
 // local struct here was the SAME layout shifted -4 (id@+0, no vptr), compensated by
 // zones@0x4b4 and a 121-int pointer array swallowing cell 0's vptr; retired 2026-07-07.
-#include "../Worldgen/MapZone.h"
+#include "MapZone.h"
 
 class CDeskcppDoc : public CDocument          // sizeof(CDocument) == 0x50 in MFC 4.2
 {

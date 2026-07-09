@@ -9,9 +9,9 @@
 #include <afxcmn.h>
 #include <afxdlgs.h>
 #include <afxext.h>
-#include "../Records/RecordClasses.h"
-#include "../IactScript/IactScriptClasses.h"
-#include "../App/App.h"
+#include "GameObjectClasses.h"
+#include "IactScript.h"
+#include "Deskcpp.h"
 
 // The static 10x10 worldgen grid-order priority table (.data 0x00456630).
 extern int gWorldgenGridOrderTable[100];
@@ -67,7 +67,7 @@ public:
 // Phase E (v16). It is included HERE (not at file top) to preserve the original declaration
 // order — WorldgenZoneEntry, MapZone, [InvItem, Canvas, InvScrollBar, GameView, TextDialog],
 // World — so the TU-phase dial is unchanged (verify stays 34/90). Do not hoist this include.
-#include "../GameView/GameView.h"
+#include "DeskcppView.h"
 
 // World facade for the functions transcribed so far (offsets from the ctor-derived layout in
 // src/WorldDoc/WorldDoc.h; grows toward the real CDeskcppDoc as the TU fills in).

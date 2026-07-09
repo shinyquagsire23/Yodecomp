@@ -12,7 +12,7 @@
 // It also opens with a small CWnd-derived UI class (message map @0x44b000) — see AppWnd below.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS  (static MFC).
 // STATUS: 14/14 app functions EXACT. Zero unclaimed app code remains in this TU.
-#include "../Worldgen/Worldgen.h"
+#include "Worldgen.h"
 
 // ====================== AppWnd (small CWnd UI class) ======================
 // The TU opens with a tiny CWnd-derived UI class (message map @0x44b000: WM_TIMER, WM_PAINT).

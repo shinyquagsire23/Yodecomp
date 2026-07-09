@@ -3,7 +3,7 @@
 // local World.h (with its 0x34 "Zone" — really MapZone shifted by 4) was retired 2026-07-06.
 // Each function is annotated with its original address for the match harness
 // (tools/match.py). Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
-#include "../Worldgen/Worldgen.h"
+#include "Worldgen.h"
 
 extern "C" long   time(long *);         // CRT _time  (0x0042a400)
 extern "C" double difftime(long, long); // CRT        (0x0042a3e0) — returns seconds

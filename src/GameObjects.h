@@ -9,7 +9,7 @@
 #define RECORDS_H
 #include <afxwin.h>
 #include <afxcoll.h>
-#include "RecordClasses.h"
+#include "GameObjectClasses.h"
 
 class Character;
 

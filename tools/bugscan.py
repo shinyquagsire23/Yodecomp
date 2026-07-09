@@ -31,7 +31,7 @@ are skipped. Stack-relative operands ([ebp/esp+disp]) are reported in a separate
 low-interest bucket (frame-layout, not field/slot bugs).
 
 Usage:
-  python3 tools/bugscan.py [src/TU/TU.cpp ...]      # default: all src/**/*.cpp
+  python3 tools/bugscan.py [src/Worldgen.cpp ...]      # default: all src/**/*.cpp
   python3 tools/bugscan.py --all                    # include LOW-confidence bucket
 Requires build/<TU>.obj to exist (compile first, exactly like verify.py/match.py).
 """

@@ -4,7 +4,7 @@
 // v1 = nops + accessors + CCmdUI handlers. TODO v2: LoadStoryHistory*/SaveStoryHistory* (registry
 // sextet), RemoveEmptyZonesFromPlacedList, PlaceZoneObjectTiles, Save/LoadZoneRecursive,
 // OnReplayStory, StartGame, RefreshZone, BuildQuestPath.
-#include "WorldStub.h"
+#include "DeskcppStub.h"
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>

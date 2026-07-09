@@ -85,7 +85,7 @@ def our_vtable(objpath):
 
 def build_name2addr():
     n2a = {}
-    for cpp in glob.glob('src/*/*.cpp'):
+    for cpp in glob.glob('src/*.cpp'):
         obj = 'build/' + os.path.basename(cpp).replace('.cpp', '.obj')
         if not os.path.exists(obj):
             continue

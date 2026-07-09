@@ -70,7 +70,7 @@ def main():
 
     tot = layout_ok = content_ok = both_ok = missing = 0
     misplaced = []
-    for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "*", "*.cpp"))):
+    for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "*.cpp"))):
         text = open(cpp).read()
         funcs = match.coff_functions(os.path.join(ROOT, "build",
                     os.path.splitext(os.path.basename(cpp))[0] + ".obj"))

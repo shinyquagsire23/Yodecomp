@@ -10,8 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "../Worldgen/Worldgen.h"
-#include "../Dlg/Dlg.h"
+#include "Worldgen.h"
+#include "TextDialog.h"
 
 // --- WAVMIX32 imports (all __stdcall) -----------------------------------------
 extern "C" {

@@ -2,7 +2,7 @@
 // message map, the World (CDeskcppDoc) ctor/dtor pair, OnNewDocument/OnOpenDocument,
 // and a handful of gameplay methods the dev kept in this file.
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-#include "WorldDoc.h"
+#include "DeskcppDoc.h"
 #include <string.h>
 
 extern "C" int rand(void);

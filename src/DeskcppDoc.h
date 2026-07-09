@@ -24,18 +24,18 @@
 #include <afxcoll.h>
 #include <afxcmn.h>                      // common controls — original built every TU with afxcmn
                                          // (v37): its decls flip ~World() to EXACT (WorldDoc 7→8).
-#include "../Records/RecordClasses.h"
+#include "GameObjectClasses.h"
 
 // Canvas stub (real module: src/Canvas/, byte-matched). Modeled here with the ctor/dtor
 // forms this TU's codegen needs: `new Canvas(w,h)` emits new+nullcheck+ctor — the ctor IS
 // src/Canvas's `Init` (0x407df0, a __thiscall returning this; identical codegen either way).
 // Canvas — canonical declaration (de-dup steps 3+4). The old local stub's `~Canvas()
 // 0x408010` was a stale comment error — the dtor is 0x407eb0.
-#include "../Canvas/Canvas.h"
+#include "Canvas.h"
 
 // A 10x10 world-map grid cell — canonical definition promoted to ../Worldgen/MapZone.h
 // (de-dup step 2); included HERE to preserve the original declaration order (dial rule).
-#include "../Worldgen/MapZone.h"
+#include "MapZone.h"
 
 class CDeskcppDoc : public CDocument       // CDeskcppDoc; sizeof(CDocument) == 0x50 in MFC 4.2
 {
