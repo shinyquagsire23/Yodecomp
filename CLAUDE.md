@@ -834,55 +834,12 @@ sets the enable flag (`1010:506c: MOV [doc+0xc3c],1`); dropped the `#ifndef GAME
 `Character::GetFrameTile` (GameObjects.cpp ~L164) assumes `frames[24]`=3 banks×8 dirs, but Indy's ICHR frame block
 is 0x2a=21 shorts (vs 0x30=24) → different per-bank dir count/order; needs DESKADV GetWalkFrameTile RE + a GAME_INDY
 branch. Both in docs/phase-h3-indy.md "Gameplay-fidelity findings + tabled TODOs".
-**▶ (historical) prior START HERE was ACTN distribution — now DONE. Below is the pre-v60 checkpoint text:**
-**▶ STATE: Indy (`build-indy`) now generates a world, enters play mode, and renders it (USER-confirmed "gets
-in-game").** This session took H3 milestone 4 from "worldgen traced, Yoda model wrong" to a playable Indy world.
-7 commits (24a247d→f09c200), anchor held at **211** throughout (all changes `GAME_INDY`-guarded or Yoda-token-
-identical). Done this session:
-1. **HTSP objects load** (24a247d) — Indy HTSP is the same keyed (id,count,12B-objs,0xFFFF-term) format as
-   Yoda's → routed to `ParseHtsp` (was length-skipped). REQUIRED by worldgen (item pools live in DOOR_IN child
-   zones, obj type 9).
-2. **Worldgen reimplemented** (e486087) — ~28 `CDeskcppDoc::Indy*` methods transcribed from DESKADV.EXE, appended
-   end-of-file in `src/Worldgen.cpp` under `#ifdef GAME_INDY`; `Load()`'s post-load retry loop routes to
-   `IndyGenerate` (no separate `Populate`). Decls in `Worldgen.h`. Integration shim at the block top: `#define
-   bool/true/false` (VC4.2 pre-bool) + aliases wiring reused Yoda helpers (ZoneRequiresItemMaybe, IsItemPlaced,
-   WorldgenShuffleList/PushZoneEntry/AddZoneEntry, AddPlacedZoneId, RemoveEmptyZonesFromPlacedList) + no-op stubs
-   for skipped INI persistence. `ReadIzaxIndy` single-pool mirror removed.
-3. **Worldgen CONVERGES** (0858eac) — 2 transcription bugs fixed vs the DESKADV decompile: (a) `IndySelectPuzzle`
-   matched puzzle `itemA` against `reqItemA` (param_4) but DESKADV matches `param_5` (the PICKED item =
-   `nWorldMissionKey`); (b) quest-chain threading used `nOrder` (grid ring 1-5) for the `goalTileList` index/pick/
-   bFirst/populate-slot, but DESKADV uses `param_5 = step-1` (the order slot) — fixed cases 10/0xf/0x10 to use
-   `a5reqItem2`, and PASS-2 passes `order-1`. Chain now threads: step `order` writes `goalTileList[order-1]`, read
-   by step `order-1`. Generate SUCCEEDS on the first seed.
-4. **World-entry + reaches PLAY MODE** (c75ab42, 0a93ffa) — IndyGenerate's tail replicates Yoda `Populate()`'s
-   world-view handoff (nTargetZoneId=0, cameraX/Y=0x140, nFrameMode=0xb, bQuestCellsResident=1, BackupRecords,
-   **pView->bBusy=0** — was stuck at 1, blocking OnTimer). ⭐ THE STUP-STUCK ROOT CAUSE: OnTimer case-0xb with
-   `bWorldInvalid==0` calls `WorldEntryStepMaybe`, which STRUCTURALLY CANNOT reach step 10 (its step-5 branch
-   always sets `nTransitionStep=-1` → case-0xb `++` → 0, looping 0→5 forever); it relies on the zone's ENTRY
-   SCRIPT (IactRun) to advance nFrameMode, and Indy's ACTN scripts aren't distributed. WORKAROUND: IndyGenerate
-   sets `bWorldInvalid=1` so case-0xb uses `ZoneTransitionStep` (climbs 0→10 → play mode nFrameMode=3, skips the
-   missing scripts); case-0xb self-clears bWorldInvalid=0. ⚠ REVERT this workaround once ACTN is distributed
-   (WorldEntryStepMaybe is the "proper" scripted first-entry).
-5. **Palette** (43351fc) — added `IndyMasterPalette[1024]` (256 BGRX, from DESKADV via the DesktopAdventures
-   `indy_palette`) in `src/DeskcppDoc.cpp`; under GAME_INDY `pSysColorTable`→it + skip `bPaletteAnimEnabled=1`
-   so `CyclePalette` stays a no-op (Indy doesn't cycle). ⚠ USER should confirm colors look right.
-6. **Menus** (f09c200) — Save/Load/Replay were demo-gated via `DemoDisable()`; included `GAME_INDY` in its
-   `YODA_FULL` guard (Indy is a full game). New World already gates on nFrameMode (now 3/play).
-
-**▶ START HERE = ACTN zone-script distribution (the whip + full gameplay + revert the bWorldInvalid workaround).**
-The user confirmed Indy "gets in-game" but **Indy is missing his whip** and zone scripts don't run — because Indy's
-**ACTN chunk is still length-skipped** (Load() dispatcher, `src/Worldgen.cpp` ~L4266). Indy lumps ALL IACTs into
-one giant ACTN section (vs Yoda's per-zone inline lists) — "the biggest delta" per the plan. Distributing it
-(sift the lump + link per-zone to `zone->iactScripts`) will: give the whip (starting weapon is script-driven —
-`currentWeapon` starts 0, only set on pickup/script), run zone triggers, AND unblock reverting the `bWorldInvalid=1`
-workaround (#4) back to the proper scripted `WorldEntryStepMaybe` entry. Approach: RAW-BYTE SIMULATION of the DAW
-ACTN chunk (the proven anchor-safe method from milestone 2 — walk it, confirm structure) + cross-check DESKADV.EXE
-`IndyParseActn`/the IACT format (named in Ghidra). Our `ParseActn` (Yoda, keyed id/count) + `IactScript::Read` are
-the starting point; find how Indy keys IACTs to zones. ⚠ ACTN was verified to PARSE-SKIP cleanly (milestone 2), so
-the lump's length is known; the content structure is the work.
-**▶ Then (smaller):** HTSP→zone-object semantics for gameplay (vehicles/doors already load); verify non-Hoth-like
-worlds; Indy resources/icon (H3 milestone 5, [[indy-app-icon]]); the hero-HP tail TODO (IndyGenerate sets doc
-fields but not the player Character HP — DESKADV sets entity+0x90=120).
+**▶ PRIOR v59 (condensed; full in PLAN_COMPLETED.md):** worldgen reimplemented from DESKADV.EXE + CONVERGES +
+boots into a playable rendered Indy world ("gets in-game"). The bWorldInvalid=1 workaround, the missing whip, and
+can't-enter-buildings are ALL the same entry-trigger gap → the v60 START HERE above.
+**▶ ALSO-STILL-OPEN (smaller, after the entry-trigger work):** hero-HP tail TODO (IndyGenerate sets doc fields but
+not the player Character HP — DESKADV sets entity+0x90=120); verify non-Hoth-like worlds render/play; Indy
+resources/icon (H3 milestone 5, [[indy-app-icon]]); INI persistence for Save/Load replays (currently omitted).
 
 **▶ BUILD / RUN / DEBUG (all proven this session):**
 - Build: `cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY && cmake --build build-indy`
@@ -899,9 +856,12 @@ fields but not the player Character HP — DESKADV sets entity+0x90=120).
 **▶ KEY REFERENCE (DESKADV.EXE, all NAMED in Ghidra `program=DESKADV.EXE`):** `IndyGenerate` 1010:8524,
 `IndyPlaceQuestNode` 1010:7f0c (param map: param_3=gridOrder/tag=our nOrder, param_4=reqItem=a4reqItem,
 param_5=step-1/orderSlot=a5reqItem2, param_6=nodeType), `IndySelectPuzzle` 1010:7b58, `IndyPopulateGoalZone`
-1010:5dac, `IndyParseActn`/IACT format (for ACTN — decompile next). Full function table + algorithm in
-docs/phase-h3-indy.md (milestone-4 sections). DesktopAdventures (`~/workspace/DesktopAdventures`) = format/semantics
-reference (its `indy_palette`, `is_yoda` map, assets.c ACTN parse).
+1010:5dac, `IndyParseActn` 1010:b5d4 (≡ our ParseActn — ACTN DONE), `IndyCyclePalette` 1018:8e40 (≡ Yoda
+CyclePalette, enable-flag doc+0xc3c set at 1010:506c). For the entry-trigger work: RE DESKADV's IactRun-equiv
+(condition switch) — find Indy's zone-entry condition opcode. Full function table + algorithm in
+docs/phase-h3-indy.md (milestone-4 sections). ⚠ DesktopAdventures (`~/workspace/DesktopAdventures`) = a
+REIMPLEMENTATION (where-to-look map, NOT byte/behavior truth — its `if(!is_yoda)` gates can be WRONG, e.g. it
+falsely says Indy doesn't cycle the palette); CONFIRM every "Indy differs" claim against DESKADV.EXE.
 
 **▶ ANCHOR / BYTE-MATCH (phases A–G, parked at 211):** unchanged. `progress.py` **211 exact / 99.17%**, link_exe.sh
 **0/0/exit0**, bugscan **0/0/0**, vtcheck **10 CLEAN**, msgcheck **11 CLEAN**. The byte-match ceiling is compiler-

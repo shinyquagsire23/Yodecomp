@@ -201,6 +201,8 @@ remaining sub-steps: **HTSP → zone objects** (worldgen also reads `pZone->obje
     `IndySavePlacedZoneList` 1020:0380 / `IndyLoadPlacedZoneList` 1018:eb1e, `IndySaveStoryHistory` 1020:0000 /
     `IndyLoadStoryHistory` 1018:e79e (obfuscated INI lists, rand()%255+1 key — Yoda SavePlanetTable-style),
     `IndyCacheSpecialTilePtrsMaybe` 1010:42be.
+  - Palette: `IndyCyclePalette` 1018:8e40 (≡ Yoda `CDeskcppView::CyclePalette` — gated on `doc+0xc3c`, same
+    ring ranges; enable flag set to 1 at `1010:506c` during palette init). Confirms Indy DOES cycle.
   - RNG: `IndyRand` 1008:635c (**standard MSVC LCG**: seed32@DS:1028:0cc8 = seed*214013+2531011, return
     (seed>>16)&0x7fff — the 0x343fd constant is split into 16-bit imm halves 0x43fd/0x0003, which is why a
     dword search missed it), `IndySrand` 1008:6344 (seed lo=arg, hi=0), `IndyTime` 1008:59b6 (DOS int21

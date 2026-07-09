@@ -1291,3 +1291,17 @@ empty IZX2/IZX3). Decision: decompile DESKADV.EXE worldgen and reimplement under
 fix (currentPlanet=-1), goal-selection (WorldgenSelectPuzzle 9999 accepts any WORLD_MISSION), aux DATA loading
 (Parse{Zaux,Zax2,Zax3}Indy + ReadIzaxIndy). ⇒ v59 DID the DESKADV RE + reimplementation: worldgen now converges
 and Indy boots into a playable rendered world. See v59 pickup + docs/phase-h3-indy.md.
+
+## ⏮ PRIOR PICKUP (v59, 2026-07-09) — condensed (superseded by v60: ACTN scripts distributed + palette cycling fixed)
+v59 took H3 milestone 4 from "worldgen traced, Yoda model wrong" to a PLAYABLE rendered Indy world (user-confirmed
+"gets in-game"). 7 commits (24a247d→f09c200), anchor 211 throughout. Done: (1) HTSP objects load (routed to
+ParseHtsp — item pools live in DOOR_IN child zones, obj type 9); (2) full Indy worldgen reimplemented from DESKADV.EXE
+as ~28 CDeskcppDoc::Indy* methods in Worldgen.cpp under #ifdef GAME_INDY (Load()'s retry loop routes to IndyGenerate,
+no separate Populate; integration shim #define bool/true/false + aliases to reused Yoda helpers); (3) worldgen CONVERGES
+after 2 transcription-bug fixes — IndySelectPuzzle must match the PICKED item (nWorldMissionKey/param_5) not reqItemA,
+and the quest chain threads via the step SLOT (a5reqItem2=order-1) not nOrder; (4) reaches PLAY MODE — IndyGenerate tail
+replicates Yoda Populate()'s world handoff (pView->bBusy=0) + the STUP-stuck workaround bWorldInvalid=1 (forces
+ZoneTransitionStep since the scripted WorldEntryStepMaybe path loops 0→5 without entry scripts); (5) palette
+(IndyMasterPalette, v59 wrongly disabled cycling — FIXED v60); (6) Save/Load/Replay menus enabled for Indy.
+The bWorldInvalid=1 workaround + the missing whip + can't-enter-buildings are all the SAME entry-trigger gap →
+v60 START HERE (Indy IACT entry-trigger semantics). DESKADV.EXE worldgen fully named in Ghidra; see docs/phase-h3-indy.md.
