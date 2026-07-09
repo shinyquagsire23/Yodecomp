@@ -55,9 +55,12 @@ Confirmed by decompiling the retail twins; left as-is (and one stale comment cor
 `Save/Load World` + `Replay Story` (`DemoDisable` in `WorldgenHelpers.cpp`) and `World Size` + `Stats`
 (`DeskcppView.cpp`) are force-grayed in the demo; enabled under `YODA_FULL`.
 
-## Status / open
-- ✅ Loads `YODESK.DTA`, worldgen succeeds, no stall; Hoth verified playable (user).
-- ⏳ Multi-planet (Nevada/Endor) rotation is wired (fix #3) — pending visual confirmation that non-Hoth
-  worlds generate + play.
-- Not yet audited for full-game correctness (endgame/replay/save): the full save/load path and any
-  further planet-specific behavior. These are follow-ups; none block generation/initial play.
+## Status — H2 core COMPLETE (user-confirmed 2026-07-08)
+- ✅ Loads `YODESK.DTA`; worldgen succeeds with no stall.
+- ✅ **All three planets** generate + play: Hoth, Tatooine (Nevada), Endor (Oregon) — the planet rotation
+  (fix #3) works.
+- ✅ **Save World** and **Load World** work (menus enabled under `YODA_FULL`; the demo had the code but
+  grayed the menu).
+- The core loop (generate any planet → play → save → load) has functional parity with retail Yodesk.
+- Open (follow-ups, none blocking): broader endgame/replay playtesting; **Replay Story** exercise; any
+  planet-specific endgame edge cases surfaced only by extended play.
