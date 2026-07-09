@@ -337,6 +337,44 @@ public:
     void PlaceZoneObjectTiles(short zoneId);             // 0x00403140 (GameData TU)
     int  ParseTilesMaybe(CFile *pFile, unsigned int nBytes); // 0x0041a030 (WorldDoc TU)
     void CacheUiTilePtrsMaybe();                         // 0x0041a5d0 (WorldDoc TU)
+
+#ifdef GAME_INDY
+    // ---- Indy worldgen (GAME_INDY only; transcribed from DESKADV.EXE 16-bit) ----
+    // New member (the DESKADV doc+0xc40 "near-start / edge" placement gate).
+    int  indyPlaceOnEdge;
+    int  IndyGenerate(unsigned int nSeed);                            // DESKADV 1010:8524
+    void IndyCarveQuestPath(int *pnPlaced, int *pnSplits, int maxSplits,
+                            int *pnGoals, int maxGoals, short *paPlan,
+                            int nBudget, int nTier);                  // 1010:6c5c
+    void IndyPlaceIslandStrips(short *paPlan, int nIslands);          // 1010:7490
+    int  IndyAssignQuestStepCells(short *paOrder, short *paPlan);     // 1020:1426
+    int  IndyPlaceQuestNode(short nOrder, short a4reqItem,
+                            short a5reqItem2, short nNodeType);       // 1010:7f0c
+    short IndySelectPuzzle(int bFirst, short nMode, unsigned short reqItemA,
+                           unsigned short nWorldMissionKey);          // 1010:7b58
+    int  IndyPopulateGoalZone(short nQueueTag, int nStepSlot, int nZoneId);    // 1010:5dac
+    int  IndyPopulateTradeZone(short nQueueTag, int nStepSlot, int nZoneId);   // 1010:6422
+    int  IndyPopulateTransactionZone(short nQueueTag, int nStepSlot, int nZoneId); // 1010:5f66
+    int  IndyPopulateSimpleZone(short nQueueTag, int nZoneId);        // 1010:67ec
+    int  IndyPopulateUsefulObjectZone(short nQueueTag, short a4, int nZoneId); // 1010:6580
+    int  IndyPlacePuzzlesPass(short *paPlan);                         // 1010:9ebc
+    int  IndyPickCellForItemZone(int *pnY, int *pnX, short *paPlan, int nMinOrder); // 1010:9b98
+    int  IndyGetIslandOrientation(short *paPlan, int nRow, int nCol); // 1010:3dc4
+    void IndyMaterializePlacedItemTiles(int nZoneId);                // 1020:07ae
+    int  IndyZoneProvidesItem(short itemId, short zoneId);            // 1010:5566
+    unsigned int IndyZoneSpawnPoolHasItem(short itemId, short zoneId); // 1010:5842
+    int  IndyPickUnplacedProvidedItem(int bAvoidRange, int nZoneId);  // 1010:7a28
+    int  IndyPickUnplacedSpawnItem(short zoneId);                     // 1010:571e
+    int  IndyFindItemInProvidedPool(short itemId, short zoneId);      // 1010:593e
+    int  IndyFillQuestItemSpot(short itemId, short zoneId);           // 1010:5a14
+    int  IndyFillSpawn(short itemId, short zoneId);                   // 1010:5bdc
+    int  IndyPlaceItemOnLock(short itemId, short nQueueTag, int nZoneId); // 1010:610a
+    int  IndyPlaceRewardInItemSpot(short itemId, short nQueueTag, int nZoneId); // 1010:6260
+    int  IndyCheckZoneItemsAvailable(int nZoneId);                   // 1010:83bc
+    void IndyCollectZoneItems(int nZoneId);                          // 1010:8482
+    int  IndyIsPuzzleUsed(short puzzleId);                           // 1010:9b4e
+    Zone *IndyGetZoneById(int nZoneId);                             // 1020:11b8
+#endif // GAME_INDY
 };
 
 #endif

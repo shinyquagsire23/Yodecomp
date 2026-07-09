@@ -172,8 +172,77 @@ remaining sub-steps: **HTSP → zone objects** (worldgen also reads `pZone->obje
   strings to anchor on. Workarounds for future sessions: byte-pattern search for the seg:off of a known
   string, the Ghidra GUI's xref view, or `decompile_function` on a known code address. Anchor strings:
   `"DESKTOP.DAW"`@1010:dd0e, version-error@1200:0068, file-open-error@11f8:011a.
-- **Named DESKADV.EXE functions so far:** _(none yet — milestone-2 deltas were recovered from raw DAW
-  bytes, not DESKADV code. Name them here when the worldgen/logic deltas force DESKADV decompilation.)_
+- **Named DESKADV.EXE functions (worldgen RE sweep, 2026-07-09):** the FULL Indy worldgen is decompiled +
+  named. Key addresses (all renamed in Ghidra `program=DESKADV.EXE`; global doc far-ptr at DS:`1028:0a02`):
+  - Loader: `IndyLoadDaw` 1010:a900 (DESKTOP.DAW chunk dispatcher; tag strings @1010:d756; on ENDF runs the
+    Generate retry loop), chunk parsers `IndyParse{Tile 1010:3eac, Tnam b440, Zone 5450, Zaux b1ec, Zax2 b2c0,
+    Zax3 b256, Char a3fe, Chwp b3ac, Caux b32a, Htsp b72c, Snds b4c2, Puz2 b10a, Actn b5d4}`; aux readers
+    `IndyReadIzax` 1010:2462 (entities→zone+0x7c2, items→zone+0x7d4), `IndyReadIzx2` 1010:25c0 (→zone+0x7e2),
+    `IndyReadIzx3` 1010:263c (→zone+0x7f0). `IndyLoadWorldState` 1010:b890 (SAVEGAME.WLD VERS/STUP/ENDF),
+    `IndySetCurrentToIntroZone` 1010:ba3e.
+  - Worldgen core: `IndyGenerate` 1010:8524, `IndyMakeWorldSeed` 1010:c10e, `IndyCarveQuestPath` 1010:6c5c,
+    `IndyPlaceIslandStrips` 1010:7490, `IndyAssignQuestStepCells` 1020:1426, `IndyPlaceQuestNode` 1010:7f0c,
+    `IndySelectPuzzle` 1010:7b58, `IndyPlacePuzzlesPass` 1010:9ebc, `IndyStartNewGameMaybe` 1020:0ed0.
+  - Populates: `IndyPopulateGoalZone` 1010:5dac (type 10), `IndyPopulateTradeZone` 1010:6422 (0xf),
+    `IndyPopulateTransactionZone` 1010:5f66 (0x10), `IndyPopulateSimpleZone` 1010:67ec (2..7),
+    `IndyPopulateUsefulObjectZone` 1010:6580 (0x11/0x12).
+  - Item helpers: `IndyZoneRequiresItem` 1010:5642 (0x7e2), `IndyZoneProvidesItem` 1010:5566 (0x7d4),
+    `IndyZoneSpawnPoolHasItem` 1010:5842 (0x7f0), `IndyPickUnplacedProvidedItem` 1010:7a28,
+    `IndyPickUnplacedSpawnItem` 1010:571e, `IndyFindItemInProvidedPool` 1010:593e, `IndyFillQuestItemSpot`
+    1010:5a14, `IndyPlaceRewardInItemSpot` 1010:6260, `IndyFillSpawn` 1010:5bdc, `IndyPlaceItemOnLock`
+    1010:610a, `IndyIsItemPlaced` 1010:6998, `IndyAddPlacedItemEntry` 1010:6b28 / `IndyRemovePlacedItemEntry`
+    1010:6aae (doc+0x186 list), `IndyQueueItemForPlacement` 1010:69ea / `IndyUnqueueItemPlacement` 1010:6a34
+    (doc+0x178 list), `IndyPickCellForItemZone` 1010:9b98, `IndyCheckZoneItemsAvailable` 1010:83bc,
+    `IndyCollectZoneItems` 1010:8482, `IndyIsZoneUsed` 1010:6bc0 / `IndyMarkZoneUsed` 1010:6c3a (zone+8),
+    `IndyIsPuzzleUsed` 1010:9b4e (doc+0x140 list), `IndyShuffleList` 1010:7daa, `IndyGetGridOrder` 1010:a3e2
+    (ring table @DS:0x430 — IDENTICAL to Yoda's), `IndyGetZoneById` 1020:11b8, `IndyGetIslandOrientation`
+    1010:3dc4.
+  - Post/persist: `IndyMaterializePlacedItemTiles` 1020:07ae, `IndyFilterEnemyZonesFromPlacedList` 1020:06ca,
+    `IndySavePlacedZoneList` 1020:0380 / `IndyLoadPlacedZoneList` 1018:eb1e, `IndySaveStoryHistory` 1020:0000 /
+    `IndyLoadStoryHistory` 1018:e79e (obfuscated INI lists, rand()%255+1 key — Yoda SavePlanetTable-style),
+    `IndyCacheSpecialTilePtrsMaybe` 1010:42be.
+  - RNG: `IndyRand` 1008:635c (**standard MSVC LCG**: seed32@DS:1028:0cc8 = seed*214013+2531011, return
+    (seed>>16)&0x7fff — the 0x343fd constant is split into 16-bit imm halves 0x43fd/0x0003, which is why a
+    dword search missed it), `IndySrand` 1008:6344 (seed lo=arg, hi=0), `IndyTime` 1008:59b6 (DOS int21
+    date/time), `IndyClockMaybe` 1008:5d86.
+  See the H3 worldgen-RE session report for the full algorithm walkthrough (grid tokens, node types,
+  difficulty tables, struct offsets).
+
+## Milestone 4 — Indy worldgen REIMPLEMENTED + INTEGRATED (2026-07-09; builds, anchor 211, RUNTIME-UNVERIFIED)
+The full Indy worldgen was decompiled from DESKADV.EXE and reimplemented as ~28 `CDeskcppDoc::Indy*`
+methods in `src/Worldgen.cpp` (appended at end-of-file, entirely `#ifdef GAME_INDY`) + decls in
+`Worldgen.h`. `Load()`'s post-load retry loop routes to `IndyGenerate` for Indy (no separate `Populate` —
+IndyGenerate does plan + placement + materialize + play-state, matching DESKADV). `build-indy` compiles +
+links (`yoda.exe` 470KB); **anchor still 211** (all changes GAME_INDY-guarded or Yoda-token-identical).
+- **Prerequisite done (committed 24a247d):** Indy HTSP objects now load (routed to `ParseHtsp`) — required
+  because the quest item pools live in DOOR_IN child zones reached via object type 9. `ReadIzaxIndy`'s
+  single-pool wart (providedItemsB mirror) removed.
+- **RNG:** standard MSVC LCG (CRT `rand`/`srand` used directly).
+- **Integration shim** (top of the GAME_INDY block in Worldgen.cpp): `#define bool/true/false` (VC4.2
+  pre-bool) + `#define` aliases wiring reused Yoda helpers (`IndyIsItemPlaced`→`IsItemPlaced`,
+  `IndyZoneRequiresItem`→`ZoneRequiresItemMaybe`, `IndyShuffleList`→`WorldgenShuffleList`,
+  `IndyQueueItemForPlacement`→`WorldgenPushZoneEntry`, `IndyAddPlacedItemEntry`→`WorldgenAddZoneEntry`,
+  `IndyMarkZoneUsed`→`AddPlacedZoneId`, `IndyFilterEnemyZonesFromPlacedList`→`RemoveEmptyZonesFromPlacedList`)
+  + no-op stubs for skipped INI persistence / DOS-time seed helper.
+- **Doc-list reuse map:** Indy queued-items(doc+0x178)=`worldgenPendingZones`, placed-items(+0x186)=
+  `worldgenRefZones`, used-zones(+0x14e)=`placedZoneIds`, per-step puzzle list(+0x132)=`goalTileList`,
+  used-puzzles(+0x140)=`storyHistoryNevada`, used-required(+0x15c)=`uniqueRequiredItemsMaybe`. One new
+  member: `int indyPlaceOnEdge` (doc+0xc40 edge gate).
+
+### ⚠ RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does Indy generate a playable world?
+Likely-imperfect first cut; the honest uncertainties to check against the run (from the RE, most→least risky):
+1. **Perpendicular-"clear" predicate** in edge-island growth + carve fork stamps (DESKADV `0x12f < neighbor`,
+   modeled `>= PLAN_FORK_S`) — densest 16-bit, highest risk of a malformed map.
+2. **PASS-2 step-to-step item linking** — `reqItem` from `goalTileList[order]`; item threading happens
+   inside `IndyPlaceQuestNode` (each node sets its slot). Confirm the chain links coherently.
+3. **Hero HP / clock / UI-timer tail** — map to entity/UI structs not written yet (`// TODO(integration)`);
+   the player may spawn with wrong/zero HP. `healthLo/healthHi` are the doc's damage fields, not hero HP.
+4. **`IndySelectPuzzle` key field** (DESKADV puzzle+0x18) modeled as itemA-match.
+5. **PlaceQuestNode case-1 edge arm** (object-less OR teleporter accept — pairing intent).
+6. INI persistence (Save/Load placed-zone + story history) omitted — replays won't persist yet.
+If it hangs again: the retry loop is unbounded, so a structural `IndyPlaceQuestNode`/populate failure would
+re-spin. If it crashes: likely a null zone/obj deref in a populate. If it renders a broken map: item (1).
+The DESKADV functions are all named in Ghidra (`program=DESKADV.EXE`) for re-decompiling any suspect piece.
 
 ## Anchor discipline
 Every `GAME_INDY` guard's fall-through (no macro) must be the exact Yoda code, so `progress.py` stays 211

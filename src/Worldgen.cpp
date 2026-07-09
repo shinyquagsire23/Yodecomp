@@ -4381,13 +4381,25 @@ int CDeskcppDoc::Load()
         unsigned int nSeed = Randomize();
         do
         {
+#ifdef GAME_INDY
+            // Indy: IndyGenerate does the whole job (plan + placement passes + materialize +
+            // play-state), matching DESKADV.EXE which loops IndyGenerate alone with no separate
+            // Populate. The Yoda #else path is byte-identical to the original (anchor-safe).
+            if (IndyGenerate(nSeed) != 0)
+                nGenerated++;
+            else
+                nSeed = Randomize();
+#else
             if (Generate(nSeed) != 0)
                 nGenerated++;
             else
                 nSeed = Randomize();
+#endif
         } while (nGenerated == 0);
         AfxGetApp()->DoWaitCursor(-1);
+#ifndef GAME_INDY
         Populate();
+#endif
         return 1;
     }
     return nRet;
@@ -7799,3 +7811,2260 @@ void CDeskcppView::RemoveItem(Tile *pItem)
         pInvScrollBar->scrollMax = 0;
     }
 }
+
+// ============================================================================
+// Indiana Jones' Desktop Adventures worldgen (GAME_INDY) — transcribed from
+// DESKADV.EXE (16-bit). Each function carries its DESKADV seg:off marker.
+// Not byte-matched (Indy-only); anchor-safe (whole block is GAME_INDY-guarded
+// and end-of-file). See docs/phase-h3-indy.md milestone 4.
+// ============================================================================
+#ifdef GAME_INDY
+
+// --- Integration shim for the transcribed Indy worldgen ---
+// VC++ 4.2 predates C++ bool; map the draft's bool/true/false to int.
+#define bool  int
+#define true  1
+#define false 0
+// Aliased helpers: the Indy engine reuses these Yoda functions verbatim (same
+// engine). Wire the Indy* call names to the existing methods. Arg order verified
+// against the Yoda signatures in Worldgen.h.
+#define IndyIsItemPlaced(i)                   IsItemPlaced(i)
+#define IndyMarkZoneUsed(z)                   AddPlacedZoneId(z)
+#define IndyShuffleList(l)                    WorldgenShuffleList(l)
+#define IndyZoneRequiresItem(item, zone)      ZoneRequiresItemMaybe(zone, item)
+#define IndyQueueItemForPlacement(tag, item)  WorldgenPushZoneEntry(item, tag)
+#define IndyAddPlacedItemEntry(tag, item)     WorldgenAddZoneEntry(item, tag)
+#define IndyFilterEnemyZonesFromPlacedList()  RemoveEmptyZonesFromPlacedList()
+// Intentionally-skipped INI persistence + DOS-time seed helper (seed comes from
+// the existing Randomize()). No-ops for now (docs/phase-h3-indy.md TODOs).
+#define IndyLoadPlacedZoneList()              ((void)0)
+#define IndyLoadStoryHistory()                ((void)0)
+#define IndySavePlacedZoneList()              ((void)0)
+#define IndySaveStoryHistory()                ((void)0)
+#define IndyTime()                            0
+
+// ===========================================================================
+// Tiny accessors
+// ===========================================================================
+
+// Indy IndyGetZoneById — DESKADV 1020:11b8
+// Bounds-checked zones.GetAt (returns NULL if id<0 or id>=count). Yoda inlines this.
+Zone *CDeskcppDoc::IndyGetZoneById(int nZoneId)
+{
+    if (nZoneId >= 0 && nZoneId < zones.GetSize())
+        return (Zone *)zones.GetAt(nZoneId);
+    return NULL;
+}
+
+// Indy IndyIsPuzzleUsed — DESKADV 1010:9b4e
+// Linear membership in the used-puzzle list (== our storyHistoryNevada, doc+0x140).
+int CDeskcppDoc::IndyIsPuzzleUsed(short puzzleId)
+{
+    int n = storyHistoryNevada.GetSize();
+    for (int i = 0; i < n; i++)
+        if ((short)storyHistoryNevada.GetAt(i) == puzzleId)
+            return 1;
+    return 0;
+}
+
+// ===========================================================================
+// Zone item-pool membership tests (recurse through DOOR_IN children, obj type 9)
+// ===========================================================================
+
+// Indy IndyZoneProvidesItem — DESKADV 1010:5566
+// True if zoneId (or any DOOR_IN child) offers `itemId` in its providedItemsA (IZAX) pool.
+// (Structural twin of IndyZoneRequiresItem but reads providedItemsA instead of genCandidateA.)
+int CDeskcppDoc::IndyZoneProvidesItem(short itemId, short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    if (pZone == NULL)
+        return 0;
+    int found = 0;
+    int nA = pZone->providedItemsA.GetSize();
+    for (int i = 0; i < nA; i++)
+    {
+        if ((short)pZone->providedItemsA.GetAt(i) == itemId)
+        {
+            found = 1;
+            break;
+        }
+    }
+    if (found == 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9)          // DOOR_IN
+            {
+                if (pObj->arg >= 0)
+                    found = IndyZoneProvidesItem(itemId, pObj->arg);
+                if (found == 1)
+                    return 1;
+            }
+        }
+    }
+    return found;
+}
+
+// Indy IndyZoneSpawnPoolHasItem — DESKADV 1010:5842
+// itemId==-1: does the zone have ANY spawn-pool (genCandidateB / IZX3) entries?
+// else: does genCandidateB contain itemId (recursing DOOR_IN children)?
+unsigned int CDeskcppDoc::IndyZoneSpawnPoolHasItem(short itemId, short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    if (pZone == NULL)
+        return 0;
+    int nB = pZone->genCandidateB.GetSize();
+    if (itemId == -1)
+        return (unsigned int)(nB > 0);
+    unsigned int found = 0;
+    for (int i = 0; i < nB; i++)
+    {
+        if ((short)pZone->genCandidateB.GetAt(i) == itemId)
+        {
+            found = 1;
+            break;
+        }
+    }
+    if (found == 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9)          // DOOR_IN
+            {
+                if (pObj->arg >= 0)
+                    found = IndyZoneSpawnPoolHasItem(itemId, pObj->arg);
+                if (found == 1)
+                    return 1;
+            }
+        }
+    }
+    return found;
+}
+
+// ===========================================================================
+// Item pickers
+// ===========================================================================
+
+// Indy IndyPickUnplacedProvidedItem — DESKADV 1010:7a28
+// Build a temp list of this zone's providedItemsA (IZAX) items that IsItemPlaced hasn't
+// seen, random-pick one; recurse DOOR_IN if none. When bAvoidRange (Indy param_3==0) is
+// set, items in the id range [0x21d..0x21f] are EXCLUDED (special/reserved items).
+// (Indy: local_12 top word 0=avoid-range OFF for param_3!=0, so the range filter runs only
+//  when the caller passes bFirst-like 0; here modeled as bAvoidRange.)
+int CDeskcppDoc::IndyPickUnplacedProvidedItem(int bAvoidRange, int nZoneId)
+{
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    int result = -1;
+    CWordArray list;
+    int nA = pZone->providedItemsA.GetSize();
+    for (int i = 0; i < nA; i++)
+    {
+        short item = (short)pZone->providedItemsA.GetAt(i);
+        if (IsItemPlaced(item) == 0)
+        {
+            if (!bAvoidRange)
+                list.SetAtGrow(list.GetSize(), item);
+            // bAvoidRange: keep unless item in [0x21d..0x21f] and != 0x21c handling;
+            // faithful form of the DESKADV SBORROW test:
+            else if (item != 0x21c && !(item >= 0x21d && item <= 0x21f))
+                list.SetAtGrow(list.GetSize(), item);
+        }
+    }
+    if (list.GetSize() > 0)
+        result = (short)list.GetAt(rand() % list.GetSize());
+    if (result < 0)                       // none here — recurse DOOR_IN children
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9)
+            {
+                result = IndyPickUnplacedProvidedItem(bAvoidRange, pObj->arg);
+                if (result >= 0)
+                    break;
+            }
+        }
+    }
+    return result;
+}
+
+// Indy IndyPickUnplacedSpawnItem — DESKADV 1010:571e
+// Random unplaced item from genCandidateB (IZX3 spawn pool); recurse DOOR_IN if none.
+int CDeskcppDoc::IndyPickUnplacedSpawnItem(short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    int result = -1;
+    if (pZone == NULL)
+        return -1;
+    int nB = pZone->genCandidateB.GetSize();
+    if (nB > 0)
+    {
+        CWordArray list;
+        for (int i = 0; i < nB; i++)
+        {
+            short item = (short)pZone->genCandidateB.GetAt(i);
+            if (IsItemPlaced(item) == 0)
+                list.SetAtGrow(list.GetSize(), item);
+        }
+        if (list.GetSize() < 1)
+            result = -1;
+        else
+            result = (short)list.GetAt(rand() % list.GetSize());
+    }
+    if (result < 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9 && pObj->arg >= 0)
+            {
+                result = IndyPickUnplacedSpawnItem(pObj->arg);
+                if (result >= 0)
+                    return result;
+            }
+        }
+    }
+    return result;
+}
+
+// Indy IndyFindItemInProvidedPool — DESKADV 1010:593e
+// Return itemId if it is in this zone's providedItemsA (IZAX) pool (recurse DOOR_IN),
+// else -1. NOTE the DESKADV quirk: on a hit it returns the matched value (== itemId);
+// if the pool is scanned without a match it returns the LAST scanned value only when the
+// loop body set iVar1 — but the faithful net behaviour is "return itemId if present else -1".
+int CDeskcppDoc::IndyFindItemInProvidedPool(short itemId, short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    if (pZone == NULL)
+        return -1;
+    int result = -1;
+    int nA = pZone->providedItemsA.GetSize();
+    for (int i = 0; i < nA; i++)
+    {
+        if ((short)pZone->providedItemsA.GetAt(i) == itemId)
+        {
+            result = itemId;
+            break;
+        }
+    }
+    if (result < 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9)
+            {
+                if (pObj->arg >= 0)
+                    result = IndyFindItemInProvidedPool(itemId, pObj->arg);
+                if (result >= 0)
+                    return result;
+            }
+        }
+    }
+    return result;
+}
+
+// ===========================================================================
+// Item placement into host objects
+// ===========================================================================
+
+// Indy IndyFillQuestItemSpot — DESKADV 1010:5a14
+// In a zone whose genCandidateA (IZX2) requires `itemId`, pick a random ITEM host
+// (obj type 0), set obj->arg = itemId, obj->state = 1. Recurse DOOR_IN. Returns itemId
+// on success else -1. (Yoda WorldgenFillQuestItemSpot analog, single-pool.)
+int CDeskcppDoc::IndyFillQuestItemSpot(short itemId, short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    int result = -1;
+    if (pZone == NULL)
+        return -1;
+    int nReq = pZone->genCandidateA.GetSize();
+    for (int r = 0; r < nReq; r++)
+    {
+        if ((short)pZone->genCandidateA.GetAt(r) == itemId)
+        {
+            CWordArray hosts;                 // indices of type-0 objects
+            int nObj = pZone->objects.GetSize();
+            for (int i = 0; i < nObj; i++)
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+                if (pObj->type == 0)          // ITEM host
+                    hosts.SetAtGrow(hosts.GetSize(), (short)i);
+            }
+            if (hosts.GetSize() > 0)
+            {
+                int idx = (short)hosts.GetAt(rand() % hosts.GetSize());
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(idx);
+                if (pObj != NULL && pObj->type == 0)
+                {
+                    result = itemId;
+                    pObj->arg = itemId;
+                    pObj->state = 1;
+                }
+            }
+            if (result >= 0)
+                break;
+        }
+    }
+    if (result == -1)                         // recurse DOOR_IN
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9 && pObj->arg >= 0)
+            {
+                result = IndyFillQuestItemSpot(itemId, pObj->arg);
+                if (result >= 0)
+                    break;
+            }
+        }
+    }
+    return result;
+}
+
+// Indy IndyFillSpawn — DESKADV 1010:5bdc
+// Identical to IndyFillQuestItemSpot but the required pool is genCandidateB (IZX3, spawn)
+// and the host object type is 1 (SPAWN). On success also records the spawn item into the
+// per-cell scratch (genCellQuestSlot5Scratch, DESKADV doc+0x21). Returns itemId or -1.
+int CDeskcppDoc::IndyFillSpawn(short itemId, short zoneId)
+{
+    Zone *pZone = IndyGetZoneById(zoneId);
+    int result = -1;
+    if (pZone == NULL)
+        return -1;
+    int nSpawn = pZone->genCandidateB.GetSize();
+    for (int r = 0; r < nSpawn; r++)
+    {
+        if ((short)pZone->genCandidateB.GetAt(r) == itemId)
+        {
+            CWordArray hosts;                 // indices of type-1 objects
+            int nObj = pZone->objects.GetSize();
+            for (int i = 0; i < nObj; i++)
+            {
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+                if (pObj->type == 1)          // SPAWN host
+                    hosts.SetAtGrow(hosts.GetSize(), (short)i);
+            }
+            if (hosts.GetSize() > 0)
+            {
+                int idx = (short)hosts.GetAt(rand() % hosts.GetSize());
+                ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(idx);
+                if (pObj != NULL && pObj->type == 1)
+                {
+                    result = itemId;
+                    pObj->arg = itemId;
+                    pObj->state = 1;
+                    genCellQuestSlot5Scratch = itemId;   // DESKADV doc+0x21
+                }
+            }
+            if (result >= 0)
+                break;
+        }
+    }
+    if (result == -1)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9 && pObj->arg >= 0)
+            {
+                result = IndyFillSpawn(itemId, pObj->arg);
+                if (result >= 0)
+                    break;
+            }
+        }
+    }
+    return result;
+}
+
+// Indy IndyPlaceItemOnLock — DESKADV 1010:610a
+// If the zone PROVIDES `itemId` (providedItemsA), find a LOCK host (obj type 0xc), set its
+// arg = itemId, state = 1, record AddPlacedItemEntry + genCellItemAScratch (doc+0x1f).
+// Recurse DOOR_IN. Returns 1 on success.
+int CDeskcppDoc::IndyPlaceItemOnLock(short itemId, short nQueueTag, int nZoneId)
+{
+    if (nZoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    int result = 0;
+    bool bProvides = false;
+    int nA = pZone->providedItemsA.GetSize();
+    for (int i = 0; i < nA; i++)
+        if ((short)pZone->providedItemsA.GetAt(i) == itemId) { bProvides = true; break; }
+    if (bProvides)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj->type == 0xc)            // LOCK
+            {
+                WorldgenAddZoneEntry(itemId, nQueueTag);   // IndyAddPlacedItemEntry
+                genCellItemAScratch = itemId;              // doc+0x1f
+                pObj->arg = itemId;
+                pObj->state = 1;
+                result = 1;
+                break;
+            }
+        }
+    }
+    if (result == 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj->type == 9 &&
+                (result = IndyPlaceItemOnLock(itemId, nQueueTag, pObj->arg)) == 1)
+                return 1;
+        }
+    }
+    return result;
+}
+
+// Indy IndyPlaceRewardInItemSpot — DESKADV 1010:6260
+// If the zone REQUIRES `itemId` (genCandidateA), place it into a random ITEM host (type 0),
+// record AddPlacedItemEntry + genCellItemBScratch (doc+0x1d). Recurse DOOR_IN. Returns 1.
+int CDeskcppDoc::IndyPlaceRewardInItemSpot(short itemId, short nQueueTag, int nZoneId)
+{
+    if (nZoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    int result = 0;
+    bool bRequires = false;
+    int nReq = pZone->genCandidateA.GetSize();
+    for (int i = 0; i < nReq; i++)
+        if ((short)pZone->genCandidateA.GetAt(i) == itemId) { bRequires = true; break; }
+    if (bRequires)
+    {
+        CWordArray hosts;
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj->type == 0)
+                hosts.SetAtGrow(hosts.GetSize(), (short)i);
+        }
+        if (hosts.GetSize() > 0)
+        {
+            int idx = (short)hosts.GetAt(rand() % hosts.GetSize());
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(idx);
+            WorldgenAddZoneEntry(itemId, nQueueTag);     // IndyAddPlacedItemEntry
+            genCellItemAScratch = itemId;                // doc+0x1d (reward -> itemB scratch role)
+            pObj->arg = itemId;
+            pObj->state = 1;
+            result = 1;
+        }
+    }
+    if (result == 0)
+    {
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj->type == 9 &&
+                (result = IndyPlaceRewardInItemSpot(itemId, nQueueTag, pObj->arg)) == 1)
+                return 1;
+        }
+    }
+    return result;
+}
+
+// ===========================================================================
+// Zone item availability (item-carry objects: types 6/7/8 must be placed; 9 recurses)
+// ===========================================================================
+
+// Indy IndyCheckZoneItemsAvailable — DESKADV 1010:83bc
+// Every carried-item object (type 6,7,8 with arg>=0) in the zone must ALREADY be placed
+// (IsItemPlaced) for the zone to be usable; return 0 if any such item is NOT yet placed
+// (i.e. still available). Recurse DOOR_IN (type 9). (obj+6==0 sub-test dropped, see header.)
+int CDeskcppDoc::IndyCheckZoneItemsAvailable(int nZoneId)
+{
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL)
+        return 0;
+    int ok = 1;
+    int nObj = pZone->objects.GetSize();
+    for (int i = 0; i < nObj; i++)
+    {
+        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+        unsigned int t = pObj->type;
+        if (t > 5)
+        {
+            if (t == 6 || t == 7 || t == 8)          // carried item host
+            {
+                if (pObj->arg >= 0 && IsItemPlaced(pObj->arg) != 0)
+                    ok = 0;                          // that item already placed -> unavailable
+            }
+            else if (t == 9)                         // DOOR_IN
+            {
+                if (pObj->arg >= 0)
+                    ok = IndyCheckZoneItemsAvailable(pObj->arg);
+            }
+        }
+        if (ok == 0)
+            return 0;
+    }
+    return ok;
+}
+
+// Indy IndyCollectZoneItems — DESKADV 1010:8482
+// Mark all of a zone's carried items (obj type 6/7/8) as placed (AddPlacedItemEntry),
+// recursing DOOR_IN (type 9). Called after a zone is populated to consume its items.
+void CDeskcppDoc::IndyCollectZoneItems(int nZoneId)
+{
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL)
+        return;
+    int nObj = pZone->objects.GetSize();
+    for (int i = 0; i < nObj; i++)
+    {
+        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+        unsigned int t = pObj->type;
+        if (t > 5)
+        {
+            if (t == 6 || t == 7 || t == 8)
+            {
+                if (pObj->arg >= 0)
+                    WorldgenAddZoneEntry(pObj->arg, -1);   // IndyAddPlacedItemEntry(tag=0xffff)
+            }
+            else if (t == 9)
+            {
+                if (pObj->arg >= 0)
+                    IndyCollectZoneItems(pObj->arg);
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Populate a placed quest zone (fills its objects with the quest's items)
+// ===========================================================================
+
+// Indy IndyPopulateGoalZone — DESKADV 1010:5dac  (node type 10, FINAL_ITEM)
+// The goal zone: the puzzle at step nStepSlot supplies two item ids (puzzle.itemA of the
+// slot's two puzzle entries). It needs the "provided" item present + the "required" item
+// placeable; either via the spawn pool (IndyFillSpawn) or the provided/required item
+// spots (IndyFindItemInProvidedPool + IndyFillQuestItemSpot). Returns 1 on success.
+// NOTE: goalTileList holds the per-step puzzle id (doc+0x136); slot entries [nStepSlot]
+//   and [nStepSlot+1] are the two puzzle ids. Their Puzzle.itemA give iProvide/iRequire.
+int CDeskcppDoc::IndyPopulateGoalZone(short nQueueTag, int nStepSlot, int nZoneId)
+{
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL || pZone->type != 10)
+        return 0;
+    // Two puzzle ids at goalTileList[nStepSlot], [nStepSlot+1]:
+    short puzA = (short)goalTileList.GetAt(nStepSlot);
+    short puzB = (short)goalTileList.GetAt(nStepSlot + 1);   // DESKADV reads slot pair
+    short iProvide = ((Puzzle *)puzzles.GetAt(puzA))->itemA;  // uVar7 (doc+0x1f role)
+    short iRequire = ((Puzzle *)puzzles.GetAt(puzB))->itemA;  // uVar8 (doc+0x1d role)
+
+    if (IndyCheckZoneItemsAvailable(nZoneId) == 0)
+        return 0;
+
+    int spawnItem = IndyPickUnplacedSpawnItem(nZoneId);
+    int spawnOk = 0;
+    if (spawnItem >= 0)
+        spawnOk = IndyZoneSpawnPoolHasItem((short)spawnItem, nZoneId);
+    int prov = IndyZoneProvidesItem(iProvide, nZoneId);
+    int req  = IndyZoneRequiresItem(iRequire, nZoneId);   // == Yoda ZoneRequiresItemMaybe
+    if (prov != 0 && req != 0)
+    {
+        if (spawnOk == 0)
+        {
+            int r1 = IndyFindItemInProvidedPool(iProvide, nZoneId);
+            int r2 = IndyFillQuestItemSpot(iRequire, nZoneId);
+            if (r1 < 0 || r2 < 0)
+                return 0;
+            // record per-cell scratch (DESKADV doc+0x1d/0x1f/0x21/0x23):
+            genCellQuestSlot5Scratch = -1;               // doc+0x21 = -1
+            genCellItemAScratch = iProvide;              // doc+0x1f
+            genCellItemBScratch = iRequire;              // doc+0x1d
+            genCellQuestSlot0Scratch = nStepSlot;        // doc+0x23
+            IndyCollectZoneItems(nZoneId);
+            WorldgenAddZoneEntry(iProvide, nQueueTag);   // IndyAddPlacedItemEntry
+            WorldgenAddZoneEntry(iRequire, nQueueTag);
+        }
+        else
+        {
+            int r = IndyFillSpawn((short)spawnItem, nZoneId);
+            if (r < 0)
+                return 0;
+            genCellQuestSlot5Scratch = spawnItem;        // doc+0x21
+            genCellItemAScratch = iProvide;              // doc+0x1f
+            genCellItemBScratch = iRequire;              // doc+0x1d
+            genCellQuestSlot0Scratch = nStepSlot;        // doc+0x23
+            IndyCollectZoneItems(nZoneId);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+// Indy IndyPopulateTradeZone — DESKADV 1010:6422  (node type 0xf, TRADE)
+// Zone must be type 0xf with an empty spawn pool (genCandidateB size < 1). The step's
+// puzzle (goalTileList[nStepSlot]) gives itemA (the lock item); if there is a next step
+// (nStepSlot < nQuestSteps-1) the +1 puzzle gives the reward item. Place lock item on a
+// LOCK, reward in an ITEM spot. Returns true on success.
+int CDeskcppDoc::IndyPopulateTradeZone(short nQueueTag, int nStepSlot, int nZoneId)
+{
+    if (nZoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL || pZone->type != 0xf || pZone->genCandidateB.GetSize() >= 1)
+        return 0;
+    short lockItem   = -1;
+    short rewardItem = -1;
+    short puz = (short)goalTileList.GetAt(nStepSlot);
+    if (puz >= 0)
+        lockItem = ((Puzzle *)puzzles.GetAt(puz))->itemA;
+    if (nStepSlot <= goalTileList.GetSize() - 1)          // has a following step
+    {
+        short puz2 = (short)goalTileList.GetAt(nStepSlot + 1);
+        if (puz2 >= 0)
+            rewardItem = ((Puzzle *)puzzles.GetAt(puz2))->itemA;
+    }
+    WorldgenAddZoneEntry(lockItem, nQueueTag);            // provisional placement...
+    WorldgenAddZoneEntry(rewardItem, nQueueTag);
+    if (IndyCheckZoneItemsAvailable(nZoneId) == 0)
+    {
+        RemoveZoneEntry2(lockItem);
+        RemoveZoneEntry2(lockItem);   // sic: DESKADV removes lockItem twice (mirror engine-bug)
+        return 0;
+    }
+    bool ok;
+    if (IndyPlaceItemOnLock(lockItem, nQueueTag, nZoneId) == 0)
+        ok = false;
+    else
+        ok = IndyPlaceRewardInItemSpot(rewardItem, nQueueTag, nZoneId) != 0;
+    if (ok)
+    {
+        genCellQuestSlot0Scratch = nStepSlot;             // doc+0x23
+        IndyCollectZoneItems(nZoneId);
+    }
+    return ok;
+}
+
+// Indy IndyPopulateTransactionZone — DESKADV 1010:5f66  (node type 0x10, TRANSACTION)
+// Zone type 0x10; the step puzzle's itemA is the provided item; if a next step exists its
+// puzzle itemA is the required item. Needs the zone to PROVIDE the provided item and (if
+// present) REQUIRE the required item, then FillSpawn a picked spawn item. Returns 1.
+int CDeskcppDoc::IndyPopulateTransactionZone(short nQueueTag, int nStepSlot, int nZoneId)
+{
+    if (nZoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL || pZone->type != 0x10)
+        return 0;
+    if (IndyCheckZoneItemsAvailable(nZoneId) == 0)
+        return 0;
+    short puz  = (short)goalTileList.GetAt(nStepSlot);
+    short nextPuz;
+    if (nStepSlot < goalTileList.GetSize() - 1)
+        nextPuz = (short)goalTileList.GetAt(nStepSlot + 1);
+    else
+        nextPuz = -1;
+    Puzzle *pPuz = (Puzzle *)puzzles.GetAt(puz);
+    if (pPuz == NULL)
+        return 0;
+    if (nextPuz >= 0 && puzzles.GetAt(nextPuz) == NULL)
+        return 0;
+    short iProvide = pPuz->itemA;
+    short iRequire = -1;
+    if (nextPuz >= 0)
+        iRequire = ((Puzzle *)puzzles.GetAt(nextPuz))->itemA;
+    int spawnItem = IndyPickUnplacedSpawnItem(nZoneId);
+    if (spawnItem >= 0)
+    {
+        int reqOk = 1;
+        int provOk = IndyZoneProvidesItem(iProvide, nZoneId);
+        if (iRequire >= 0)
+            reqOk = IndyZoneRequiresItem(iRequire, nZoneId);
+        if (provOk != 0 && reqOk != 0 &&
+            IndyFillSpawn((short)spawnItem, nZoneId) >= 0)
+        {
+            genCellQuestSlot5Scratch = spawnItem;         // doc+0x21
+            genCellItemBScratch = iRequire;               // doc+0x1d
+            genCellItemAScratch = iProvide;               // doc+0x1f
+            genCellQuestSlot0Scratch = nStepSlot;         // doc+0x23
+            WorldgenAddZoneEntry((short)spawnItem, nQueueTag);
+            IndyCollectZoneItems(nZoneId);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+// Indy IndyPopulateSimpleZone — DESKADV 1010:67ec  (node types 2..7)
+// Pick a random UNPLACED item from the zone's genCandidateB (IZX3 spawn pool, doc+0x7d8/
+// providedItems? see NOTE), then queue it for placement. If the zone requires exactly one
+// item (genCandidateA size==1) that isn't already recorded, dedup-append it to
+// uniqueRequiredItemsMaybe. Queue tag becomes 5 for zone type 6, else the passed tag.
+// Returns 1 on success.
+// NOTE: DESKADV reads the pool at zone+0x7d8 count with items at +0x7d4 -> that is
+//   providedItemsA in our layout. (The +0x7e6/+0x7e2 read for the single-required check is
+//   genCandidateA.) I map accordingly.
+int CDeskcppDoc::IndyPopulateSimpleZone(short nQueueTag, int nZoneId)
+{
+    if (nZoneId < 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL)
+        return 0;
+    int nPool = pZone->providedItemsA.GetSize();          // doc+0x7d8
+    if (nPool == 0 || IndyCheckZoneItemsAvailable(nZoneId) == 0)
+        return 0;
+    CWordArray cands;
+    for (int i = 0; i < nPool; i++)
+    {
+        short item = (short)pZone->providedItemsA.GetAt(i);
+        if (IsItemPlaced(item) == 0)                      // Indy IndyIsItemPlaced == Yoda IsItemPlaced
+            cands.SetAtGrow(cands.GetSize(), item);
+    }
+    if (cands.GetSize() == 0)
+        return 0;
+    short chosen = (short)cands.GetAt(rand() % cands.GetSize());
+    // Single-required-item dedup (genCandidateA size == 1):
+    if (pZone->genCandidateA.GetSize() == 1)
+    {
+        int reqItem = (short)pZone->genCandidateA.GetAt(0);
+        int used = 0;
+        int nUsed = uniqueRequiredItemsMaybe.GetSize();
+        for (int i = 0; i < nUsed; i++)
+            if ((short)uniqueRequiredItemsMaybe.GetAt(i) == reqItem) { used = 1; break; }
+        if (used != 0)
+            return 0;                                     // required item already consumed
+        uniqueRequiredItemsMaybe.SetAtGrow(uniqueRequiredItemsMaybe.GetSize(), (short)reqItem);
+    }
+    short tag = nQueueTag;
+    if (pZone->type == 6)                                 // island/companion => tag 5
+        tag = 5;
+    IndyQueueItemForPlacement(tag, chosen);               // == WorldgenPushZoneEntry(chosen, tag)
+    WorldgenAddZoneEntry(chosen, nQueueTag);              // IndyAddPlacedItemEntry
+    genCellItemAScratch = chosen;                         // doc+0x1f
+    IndyCollectZoneItems(nZoneId);
+    return 1;
+}
+
+// Indy IndyPopulateUsefulObjectZone — DESKADV 1010:6580  (node types 0x11 / 0x12)
+// If the zone REQUIRES the puzzle item `a4` (genCandidateA), place a "useful object" of a
+// category derived from the queued item's flags (worldgenPendingZones entry a4): a random
+// object whose type matches the category is activated (state=1, arg=a4). Recurse DOOR_IN.
+// Returns 1 on success. Category select (from the queued item's flag bits, DESKADV +0x404/
+// +0x406): flag 0x40 -> category 2, flag 0x10 -> category 5, flag 0x80 -> category 0.
+// NOTE: a4 is an INDEX into worldgenPendingZones here (the queued item), not an item id.
+int CDeskcppDoc::IndyPopulateUsefulObjectZone(short nQueueTag, short a4, int nZoneId)
+{
+    if (nZoneId < 0 || IndyCheckZoneItemsAvailable(nZoneId) == 0)
+        return 0;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL)
+        return 0;
+    if (pZone->providedItemsA.GetSize() > 0)   // doc+0x7d8 must be empty
+        return 0;
+    if (pZone->genCandidateB.GetSize() > 0)    // doc+0x7f4 must be empty
+        return 0;
+    // Require the puzzle item a4 in genCandidateA (doc+0x7e6/0x7e2):
+    int requires = 0;
+    int nReq = pZone->genCandidateA.GetSize();
+    for (int i = 0; i < nReq; i++)
+        if ((short)pZone->genCandidateA.GetAt(i) == a4) { requires = 1; break; }
+    int result = 0;
+    if (requires == 0)
+    {
+        // recurse DOOR_IN
+        int nObj = pZone->objects.GetSize();
+        for (int i = 0; i < nObj; i++)
+        {
+            ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+            if (pObj != NULL && pObj->type == 9 && pObj->arg >= 0)
+            {
+                result = IndyPopulateUsefulObjectZone(nQueueTag, a4, pObj->arg);
+                if (result == 1)
+                    break;
+            }
+        }
+        if (result == 1)
+            IndyCollectZoneItems(nZoneId);
+        return result;
+    }
+    // a4 indexes worldgenPendingZones -> the queued item object; derive its category from
+    // its flag bits.  RESOLVED: DESKADV reads doc+0x60 [= our `tiles` CObArray] indexed by a4
+    // (a4 IS a tile/item id), then the item TILE's flags at +0x404/+0x406 — which is exactly our
+    // Tile.flags (unsigned int @ +0x404; src/GameObjectClasses.h line 185).  Byte +0x404 = flags
+    // bits 0..7, word +0x406 = flags bits 16..31.  So:
+    //   (flags & 0x40)       -> category 2   (DESKADV *(byte*)(t+0x404)&0x40)
+    //   (flags>>16) & 0x10   -> category 5   (DESKADV *(uint*)(t+0x406)&0x10)
+    //   (flags & 0x80)       -> category 0   (DESKADV *(byte*)(t+0x404)&0x80)  [default 0]
+    unsigned int category = 0;
+    Tile *pTile = (Tile *)tiles.GetAt(a4);
+    unsigned int tflags = pTile->flags;
+    if (tflags & 0x40)              category = 2;
+    else if ((tflags >> 16) & 0x10) category = 5;
+    else if (tflags & 0x80)         category = 0;   // else stays 0
+    CWordArray hosts;
+    int nObj = pZone->objects.GetSize();
+    for (i = 0; i < nObj; i++)
+    {
+        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+        if (pObj->type == category)
+        {
+            hosts.SetAtGrow(hosts.GetSize(), (short)i);
+            result = 1;
+        }
+    }
+    if (result == 1)
+    {
+        int idx = (short)hosts.GetAt(rand() % hosts.GetSize());
+        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(idx);
+        pObj->arg = a4;
+        pObj->state = 1;
+        WorldgenAddZoneEntry(a4, nQueueTag);              // IndyAddPlacedItemEntry
+        genCellItemBScratch = a4;                         // doc+0x1d
+    }
+    if (result == 1)
+        IndyCollectZoneItems(nZoneId);
+    return result;
+}
+
+// ===========================================================================
+// Puzzle selection
+// ===========================================================================
+
+// Indy IndySelectPuzzle — DESKADV 1010:7b58
+// Build a shuffled list of unused puzzles matching the mode, return the first that fits:
+//   nMode 10   -> puzzle.nType == 2 (GOAL_PRIZE),   reqItemA must match puzzle.itemA
+//   nMode 0xf  -> puzzle.nType == 1 (TRADE),        reqItemA must match puzzle.itemA
+//   nMode 0x10 -> puzzle.nType == 0 (TRANSACTION),  reqItemA must match puzzle.itemA
+//   nMode 9999 -> puzzle.nType == 3 (WORLD_MISSION); accepted if in story-history (or if
+//                 requestedGoal>=0 skip the history filter); the passed key must match a
+//                 puzzle field (+0x18 == nWorldMissionKey).  [GAME_INDY: any WORLD_MISSION.]
+// bFirst is Indy param_3 (==0 when reqItemA is the "provided" branch). Returns puzzle id or -1.
+short CDeskcppDoc::IndySelectPuzzle(int bFirst, short nMode, unsigned short reqItemA,
+                                    unsigned short nWorldMissionKey)
+{
+    CWordArray list;
+    int nPuz = puzzles.GetSize();
+    for (int i = 0; i < nPuz; i++)
+    {
+        Puzzle *pPuz = (Puzzle *)puzzles.GetAt(i);
+        bool match = false;
+        if (nMode == 10)
+            match = (pPuz->nType == 2);
+        else if (nMode == 0xf)
+            match = (pPuz->nType == 1);
+        else if (nMode == 0x10)
+            match = (pPuz->nType == 0);             // +6==0 sub-test dropped
+        else if (nMode == 9999)
+        {
+            if (pPuz->nType == 3)                   // WORLD_MISSION
+            {
+#ifdef GAME_INDY
+                match = true;                       // Indy: no per-planet whitelist / story screen
+#else
+                // (Yoda path: story-history + requestedGoal gating; not used for Indy)
+                match = false;
+#endif
+            }
+        }
+        if (match && IndyIsPuzzleUsed((short)i) == 0)
+            list.SetAtGrow(list.GetSize(), (short)i);
+    }
+    if (list.GetSize() > 0)
+    {
+        WorldgenShuffleList(&list);                 // == IndyShuffleList
+        int n = list.GetSize();
+        for (int k = 0; k < n; k++)
+        {
+            short pid = (short)list.GetAt(k);
+            Puzzle *pPuz = (Puzzle *)puzzles.GetAt(pid);
+            if (IndyIsPuzzleUsed(pid) != 0)
+                continue;
+            unsigned short need;
+            if (nMode == 10)      { if (pPuz->nType != 2) continue; need = (unsigned short)pPuz->itemA; }
+            else if (nMode == 0xf){ if (pPuz->nType != 1) continue; need = (unsigned short)pPuz->itemA; }
+            else if (nMode == 0x10) { need = (unsigned short)pPuz->itemA; /* nType|... == 0 */ }
+            else if (nMode == 9999)
+            {
+                if (pPuz->nType == 3)
+                    return pid;                     // first shuffled WORLD_MISSION
+                continue;
+            }
+            else continue;
+            // For 10/0xf/0x10: the puzzle's item must equal reqItemA, and a key field
+            // (DESKADV puzzle+0x18) must equal reqItemA arg. Modeled as itemA match:
+            if (need == reqItemA)
+                return pid;
+        }
+    }
+    return -1;
+}
+
+// ===========================================================================
+// Quest-node placement — the core "find a zone of node type T and populate it"
+// ===========================================================================
+
+// Indy IndyPlaceQuestNode — DESKADV 1010:7f0c
+// Collect all zones whose Zone.type matches nNodeType (0x11 also accepts type 0x12 with the
+// obj+6==0 sub-test dropped), shuffle, and try each: skip if used (except goal type 10 with
+// requestedGoal set). Then per node type, gate + populate the zone. On success returns the
+// zone id and records the puzzle into goalTileList[nOrder]. Returns -1 if none fit.
+// Params (mapped from DESKADV): nOrder = quest step slot (param_5), a4reqItem = required item
+// (param_4), a5reqItem2 unused for single-item Indy, nNodeType = param_6.
+int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqItem2, short nNodeType)
+{
+    CWordArray list;
+    int nZones = zones.GetSize();
+    for (int i = 0; i < nZones; i++)
+    {
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        bool match;
+        switch (nNodeType)
+        {
+        case 1: case 2: case 3: case 4: case 5: case 6: case 7:
+        case 10: case 0xb: case 0xf: case 0x10:
+            match = (pZone->type == nNodeType);
+            break;
+        case 0x11:
+            match = (pZone->type == 0x11) || (pZone->type == 0x12);
+            break;
+        default:
+            match = false;
+        }
+        if (match)
+            list.SetAtGrow(list.GetSize(), (short)i);
+    }
+    if (list.GetSize() == 0)
+        return -1;
+
+    WorldgenShuffleList(&list);
+    int nCand = list.GetSize();
+    for (int k = 0; k < nCand; k++)
+    {
+        int nZoneId = (short)list.GetAt(k);
+        Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+        // used-zone gate (goal type 10 with a requested goal is allowed to reuse):
+        if (IsZoneUsed((short)nZoneId) != 0 && (nNodeType != 10 || nRequestedGoalItem < 1))
+            continue;
+
+        switch (nNodeType)
+        {
+        case 1:
+            // Generic/start zone. If NOT on the edge (indyPlaceOnEdge==0) require Zone.type==1 and
+            // the zone's claimed-flag clear; else it is a teleporter placement.
+            // RESOLVED: the DESKADV `*(int*)(zone+6)==0` guard is our Zone.activatedFlag (the
+            // per-zone "claimed" flag; 16-bit zone+6 == our zone+8; IndyGenerate clears it for all
+            // zones before assembly). NOTE the edge arm: DESKADV returns the zone only when it has
+            // NO objects, and (with objects) searches for a TELEPORTER (obj type 0xd) then breaks
+            // without an explicit return in the decomp — but IndyPlacePuzzlesPass sets
+            // indyPlaceOnEdge=1 specifically to place teleporter zones, so "teleporter found ->
+            // return" is the intended behaviour. VERIFY the object-less short-circuit.
+            if (indyPlaceOnEdge == 0)
+            {
+                if (pZone->type == 1 && pZone->activatedFlag == 0)
+                    return nZoneId;
+            }
+            else
+            {
+                int nObj = pZone->objects.GetSize();
+                if (nObj < 1)
+                    return nZoneId;             // DESKADV: object-less edge zone -> accept
+                bool hasTele = false;
+                for (int i = 0; i < nObj; i++)
+                    if (((ZoneObj *)pZone->objects.GetAt(i))->type == 0xd) { hasTele = true; break; }
+                if (hasTele)
+                    return nZoneId;             // teleporter zone -> accept (intended; see NOTE)
+            }
+            break;
+        case 2: case 3: case 4: case 5: case 6: case 7:
+            // DESKADV: zone.type==N && zone.activatedFlag==0 (the +6 claimed flag) then populate.
+            if (pZone->type == nNodeType && pZone->activatedFlag == 0)
+            {
+                if (IndyPopulateSimpleZone(nOrder, nZoneId) == 1)
+                    return nZoneId;
+            }
+            break;
+        case 10:                                // FINAL_ITEM goal
+            if (pZone->type == 10 &&
+                IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
+            {
+                int item = IndyPickUnplacedProvidedItem(1 /*bAvoidRange*/, nZoneId);
+                if (item >= 0)
+                {
+                    short puz = IndySelectPuzzle(0, 10, (unsigned short)a4reqItem,
+                                                 (unsigned short)item);
+                    if (puz >= 0)
+                    {
+                        goalTileList.SetAt(nOrder, puz);   // doc+0x136[nOrder] = puzzle id
+                        if (IndyPopulateGoalZone(0 /*tag*/, nOrder, nZoneId) == 1)
+                        {
+                            // record puzzle used (storyHistoryNevada), placed item:
+                            storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
+                            WorldgenAddZoneEntry((short)item, 0);
+                            return nZoneId;
+                        }
+                        goalTileList.SetAt(nOrder, (short)-1);
+                    }
+                }
+            }
+            break;
+        case 0xb:                               // start-terminal zone
+            // RESOLVED: DESKADV checks zone.type==0xb then `iVar1 = *(int*)(zone+6); if(iVar1==0)
+            // return zone`.  zone+6 is the ZONE's claimed-flag (== our Zone.activatedFlag), NOT an
+            // object field.  So: accept an unclaimed type-0xb zone (no populate — the start zone is
+            // populated implicitly by the engine).
+            if (pZone->type == 0xb && pZone->activatedFlag == 0)
+                return nZoneId;
+            break;
+        case 0xf:                               // TRADE
+            if (pZone->type == 0xf &&
+                IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
+            {
+                int item = IndyPickUnplacedProvidedItem(1, nZoneId);
+                if (item >= 0)
+                {
+                    short puz = IndySelectPuzzle(0, 0xf, (unsigned short)a4reqItem,
+                                                 (unsigned short)item);
+                    if (puz >= 0)
+                    {
+                        goalTileList.SetAt(nOrder, puz);
+                        if (IndyPopulateTradeZone(0, nOrder, nZoneId) == 1)
+                        {
+                            storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
+                            WorldgenAddZoneEntry((short)item, 0);
+                            return nZoneId;
+                        }
+                    }
+                }
+            }
+            break;
+        case 0x10:                              // TRANSACTION
+            if (pZone->type == 0x10 &&
+                IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
+            {
+                int item = IndyPickUnplacedProvidedItem(1, nZoneId);
+                if (item >= 0)
+                {
+                    short puz = IndySelectPuzzle(0, 0x10, (unsigned short)a4reqItem,
+                                                 (unsigned short)item);
+                    if (puz >= 0)
+                    {
+                        goalTileList.SetAt(nOrder, puz);
+                        if (IndyPopulateTransactionZone(0, nOrder, nZoneId) == 1)
+                        {
+                            storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
+                            WorldgenAddZoneEntry((short)item, 0);
+                            return nZoneId;
+                        }
+                    }
+                }
+            }
+            break;
+        case 0x11:                              // useful-object (0x11/0x12)
+            if ((pZone->type == 0x11 || pZone->type == 0x12) &&
+                IndyPopulateUsefulObjectZone(0, a4reqItem, nZoneId) == 1)
+                return nZoneId;
+            break;
+        }
+    }
+    return -1;
+}
+
+// ===========================================================================
+// Plan-grid geometry helpers
+// ===========================================================================
+
+// Indy IndyGetIslandOrientation — DESKADV 1010:3dc4
+// Given a PLAN_LOCK (island seed, 0x66) cell at (row,col), return which side has an island
+// body (PLAN_WALL, 0x68) adjacent: 1=west, 3=east, 2=north, 4=south, 0=none.
+int CDeskcppDoc::IndyGetIslandOrientation(short *paPlan, int nRow, int nCol)
+{
+    int base = nRow * 10 + nCol;
+    if (nCol > 0 && paPlan[base - 1] == PLAN_WALL)  return 1;   // 0x68 to west
+    if (nCol < 9 && paPlan[base + 1] == PLAN_WALL)  return 3;   // east
+    if (nRow > 0 && paPlan[base - 10] == PLAN_WALL) return 2;   // north
+    if (nRow < 9 && paPlan[base + 10] == PLAN_WALL) return 4;   // south
+    return 0;
+}
+
+// ===========================================================================
+// IndyCarveQuestPath — DESKADV 1010:6c5c
+// ===========================================================================
+// Random-walk one difficulty ring of the quest corridor onto the plan grid, exactly like
+// Yoda's WorldgenCarveQuestPath but with the Indy token set. Per attempt: pick a random cell
+// on the tier's border band, and if empty and touching reachable path/corridor on one side,
+// either extend a corridor fork (budgeted by rand()%forkDen<forkNum and the neighbor's grid
+// order < tier), continue a corridor, or stamp a plain path room; fresh rooms may be promoted
+// to goal rooms (PLAN_GOAL). Runs until room budget spent or 144 attempts (0x90).
+// nTier -> band table (param_10): 2/3/4. paPlan is the 10x10 plan grid (short[100]).
+// pnPlaced/pnSplits/pnGoals are running counters (in/out); maxSplits/maxGoals are caps.
+//
+// RESOLVED (re-decompiled 1010:6c5c): each attempt finds the FIRST occupied neighbor in the
+// order W,E,N,S (DESKADV nests: west-clear? east-clear? north-clear? south-clear?), then
+// extends a corridor/fork AWAY from it. The four directional writes are transcribed verbatim
+// (6 cells each). Counters (DESKADV): fork -> nSplits++, nPlaced+=2, budget--; corridor/path
+// -> nPlaced++, budget--. Fork gate: nSplits<maxSplits && rand()%forkDen<forkNum && the
+// OCCUPIED neighbor's grid order < tier && the perpendicular pair is clear (0 or PLAN_BLOCKED).
+// Fork-budget-not-taken -> plain path; occOrder>=tier -> abort (no placement); perpendicular
+// blocked -> plain path. Plain path only if all four neighbors < 300. Goal-promote a fresh
+// PATH cell (rand()%8<goalNum, tier>2, captured token != PLAN_GOAL).
+// The 6-cell fork stamps (verbatim): FORK_E (west occ)=cell FORK_E, N/S=WALL, E=CORRIDOR,
+// NE(-9)/SE(+11)=WALL; FORK_W (east occ)=cell FORK_W, N/S=WALL, W=CORRIDOR, NW(-11)/SW(+9)=WALL;
+// FORK_S (north occ)=cell FORK_S, W/E=WALL, S=CORRIDOR, SW(+9)/SE(+11)=WALL; FORK_N (south
+// occ)=cell FORK_N, W/E=WALL, N=CORRIDOR, NW(-11)/NE(-9)=WALL.
+void CDeskcppDoc::IndyCarveQuestPath(int *pnPlaced, int *pnSplits, int maxSplits,
+                                     int *pnGoals, int maxGoals, short *paPlan,
+                                     int nBudget, int nTier)
+{
+    int xBase, xOpp, yBase, yOpp, span, forkDen, forkNum, goalNum;
+    switch (nTier)
+    {
+    case 2: xBase=3; xOpp=6; yBase=3; yOpp=6; span=4; forkDen=9; forkNum=2; goalNum=1; break;
+    case 3: xBase=2; xOpp=7; yBase=2; yOpp=7; span=6; forkDen=4; forkNum=2; goalNum=3; break;
+    case 4: xBase=1; xOpp=8; yBase=1; yOpp=8; span=8; forkDen=5; forkNum=1; goalNum=6; break;
+    }
+    int nGoals  = *pnGoals;
+    int nPlaced = *pnPlaced;
+    int nSplits = *pnSplits;
+    int nBudgetLeft = nBudget;
+    int nAttempts = 0;
+    int bDone = 0;
+    do
+    {
+        int r, c;   // r=row (stride 10), c=col — DESKADV iVar2=r, iVar3=c
+        if (rand() & 1)
+        {
+            r = (rand() & 1) ? xBase : xOpp;
+            c = rand() % span + yBase;
+        }
+        else
+        {
+            c = (rand() & 1) ? yBase : yOpp;
+            r = rand() % span + xBase;
+        }
+        nAttempts++;
+        short *pCell = &paPlan[r * 10 + c];
+        short v = 0;                        // captured occupied-neighbor token (DESKADV local_24)
+        if (*pCell == 0)
+        {
+            // find first OCCUPIED neighbor in W,E,N,S order (occupied = not 0 and not PLAN_BLOCKED)
+            int dir = 0;                    // 1=W,2=E,3=N,4=S occupied
+            if      (pCell[-1]  != 0 && pCell[-1]  != PLAN_BLOCKED) { dir = 1; v = pCell[-1];  }
+            else if (pCell[1]   != 0 && pCell[1]   != PLAN_BLOCKED) { dir = 2; v = pCell[1];   }
+            else if (pCell[-10] != 0 && pCell[-10] != PLAN_BLOCKED) { dir = 3; v = pCell[-10]; }
+            else if (pCell[10]  != 0 && pCell[10]  != PLAN_BLOCKED) { dir = 4; v = pCell[10];  }
+
+            if (dir != 0)
+            {
+                bool horiz = (dir == 1 || dir == 2);   // W/E occupied -> extend along columns
+                // the "aligned" directional fork token that means "a corridor already points at us":
+                short aligned = (dir == 1) ? (short)PLAN_FORK_E :
+                                (dir == 2) ? (short)PLAN_FORK_W :
+                                (dir == 3) ? (short)PLAN_FORK_S : (short)PLAN_FORK_N;
+
+                if (v == PLAN_CORRIDOR || v == aligned)
+                {
+                    // continue a corridor through this cell, blocking the perpendicular pair
+                    if (horiz)
+                    {
+                        if ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                            (pCell[10]  == 0 || pCell[10]  == PLAN_BLOCKED))
+                        { *pCell = PLAN_CORRIDOR; pCell[-10] = PLAN_BLOCKED; pCell[10] = PLAN_BLOCKED;
+                          nPlaced++; nBudgetLeft--; }
+                    }
+                    else
+                    {
+                        if ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                            (pCell[1]  == 0 || pCell[1]  == PLAN_BLOCKED))
+                        { *pCell = PLAN_CORRIDOR; pCell[-1] = PLAN_BLOCKED; pCell[1] = PLAN_BLOCKED;
+                          nPlaced++; nBudgetLeft--; }
+                    }
+                }
+                else if (v == PLAN_PATH || v == PLAN_GOAL || v == PLAN_START || v == PLAN_ORDERED)
+                {
+                    bool forked = false, abort = false, tryPath = false;
+                    if (nSplits < maxSplits && rand() % forkDen < forkNum)
+                    {
+                        int occOrder = (dir == 1) ? GetZoneGridOrder(c - 1, r) :
+                                       (dir == 2) ? GetZoneGridOrder(c + 1, r) :
+                                       (dir == 3) ? GetZoneGridOrder(c, r - 1) :
+                                                    GetZoneGridOrder(c, r + 1);
+                        if (occOrder >= nTier)
+                            abort = true;                          // DESKADV goto 73fe
+                        else
+                        {
+                            bool perpClear = horiz
+                                ? ((pCell[-10] == 0 || pCell[-10] == PLAN_BLOCKED) &&
+                                   (pCell[10]  == 0 || pCell[10]  == PLAN_BLOCKED))
+                                : ((pCell[-1] == 0 || pCell[-1] == PLAN_BLOCKED) &&
+                                   (pCell[1]  == 0 || pCell[1]  == PLAN_BLOCKED));
+                            if (!perpClear)
+                                tryPath = true;                    // DESKADV goto LAB_6e85
+                            else
+                            {
+                                // stamp the directional fork (verbatim 6-cell writes):
+                                if (dir == 1)        // west occ -> FORK_E, corridor east
+                                { *pCell = PLAN_FORK_E; pCell[-10] = PLAN_BLOCKED; pCell[10] = PLAN_BLOCKED;
+                                  pCell[1] = PLAN_CORRIDOR; pCell[-9] = PLAN_BLOCKED; pCell[11] = PLAN_BLOCKED; }
+                                else if (dir == 2)   // east occ -> FORK_W, corridor west
+                                { *pCell = PLAN_FORK_W; pCell[-10] = PLAN_BLOCKED; pCell[10] = PLAN_BLOCKED;
+                                  pCell[-1] = PLAN_CORRIDOR; pCell[-11] = PLAN_BLOCKED; pCell[9] = PLAN_BLOCKED; }
+                                else if (dir == 3)   // north occ -> FORK_S, corridor south
+                                { *pCell = PLAN_FORK_S; pCell[-1] = PLAN_BLOCKED; pCell[1] = PLAN_BLOCKED;
+                                  pCell[10] = PLAN_CORRIDOR; pCell[9] = PLAN_BLOCKED; pCell[11] = PLAN_BLOCKED; }
+                                else                 // south occ -> FORK_N, corridor north
+                                { *pCell = PLAN_FORK_N; pCell[-1] = PLAN_BLOCKED; pCell[1] = PLAN_BLOCKED;
+                                  pCell[-10] = PLAN_CORRIDOR; pCell[-11] = PLAN_BLOCKED; pCell[-9] = PLAN_BLOCKED; }
+                                nSplits++; nPlaced += 2; nBudgetLeft--;
+                                forked = true;
+                            }
+                        }
+                    }
+                    else
+                        tryPath = true;                            // fork budget not taken -> path
+                    if (tryPath && !abort && !forked)
+                    {
+                        // plain path only if no neighbor is a wall/corridor/fork/ordered (>= 300)
+                        if (pCell[-1] < 300 && pCell[1] < 300 && pCell[-10] < 300 && pCell[10] < 300)
+                        { *pCell = PLAN_PATH; nPlaced++; nBudgetLeft--; }
+                    }
+                }
+                // (a non-extendable occupied neighbor -> DESKADV goto 73fe: no placement)
+
+                // goal promotion of a freshly stamped plain-path cell:
+                if (*pCell == PLAN_PATH && nGoals < maxGoals &&
+                    rand() % 8 < goalNum && v != PLAN_GOAL && nTier > 2)
+                {
+                    *pCell = PLAN_GOAL;
+                    nGoals++;
+                }
+            }
+        }
+        if (nBudgetLeft < 1) bDone++;
+        if (nAttempts > 0x90) bDone++;
+    } while (bDone == 0);
+
+    *pnGoals  = nGoals;
+    *pnPlaced = nPlaced;
+    *pnSplits = nSplits;
+}
+
+// ===========================================================================
+// IndyPlaceIslandStrips — DESKADV 1010:7490
+// ===========================================================================
+// Place `nIslands` decorative island strips against the plan-grid edges. For each island:
+// spin a rand()%4 to choose an edge (0=top col-scan / 1=left row-scan / 2=bottom / 3=right),
+// find the LONGEST run of empty-or-blocked cells adjacent to the border, and if it is >=3
+// (>=4 for the bottom/right edges), stamp a strip: one PLAN_LOCK (0x66, island seed) at one
+// end and PLAN_WALL (0x68, island body) along the rest. Retries up to 200 attempts per island.
+//
+// NOTE: transcribed faithfully from the 4 near-identical edge-scan arms; the run-finding and
+//   the seed-vs-body end selection (coin flip iVar%2) are reproduced. VERIFY offsets.
+void CDeskcppDoc::IndyPlaceIslandStrips(short *paPlan, int nIslands)
+{
+    if (nIslands <= 0)
+        return;
+    for (int island = nIslands; island != 0; island--)
+    {
+        int done = 0;
+        int attempts = 0;
+        do
+        {
+            bool placed = false;
+            int edge = rand() % 4;
+            int runStart = 0, runLen = 0, len = 0;
+            // Scan the chosen edge for the longest empty run adjacent to the border.
+            if (edge == 0)          // top edge, column scan (stride 10, border row 0)
+            {
+                int cur = 0, best = 0, bestStart = 0;
+                for (int i = 0; i < 10; i++)
+                {
+                    // cell paPlan[i] (row0) empty AND paPlan[i+10] (row1) empty/blocked
+                    if (paPlan[i] == 0 && (paPlan[i + 10] == 0 || paPlan[i + 10] == PLAN_BLOCKED))
+                        cur++;
+                    else { if (best < cur) { best = cur; bestStart = i - cur; } cur = 0; }
+                }
+                if (best < cur) { best = cur; bestStart = 10 - cur; }
+                runLen = best; runStart = bestStart;
+                if (runLen > 2)
+                {
+                    if (runLen == 3 && (runStart == 0 || runStart == 7)) len = 2;
+                    if (!(runLen == 3 && runStart >= 1 && runStart <= 6))
+                    {
+                        if (runLen > 3) len = runLen - 2;
+                        if (len > 4) len = 4;
+                        if (runStart > 0 && len + runStart < 10) runStart++;
+                        // seed at one end, body along the strip (coin flip picks which end):
+                        if (rand() % 2 == 0)
+                        {
+                            paPlan[(len + runStart) * 10 - 10] = PLAN_LOCK;   // seed 0x66
+                            for (int j = runStart; j < len + runStart - 1; j++)
+                                paPlan[j * 10] = PLAN_WALL;                    // body 0x68
+                        }
+                        else
+                        {
+                            paPlan[runStart * 10] = PLAN_LOCK;
+                            for (int j = runStart + 1; j < len + runStart; j++)
+                                paPlan[j * 10] = PLAN_WALL;
+                        }
+                        placed = true;
+                    }
+                }
+            }
+            else if (edge == 1)     // left edge, row scan (border col 0)
+            {
+                int cur = 0, best = 0, bestStart = 0;
+                for (int i = 0; i < 10; i++)
+                {
+                    if (paPlan[i * 10] == 0 && (paPlan[i * 10 + 1] == 0 || paPlan[i * 10 + 1] == PLAN_BLOCKED))
+                        cur++;
+                    else { if (best < cur) { best = cur; bestStart = i - cur; } cur = 0; }
+                }
+                if (best < cur) { best = cur; bestStart = 10 - cur; }
+                runLen = best; runStart = bestStart;
+                if (runLen > 2 && !(runLen == 3 && runStart >= 1 && runStart <= 6))
+                {
+                    if (runLen == 3 && (runStart == 0 || runStart == 7)) len = 2;
+                    if (runLen > 3) len = runLen - 2;
+                    if (len > 4) len = 4;
+                    if (runStart > 0 && runStart + len < 10) runStart++;
+                    if (rand() % 2 == 0)
+                    {
+                        paPlan[runStart + len - 1] = PLAN_LOCK;
+                        for (int j = runStart; j < runStart + len - 1; j++) paPlan[j] = PLAN_WALL;
+                    }
+                    else
+                    {
+                        paPlan[runStart] = PLAN_LOCK;
+                        for (int j = runStart + 1; j < runStart + len; j++) paPlan[j] = PLAN_WALL;
+                    }
+                    placed = true;
+                }
+            }
+            else if (edge == 2)     // bottom edge (border row 9); requires run > 3
+            {
+                int cur = 0, best = 0, bestStart = 0;
+                for (int i = 0; i < 10; i++)
+                {
+                    // paPlan[0xa0/2 + i] == paPlan[80+i] row8; border row9 = +10
+                    if (paPlan[80 + i] == 0 && (paPlan[90 + i] == 0 || paPlan[90 + i] == PLAN_BLOCKED))
+                        cur++;
+                    else { if (best < cur) { best = cur; bestStart = i - cur; } cur = 0; }
+                }
+                if (best < cur) { best = cur; bestStart = 10 - cur; }
+                runLen = best; runStart = bestStart;
+                if (runLen > 3 && !(runLen == 3 && runStart >= 1 && runStart <= 6))
+                {
+                    if (runLen == 3 && (runStart == 0 || runStart == 7)) len = 2;
+                    if (runLen > 3) len = runLen - 2;
+                    if (len > 4) len = 4;
+                    if (runStart > 0 && runStart + len < 10) runStart++;
+                    if (rand() % 2 == 0)
+                    {
+                        paPlan[90 + runStart + len - 1] = PLAN_LOCK;    // DESKADV +0xb2 base
+                        for (int j = runStart; j < runStart + len - 1; j++) paPlan[90 + j + 1] = PLAN_WALL;
+                    }
+                    else
+                    {
+                        paPlan[90 + runStart + 1] = PLAN_LOCK;
+                        for (int j = runStart + 1; j < runStart + len; j++) paPlan[90 + j + 1] = PLAN_WALL;
+                    }
+                    placed = true;
+                }
+            }
+            else                    // edge == 3, right edge (border col 9); requires run > 3
+            {
+                int cur = 0, best = 0, bestStart = 0;
+                for (int i = 0; i < 10; i++)
+                {
+                    if (paPlan[i * 10 + 8] == 0 && (paPlan[i * 10 + 9] == 0 || paPlan[i * 10 + 9] == PLAN_BLOCKED))
+                        cur++;
+                    else { if (best < cur) { best = cur; bestStart = i - cur; } cur = 0; }
+                }
+                if (best < cur) { best = cur; bestStart = 10 - cur; }
+                runLen = best; runStart = bestStart;
+                if (runLen > 3 && !(runLen == 3 && runStart >= 1 && runStart <= 6))
+                {
+                    if (runLen == 3 && (runStart == 0 || runStart == 7)) len = 2;
+                    if (runLen > 3) len = runLen - 2;
+                    if (len > 4) len = 4;
+                    if (runStart > 0 && runStart + len < 10) runStart++;
+                    if (rand() % 2 == 0)
+                    {
+                        paPlan[(len + runStart) * 10 - 20 + 9] = PLAN_LOCK;  // DESKADV +0x12 offsets
+                        for (int j = runStart; j < len + runStart - 1; j++) paPlan[j * 10 + 9] = PLAN_WALL;
+                    }
+                    else
+                    {
+                        paPlan[runStart * 10 + 9] = PLAN_LOCK;
+                        for (int j = runStart + 1; j < len + runStart; j++) paPlan[j * 10 + 9] = PLAN_WALL;
+                    }
+                    placed = true;
+                }
+            }
+            if (placed || ++attempts > 200)
+                done++;
+        } while (done == 0);
+    }
+}
+
+// ===========================================================================
+// IndyAssignQuestStepCells — DESKADV 1020:1426
+// ===========================================================================
+// Walk the finished plan grid and assign sequential ORDER ids (into paOrder[]) to the cells
+// that form the quest chain, returning the number of quest steps assigned (== max order + 1).
+// Phases:
+//   1. Count island-body/path (0x68/1/300) cells, goal (0x65) cells, and fork (301..304)
+//      cells; derive a target step count `nTarget = rand()%(bodies/5+1) + bodies/4 - forks
+//      - goals - 2`, floored at 4.
+//   2. Convert each fork head (301..304) whose corridor tail is PLAN_CORRIDOR into an ORDERED
+//      cell (0x132) and assign it the next order id, choosing the tail cell by the fork dir.
+//   3. For each island-seed (0x66) cell, assign an order id to the far end of its island body
+//      run (direction from IndyGetIslandOrientation).
+//   4. Random-fill remaining PLAN_PATH/CORRIDOR cells with order ids until nTarget reached
+//      (bounded ~200 attempts), preferring interior cells (grid order >= 3) once desperate.
+//   5. If the LAST-order (goal) cell landed on a CENTRAL cell (grid order < 3, i.e. near the
+//      start), move the goal OUTWARD: swap its order id with an outer (grid order > 2) ordered
+//      cell so the goal sits far from the start.
+// paOrder and paPlan are short[100]. Returns the step count (Indy doc+0x13a).
+//
+// RESOLVED (re-decompiled 1020:1426): phase-2 fork-tail offsets corrected (mark the corridor
+//   TAIL cell idx±1/±2/±10/±20, not the head); phase-5 direction clarified (goal pushed outward).
+int CDeskcppDoc::IndyAssignQuestStepCells(short *paOrder, short *paPlan)
+{
+    int nBodies = 0, nGoals = 0, nForks = 0;
+    for (int i = 0; i < 100; i++)
+    {
+        int t = paPlan[i];
+        if (t == PLAN_WALL /*0x68 body*/ || t == PLAN_PATH || t == PLAN_CORRIDOR)
+            nBodies++;
+        else if (t == PLAN_GOAL)
+            nGoals++;
+        else if (t >= PLAN_FORK_W && t <= PLAN_FORK_S)   // 301..304
+            nForks++;
+    }
+    int nTarget = rand() % (nBodies / 5 + 1) + (nBodies >> 2) - nForks - nGoals - 2;
+    if (nTarget < 4)
+        nTarget = 4;
+
+    int nOrder = 0;   // next order id (DESKADV local_16)
+
+    // Phase 2: fork heads -> ORDERED, tail assigned
+    for (int row = 0, base = 0; row < 10; row++, base += 10)
+    {
+        for (int col = 0; col < 10; col++)
+        {
+            int idx = base + col;
+            int head = paPlan[idx];
+            // RESOLVED (re-decompiled): DESKADV walks piVar11=&paPlan[idx-1], piVar12=&paOrder
+            // [idx-2]; it marks the CORRIDOR TAIL cell (one or two steps out along the fork's
+            // direction), NOT the head. It prefers the FARTHER tail (idx±2/±20) only when in
+            // bounds AND that farther cell is also a corridor; else the nearer tail (idx±1/±10).
+            if (head == PLAN_FORK_W)              // 0x12d: corridor extends WEST
+            {
+                if (paPlan[idx - 1] == PLAN_CORRIDOR)          // *piVar11
+                {
+                    if (col < 2 || paPlan[idx - 2] != PLAN_CORRIDOR)   // piVar11[-1]
+                    { paPlan[idx - 1] = PLAN_ORDERED; paOrder[idx - 1] = nOrder; }
+                    else
+                    { paPlan[idx - 2] = PLAN_ORDERED; paOrder[idx - 2] = nOrder; }
+                    nOrder++;
+                }
+            }
+            else if (head == PLAN_FORK_E)         // 0x12e: corridor extends EAST
+            {
+                if (paPlan[idx + 1] == PLAN_CORRIDOR)          // piVar11[2]
+                {
+                    if (col < 8 && paPlan[idx + 2] == PLAN_CORRIDOR)   // piVar11[3]
+                    { paPlan[idx + 2] = PLAN_ORDERED; paOrder[idx + 2] = nOrder; }
+                    else
+                    { paPlan[idx + 1] = PLAN_ORDERED; paOrder[idx + 1] = nOrder; }
+                    nOrder++;
+                }
+            }
+            else if (head == PLAN_FORK_N)         // 0x12f: corridor extends NORTH
+            {
+                if (paPlan[idx - 10] == PLAN_CORRIDOR)         // piVar11[-9]
+                {
+                    // base<0xb  <=>  row 0 (rowBase == 0); DESKADV iStack_8 = row*10
+                    if (base < 0xb || paPlan[idx - 20] != PLAN_CORRIDOR)   // piVar11[-0x13]
+                    { paPlan[idx - 10] = PLAN_ORDERED; paOrder[idx - 10] = nOrder; }
+                    else
+                    { paPlan[idx - 20] = PLAN_ORDERED; paOrder[idx - 20] = nOrder; }
+                    nOrder++;
+                }
+            }
+            else if (head == PLAN_FORK_S)         // 0x130: corridor extends SOUTH
+            {
+                if (paPlan[idx + 10] == PLAN_CORRIDOR)         // piVar11[0xb]
+                {
+                    // base<0x50  <=>  row < 8
+                    if (base < 0x50 && paPlan[idx + 20] == PLAN_CORRIDOR) // piVar11[0x15]
+                    { paPlan[idx + 20] = PLAN_ORDERED; paOrder[idx + 20] = nOrder; }
+                    else
+                    { paPlan[idx + 10] = PLAN_ORDERED; paOrder[idx + 10] = nOrder; }
+                    nOrder++;
+                }
+            }
+        }
+    }
+
+    // Phase 3: island seeds (0x66) -> order the far body end
+    for (row = 0, base = 0; row < 10; row++, base += 10)
+    {
+        for (int col = 0; col < 10; col++)
+        {
+            int idx = base + col;
+            if (paPlan[idx] != PLAN_LOCK)         // 0x66 island seed
+                continue;
+            int orient = IndyGetIslandOrientation(paPlan, row, col);
+            int target = -1;
+            if (orient == 1)          // west: walk left while body (0x68)
+            {
+                int j = col - 1, guard = 0;
+                do { if (j < 0) { j = 0; guard++; }
+                     else if (paPlan[base + j] != PLAN_WALL) { j++; guard++; } else j--; } while (guard == 0);
+                target = base + j;
+            }
+            else if (orient == 3)     // east
+            {
+                int j = col + 1, guard = 0;
+                do { if (j >= 10) { j = 9; guard++; }
+                     else if (paPlan[base + j] != PLAN_WALL) { j--; guard++; } else j++; } while (guard == 0);
+                target = base + j;
+            }
+            else if (orient == 2)     // north
+            {
+                int j = row - 1, guard = 0;
+                do { if (j < 0) { j = 0; guard++; }
+                     else if (paPlan[j * 10 + col] != PLAN_WALL) { j++; guard++; } else j--; } while (guard == 0);
+                target = j * 10 + col;
+            }
+            else if (orient == 4)     // south
+            {
+                int j = row + 1, guard = 0;
+                do { if (j >= 10) { j = 9; guard++; }
+                     else if (paPlan[j * 10 + col] != PLAN_WALL) { j--; guard++; } else j++; } while (guard == 0);
+                target = j * 10 + col;
+            }
+            if (target >= 0)
+            {
+                paPlan[target] = PLAN_ORDERED;
+                paOrder[target] = nOrder;
+                nOrder++;
+            }
+        }
+    }
+
+    // Phase 4: random-fill remaining path/corridor cells to reach nTarget
+    {
+        int done = 0, tries = 0;
+        do
+        {
+            if (nTarget <= nOrder) done++;
+            if (tries > 200) done++;
+            int col, row;
+            if (tries < 0x32)
+            {
+                col = rand() % 10;
+                if (col < 1 || col > 8) { row = rand() % 10; }
+                else                    row = (rand() & 1) ? 0 : 9;
+            }
+            else { col = rand() % 10; row = rand() % 10; }
+            if (nTarget <= nOrder) break;
+            if (GetZoneGridOrder(row, col) > 2 || tries >= 0x96)
+            {
+                int idx = row * 10 + col;
+                if (paPlan[idx] == PLAN_PATH || paPlan[idx] == PLAN_CORRIDOR)
+                {
+                    bool w = (col == 0 || paPlan[idx - 1]  != PLAN_ORDERED);
+                    bool e = (col == 9 || paPlan[idx + 1]  != PLAN_ORDERED);
+                    bool n = (row == 0 || paPlan[idx - 10] != PLAN_ORDERED);
+                    bool s = (row == 9 || paPlan[idx + 10] != PLAN_ORDERED);
+                    if (w && e && n && s)
+                    {
+                        paPlan[idx] = PLAN_ORDERED;
+                        paOrder[idx] = nOrder;
+                        nOrder++;
+                    }
+                }
+                if (nTarget <= nOrder) break;
+                tries++;
+            }
+        } while (done == 0);
+    }
+
+    // Phase 5: if the goal (max-order) cell is too central (grid order < 3), move it outward by
+    // swapping its order id with an outer ordered cell (grid order > 2).
+    int lastOrder = nOrder - 1;
+    bool found = false;
+    int lastRow = 0, lastCol = 0;
+    for (row = 0; row < 10 && !found; row++)
+        for (int col = 0; col < 10; col++)
+            if (paOrder[row * 10 + col] == lastOrder && GetZoneGridOrder(row, col) < 3)
+            { lastRow = row; lastCol = col; found = true; break; }
+    if (found)
+    {
+        for (int row = 0; row < 10; row++)
+            for (int col = 0; col < 10; col++)
+            {
+                int idx = row * 10 + col;
+                if (paOrder[idx] >= 0 && GetZoneGridOrder(row, col) > 2 && paOrder[idx] != lastOrder)
+                {
+                    int tmp = paOrder[idx];
+                    paOrder[idx] = lastOrder;
+                    paOrder[lastRow * 10 + lastCol] = tmp;
+                    return nOrder;
+                }
+            }
+    }
+    return nOrder;
+}
+
+// ===========================================================================
+// IndyPickCellForItemZone — DESKADV 1010:9b98
+// ===========================================================================
+// Choose a grid cell to host a puzzle "useful object" zone (node 0x11). Builds three
+// candidate lists over the 10x10 plan while scanning grid order vs nMinOrder:
+//   listA: interior PLAN_PATH/CORRIDOR cells with all four sides != PLAN_ORDERED (best),
+//   listB: interior PLAN_PATH/CORRIDOR cells otherwise,
+//   listC: cells whose grid order > nMinOrder and plan == PLAN_PATH (fallback).
+// Pick a random cell from the first non-empty of listA/listB/listC; write its (col,row) into
+// *pnX/*pnY. Returns 1 if a cell was chosen, else 0.
+int CDeskcppDoc::IndyPickCellForItemZone(int *pnY, int *pnX, short *paPlan, int nMinOrder)
+{
+    CWordArray listA, listB, listC;   // each stores packed (row*10+col)
+    for (int row = 0; row < 10; row++)
+    {
+        for (int col = 0; col < 10; col++)
+        {
+            int idx = row * 10 + col;
+            int order = GetZoneGridOrder(row, col);
+            short t = paPlan[idx];
+            if (order > nMinOrder)
+            {
+                if (t == PLAN_PATH)
+                    listC.SetAtGrow(listC.GetSize(), (short)idx);
+            }
+            else if (t == PLAN_PATH || t == PLAN_CORRIDOR)
+            {
+                bool w = (col < 1 || paPlan[idx - 1]  != PLAN_ORDERED);
+                bool e = (col > 8 || paPlan[idx + 1]  != PLAN_ORDERED);
+                bool n = (row < 1 || paPlan[idx - 10] != PLAN_ORDERED);
+                bool s = (row > 8 || paPlan[idx + 10] != PLAN_ORDERED);
+                if (w && e && n && s)
+                    listA.SetAtGrow(listA.GetSize(), (short)idx);
+                else
+                    listB.SetAtGrow(listB.GetSize(), (short)idx);
+            }
+        }
+    }
+    int pick = -1;
+    if (listA.GetSize() > 0)      pick = (short)listA.GetAt(rand() % listA.GetSize());
+    else if (listB.GetSize() > 0) pick = (short)listB.GetAt(rand() % listB.GetSize());
+    else if (listC.GetSize() > 0) pick = (short)listC.GetAt(rand() % listC.GetSize());
+    if (pick < 0)
+        return 0;
+    *pnX = pick % 10;   // col
+    *pnY = pick / 10;   // row
+    return 1;
+}
+
+// ===========================================================================
+// IndyPlacePuzzlesPass — DESKADV 1010:9ebc
+// ===========================================================================
+// Final placement pass. (1) Queue two seed puzzle items (a random "map" item 0x1c2/0x203/
+// 0x1c6/0x1b6 + item 0x1bb) into the worklist. (2) For each queued item, pick a cell
+// (IndyPickCellForItemZone) and place a useful-object node (0x11) there, writing the cell's
+// zone/type into the mapGrid. (3) Free the queue + reset uniqueRequiredItemsMaybe. (4) Sweep
+// the plan grid: every PLAN_PATH/CORRIDOR/PLAN_WALL(0x68 island body) cell that is still
+// unassigned gets a plain node-type-1 zone placed (indyPlaceOnEdge gates near-start cells);
+// count teleporter-bearing zones. (5) If exactly one teleporter zone was placed, force one
+// more plain node onto its cell. Returns 1.
+// NOTE: the map-item constants (0x1c2/0x203/0x1c6/0x1b6/0x1bb) are Indy item ids taken
+//   verbatim; the mapGrid writes mirror Yoda's cell-write idiom (see header (d)).
+int CDeskcppDoc::IndyPlacePuzzlesPass(short *paPlan)
+{
+    // (1) queue seed items
+    int r = rand() % 5;
+    int mapItem = 0x1c2;
+    if (r == 2) mapItem = 0x203;
+    else if (r == 3) mapItem = 0x1c6;
+    else if (r == 4) mapItem = 0x1b6;
+    IndyQueueItemForPlacement(2, (short)mapItem);
+    IndyQueueItemForPlacement(1, 0x1bb);
+
+    // (2) place a useful-object node for each queued item
+    int nQueued = worldgenPendingZones.GetSize();
+    for (int qi = 0; qi < nQueued; qi++)
+    {
+        WorldgenZoneEntry *pEnt = (WorldgenZoneEntry *)worldgenPendingZones.GetAt(qi);
+        short item  = pEnt->zoneId;   // {zoneId:=item}
+        short order = pEnt->val;      // {val:=order/tag}  (DESKADV entry+6 -> order; entry+4 -> item)
+        int cy, cx;
+        if (IndyPickCellForItemZone(&cy, &cx, paPlan, order) != 1)
+            return 0;
+        int nZone = IndyPlaceQuestNode(-1, item, -1, 0x11);
+        if (nZone < 0)
+            return 0;
+        int cell = cy * 10 + cx;
+        mapGrid[cell].zoneType = 0x11;
+        mapGrid[cell].cellItemA = genCellItemBScratch;   // DESKADV cell+0x39c = doc+0x1d
+        mapGrid[cell].id = (short)nZone;
+        apZoneGrid[cell] = (Zone *)zones.GetAt(nZone);
+        paPlan[cell] = PLAN_ORDERED;
+        AddPlacedZoneId((short)nZone);                   // IndyMarkZoneUsed
+    }
+    // (3) free the queue, reset used-required-items
+    {
+        int n = worldgenPendingZones.GetSize();
+        for (int i = 0; i < n; i++)
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+        worldgenPendingZones.SetSize(0, -1);
+        uniqueRequiredItemsMaybe.SetSize(0, -1);
+    }
+
+    // (4) fill remaining path cells with plain node-type-1 zones
+    int nTeleZones = 0;
+    int teleRow = 0, teleCol = 0;
+    for (int row = 0; row < 10; row++)
+    {
+        for (int col = 0; col < 10; col++)
+        {
+            int cell = row * 10 + col;
+            int t = paPlan[cell];
+            if (t == PLAN_PATH || t == PLAN_CORRIDOR || t == PLAN_WALL /*0x68 island body*/)
+            {
+                int order = GetZoneGridOrder(row, col);
+                indyPlaceOnEdge = (t == PLAN_WALL || order < 2) ? 1 : 0;
+                int nZone = IndyPlaceQuestNode((short)order, -1, -1, 1);
+                if (nZone >= 0)
+                {
+                    Zone *pZone = (Zone *)zones.GetAt(nZone);
+                    if (indyPlaceOnEdge == 0)
+                    {
+                        // count zones that hold a TELEPORTER (obj type 0xd)
+                        int nObj = pZone->objects.GetSize();
+                        bool hasTele = false;
+                        for (int i = 0; i < nObj; i++)
+                            if (((ZoneObj *)pZone->objects.GetAt(i))->type == 0xd) { hasTele = true; break; }
+                        if (hasTele) { nTeleZones++; teleRow = row; teleCol = col; }
+                    }
+                    mapGrid[cell].zoneType = 1;
+                    mapGrid[cell].id = (short)nZone;
+                    apZoneGrid[cell] = pZone;
+                    mapGrid[cell].cellItemA = -1;   // DESKADV writes 0xffff to the extra slots
+                    mapGrid[cell].cellItemB = -1;
+                    AddPlacedZoneId((short)nZone);   // IndyMarkZoneUsed
+                }
+            }
+        }
+    }
+    // (5) if exactly one teleporter zone, force a plain node onto its cell (paired teleporter)
+    if (nTeleZones == 1)
+    {
+        indyPlaceOnEdge = 1;
+        int order = GetZoneGridOrder(teleRow, teleCol);
+        int nZone = IndyPlaceQuestNode((short)order, -1, -1, 1);
+        if (nZone >= 0)
+        {
+            int cell = teleRow * 10 + teleCol;
+            mapGrid[cell].zoneType = 1;
+            mapGrid[cell].id = (short)nZone;
+            apZoneGrid[cell] = (Zone *)zones.GetAt(nZone);
+            AddPlacedZoneId((short)nZone);
+        }
+    }
+    return 1;
+}
+
+// ===========================================================================
+// IndyMaterializePlacedItemTiles — DESKADV 1020:07ae
+// ===========================================================================
+// After all zones are placed, walk a zone's objects and stamp the actual tile graphic for
+// each activated (state==1) item-carry object: item696 hosts (type 0xb) become tile 0x2b8;
+// ITEM/SPAWN/useful hosts (types 0..2 and 5..8) with a valid arg get their item's tile.
+// The stamping calls FUN_1010_183c/1896 (zone tile setters) — modeled here as SetItemTile().
+// NOTE: the exact type predicate is `t<3 || (t-2>2 && t-5<4)` from the decomp = {0,1,2,5,6,7,8}.
+void CDeskcppDoc::IndyMaterializePlacedItemTiles(int nZoneId)
+{
+    if (nZoneId < 0)
+        return;
+    Zone *pZone = (Zone *)zones.GetAt(nZoneId);
+    if (pZone == NULL)
+        return;
+    int nObj = pZone->objects.GetSize();
+    for (int i = 0; i < nObj; i++)
+    {
+        ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
+        unsigned int t = pObj->type;
+        // (obj+6==0 sub-test dropped)
+        if (t == 0xb)
+        {
+            if (pObj->state == 1)
+            {
+                pObj->arg = 0x2b8;   // item696 tile id
+                // SetItemTile(pZone, layer=1, x=pObj->x, y=pObj->y, tile=0x2b8) with fallback:
+                // if (SetTileForItem(...) < 0) ForceTileForItem(0x2b8, x, y);
+            }
+        }
+        else if (t < 0xc)
+        {
+            unsigned char b = (unsigned char)t;
+            bool carries = (b < 3) || (((unsigned char)(b - 2) > 2) && ((unsigned char)(b - 5) < 4));
+            if (carries && pObj->state == 1 && pObj->arg >= 0)
+            {
+                // SetItemTile(pZone, layer=1, x, y, tileForItem(pObj->arg)); fallback ForceTile.
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// IndyGenerate — DESKADV 1010:8524   (entry point; Yoda Generate analog)
+// ===========================================================================
+// Contract: return 1 on success, 0 to retry (caller loops re-seeding via Randomize()).
+// RNG draw order (verified against DESKADV): srand(abs(seed)); rand()%3 (maxGoals),
+// rand()%4 (maxSplits), rand() DISCARDED, rand()%2+4 (startX), rand()%2+4 (startY).
+//
+// This orchestrator mirrors Yoda CDeskcppDoc::Generate's shape but uses Indy's node model
+// (no planets, single-item puzzles). The per-cell mapGrid writes follow Yoda's idiom
+// (header (d)). The doc-side scratch grids in DESKADV (per-cell record @doc+0x394 stride
+// 0x16 = MapZone) are expressed directly through mapGrid[]/apZoneGrid[] here.
+int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
+{
+    short aPlan[100];    // DESKADV stack &local_108 — the plan grid (tokens)
+    short aOrder[100];   // DESKADV local_1d0     — the order grid
+
+    // View busy flag (mirrors Yoda Generate head)
+    POSITION pos = GetFirstViewPosition();
+    CDeskcppView *pView = NULL;
+    if (pos != NULL)
+        pView = (CDeskcppView *)GetNextView(pos);
+    if (pView != NULL)
+        pView->bBusy = 1;
+
+    worldSeed = nSeed;
+    nFrameMode = 0;                          // DESKADV *(doc+0x12*?)=0
+    uniqueRequiredItemsMaybe.SetSize(0, -1); // DESKADV FUN_..(+0x16a) clear
+    worldSeed = nSeed;
+
+    srand(abs((int)nSeed));
+    int maxGoals  = rand() % 3;              // local_16
+    int maxSplits = rand() % 4;              // local_24
+    rand();                                  // discarded
+    int nGoals = 0, nSplits = 0, nPlaced = 0;
+    int nStartX = rand() % 2 + 4;            // local_38
+    int nStartY = rand() % 2 + 4;            // local_3a
+
+    // clear grids + mapGrid cells
+    for (int y = 0; y < 10; y++)
+    {
+        for (int x = 0; x < 10; x++)
+        {
+            aPlan[y * 10 + x] = 0;
+            aOrder[y * 10 + x] = -1;
+            mapGrid[y * 10 + x].id = -1;
+            mapGrid[y * 10 + x].cellQuestSlot0 = -1;
+            mapGrid[y * 10 + x].cellQuestSlot1 = -1;
+            mapGrid[y * 10 + x].cellQuestSlot5 = -1;
+            mapGrid[y * 10 + x].cellQuestSlot6 = -1;
+            mapGrid[y * 10 + x].cellItemA = -1;
+            mapGrid[y * 10 + x].cellItemB = -1;
+            mapGrid[y * 10 + x].cellItemC = -1;
+            mapGrid[y * 10 + x].field30 = 0;
+        }
+    }
+
+    // clear worklists (DESKADV FUN_..(+0x132/+0x57/+0x65) + free +0x5f/+0x18a object lists +
+    //   +0x50/+0x14e).  Our reused members:
+    goalTileList.SetSize(0, -1);             // +0x132 per-step puzzle ids
+    // (+0x57 / +0x65 / +0x5f / +0x18a are the load-side aux/object CObArrays being reset;
+    //  those are engine bookkeeping — reset the equivalents if needed at integration.)
+    storyHistoryNevada.SetSize(0, -1);       // +0x140 used puzzles
+    placedZoneIds.SetSize(0, -1);            // +0x14e used zones
+
+    // free + reset the placed-items (+0x186) and queued-items (+0x178) worklists:
+    {
+        int n = worldgenRefZones.GetSize();
+        int i;
+        for (i = 0; i < n; i++)
+            delete (WorldgenZoneEntry *)worldgenRefZones.GetAt(i);
+        worldgenRefZones.SetSize(0, -1);
+        n = worldgenPendingZones.GetSize();
+        for (i = 0; i < n; i++)
+            delete (WorldgenZoneEntry *)worldgenPendingZones.GetAt(i);
+        worldgenPendingZones.SetSize(0, -1);
+    }
+
+    // load prior placed/story lists if requestedGoal < 0 (DESKADV: +0x52 < 0):
+    if (nRequestedGoalItem < 0)
+    {
+        // IndyLoadPlacedZoneList(); IndyLoadStoryHistory();   // TODO: INI persistence (SKIP)
+    }
+    int nOldPlaced = placedZoneIds.GetSize();   // local_40
+    // (DESKADV trims the used-puzzle history to <= ~11 entries; keep equivalent if desired)
+
+    // difficulty node-count band tables (DESKADV +0x109e):  {t2Hi,t2Lo,t3Hi,t3Lo,t4Hi,t4Lo,extraHi,extraLo}
+    int t2Hi, t2Lo, t3Hi, t3Lo, t4Hi, t4Lo, extraHi, extraLo;
+    if (difficulty == 1)          // easy
+    { t2Hi=8; t2Lo=5; t3Hi=6; t3Lo=4; t4Hi=1; t4Lo=1; extraHi=1; extraLo=1; }
+    else if (difficulty == 3)     // hard
+    { t2Hi=0xe; t2Lo=7; t3Hi=0x11; t3Lo=8; t4Hi=0xc; t4Lo=0xc; extraHi=0xc; extraLo=5; }
+    else                          // medium
+    { t2Hi=0xc; t2Lo=6; t3Hi=0xc; t3Lo=6; t4Hi=0xb; t4Lo=0xb; extraHi=0xb; extraLo=4; }
+
+    // plant the start marker
+    nPlaced = 4;                                  // DESKADV local_18 = 4 (seeded room count)
+    aPlan[nStartY * 10 + nStartX] = PLAN_START;   // 0xc9
+
+    // three quest rings (tiers 2,3,4) with random budgets from the band table
+    int budget2 = rand() % (t2Hi - t2Lo + 1) + t2Lo + maxSplits + maxGoals;
+    if (budget2 > 0xc) budget2 = 0xc;
+    IndyCarveQuestPath(&nPlaced, &nSplits, maxSplits, &nGoals, maxGoals, aPlan, budget2, 2);
+    int budget3 = t3Lo + rand() % (t3Hi - t3Lo + 1);
+    IndyCarveQuestPath(&nPlaced, &nSplits, maxSplits, &nGoals, maxGoals, aPlan, budget3, 3);
+    int budget4 = rand() % (t4Hi - t4Lo + 1) + t4Lo;
+    IndyCarveQuestPath(&nPlaced, &nSplits, maxSplits, &nGoals, maxGoals, aPlan, budget4, 4);
+    int nIslands = rand() % (extraHi - extraLo + 1) + extraLo;
+
+    // ---- retry loop: grow edge islands until the map is "full enough", then assemble ----
+    // DESKADV wraps the assembly in a do/while that keeps stamping edge islands (0x66/0x68)
+    // and only proceeds once a stop condition trips (budget exhausted or > 400 attempts).
+    int nEdgeAttempts = 0;   // DESKADV piStack_c
+    for (;;)
+    {
+        int stop = 0;
+        // ---- RESOLVED (re-decompiled 1010:8524, the do/while at ~0x8524..0x8d74): one edge-growth
+        // step. Pick a random BORDER cell (one axis pinned to {0,9}), and if it is empty, extend a
+        // corridor/path INWARD toward the first occupied interior neighbor, decrementing the island
+        // budget (nIslands = DESKADV local_4). Growth direction: from the pinned border look at the
+        // interior neighbor (top->south, bottom->north, left->east, right->west); if occupied,
+        // record the growth vector. Then stamp based on the TARGET cell one step further in.
+        {
+            int a, b;                       // a = row (stride 10), b = col
+            int growRow = 0, growCol = 0;   // DESKADV local_10 / puVar13 (+/-1 = grow up/down|L/R)
+            bool aPinned;
+            if ((rand() & 1) == 0) { int c2 = rand(); a = ((c2 & 1) == 0) ? 9 : 0; b = rand() % 10; aPinned = true; }
+            else                   { int c2 = rand(); b = ((c2 & 1) == 0) ? 9 : 0; a = rand() % 10; aPinned = false; }
+            nEdgeAttempts++;
+            int cell = a * 10 + b;
+            if (aPlan[cell] == 0)
+            {
+                if (aPinned)
+                {
+                    if (a == 0)              { short s = aPlan[cell + 10]; if (s != 0 && s != PLAN_BLOCKED) growRow = -1; }  // grow down
+                    else if (a == 9)         { short n = aPlan[cell - 10]; if (n != 0 && n != PLAN_BLOCKED) growRow =  1; }  // grow up
+                }
+                else
+                {
+                    if (b == 0)              { short e = aPlan[cell + 1];  if (e != 0 && e != PLAN_BLOCKED) growCol = -1; }  // grow right
+                    else if (b == 9)         { short w = aPlan[cell - 1];  if (w != 0 && w != PLAN_BLOCKED) growCol =  1; }  // grow left
+                }
+                if (growRow != 0 || growCol != 0)
+                {
+                    int drow = -growRow, dcol = -growCol;
+                    short tgt = aPlan[cell + drow * 10 + dcol];        // the target one step further in
+                    // "clear" perpendicular neighbor = off-grid, empty, or >= PLAN_FORK_S (DESKADV 0x12f<x)
+                    bool nsClear = ((a == 0 || aPlan[cell-10] == 0 || aPlan[cell-10] >= PLAN_FORK_S) &&
+                                    (a == 9 || aPlan[cell+10] == 0 || aPlan[cell+10] >= PLAN_FORK_S));
+                    bool ewClear = ((b == 0 || aPlan[cell-1]  == 0 || aPlan[cell-1]  >= PLAN_FORK_S) &&
+                                    (b == 9 || aPlan[cell+1]  == 0 || aPlan[cell+1]  >= PLAN_FORK_S));
+                    if (tgt == PLAN_FORK_W || tgt == PLAN_FORK_E)      // horizontal target
+                    {
+                        bool aligned = (tgt == PLAN_FORK_W) ? (growCol == -1) : (growCol == 1);
+                        if (aligned && nsClear)
+                        {
+                            aPlan[cell] = PLAN_CORRIDOR;
+                            if (a > 0) aPlan[cell-10] = PLAN_BLOCKED;
+                            if (a < 9) aPlan[cell+10] = PLAN_BLOCKED;
+                            nPlaced++; nIslands--;
+                        }
+                    }
+                    else if (tgt == PLAN_FORK_N || tgt == PLAN_FORK_S) // vertical target
+                    {
+                        bool aligned = (tgt == PLAN_FORK_N) ? (growRow == -1) : (growRow == 1);
+                        if (aligned && ewClear)
+                        {
+                            aPlan[cell] = PLAN_CORRIDOR;
+                            if (b > 0) aPlan[cell-1] = PLAN_BLOCKED;
+                            if (b < 9) aPlan[cell+1] = PLAN_BLOCKED;
+                            nPlaced++; nIslands--;
+                        }
+                    }
+                    else if (tgt == PLAN_CORRIDOR)                     // continue corridor (no budget change)
+                    {
+                        aPlan[cell] = PLAN_CORRIDOR;
+                        if (growRow != 0) { if (b > 0) aPlan[cell-1]  = PLAN_BLOCKED; if (b < 9) aPlan[cell+1]  = PLAN_BLOCKED; }
+                        else              { if (a > 0) aPlan[cell-10] = PLAN_BLOCKED; if (a < 9) aPlan[cell+10] = PLAN_BLOCKED; }
+                    }
+                    else if (tgt == PLAN_PATH || tgt == PLAN_GOAL ||
+                             tgt == PLAN_START || tgt == PLAN_ORDERED)
+                    {
+                        aPlan[cell] = PLAN_PATH;
+                        nPlaced++; nIslands--;
+                    }
+                }
+            }
+        }
+        if (nIslands < 1) stop++;             // DESKADV local_4 < 1
+        if (nEdgeAttempts > 400) stop++;      // DESKADV piStack_c > 400
+        if (stop == 0)
+            continue;
+
+        // finalize the island strips (DESKADV passes local_1c = the goal counter)
+        IndyPlaceIslandStrips(aPlan, nGoals);
+
+        // clear every zone's activatedFlag (DESKADV: for each zone, zone+8 = 0)
+        {
+            int nz = zones.GetSize();
+            for (int i = 0; i < nz; i++)
+            {
+                Zone *pz = (Zone *)zones.GetAt(i);
+                if (pz != NULL)
+                    pz->activatedFlag = 0;
+            }
+        }
+
+        // assign quest-step order ids; nSteps = number of quest cells
+        int nSteps = IndyAssignQuestStepCells(aOrder, aPlan);
+        goalTileList.SetSize(nSteps + 1, -1);   // DESKADV +0x132 sized to steps
+
+        // choose the world-mission goal puzzle (requestedGoal override, else pick one)
+        short goal;
+        if (nRequestedGoalItem < 0)
+            goal = IndySelectPuzzle(0, 9999, 0xffff, 0xffff);
+        else
+            goal = (short)nRequestedGoalItem;
+        if (goal < 0)
+            return 0;                            // no world-mission available -> retry
+
+        goalTileList.SetAt(nSteps, goal);        // DESKADV: goal puzzle at slot nSteps
+        // record the goal item into the doc (DESKADV: doc+0xc36 = puzzles[goal].itemA),
+        // mark the goal puzzle used, then main-quest assembly:
+        // g_finalGoalItem = ((Puzzle*)puzzles.GetAt(goal))->itemA;   // doc+0xc36
+        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
+
+        // --- PASS 1: VEHICLE/COMPANION pass. For each unclaimed PLAN_GOAL cell, place a node-type-6
+        //     zone (the "FROM_ANOTHER_MAP" side), read its VEHICLE_TO (obj type 3) destination zone,
+        //     then search the plan for a border PLAN_LOCK cell to host the destination ("TO_ANOTHER_
+        //     MAP", zoneType 7). Transcribed from the SAME-ENGINE Yoda CDeskcppDoc::Generate,
+        //     src/Worldgen.cpp lines 2828-2949 (verified against DESKADV IndyGenerate; Indy node
+        //     types 6/7 == Yoda ZONE_TYPE_FROM/TO_ANOTHER_MAP). If no free LOCK cell is found, the
+        //     whole goal cell is UNDONE (reverted to PLAN_PATH).
+        for (int y = 0; y < 10; y++)
+        {
+            for (int x = 0; x < 10; x++)
+            {
+                genCellQuestSlot6Scratch = -1;
+                genCellItemAScratch = -1;
+                genCellItemCScratch = -1;
+                int cell = y * 10 + x;
+                if (aPlan[cell] != PLAN_GOAL || apZoneGrid[cell] != NULL)
+                    continue;
+                int nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(x, y), -1, -1, 6);
+                int nDest = -1;
+                if (nZone < 0)
+                    continue;
+                mapGrid[cell].id = (unsigned short)nZone;
+                mapGrid[cell].zoneType = 6;                        // Yoda ZONE_TYPE_FROM_ANOTHER_MAP
+                mapGrid[cell].cellItemA = (short)genCellItemAScratch;
+                Zone *pZone = (Zone *)zones.GetAt((short)nZone);
+                int nObjs = pZone->objects.GetSize();
+                for (int k = 0; k < nObjs; k++)
+                {
+                    ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(k);
+                    if (pObj->type == 3)                          // OBJ_VEHICLE_TO
+                    { nDest = (short)pObj->arg; break; }
+                }
+                int bFound = 0, xLock = 0, yLock = 0;
+                if (nDest >= 0)
+                {
+                    // pass 1: left column (col 0), scan rows
+                    for (int k = 0; k < 10; k++)
+                        if (aPlan[k * 10] == PLAN_LOCK && apZoneGrid[k * 10] == NULL)
+                        { bFound = 1; yLock = k; break; }
+                    // pass 2: within row yLock, scan columns
+                    if (!bFound)
+                        for (int k = 0; k < 10; k++)
+                            if (aPlan[yLock * 10 + k] == PLAN_LOCK && apZoneGrid[yLock * 10 + k] == NULL)
+                            { bFound = 1; xLock = k; break; }
+                    // pass 3: right column (col 9), scan rows
+                    if (!bFound)
+                    {
+                        xLock = 9;
+                        for (int k = 0; k < 10; k++)
+                            if (aPlan[9 + k * 10] == PLAN_LOCK && apZoneGrid[9 + k * 10] == NULL)
+                            { bFound = 1; yLock = k; break; }
+                    }
+                    // pass 4: bottom row (row 9), scan columns
+                    if (!bFound)
+                    {
+                        yLock = 9; xLock = 0;
+                        for (int k = 0; k < 10; k++)
+                            if (aPlan[90 + k] == PLAN_LOCK && apZoneGrid[90 + k] == NULL)
+                            { bFound = 1; xLock = k; break; }
+                    }
+                }
+                if (bFound)
+                {
+                    if (IsZoneUsed((short)nDest) == 0)
+                    {
+                        int nCell2 = xLock + yLock * 10;
+                        apZoneGrid[nCell2] = (Zone *)zones.GetAt(nDest);
+                        mapGrid[nCell2].id = (short)nDest;
+                        mapGrid[nCell2].zoneType = 7;             // Yoda ZONE_TYPE_TO_ANOTHER_MAP
+                        mapGrid[nCell2].cellItemA = (short)genCellItemAScratch;
+                        apZoneGrid[cell] = pZone;                 // commit the goal cell
+                        AddPlacedZoneId((short)nZone);
+                        AddPlacedZoneId((short)nDest);
+                    }
+                }
+                else
+                {
+                    // no free LOCK cell — undo the whole goal placement
+                    RemoveZoneEntry((short)genCellItemAScratch);
+                    aPlan[cell] = PLAN_PATH;
+                    apZoneGrid[cell] = NULL;
+                    mapGrid[cell].id = -1;
+                    mapGrid[cell].zoneType = -1;
+                    mapGrid[cell].cellItemA = -1;
+                }
+            }
+        }
+
+        // --- PASS 2: MAIN QUEST CHAIN. Walk order ids high->low; the highest is the goal
+        //     (node type 10), the rest alternate TRADE(0xf)/TRANSACTION(0x10). Each order id
+        //     maps to a plan cell (aOrder[cell]==order). ---
+        for (int order = nSteps; order > 0; order--)
+        {
+            // find the cell carrying this order
+            int cell = -1;
+            for (int c = 0; c < 100 && cell < 0; c++)
+                if (aOrder[c] == order - 1) cell = c;   // DESKADV: *p2 - nOrderVal == -1
+            if (cell < 0)
+                continue;
+            int y = cell / 10, x = cell % 10;
+            short reqItem = ((Puzzle *)puzzles.GetAt((short)goalTileList.GetAt(order)))->itemA;
+            int nZone = -1;
+            int nodeType;
+            if (order == nSteps)
+            {
+                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, 10);
+                nodeType = 10;
+                if (nZone < 0) goto fail_reset;
+            }
+            else
+            {
+                nodeType = (rand() % 2 == 0) ? 0x10 : 0xf;
+                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, (short)nodeType);
+                if (nZone < 0)
+                {
+                    nodeType = (nodeType == 0x10) ? 0xf : 0x10;   // try the other trade/transaction
+                    nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, (short)nodeType);
+                    if (nZone < 0) goto fail_reset;
+                }
+            }
+            mapGrid[cell].zoneType = nodeType;
+            mapGrid[cell].cellQuestSlot0 = (short)order;
+            mapGrid[cell].cellItemA = (short)genCellItemAScratch;
+            mapGrid[cell].cellItemB = (short)genCellItemBScratch;
+            mapGrid[cell].cellItemC = (short)genCellItemCScratch;
+            mapGrid[cell].cellQuestSlot5 = (short)genCellQuestSlot5Scratch;
+            mapGrid[cell].field30 = 1;
+            mapGrid[cell].id = (short)nZone;
+            apZoneGrid[cell] = (Zone *)zones.GetAt(nZone);
+            AddPlacedZoneId((short)nZone);
+        }
+
+        // --- PASS 3: token pass — remaining fork/start cells become their node types. ---
+        for (y = 0; y < 10; y++)
+        {
+            for (int x = 0; x < 10; x++)
+            {
+                int cell = y * 10 + x;
+                if (apZoneGrid[cell] != NULL)
+                    continue;
+                short t = aPlan[cell];
+                int nodeType = -1, ctrlType = -1;
+                if (t == PLAN_START)      { nodeType = 0xb; ctrlType = 0xb; }
+                else if (t == PLAN_FORK_W){ nodeType = 5; }
+                else if (t == PLAN_FORK_E){ nodeType = 4; }
+                else if (t == PLAN_FORK_N){ nodeType = 2; }
+                else if (t == PLAN_FORK_S){ nodeType = 3; }
+                else if (t != PLAN_PATH && t != PLAN_WALL && t != PLAN_CORRIDOR)
+                    nodeType = 1;        // generic
+                if (nodeType < 0)
+                    continue;
+                int nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), -1, -1, (short)nodeType);
+                if (nZone < 0)
+                    continue;
+                mapGrid[cell].zoneType = nodeType;
+                mapGrid[cell].id = (short)nZone;
+                apZoneGrid[cell] = (Zone *)zones.GetAt(nZone);
+                if (nodeType != 0xb)                 // DESKADV: the start (0xb) node skips MarkZoneUsed
+                    AddPlacedZoneId((short)nZone);
+                (void)ctrlType;
+            }
+        }
+
+        // --- puzzle/useful-object placement pass ---
+        if (IndyPlacePuzzlesPass(aPlan) != 0)
+        {
+            // materialize item tiles across every placed mapGrid zone (DESKADV walks the 10x10
+            // record grid; each cell with a valid zone id -> IndyMaterializePlacedItemTiles):
+            for (int cell = 0; cell < 100; cell++)
+            {
+                short zoneId = mapGrid[cell].id;
+                if (zoneId >= 0)
+                    IndyMaterializePlacedItemTiles(zoneId);
+            }
+            if (nOldPlaced > 0)
+            {
+                // DESKADV FUN_..(+0x14e, nOldPlaced, 0): trim the FIRST nOldPlaced entries off
+                // placedZoneIds (the pre-existing used-zone ids carried in from a loaded game).
+                placedZoneIds.RemoveAt(0, nOldPlaced);
+            }
+            // IndyFilterEnemyZonesFromPlacedList(); IndySavePlacedZoneList();
+            // IndySaveStoryHistory();              // TODO: INI persistence (SKIP per brief)
+            nRequestedGoalItem = -1;                 // DESKADV doc+0x52 = 0xffff
+
+            // ---- play-state tail (DESKADV 1010:8524 tail; field ROLES cross-checked vs Yoda
+            //      CDeskcppDoc::Generate/Populate — offsets differ, roles match) ----
+            // totalZones (completion-score denominator) = (nSplits + nGoals)*2 + quest-step count.
+            //   DESKADV: (local_1a + local_1c)*2 + doc+0x13a; local_1a=nSplits, local_1c=nGoals,
+            //   doc+0x13a = goalTileList size (nSteps+1).
+            totalZones = (nSplits + nGoals) * 2 + goalTileList.GetSize();
+
+            playerX = nStartX;                       // DESKADV local_38 -> player start col
+            playerY = nStartY;                       // DESKADV local_3a -> player start row
+            gameState = 0;                           // in-progress (kept from head)
+            nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb  (== Yoda Populate's nFrameMode=0xb)
+            // DESKADV also resets the HERO ENTITY's health to 120 (0x78) at entity+0x90 and clears
+            // entity+0x2c. That is the player Character's HP, not the doc damage accumulators
+            // (healthLo 0..100 / healthHi 0..3). TODO(integration): reset the hero Character HP to
+            // full here (the doc's healthLo/healthHi damage counters are reset by Populate/StartGame).
+            // DESKADV additionally sets a UI/turn-timer dword (doc+0x10a2 = 0xa00160) and a clock
+            // stamp from IndyTime() — engine bookkeeping, wire to our equivalents at integration.
+            return 1;
+        }
+
+    fail_reset:
+        // teardown this attempt's lists and RETRY (return 0) — DESKADV clears +0x132/+0x57/
+        // +0x65 and the object lists, then returns 0 so the caller reseeds.
+        goalTileList.SetSize(0, -1);
+        // (reset the reused lists as at function head)
+        return 0;
+    }
+}
+
+#endif // GAME_INDY

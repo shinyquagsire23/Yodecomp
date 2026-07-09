@@ -336,8 +336,8 @@ void Zone::ReadIzaxIndy(CFile *pFile)
     pFile->Read(&count, 2);          // provided-item pool size
     for (i = 0; i < count; i++) {
         pFile->Read(&n, 2);
-        providedItemsA.SetAtGrow(providedItemsA.GetSize(), n);
-        providedItemsB.SetAtGrow(providedItemsB.GetSize(), n);   // mirror (see note above)
+        providedItemsA.SetAtGrow(providedItemsA.GetSize(), n);   // Indy is SINGLE-pool: worldgen
+        // reads only providedItemsA (IZAX); the old providedItemsB mirror was a wart (removed).
     }
 }
 #endif
