@@ -51,6 +51,13 @@ if(YODA_VARIANT STREQUAL "FULL")
   list(APPEND _extra_defs /D YODA_FULL)
 endif()
 
+# Debug logging (writes yoda_debug.log next to the exe). OFF by default so the anchor build is
+# untouched; enable for the extended builds with -DYODA_DEBUG=ON.
+option(YODA_DEBUG "Enable debug logging (src/DebugLog.h)" OFF)
+if(YODA_DEBUG)
+  list(APPEND _extra_defs /D YODA_DEBUG)
+endif()
+
 if(YODA_GAME STREQUAL "YODA" AND YODA_VARIANT STREQUAL "DEMO" AND YODA_PLATFORM STREQUAL "WIN32")
   set(_is_anchor TRUE)
 else()

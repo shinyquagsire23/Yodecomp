@@ -4548,7 +4548,12 @@ int CDeskcppDoc::ParseTnam(CFile *pFile)
         {
             Tile *pTile = (Tile *)tiles.GetAt(id);
             char buf[24];
+#ifdef GAME_INDY
+            buf[0x10] = 0;            // Indy tile names are 16 bytes (vs Yoda 24) — verified:
+            pFile->Read(buf, 0x10);   // 143 names align the DAW tail to ENDF
+#else
             pFile->Read(buf, 0x18);
+#endif
             pTile->name = buf;
         }
     } while (nDone == 0);

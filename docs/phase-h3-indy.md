@@ -70,11 +70,24 @@ it sidesteps 16-bit RE). The Yoda `.dta` and Indy `.daw` share the chunk vocabul
 - `Load()` dispatcher: skip the Indy global chunks (`IZAX/ZAX2/ZAX4/ZAX3/HTSP/ACTN/PNAM/ANAM`) by length
   so the load walks past the zones — their per-zone distribution is the next sub-step (2b+).
 
-**Remaining for a clean full parse (still Yoda-format under GAME_INDY ⇒ will misread):** `PUZ2` (Indy
-record lacks Yoda's `unk3`/`item_b`), `CHAR` (record `0x54`→`0x4E`), `CHWP`/`CAUX`/`TNAM`/name lengths
-(`24`→`16`), and `TILE`/`SNDS` (verify shared). Then **2b** distribute the global HTSP objects + ACTN
-IACT lump + aux back to zones; **3** Indy palette; **4** Indy worldgen (no planets — `Generate`/
-`LoadWorld`/`WorldgenSelectPuzzle` planet logic is Yoda-specific and will fail as-is).
+**⭐ FULL DAW PARSE COMPLETE (v57, verified by byte-simulation + our real parsers):** every load-time
+delta found + fixed, so `Load()` walks `DESKTOP.DAW` cleanly to `ENDF`:
+- `IZON` header 8 bytes not 12 (drop globalVar+planet) — `Zone::ReadIzon` (the zone-alignment fix).
+- `ParseZone` reads Indy's `chunkLen(4)`; `ReadZone` Indy branch = tiles-only.
+- `PUZ2`/`Puzzle::Read`: Indy IPUZ drops `unk3(4)` + `itemB(2)` — verified 157 puzzles align to CHAR.
+- `CHAR`/`Character::Read`: Indy ICHR is `0x4E` not `0x54` — 6-byte-shorter frame block (`0x2a` not
+  `0x30`) — verified 27 chars align to CHWP.
+- `TNAM`/`ParseTnam`: Indy tile names are `0x10` not `0x18` — verified 143 names align the tail to ENDF.
+- SHARED (no delta): `VERS`/`STUP`/`SNDS`/`TILE`, `CHWP`, `CAUX`. SKIPPED: the global aux/object/script
+  chunks + Indy-only `ZNAM`/`PNAM`/`ANAM` (dispatcher length-skip).
+Method note: the raw-byte simulation (walk the DAW with each candidate delta, confirm the next tag lands
+exactly) proved every delta WITHOUT a run — faster + anchor-safe vs C++ instrumentation.
+
+**Remaining (past the parse): 2b** distribute the skipped global HTSP objects + ACTN IACT lump + aux back
+to zones (so zones have content); **3** Indy palette; **4** Indy worldgen — the big one: `Generate`/
+`LoadWorld`/`WorldgenSelectPuzzle` are built around Yoda's 3 planets + per-planet goal whitelists, which
+don't exist in Indy, so worldgen will fail/stall as-is and needs a `GAME_INDY` rework (likely from
+DESKADV.EXE logic — where the raw bytes can't help, so DESKADV decompilation + naming starts here).
 
 ## DESKADV.EXE (Ghidra) — naming practice + RE friction
 **USER directive:** as Indy functions are identified in DESKADV.EXE, **rename them in its Ghidra program**

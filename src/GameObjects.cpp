@@ -46,7 +46,9 @@ void Puzzle::Read(CFile *pFile)
     if (strcmp(tag, "IPUZ") == 0) {
         pFile->Read(&nType, 4);
         pFile->Read(&unk2, 4);
-        pFile->Read(&unk3, 4);
+#ifndef GAME_INDY
+        pFile->Read(&unk3, 4);   // Indy's IPUZ record drops unk3 (verified: aligns 157 puzzles)
+#endif
         pFile->Read(&unk14, 2);
         pFile->Read(&len, 2);
         if (len > 0) {
@@ -79,7 +81,9 @@ void Puzzle::Read(CFile *pFile)
             text5 = buf;
         }
         pFile->Read(&itemA, 2);
-        pFile->Read(&itemB, 2);
+#ifndef GAME_INDY
+        pFile->Read(&itemB, 2);   // Indy's IPUZ record drops itemB
+#endif
     }
 }
 
@@ -132,8 +136,15 @@ void Character::Read(CFile *pFile)
     pFile->Read(&w3, 2);
     pFile->Read(&dw, 4);
     Init(w1, w2, w3, dw);
+#ifdef GAME_INDY
+    // Indy's ICHR record is 0x4E (vs Yoda 0x54): the 6-byte-shorter tail is the frame block —
+    // 21 frame shorts (0x2a) instead of 24 (0x30). Verified: 27 chars align to CHWP.
+    pFile->Read(frameBuf, 0x2a);
+    memcpy(frames, frameBuf, 0x2a);
+#else
     pFile->Read(frameBuf, 0x30);
     memcpy(frames, frameBuf, 0x30);
+#endif
 }
 
 // FUNCTION: YODA 0x00404830
