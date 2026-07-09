@@ -300,17 +300,47 @@ wrong zone).
   no `is_yoda` gate), so the opcodes are NOT renumbered — there simply is no entry script to run. The v59 "no cond
   0/1" observation was correct but analysed the WRONG zone (0); the conclusion (chase entry semantics) was wrong.
 
-### ⏭ NEXT (user visual-verify the v61 fix, then the whip)
-1. **VISUAL VERIFY (user, `./run_indy.sh`):** does the correct start zone now render, and can buildings be entered?
-   The fix makes the correct zone's DOOR_IN objects active — this is the prime suspect for "can't enter buildings."
-2. **The whip / starting weapon.** `currentWeapon` starts 0; it becomes a weapon only when the whip is in inventory
-   and selected (`src/DeskcppView.cpp` ~L1580; weapon tiles 0x1ff–0x205 / a Character with `frames[7]==0x12`). NOT
-   yet investigated. Where it comes from is open: (a) a worldgen-tail inventory seed (check DESKADV `IndyGenerate`
-   success tail / `IndyStartNewGameMaybe` 1020:0ed0 for an AddItemToInv equivalent — same "tail sets player state"
-   area as the hero-HP TODO), or (b) an OBJ_WEAPON object in the (now-correct) start zone that auto-equips. Now that
-   the correct start zone is active, re-check whether the whip already appears.
-Method: the headless `-DYODA_DEBUG` YDBG oracle (guard all logs GAME_INDY+YODA_DEBUG, revert before anchor check) +
-DESKADV.EXE RE. `tmp/actn_sim.py` is the ACTN raw-byte simulator if needed.
+### ⭐ v62 — five more bug fixes (New World infloop, palette, character animation, door crash) + whip finding
+All GAME_INDY-guarded, anchor 211 held. Verified against DESKADV.EXE (three parallel RE agents) + headless YDBG.
+1. **New World infinite loop / progress bar jumping (FIXED).** `StartGame` (OnNewWorld → StartGame) had a Generate
+   loop that was NOT GAME_INDY-guarded — it ran Yoda `Generate()`, which never converges on Indy data → infinite
+   reseed. `Load()` was guarded; `StartGame` was missed. Mirror Load's routing (`IndyGenerate` / skip Populate).
+   Needed a GAME_INDY `IndyGenerate` decl in `DeskcppStub.h` (WorldgenHelpers compiles against the facade).
+2. **Palette "browns cycling weirdly" (FIXED).** Indy animates DIFFERENT ranges than Yoda (v60's "same ranges"
+   was wrong). DESKADV `IndyCyclePalette` 1018:8e40: EVERY tick ring-rotate [160..167],[224..228],[229..237] UP;
+   ODD tick ring-rotate [238..243] DOWN + swap 244↔245; push single band [160..245] (0xa0,0x56). Indy has NO
+   [10..14] band and none of Yoda's 198..207 swaps. Added a GAME_INDY branch in `CyclePalette` (early-return).
+   sysPalette base = doc+0xc46, colortable ptr = doc+0x1046, enable = doc+0xc3c, tick counter = doc+0x50.
+3. **Character animation garbled (FIXED).** Indy's frame layout is IDENTICAL to Yoda (24 shorts / stride 8 / same
+   GetFrameTile — DESKADV FUN_1010_076e); the "21 frames / 7-per-bank" premise (from DesktopAdventures) was WRONG.
+   The real bug: Indy's ICHR record (`0x4E`) has only TWO 2-byte fields after the name then a FULL `0x30` frame
+   block — it DROPS Yoda's 3rd short + dword. Our shared `Character::Read` read Yoda's w3+dw, eating 6 frame bytes
+   and shifting every frame by 3 shorts. Fixed the Indy branch to skip w3/dw and read the full 0x30 (DESKADV
+   FUN_1010_069c reads 8+16+2+2 then 0x30). Total record size unchanged so CHWP still aligns.
+4. **Door-entry crash (defensive guard added; NOT confirmed as the crash).** Headless (post-target-zone-fix) shows
+   door entry COMPLETES: start zone 120 has 3 DOOR_IN objects (args 107/108/333), entering interior 107 (type 8)
+   runs steps 0→10 fine. BUT the interior isn't in the 10×10 grid, so the grid search leaves cell (-1,-1) and
+   `ZoneTransitionStep`'s UNguarded `mapGrid[nCellX+nCellY*10].flagSolved=1` writes `mapGrid[-11]` (OOB into the
+   World struct — can corrupt a pointer → a later GDI crash the headless run doesn't trigger). WorldEntryStepMaybe
+   guards this same store; added the guard to ZoneTransitionStep for Indy. ⚠ Needs USER visual re-test to confirm
+   the door crash is gone; if not, get a GUI crash address (the crash is real-GDI-only, invisible headless).
+5. **The whip does NOT appear (root cause found, fix pending).** DESKADV RE (agent): Indy does NOT seed a starting
+   weapon/inventory at worldgen — `IndyGenerate`/`IndyStartNewGameMaybe` call NO add-to-inventory; the inventory
+   CObArray (doc+0x78) is EMPTIED, never filled. The hero entity's HP is set (entity+0x90=0x78=120) but no weapon.
+   So the whip comes from GAMEPLAY: either an OBJ_WEAPON pickup in a zone, or an IACT `CMD_AddItemToInv`. With the
+   correct start zone now active, re-check whether the whip appears via pickup. (Also pending: wire the hero
+   Character HP=120 in the IndyGenerate tail — currently only doc fields are set.)
+
+### ⏭ NEXT (user visual re-test `./run_indy.sh`, then remaining)
+1. **USER VISUAL RE-TEST:** New World (no infloop?), palette (correct colours?), character facing (correct?),
+   entering a building (crash gone?). Report which persist.
+2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
+   auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
+3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).
+Method: headless `-DYODA_DEBUG` YDBG oracle (guard GAME_INDY+YODA_DEBUG, revert before anchor check). The door
+crash is GUI-only — a headless repro that injects TransitionZoneDoor does NOT reproduce it.
+Key DESKADV addrs this session: IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / char reader FUN_1010_069c /
+GetFrameTile FUN_1010_076e, IndyGenerate tail 1010:8524 (hero HP entity+0x90=0x78), IndyStartNewGameMaybe 1020:0ed0.
 
 ## Gameplay-fidelity findings + tabled TODOs (2026-07-09, user played build-indy)
 User-confirmed after ACTN distribution: **world loads, zone-to-zone movement works, palette looks correct**;
