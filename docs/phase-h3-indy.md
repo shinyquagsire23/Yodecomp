@@ -277,27 +277,40 @@ of `DESKTOP.DAW`'s ACTN chunk (walk chunks tag(4)+len(4)+payload, VERS is a bare
 **Fix (anchor 211 held):** removed `ACTN` from the Indy dispatcher's length-skip list (`src/Worldgen.cpp` ~L4269) so
 it falls through to the shared `ParseActn` — a one-line change; no `ParseActnIndy` needed.
 
-### ⏭ NEXT = the entry-script → nFrameMode advance (the whip + scripted first-entry + revert the bWorldInvalid workaround)
-Distributing ACTN did NOT by itself fix the whip or let us revert the `bWorldInvalid=1` workaround. Verified
-headlessly (v59): with `bWorldInvalid=0`, OnTimer case-0xb → `WorldEntryStepMaybe` STILL loops 0→5→0 forever —
-step 5 unconditionally sets `nTransitionStep=-1`, and only an **entry-triggered IACT script advancing nFrameMode**
-breaks the cycle. `IactRun(4)`/`IactRun(5)` at step 5 fire only scripts whose condition is `COND_FirstEnter`(0)/
-`COND_Enter`(1) with `event==4` (`src/Iact.cpp` ~L481). But the Indy start zone (id 0, type 17) has 9 scripts and
-**none are cond 0/1 under Yoda opcode numbering** — script[0] = `cond 4` (COND_Walk) / `cmd 13` (CMD_MoveCamera).
-So no entry script matches, nFrameMode never advances, and the workaround (ZoneTransitionStep, which reaches play
-mode WITHOUT running entry scripts) stays. **Hypotheses to chase next (in order):**
-1. **Indy IACT trigger/opcode semantics.** DA (`~/workspace/DesktopAdventures/src/iact.c`) uses the SAME command
-   enum names for both games, so opcodes may NOT be wholesale-renumbered — but the ENTRY trigger may map differently
-   (Indy's "first enter" could be a different condition opcode, or `IactRun`'s `event` arg for entry differs). RE
-   DESKADV.EXE's `IactRun`-equivalent condition switch to confirm which condition opcode = zone entry for Indy, and
-   add a `GAME_INDY` branch in `Zone::IactRun` if needed.
+### ⭐ v61 — the START-ZONE TARGET bug FIXED (root cause of "can't enter buildings" + the false entry-script trail)
+The v59 pickup chased a non-existent "Indy entry-script" delta. The real bug: **the world-entry transition was
+targeting the WRONG zone.** The IndyGenerate tail hardcoded `pView->nTargetZoneId = 0` (copied verbatim from Yoda's
+`Populate()`, where the demo layout puts the intro zone at id 0). But Indy's start zone id is **dynamic** — the
+generator places a MAP_START_AREA (type 11) zone at the player's spawn cell `(nStartX,nStartY)`. With `bWorldInvalid=1`,
+`ZoneTransitionStep` step 5 sets `currentZone = GetZoneById(nTargetZoneId)` — so `=0` made the whole entry render and
+run against **zone 0** (type 17, a random FIND_SOMETHING_USEFUL_BUILDING zone), whose objects/doors never matched
+what the player saw. That is almost certainly why buildings couldn't be entered (the DOOR_IN objects belonged to the
+wrong zone).
+- **Fix (`src/Worldgen.cpp` IndyGenerate tail, GAME_INDY-guarded, anchor 211 held):**
+  `pView->nTargetZoneId = GetZoneCell(nStartX, nStartY);` — the real start zone id.
+- **Verified headlessly (YDBG):** start cell `(5,4)` → `startZoneId=120`; after the fix `currentZone` becomes
+  **type 11 (MAP_START_AREA)** from transition step 6 on, and the transition self-climbs step 1→11 → play mode
+  (`nFrameMode=3`). Before the fix it was type 17 (zone 0).
+- **The `bWorldInvalid=1` self-climb is CORRECT for Indy, NOT a workaround to revert.** With the target fixed we
+  inspected the REAL start zone (120): 45 scripts, cond histogram = GlobalVarEq×18 / BumpTile×16 / HasItem×11 /
+  DragItem×5 / TempVarEq×2 / Walk×2 — **ZERO cond-0 (FirstEnter) / cond-1 (Enter)**. So Indy has no scripted intro
+  entry; `WorldEntryStepMaybe` (which only escapes step 5 when an entry script advances nFrameMode) would loop
+  forever. Yoda's Hoth intro zone DOES have a FirstEnter script — that's the whole reason Yoda uses the scripted
+  path. DA confirms the shared opcode enum (`iact.c` triggers[] and `map.c` fire FirstEnter+Enter for BOTH games,
+  no `is_yoda` gate), so the opcodes are NOT renumbered — there simply is no entry script to run. The v59 "no cond
+  0/1" observation was correct but analysed the WRONG zone (0); the conclusion (chase entry semantics) was wrong.
+
+### ⏭ NEXT (user visual-verify the v61 fix, then the whip)
+1. **VISUAL VERIFY (user, `./run_indy.sh`):** does the correct start zone now render, and can buildings be entered?
+   The fix makes the correct zone's DOOR_IN objects active — this is the prime suspect for "can't enter buildings."
 2. **The whip / starting weapon.** `currentWeapon` starts 0; it becomes a weapon only when the whip is in inventory
-   and selected (`src/DeskcppView.cpp` ~L1580; weapon tiles 0x1ff–0x205 / a Character with `frames[7]==0x12`). The
-   whip must be granted at world start — either by an entry script's `CMD_AddItemToInv` (blocked by #1) or by the
-   worldgen tail directly (DESKADV `IndyGenerate` tail — check if it seeds a starting weapon / inventory item; the
-   hero-HP TODO at `IndyGenerate` tail is the same "tail sets player state" area).
-Method: the headless `-DYODA_DEBUG` YDBG oracle (proven this session) + DESKADV.EXE RE. `tmp/actn_sim.py` is the
-ACTN raw-byte simulator if the format ever needs re-checking.
+   and selected (`src/DeskcppView.cpp` ~L1580; weapon tiles 0x1ff–0x205 / a Character with `frames[7]==0x12`). NOT
+   yet investigated. Where it comes from is open: (a) a worldgen-tail inventory seed (check DESKADV `IndyGenerate`
+   success tail / `IndyStartNewGameMaybe` 1020:0ed0 for an AddItemToInv equivalent — same "tail sets player state"
+   area as the hero-HP TODO), or (b) an OBJ_WEAPON object in the (now-correct) start zone that auto-equips. Now that
+   the correct start zone is active, re-check whether the whip already appears.
+Method: the headless `-DYODA_DEBUG` YDBG oracle (guard all logs GAME_INDY+YODA_DEBUG, revert before anchor check) +
+DESKADV.EXE RE. `tmp/actn_sim.py` is the ACTN raw-byte simulator if needed.
 
 ## Gameplay-fidelity findings + tabled TODOs (2026-07-09, user played build-indy)
 User-confirmed after ACTN distribution: **world loads, zone-to-zone movement works, palette looks correct**;

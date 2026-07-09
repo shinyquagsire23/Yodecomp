@@ -808,35 +808,35 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v60 — PHASE H3 milestone 4: ACTN zone-scripts DISTRIBUTED (319 zones/2825 scripts load); NEXT = Indy IACT entry-trigger semantics (the whip + scripted first-entry); anchor 211)
-**▶ v60 SUMMARY: ACTN distribution DONE + verified (the plan's "biggest delta" — turned out one-line).** The Indy
-ACTN chunk is NOT a distinct format — it's the IDENTICAL keyed `[zone_id(2), count(2), scripts...]` block as Yoda's
-per-zone IACT, only relocated to one global chunk. Proven 3 ways: DESKADV.EXE `IndyParseActn` 1010:b5d4 ≡ our
-`ParseActn` (cond record `PUSH 0xe`=14B, same); raw-byte simulation of DESKTOP.DAW's ACTN consumes it EXACTLY
-(delta=0, 319 zones/2825 scripts); headless YDBG confirmed the live load. FIX = removed `ACTN` from the Indy
-dispatcher length-skip list (`src/Worldgen.cpp` ~L4269) → falls through to shared `ParseActn`. Anchor 211 held
-(GAME_INDY-guarded). ⚠ This did NOT fix the whip or unblock the workaround revert — see START HERE.
-**▶ START HERE = the entry-script → nFrameMode advance (whip + scripted first-entry + revert bWorldInvalid=1).**
-Verified headlessly: with `bWorldInvalid=0`, OnTimer case-0xb → `WorldEntryStepMaybe` STILL loops 0→5 (step 5 sets
-`nTransitionStep=-1`; only an entry-triggered IACT advancing nFrameMode breaks it). `IactRun(4/5)` fires only
-`COND_FirstEnter`(0)/`COND_Enter`(1) scripts (`src/Iact.cpp` ~L481), but the Indy start zone (id 0, type 17) has 9
-scripts and NONE are cond 0/1 under Yoda numbering (script[0]=cond4/cmd13). So (1) RE DESKADV.EXE's IactRun-equiv
-condition switch to find Indy's entry-trigger condition opcode + `event` value (DA `iact.c` shares command-enum
-NAMES, so likely NOT wholesale-renumbered — but the entry trigger may map differently) and add a `GAME_INDY` branch
-in `Zone::IactRun`; (2) the whip: `currentWeapon` starts 0, set only when the whip is in inventory (`DeskcppView.cpp`
-~L1580; weapon tiles 0x1ff–0x205 / Character `frames[7]==0x12`) — granted at start by an entry-script CMD_AddItemToInv
-(blocked by #1) OR by the worldgen tail directly (check DESKADV `IndyGenerate` tail for a seeded starting weapon;
-same area as the hero-HP TODO). Full detail in docs/phase-h3-indy.md ("ACTN … DONE" + "NEXT = the entry-script").
-**▶ v60 ALSO (user played build-indy — world loads, zone movement + palette look right, can't enter buildings):**
-(a) ✅ FIXED palette cycling — Indy DOES cycle (v59 was wrong): DESKADV `FUN_1018_8e40` ≡ Yoda CyclePalette + it
-sets the enable flag (`1010:506c: MOV [doc+0xc3c],1`); dropped the `#ifndef GAME_INDY` guard on
-`bPaletteAnimEnabled=1` in DeskcppDoc.cpp (anchor-safe). (b) ⏳ TODO: player walk FACING DIRECTION wrong for Indy —
-`Character::GetFrameTile` (GameObjects.cpp ~L164) assumes `frames[24]`=3 banks×8 dirs, but Indy's ICHR frame block
-is 0x2a=21 shorts (vs 0x30=24) → different per-bank dir count/order; needs DESKADV GetWalkFrameTile RE + a GAME_INDY
-branch. Both in docs/phase-h3-indy.md "Gameplay-fidelity findings + tabled TODOs".
-**▶ PRIOR v59 (condensed; full in PLAN_COMPLETED.md):** worldgen reimplemented from DESKADV.EXE + CONVERGES +
-boots into a playable rendered Indy world ("gets in-game"). The bWorldInvalid=1 workaround, the missing whip, and
-can't-enter-buildings are ALL the same entry-trigger gap → the v60 START HERE above.
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v61 — PHASE H3 milestone 4: START-ZONE TARGET bug FIXED (was rendering/scripting the WRONG zone); NEXT = user visual-verify buildings enterable + the whip; anchor 211)
+**▶ v61 SUMMARY: fixed the world-entry target zone — the real cause behind "can't enter buildings" + the false
+entry-script trail.** The IndyGenerate tail hardcoded `pView->nTargetZoneId = 0` (copied from Yoda `Populate`, whose
+demo puts the intro zone at id 0). Indy's start zone id is DYNAMIC — the generator places a MAP_START_AREA (type 11)
+zone at the spawn cell `(nStartX,nStartY)`. With `bWorldInvalid=1`, `ZoneTransitionStep` step 5 does
+`currentZone=GetZoneById(nTargetZoneId)`, so `=0` rendered + ran scripts against **zone 0** (a random type-17
+building), whose DOOR_IN objects never matched the displayed world → almost certainly why buildings couldn't be
+entered. FIX (`src/Worldgen.cpp` IndyGenerate tail, GAME_INDY-guarded, anchor 211 held):
+`pView->nTargetZoneId = GetZoneCell(nStartX, nStartY);`. Verified headlessly (YDBG): start cell (5,4) → zone 120;
+after the fix currentZone becomes **type 11** from transition step 6 on, self-climbs step 1→11 → play mode (mode 3).
+**▶ The `bWorldInvalid=1` self-climb is CORRECT for Indy, NOT a workaround to revert (v59 got this wrong).** With the
+target fixed, headless inspection of the REAL start zone (120): 45 scripts, cond histogram GlobalVarEq×18/BumpTile×16/
+HasItem×11/DragItem×5/TempVarEq×2/Walk×2 — **ZERO cond-0(FirstEnter)/cond-1(Enter)**. Indy has no scripted intro
+entry, so `WorldEntryStepMaybe` (only escapes step 5 when an entry script advances nFrameMode) would loop forever.
+Yoda's Hoth intro zone DOES have a FirstEnter script — that's why Yoda uses the scripted path. DA confirms the
+opcode enum is SHARED (map.c fires FirstEnter+Enter for both games, no is_yoda gate) — NOT renumbered; there's just
+no entry script. The v59 "no cond 0/1" was analysing the WRONG zone (0).
+**▶ START HERE (v61):** (1) **USER VISUAL-VERIFY** `./run_indy.sh` (build-indy already rebuilt clean): does the
+correct start zone render + can buildings now be entered? (prime suspect fixed). (2) **The whip** — NOT yet
+investigated. `currentWeapon`=0 until the whip is in inventory+selected (`DeskcppView.cpp` ~L1580; weapon tiles
+0x1ff–0x205 / Character `frames[7]==0x12`). Source open: a worldgen-tail inventory seed (check DESKADV
+`IndyGenerate` success tail / `IndyStartNewGameMaybe` 1020:0ed0 for an AddItemToInv equiv — same area as the hero-HP
+TODO) OR an OBJ_WEAPON in the now-correct start zone. Full detail: docs/phase-h3-indy.md ("v61 — the START-ZONE
+TARGET bug FIXED" + "NEXT").
+**▶ STILL-OPEN TODOs (unchanged by v61):** (a) player walk FACING DIRECTION wrong for Indy — `Character::GetFrameTile`
+(GameObjects.cpp ~L164) assumes `frames[24]`=3 banks×8 dirs, but Indy ICHR frame block is 0x2a=21 shorts (vs 0x30=24)
+→ needs DESKADV GetWalkFrameTile RE + a GAME_INDY branch. (b) hero-HP tail (IndyGenerate sets doc fields not player
+Character HP — DESKADV sets entity+0x90=120). (c) verify non-Hoth-like worlds render/play. (d) Indy resources/icon
+(milestone 5, [[indy-app-icon]]). (e) INI persistence for Save/Load replays. Palette cycling ✅ (v60, Indy DOES cycle).
 **▶ ALSO-STILL-OPEN (smaller, after the entry-trigger work):** hero-HP tail TODO (IndyGenerate sets doc fields but
 not the player Character HP — DESKADV sets entity+0x90=120); verify non-Hoth-like worlds render/play; Indy
 resources/icon (H3 milestone 5, [[indy-app-icon]]); INI persistence for Save/Load replays (currently omitted).

@@ -10061,23 +10061,26 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             // ---- world-entry transition (Indy skips Yoda's Populate(), so replicate its tail —
             //      src/Worldgen.cpp Populate() lines ~6163-6174 — the world-view handoff). Without
             //      pView->bBusy=0 the view never renders past the STUP graphic. ----
+            // The initial world-entry transition targets the START zone (the MAP_START_AREA
+            // cell the generator placed at (nStartX,nStartY)). Yoda's Populate hardcodes 0
+            // because its demo layout puts the intro zone at id 0; Indy's start zone id is
+            // dynamic, so read it from the grid cell the player spawns in. Using 0 rendered
+            // and ran scripts against the wrong zone (its objects/doors never matched).
             if (pView != NULL)
-                pView->nTargetZoneId = 0;
+                pView->nTargetZoneId = GetZoneCell(nStartX, nStartY);
             cameraX = 0x140;
             cameraY = 0x140;
             nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
-            // Force bWorldInvalid=1 so the OnTimer case-0xb transition uses ZoneTransitionStep,
-            // which climbs step 0->10 and hands off to play mode (nFrameMode=3); case 0xb clears
-            // bWorldInvalid=0 once the entry completes.
-            // ⚠ The "proper" scripted path (bWorldInvalid==0 -> WorldEntryStepMaybe) STILL loops for
-            // Indy even now that ACTN is distributed: WorldEntryStepMaybe step 5 unconditionally sets
-            // nTransitionStep=-1 (-> case-0xb ++ -> 0, cycling 0->5), and only an entry-triggered
-            // IACT script advancing nFrameMode breaks it. Verified headlessly (v59): the Indy start
-            // zone (id 0, type 17) HAS 9 scripts, but none are COND_FirstEnter(0)/COND_Enter(1) under
-            // Yoda opcode numbering (script[0] = cond 4 / cmd 13), so IactRun(4)/IactRun(5) matches
-            // nothing and never sets nFrameMode. So the whip (weapon set from inventory/entry) and
-            // scripted first-entry are still pending — the NEXT step is Indy's IACT trigger/opcode
-            // semantics (or a worldgen-set starting weapon), NOT the ACTN distribution (that is done).
+            // bWorldInvalid=1 routes the OnTimer case-0xb entry through ZoneTransitionStep, which
+            // self-climbs step 0->10 to play mode (nFrameMode=3); case 0xb clears bWorldInvalid=0
+            // when it completes. This is the CORRECT Indy path, not a workaround (v61):
+            // WorldEntryStepMaybe (the bWorldInvalid==0 scripted path) can only advance past step 5
+            // if a COND_FirstEnter(0)/COND_Enter(1) entry script sets nFrameMode, and headless
+            // inspection of the real Indy start zone (now targeted correctly, type 11 MAP_START_AREA,
+            // 45 scripts) shows it has ZERO cond-0/cond-1 scripts — Indy has no scripted intro entry.
+            // (Yoda's Hoth intro zone DOES have one, which is why Yoda uses WorldEntryStepMaybe.)
+            // The v59-pickup "revert once ACTN distributed" note was based on analysing the WRONG
+            // zone (id 0) — the target-zone bug above; ACTN distribution was orthogonal.
             bWorldInvalid = 1;
             bQuestCellsResident = 1;
             BackupRecords();                         // snapshot the as-loaded quest-record block
