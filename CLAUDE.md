@@ -639,7 +639,16 @@ Written to be followable without prior context: each phase lists concrete steps 
   perturbs a byte-matched TU's dial even #ifdef'd out; used only temporarily). Next = MILESTONE 4 Indy worldgen
   (Generate infinite-retries — Yoda 3-planet/goal-whitelist logic; needs DESKADV.EXE decompile+naming). Full H1
   (CMake) + H2 + H3-milestone-2 all this session; anchor never moved. docs/phase-h3-indy.md, phase-h2-full-game.md,
-  cmake-build.md.**
+  cmake-build.md.** →
+  **211 exact / 25989 B byte-identical — v60 (2026-07-09): ⭐ PHASE H3 milestone 4 — Indy ACTN zone-scripts
+  DISTRIBUTED (the plan's "biggest delta", one line). Indy's ACTN is the SAME keyed [zone_id(2),count(2),scripts]
+  block as Yoda's inline IACT, just relocated to one global chunk — proven via DESKADV.EXE IndyParseActn 1010:b5d4 ≡
+  our ParseActn (14B cond record), a raw-byte DESKTOP.DAW simulation (delta=0, 319 zones/2825 scripts), and a live
+  headless YDBG load. FIX = drop ACTN from the Indy dispatcher length-skip list (src/Worldgen.cpp ~L4269) → shared
+  ParseActn. Anchor 211 held (GAME_INDY-guarded). ⚠ Did NOT fix the whip / unblock the bWorldInvalid workaround:
+  headless verify showed WorldEntryStepMaybe still loops 0→5 because the Indy start zone's scripts are not
+  COND_FirstEnter/Enter under Yoda opcode numbering — the entry-trigger/opcode semantics are the real next delta
+  (docs/phase-h3-indy.md).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -799,7 +808,26 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v59 — PHASE H3 milestone 4: Indy worldgen DONE + CONVERGES + boots into a PLAYABLE rendered world (right palette, working menus); NEXT = ACTN zone-script distribution for the whip + full gameplay; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v60 — PHASE H3 milestone 4: ACTN zone-scripts DISTRIBUTED (319 zones/2825 scripts load); NEXT = Indy IACT entry-trigger semantics (the whip + scripted first-entry); anchor 211)
+**▶ v60 SUMMARY: ACTN distribution DONE + verified (the plan's "biggest delta" — turned out one-line).** The Indy
+ACTN chunk is NOT a distinct format — it's the IDENTICAL keyed `[zone_id(2), count(2), scripts...]` block as Yoda's
+per-zone IACT, only relocated to one global chunk. Proven 3 ways: DESKADV.EXE `IndyParseActn` 1010:b5d4 ≡ our
+`ParseActn` (cond record `PUSH 0xe`=14B, same); raw-byte simulation of DESKTOP.DAW's ACTN consumes it EXACTLY
+(delta=0, 319 zones/2825 scripts); headless YDBG confirmed the live load. FIX = removed `ACTN` from the Indy
+dispatcher length-skip list (`src/Worldgen.cpp` ~L4269) → falls through to shared `ParseActn`. Anchor 211 held
+(GAME_INDY-guarded). ⚠ This did NOT fix the whip or unblock the workaround revert — see START HERE.
+**▶ START HERE = the entry-script → nFrameMode advance (whip + scripted first-entry + revert bWorldInvalid=1).**
+Verified headlessly: with `bWorldInvalid=0`, OnTimer case-0xb → `WorldEntryStepMaybe` STILL loops 0→5 (step 5 sets
+`nTransitionStep=-1`; only an entry-triggered IACT advancing nFrameMode breaks it). `IactRun(4/5)` fires only
+`COND_FirstEnter`(0)/`COND_Enter`(1) scripts (`src/Iact.cpp` ~L481), but the Indy start zone (id 0, type 17) has 9
+scripts and NONE are cond 0/1 under Yoda numbering (script[0]=cond4/cmd13). So (1) RE DESKADV.EXE's IactRun-equiv
+condition switch to find Indy's entry-trigger condition opcode + `event` value (DA `iact.c` shares command-enum
+NAMES, so likely NOT wholesale-renumbered — but the entry trigger may map differently) and add a `GAME_INDY` branch
+in `Zone::IactRun`; (2) the whip: `currentWeapon` starts 0, set only when the whip is in inventory (`DeskcppView.cpp`
+~L1580; weapon tiles 0x1ff–0x205 / Character `frames[7]==0x12`) — granted at start by an entry-script CMD_AddItemToInv
+(blocked by #1) OR by the worldgen tail directly (check DESKADV `IndyGenerate` tail for a seeded starting weapon;
+same area as the hero-HP TODO). Full detail in docs/phase-h3-indy.md ("ACTN … DONE" + "NEXT = the entry-script").
+**▶ (historical) prior START HERE was ACTN distribution — now DONE. Below is the pre-v60 checkpoint text:**
 **▶ STATE: Indy (`build-indy`) now generates a world, enters play mode, and renders it (USER-confirmed "gets
 in-game").** This session took H3 milestone 4 from "worldgen traced, Yoda model wrong" to a playable Indy world.
 7 commits (24a247d→f09c200), anchor held at **211** throughout (all changes `GAME_INDY`-guarded or Yoda-token-

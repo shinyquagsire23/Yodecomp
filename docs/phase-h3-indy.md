@@ -262,13 +262,40 @@ After worldgen converged, three more fixes got Indy rendering + interactive:
   DeskcppDoc.cpp; under GAME_INDY `pSysColorTable`→it + skip `bPaletteAnimEnabled=1` (Indy doesn't cycle).
 - **Menus.** Save/Load/Replay were demo-gated (`DemoDisable`); enabled `GAME_INDY` in its `YODA_FULL` guard.
 
-### ⏭ NEXT = ACTN zone-script distribution (whip + full gameplay + revert the bWorldInvalid workaround)
-Indy is missing his whip and zone scripts don't run: **ACTN is still length-skipped** (Load() dispatcher ~L4266).
-Indy lumps ALL IACTs into one global ACTN section (vs Yoda's per-zone inline lists) — the plan's "biggest delta".
-Distribute it (sift the lump + link per-zone to `zone->iactScripts`): gives the whip (starting weapon is
-script-driven), runs triggers, and unblocks reverting the bWorldInvalid=1 workaround to the proper scripted
-`WorldEntryStepMaybe` entry. Method: RAW-BYTE SIMULATION of the DAW ACTN chunk (anchor-safe, proven in milestone 2)
-+ DESKADV.EXE `IndyParseActn`/IACT format. Starting point: our Yoda `ParseActn` (keyed id/count) + `IactScript::Read`.
+### ⭐ ACTN zone-script distribution DONE (2026-07-09) — scripts load; the entry-script/whip path is the real remaining delta
+**ACTN is now distributed.** The Indy ACTN chunk is NOT a different internal format — it is the IDENTICAL keyed
+`[zone_id(2), count(2), scripts...]` block as Yoda's per-zone IACT, only relocated to ONE global chunk after the
+zones (the "one giant section"). Proven three ways: (1) DESKADV.EXE `IndyParseActn` 1010:b5d4 is structurally
+identical to our `ParseActn` (same zone_id / -1-terminate / count / `IndyIactScriptRead` 1010:0170 = tag(4)+size(4)+
+nCond(2)+conds×14B+nCmd(2)+cmds); condition record = `PUSH 0xe` (14 bytes), same as Yoda. (2) RAW-BYTE SIMULATION
+of `DESKTOP.DAW`'s ACTN chunk (walk chunks tag(4)+len(4)+payload, VERS is a bare 8-byte tag+version, ZONE has a
+4-byte chunklen prefix; then parse ACTN as the keyed record loop): the keyed parse consumes the chunk EXACTLY
+(delta=0), 319 zones /
+2825 scripts. (3) Headless YDBG confirmed the real load: `ACTN loaded: zones_with_scripts=319 total_scripts=2825`.
+**Fix (anchor 211 held):** removed `ACTN` from the Indy dispatcher's length-skip list (`src/Worldgen.cpp` ~L4269) so
+it falls through to the shared `ParseActn` — a one-line change; no `ParseActnIndy` needed.
+
+### ⏭ NEXT = the entry-script → nFrameMode advance (the whip + scripted first-entry + revert the bWorldInvalid workaround)
+Distributing ACTN did NOT by itself fix the whip or let us revert the `bWorldInvalid=1` workaround. Verified
+headlessly (v59): with `bWorldInvalid=0`, OnTimer case-0xb → `WorldEntryStepMaybe` STILL loops 0→5→0 forever —
+step 5 unconditionally sets `nTransitionStep=-1`, and only an **entry-triggered IACT script advancing nFrameMode**
+breaks the cycle. `IactRun(4)`/`IactRun(5)` at step 5 fire only scripts whose condition is `COND_FirstEnter`(0)/
+`COND_Enter`(1) with `event==4` (`src/Iact.cpp` ~L481). But the Indy start zone (id 0, type 17) has 9 scripts and
+**none are cond 0/1 under Yoda opcode numbering** — script[0] = `cond 4` (COND_Walk) / `cmd 13` (CMD_MoveCamera).
+So no entry script matches, nFrameMode never advances, and the workaround (ZoneTransitionStep, which reaches play
+mode WITHOUT running entry scripts) stays. **Hypotheses to chase next (in order):**
+1. **Indy IACT trigger/opcode semantics.** DA (`~/workspace/DesktopAdventures/src/iact.c`) uses the SAME command
+   enum names for both games, so opcodes may NOT be wholesale-renumbered — but the ENTRY trigger may map differently
+   (Indy's "first enter" could be a different condition opcode, or `IactRun`'s `event` arg for entry differs). RE
+   DESKADV.EXE's `IactRun`-equivalent condition switch to confirm which condition opcode = zone entry for Indy, and
+   add a `GAME_INDY` branch in `Zone::IactRun` if needed.
+2. **The whip / starting weapon.** `currentWeapon` starts 0; it becomes a weapon only when the whip is in inventory
+   and selected (`src/DeskcppView.cpp` ~L1580; weapon tiles 0x1ff–0x205 / a Character with `frames[7]==0x12`). The
+   whip must be granted at world start — either by an entry script's `CMD_AddItemToInv` (blocked by #1) or by the
+   worldgen tail directly (DESKADV `IndyGenerate` tail — check if it seeds a starting weapon / inventory item; the
+   hero-HP TODO at `IndyGenerate` tail is the same "tail sets player state" area).
+Method: the headless `-DYODA_DEBUG` YDBG oracle (proven this session) + DESKADV.EXE RE. `tmp/actn_sim.py` is the
+ACTN raw-byte simulator if the format ever needs re-checking.
 
 ### ⚠ (historical) RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does the generated Indy world RENDER + PLAY?
 Worldgen converges, but headless can't verify rendering/playability. Remaining honest uncertainties:

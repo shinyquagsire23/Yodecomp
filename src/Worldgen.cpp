@@ -4242,9 +4242,14 @@ int CDeskcppDoc::Load()
         // ZAX2 (IZX2 -> genCandidateA), ZAX3 (IZX3 -> genCandidateB). HTSP (objects) is a keyed
         // (id,count,12-byte-objects,0xFFFF-terminator) chunk byte-identical to Yoda's, so it falls
         // through to the shared ParseHtsp dispatch below — objects are REQUIRED by Indy worldgen
-        // (the quest item pools live in DOOR_IN child zones reached via object type 9). Still
-        // length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag, Yoda discards it),
-        // ACTN (one IACT lump, gameplay not worldgen), and Indy-only PNAM/ANAM (puzzle/actor names).
+        // (the quest item pools live in DOOR_IN child zones reached via object type 9). ACTN is
+        // ALSO a keyed [zone_id(2), count(2), scripts...] block byte-identical to Yoda's per-zone
+        // IACT format (verified by raw-byte simulation of DESKTOP.DAW: 319 zones / 2825 scripts,
+        // consumes the chunk exactly; DESKADV.EXE IndyParseActn 1010:b5d4 is structurally identical
+        // to our ParseActn) — it only DIFFERS by living in one global chunk instead of inline per
+        // zone, so it falls through to the shared ParseActn dispatch below and distributes to
+        // zone->iactScripts. Still length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag,
+        // Yoda discards it), and Indy-only PNAM/ANAM (puzzle/actor names).
         if (strcmp(tag, "ZAUX") == 0)
         {
             nRet = ParseZauxIndy(pFile);
@@ -4267,11 +4272,12 @@ int CDeskcppDoc::Load()
             continue;
         }
         else if (strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 ||
-                 strcmp(tag, "ACTN") == 0 || strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
+                 strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
         {
             pFile->Seek(nLen, CFile::current);
             continue;
         }
+        // ACTN falls through to the shared ParseActn (same keyed format) below.
 #endif
         if (strcmp(tag, "VERS") == 0)
         {
@@ -10060,12 +10066,18 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             cameraX = 0x140;
             cameraY = 0x140;
             nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
-            // Indy zones have NO entry scripts yet (ACTN not distributed), so the OnTimer case-0xb
-            // WorldEntryStepMaybe path (bWorldInvalid==0) loops forever at step 5 (it relies on a
-            // zone entry-script to advance nFrameMode). Force bWorldInvalid=1 so case 0xb uses
-            // ZoneTransitionStep, which climbs to step 10 and hands off to play mode (nFrameMode=3);
-            // case 0xb clears bWorldInvalid=0 once the entry completes. (TODO: revisit once ACTN
-            // scripts are distributed — WorldEntryStepMaybe is the "proper" first-entry path.)
+            // Force bWorldInvalid=1 so the OnTimer case-0xb transition uses ZoneTransitionStep,
+            // which climbs step 0->10 and hands off to play mode (nFrameMode=3); case 0xb clears
+            // bWorldInvalid=0 once the entry completes.
+            // ⚠ The "proper" scripted path (bWorldInvalid==0 -> WorldEntryStepMaybe) STILL loops for
+            // Indy even now that ACTN is distributed: WorldEntryStepMaybe step 5 unconditionally sets
+            // nTransitionStep=-1 (-> case-0xb ++ -> 0, cycling 0->5), and only an entry-triggered
+            // IACT script advancing nFrameMode breaks it. Verified headlessly (v59): the Indy start
+            // zone (id 0, type 17) HAS 9 scripts, but none are COND_FirstEnter(0)/COND_Enter(1) under
+            // Yoda opcode numbering (script[0] = cond 4 / cmd 13), so IactRun(4)/IactRun(5) matches
+            // nothing and never sets nFrameMode. So the whip (weapon set from inventory/entry) and
+            // scripted first-entry are still pending — the NEXT step is Indy's IACT trigger/opcode
+            // semantics (or a worldgen-set starting weapon), NOT the ACTN distribution (that is done).
             bWorldInvalid = 1;
             bQuestCellsResident = 1;
             BackupRecords();                         // snapshot the as-loaded quest-record block
