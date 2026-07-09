@@ -3000,12 +3000,6 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
 {
     if (pWorld->difficulty != pWorld->counter)
         pWorld->counter = (pWorld->difficulty + pWorld->counter) / 2;
-#ifdef YODA_DEBUG
-    { static int nT = 0; if (nT < 60) { nT++;
-      YDBG(("[Indy] OnTimer #%d id=%u/%u bBusy=%d frameMode=%d curZone=%p tgtZone=%d wInvalid=%d totZ=%d transStep=%d\n",
-            nT, nIDEvent, nTimerId, bBusy, pWorld->nFrameMode, (void*)pWorld->currentZone,
-            nTargetZoneId, pWorld->bWorldInvalid, pWorld->totalZones, nTransitionStep)); } }
-#endif
     if ((nIDEvent != 0xabcd && nTimerId != nIDEvent) || bBusy != 0)
         return;
     if (bMouseCaptured != 0 && pWorld->nFrameMode == 3 && bMapAtCanvasOriginMaybe == 0)

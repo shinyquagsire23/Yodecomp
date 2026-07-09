@@ -1283,3 +1283,11 @@ ID_CONTEXT_HELP=0xe145/ID_DEFAULT_HELP=0xe147 swapped), and GameView #11 ON_WM_H
 (vertical inventory scrollbar unhandled — renamed OnHScroll→OnVScroll, body byte-matches, + reordered entries).
 All 11 maps CLEAN. lesson #33. Then v50 verified DYNCREATE sizes + renamed World→CDeskcppDoc, GameView→
 CDeskcppView (source + Ghidra) to the original class names.
+
+## ⏮ PRIOR PICKUP (v58, 2026-07-09) — condensed (superseded by v59: Indy worldgen now converges + plays)
+v58 state: H3 milestone 4 = Indy worldgen TRACED but not working; the Yoda `Generate` quest model was proven
+WRONG for Indy (assumes two-item puzzles + per-zone IZX2/IZX3; Indy has single-item puzzles + goal zones with
+empty IZX2/IZX3). Decision: decompile DESKADV.EXE worldgen and reimplement under GAME_INDY. Kept base: planet
+fix (currentPlanet=-1), goal-selection (WorldgenSelectPuzzle 9999 accepts any WORLD_MISSION), aux DATA loading
+(Parse{Zaux,Zax2,Zax3}Indy + ReadIzaxIndy). ⇒ v59 DID the DESKADV RE + reimplementation: worldgen now converges
+and Indy boots into a playable rendered world. See v59 pickup + docs/phase-h3-indy.md.

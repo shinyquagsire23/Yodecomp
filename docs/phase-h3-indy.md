@@ -248,7 +248,29 @@ puzzle matched. Two transcription bugs (both fixed, verified against the DESKADV
 + materialize complete (`totalZones=9 nSteps=8`). Debug instrumentation removed; anchor still 211; clean
 `build-indy` converges.
 
-### ⚠ RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does the generated Indy world RENDER + PLAY?
+### ⭐ v59 — Indy BOOTS INTO A PLAYABLE WORLD (user-confirmed "gets in-game")
+After worldgen converged, three more fixes got Indy rendering + interactive:
+- **Reaches play mode (stuck-at-STUP fix).** IndyGenerate's tail replicates Yoda `Populate()`'s world-view
+  handoff (nTargetZoneId=0, cameraX/Y=0x140, nFrameMode=0xb, bQuestCellsResident=1, BackupRecords,
+  **pView->bBusy=0**). ⭐ Root cause of the STUP stall: OnTimer case-0xb with `bWorldInvalid==0` calls
+  `WorldEntryStepMaybe`, which cannot reach step 10 (step-5 sets `nTransitionStep=-1` → loops 0→5 forever) — it
+  relies on the zone ENTRY SCRIPT to advance nFrameMode, and Indy's ACTN scripts aren't distributed. WORKAROUND:
+  set `bWorldInvalid=1` so case-0xb uses `ZoneTransitionStep` (climbs 0→10 → play mode nFrameMode=3, skipping the
+  missing scripts); case-0xb self-clears it. ⚠ REVERT once ACTN is distributed.
+  Found via the headless OnTimer trace (CrossOver wine fires the window timer headless — `-DYODA_DEBUG` YDBG logs).
+- **Palette.** `IndyMasterPalette[1024]` (256 BGRX, from DESKADV via DesktopAdventures `indy_palette`) in
+  DeskcppDoc.cpp; under GAME_INDY `pSysColorTable`→it + skip `bPaletteAnimEnabled=1` (Indy doesn't cycle).
+- **Menus.** Save/Load/Replay were demo-gated (`DemoDisable`); enabled `GAME_INDY` in its `YODA_FULL` guard.
+
+### ⏭ NEXT = ACTN zone-script distribution (whip + full gameplay + revert the bWorldInvalid workaround)
+Indy is missing his whip and zone scripts don't run: **ACTN is still length-skipped** (Load() dispatcher ~L4266).
+Indy lumps ALL IACTs into one global ACTN section (vs Yoda's per-zone inline lists) — the plan's "biggest delta".
+Distribute it (sift the lump + link per-zone to `zone->iactScripts`): gives the whip (starting weapon is
+script-driven), runs triggers, and unblocks reverting the bWorldInvalid=1 workaround to the proper scripted
+`WorldEntryStepMaybe` entry. Method: RAW-BYTE SIMULATION of the DAW ACTN chunk (anchor-safe, proven in milestone 2)
++ DESKADV.EXE `IndyParseActn`/IACT format. Starting point: our Yoda `ParseActn` (keyed id/count) + `IactScript::Read`.
+
+### ⚠ (historical) RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does the generated Indy world RENDER + PLAY?
 Worldgen converges, but headless can't verify rendering/playability. Remaining honest uncertainties:
 1. **Hero HP / clock / UI-timer tail** — `// TODO(integration)`: the DESKADV tail resets the hero Character's
    HP (entity+0x90=120) + a UI timer; our tail sets doc fields only, so the player may spawn with wrong HP.

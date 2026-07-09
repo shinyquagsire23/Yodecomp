@@ -799,201 +799,79 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v58 — PHASE H3 milestone 4: Indy worldgen TRACED; the Yoda quest model is wrong for Indy → NEXT = decompile DESKADV.EXE worldgen; anchor 211)
-**▶ START HERE = the DESKADV.EXE 16-bit worldgen RE (user-agreed pivot; docs/phase-h3-indy.md).** This session
-proved (via an instrumented `-DYODA_DEBUG` build the USER ran; since reverted) that Indy worldgen can't be made
-to work by patching Yoda's `Generate`: every layer of Yoda's quest builder assumes **two-item puzzles + per-zone
-IZX2/IZX3 required-item lists**, and **Indy goal zones (type 10) have EMPTY IZX2/IZX3** + **Indy puzzles have no
-itemB** (so `a5`/second-item is always -1). Trace: planet fix ✅ + goal selection ✅ reach the FINAL_ITEM goal
-zone → `ZoneRequiresItemMaybe` gate (reads genCandidateA/IZX2) rejects all 15 candidates → relaxing it +
-single-branch goal reaches `WorldgenPopulateGoalZone` which ALSO needs IZX2/IZX3 → `populate=0`. Doesn't
-converge. **DECISION: decompile + NAME Indy's worldgen in `program=DESKADV.EXE`** (16-bit NE, 1429 funcs, raw
-Win32 ordinal imports — NOT MFC; seg:off addrs; `get_xrefs_to` fails on data strings; NO CRT rand import →
-in-binary PRNG). Recover LOGIC not codegen; reimplement Indy `Generate`/`PlaceQuestNode`/`WorldgenSelectPuzzle`/
-`WorldgenPopulateGoalZone` under `GAME_INDY`. Anchors: DAW-loader (`"DESKTOP.DAW"`@1010:dd0e) + rand/srand call
-sites (worldgen is rand-heavy). Data constraints (raw-byte confirmed): single-item puzzles (types 0/1/2/3 =
-TRANSACTION/TRADE/GOAL_PRIZE/WORLD_MISSION, 49/49/43/15); goal zones have `providedItemsA` (IZAX pool) but no
-IZX2/IZX3; regular zones DO have IZX2 (141)/IZX3 (32). Best tackled with dedicated focus (consider a `fable`
-agent for the 16-bit analysis). **KEPT + committed base (correct, anchor 211):** planet fix (`currentPlanet=-1`
-for Indy — no planets; ctor+LoadWorld), goal selection (WorldgenSelectPuzzle 9999 accepts any WORLD_MISSION for
-Indy + dynamic goal path), aux DATA loading (`Parse{Zaux,Zax2,Zax3}Indy` + `ReadIzaxIndy` — Indy IZAX =
-`mission_spec(2) num_entries(2) {charId,x,y}×n(6B) count(2) items`, one pool; IZX2/IZX3 reuse ReadZax2/3), and
-the `cobArray4/5`→`providedItemsA/B` rename (Ghidra-synced). ⚠ `ReadIzaxIndy` mirrors the single IZAX pool into
-`providedItemsB` — a KNOWN wart to revisit in the rework (Indy is single-pool). Commits: 05c0e12 (planet+goal+
-aux), 6a5f335 (trace + revert heuristics). ⚠ Indy `build-indy` currently HANGS at worldgen (known; the RE fixes
-it). Remaining after worldgen: HTSP→zone objects, ACTN→per-zone scripts, Indy palette. H1✅ H2✅.
-**▶ BUILD/RUN TOOLING (this session):** `wineserver -p` persistence is in the BUILD wrappers only
-(`toolchain/bin/{cl,link}`, ~/.wine — ~4× compile speedup); it was REMOVED from the run scripts (a headless
-`wineserver -p` on the CrossOver bottle leaves later GUI runs windowless — do NOT re-add it there). Fixed
-`build_run_indy.sh` (`-DYODA_GAME=INDY` into `build-indy`). ⚠ debug logging (src/DebugLog.h + -DYODA_DEBUG)
-perturbs the byte-matched Worldgen TU's dial — use TEMPORARILY, `git checkout` to revert before any anchor
-check. ⚠ run oracle = USER visual (headless MFC has no window → never reaches worldgen). ↓ v57/H3-milestone-2 ↓
-**▶ H3 STATE (docs/phase-h3-indy.md):** Indy port under `GAME_INDY`. ⭐ **MILESTONE 2 DONE (engine-confirmed):**
-`build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY`; run
-`./run_indy.sh`) parses the ENTIRE DESKTOP.DAW to ENDF — **366 zones / 157 puzzles / 27 chars** loaded (debug
-log via `-DYODA_DEBUG=ON` confirmed every chunk). Load-time Indy deltas fixed (all `#ifdef GAME_INDY`, anchor
-25989/211 byte-IDENTICAL): IZON header 8B (drop globalVar+planet), ParseZone Indy chunkLen, ReadZone tiles-only,
-PUZ2 drops unk3+itemB, CHAR record 0x4E (frames 0x2a), TNAM name 0x10; dispatcher length-skips the global
-aux/object/script chunks + Indy-only ZNAM/PNAM/ANAM. Method: RAW-BYTE SIMULATION (walk DAW w/ each candidate
-delta, confirm next tag lands exactly) — anchor-safe, beat C++ instrumentation. ⚠ DESKADV 16-bit (seg:off;
-get_xrefs_to fails on data strings). ⚠ run oracle=USER visual. H1✅ H2✅. ↓ v56/H3-start ↓
-**▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indy under `GAME_INDY`. Scaffolding + the
-HARDEST delta (zone layout) done. `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
--DYODA_GAME=INDY && cmake --build build-indy`; `./run_indy.sh`) compiles; anchor 211. ⭐ KEY FINDING (from RAW DAW
-BYTES = ground truth): Yoda zones are SELF-CONTAINED records; **Indy zones are PARALLEL ARRAYS** — `"ZONE"+
-chunkLen(4)+nZones(2)` then back-to-back IZON tiles (no planet prefix/filter), with aux(IZAX/ZAX2/ZAX4/ZAX3),
-objects(HTSP), scripts(ACTN=one IACT lump) as SEPARATE GLOBAL chunks + Indy-only PNAM/ANAM. ReadIzon is SHARED.
-**Implemented v56:** ParseZone reads Indy chunkLen; ReadZone Indy branch=tiles-only; Load() dispatcher skips the
-Indy global chunks by length (so it walks past zones). **⏭ NEXT (milestone 2 cont.):** post-ZONE chunks still use
-Yoda format under GAME_INDY ⇒ will misread — need Indy branches for PUZ2 (no unk3/item_b), CHAR (record 0x54→0x4E),
-CHWP/CAUX/TNAM/name-lens(24→16), verify TILE/SNDS shared. Then 2b: distribute global HTSP objects + ACTN IACT lump
-+ aux back to zones. Then 3 Indy palette, 4 Indy worldgen (NO planets — Generate/LoadWorld/WorldgenSelectPuzzle
-planet logic is Yoda-specific, will fail as-is). ⚠ USER DIRECTIVE: as DESKADV.EXE functions are identified, RENAME
-them in its Ghidra (`program=DESKADV.EXE`) to avoid dup work — track in docs/phase-h3-indy.md. ⚠ DESKADV is 16-bit
-(seg:off addrs; get_xrefs_to returns nothing for data strings — string-anchor RE fails; tags are integer compares
-not strings). Most format deltas recover from RAW DAW BYTES (better than 16-bit decompile). ⚠ run oracle=USER
-visual. Anchor rule: every GAME_INDY guard fall-through = exact Yoda code (211). H1✅ H2✅. ↓ v55/H2 ↓
-**▶ H2 DONE (core) — USER-CONFIRMED (docs/phase-h2-full-game.md):** the FULL build (`cmake -B build-full
--DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_VARIANT=FULL && cmake --build build-full`; run `./run_full.sh` or
-`./build_run.sh`, against `YodaFull/YODESK.DTA`) loads the full 4.6MB data and PLAYS all three planets
-(Hoth/Tatooine/Endor), with Save World + Load World + Replay Story working — full functional parity with retail. 4
-worldgen-blocking demo overrides guarded `#ifdef YODA_FULL` (all fall-through=demo=anchor, progress.py still 211):
-data file, ctor planet/size, LoadWorld ~L4013 planet=2 (the operative Hoth-forcer), goal 0x6c→`WorldgenSelectPuzzle
-(-1,-1,9999)`. All verified vs retail Yodesk.exe (2nd Ghidra program). ⚠ 4 source "demo" comments were MISREADS
-(retail identical — did NOT ifdef): goal whitelist, ReadZone per-planet filter, Populate goal-zone pick, victory/loss
-76/77. **⏭ NEXT:** H2 remaining is only polish (Replay Story exercise; extended endgame playtest — none block play).
-Move to **H3 (32-bit Indy, GAME_INDY)** and/or **H4 (SDL portable)** — see the PHASE H section. H3 needs the Indy
-app icon/resources (USER note, [[indy-app-icon]]); Indy engine = 16-bit `INDYDESK/DESKADV.EXE` (already a Ghidra
-program) + `~/workspace/DesktopAdventures` (portable recreation, authoritative semantics). ⚠ WINE BUILD: JOB_POOL
-wine=1 serializes (parallel wine cl deadlocks); ⚠ headless CPU is a BAD run oracle — USER visual check is
-authoritative. Byte-match phases A–G stay parked (211 ceiling, compiler-wall-blocked). ↓ v54/H1 ↓
-**▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v50** commit (class rename +
-CRuntimeClass); below: bea006a v49 (msgcheck), b6bb67e v48, e961bf9 v47, ec4015c v46, 4f56b58 v45. Tree CLEAN
-(USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). ⭐ **v50 RENAMED the doc/view classes to
-their ORIGINAL names: `World`→`CDeskcppDoc`, `GameView`→`CDeskcppView`** (in source AND Ghidra struct+namespace) —
-known from the binary's CRuntimeClass strings. So the CLASS is now `CDeskcppDoc`/`CDeskcppView` everywhere;
-VARIABLES stay `pWorld`/`pView` (readable). Baselines (compile EVERY TU into `build/` first — `cd src &&
-rm -f ../build/<File>.obj && ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
-/D _MBCS /Fo../build/<File>.obj <File>.cpp`, or `tools/link_exe.sh`): `link_exe.sh` → **0/0/exit 0**;
-`progress.py` → **211 exact / 99.17%** (⚠ was 212 through v44 — v45 traded ~CDeskcppDoc for the msgmap; v46-v50
-neutral); `bugscan.py --all` → **0/0/0**; **`vtcheck.py` → 10 CLEAN**; **`msgcheck.py` → 11 CLEAN**. Per-TU exact
-(v53 flat names, was-folder): GameTypes 14/14(AppData), Deskcpp 11/12(App), Canvas 9/11, TextDialog 5/5(Dlg),
-MainFrm 14/18(Frame), WorldgenHelpers 13/27(GameData), DeskcppView 73/124(GameView), Iact 2/10, IactScript 11/12,
-GameObjects 26/33(Records), Score 6/8(World), DeskcppDoc 7/13(WorldDoc), Worldgen 34/91. ⚠ verify.py per-TU can
-UNDERCOUNT ~10 (lesson #30): trust progress.py's 211. **G2: `g2_link.sh && g2_diff.py` → LAYOUT 39/378, CONTENT
-224/378.** **REF-drop oracle (lesson #32): 5 dropped.** Ghidra: current=YodaDemo.exe, SAVED (struct+namespace
-rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (main-thread).
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v59 — PHASE H3 milestone 4: Indy worldgen DONE + CONVERGES + boots into a PLAYABLE rendered world (right palette, working menus); NEXT = ACTN zone-script distribution for the whip + full gameplay; anchor 211)
+**▶ STATE: Indy (`build-indy`) now generates a world, enters play mode, and renders it (USER-confirmed "gets
+in-game").** This session took H3 milestone 4 from "worldgen traced, Yoda model wrong" to a playable Indy world.
+7 commits (24a247d→f09c200), anchor held at **211** throughout (all changes `GAME_INDY`-guarded or Yoda-token-
+identical). Done this session:
+1. **HTSP objects load** (24a247d) — Indy HTSP is the same keyed (id,count,12B-objs,0xFFFF-term) format as
+   Yoda's → routed to `ParseHtsp` (was length-skipped). REQUIRED by worldgen (item pools live in DOOR_IN child
+   zones, obj type 9).
+2. **Worldgen reimplemented** (e486087) — ~28 `CDeskcppDoc::Indy*` methods transcribed from DESKADV.EXE, appended
+   end-of-file in `src/Worldgen.cpp` under `#ifdef GAME_INDY`; `Load()`'s post-load retry loop routes to
+   `IndyGenerate` (no separate `Populate`). Decls in `Worldgen.h`. Integration shim at the block top: `#define
+   bool/true/false` (VC4.2 pre-bool) + aliases wiring reused Yoda helpers (ZoneRequiresItemMaybe, IsItemPlaced,
+   WorldgenShuffleList/PushZoneEntry/AddZoneEntry, AddPlacedZoneId, RemoveEmptyZonesFromPlacedList) + no-op stubs
+   for skipped INI persistence. `ReadIzaxIndy` single-pool mirror removed.
+3. **Worldgen CONVERGES** (0858eac) — 2 transcription bugs fixed vs the DESKADV decompile: (a) `IndySelectPuzzle`
+   matched puzzle `itemA` against `reqItemA` (param_4) but DESKADV matches `param_5` (the PICKED item =
+   `nWorldMissionKey`); (b) quest-chain threading used `nOrder` (grid ring 1-5) for the `goalTileList` index/pick/
+   bFirst/populate-slot, but DESKADV uses `param_5 = step-1` (the order slot) — fixed cases 10/0xf/0x10 to use
+   `a5reqItem2`, and PASS-2 passes `order-1`. Chain now threads: step `order` writes `goalTileList[order-1]`, read
+   by step `order-1`. Generate SUCCEEDS on the first seed.
+4. **World-entry + reaches PLAY MODE** (c75ab42, 0a93ffa) — IndyGenerate's tail replicates Yoda `Populate()`'s
+   world-view handoff (nTargetZoneId=0, cameraX/Y=0x140, nFrameMode=0xb, bQuestCellsResident=1, BackupRecords,
+   **pView->bBusy=0** — was stuck at 1, blocking OnTimer). ⭐ THE STUP-STUCK ROOT CAUSE: OnTimer case-0xb with
+   `bWorldInvalid==0` calls `WorldEntryStepMaybe`, which STRUCTURALLY CANNOT reach step 10 (its step-5 branch
+   always sets `nTransitionStep=-1` → case-0xb `++` → 0, looping 0→5 forever); it relies on the zone's ENTRY
+   SCRIPT (IactRun) to advance nFrameMode, and Indy's ACTN scripts aren't distributed. WORKAROUND: IndyGenerate
+   sets `bWorldInvalid=1` so case-0xb uses `ZoneTransitionStep` (climbs 0→10 → play mode nFrameMode=3, skips the
+   missing scripts); case-0xb self-clears bWorldInvalid=0. ⚠ REVERT this workaround once ACTN is distributed
+   (WorldEntryStepMaybe is the "proper" scripted first-entry).
+5. **Palette** (43351fc) — added `IndyMasterPalette[1024]` (256 BGRX, from DESKADV via the DesktopAdventures
+   `indy_palette`) in `src/DeskcppDoc.cpp`; under GAME_INDY `pSysColorTable`→it + skip `bPaletteAnimEnabled=1`
+   so `CyclePalette` stays a no-op (Indy doesn't cycle). ⚠ USER should confirm colors look right.
+6. **Menus** (f09c200) — Save/Load/Replay were demo-gated via `DemoDisable()`; included `GAME_INDY` in its
+   `YODA_FULL` guard (Indy is a full game). New World already gates on nFrameMode (now 3/play).
 
-**▶ v45–v50 RESULTS — ref graph 22→5 + ALL .rdata content validated + classes renamed to original:**
-- **v45 World msgmap** (22→7; cost ~World 212→211). **v46 vtable overrides** (7→5). **v47/48 vtcheck** — 10
-  vtables CLEAN. **v49 msgcheck** — 11 maps CLEAN (fixed CTheApp incomplete + GameView WM_HSCROLL→VSCROLL bug).
-- **v50** — DYNCREATE CRuntimeClass sizes verified (World 0x33c0 / GameView 0x310 / CMainFrame 0xd8, no heap
-  bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
-  namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
+**▶ START HERE = ACTN zone-script distribution (the whip + full gameplay + revert the bWorldInvalid workaround).**
+The user confirmed Indy "gets in-game" but **Indy is missing his whip** and zone scripts don't run — because Indy's
+**ACTN chunk is still length-skipped** (Load() dispatcher, `src/Worldgen.cpp` ~L4266). Indy lumps ALL IACTs into
+one giant ACTN section (vs Yoda's per-zone inline lists) — "the biggest delta" per the plan. Distributing it
+(sift the lump + link per-zone to `zone->iactScripts`) will: give the whip (starting weapon is script-driven —
+`currentWeapon` starts 0, only set on pickup/script), run zone triggers, AND unblock reverting the `bWorldInvalid=1`
+workaround (#4) back to the proper scripted `WorldEntryStepMaybe` entry. Approach: RAW-BYTE SIMULATION of the DAW
+ACTN chunk (the proven anchor-safe method from milestone 2 — walk it, confirm structure) + cross-check DESKADV.EXE
+`IndyParseActn`/the IACT format (named in Ghidra). Our `ParseActn` (Yoda, keyed id/count) + `IactScript::Read` are
+the starting point; find how Indy keys IACTs to zones. ⚠ ACTN was verified to PARSE-SKIP cleanly (milestone 2), so
+the lump's length is known; the content structure is the work.
+**▶ Then (smaller):** HTSP→zone-object semantics for gameplay (vehicles/doors already load); verify non-Hoth-like
+worlds; Indy resources/icon (H3 milestone 5, [[indy-app-icon]]); the hero-HP tail TODO (IndyGenerate sets doc
+fields but not the player Character HP — DESKADV sets entity+0x90=120).
 
-**▶ START HERE (v54 → PHASE H — H1 DONE, H2 IS NEXT) — USER DIRECTIVE (2026-07-08): the byte-match phases
-(A–G) are DONE/parked at their ceilings (211 exact + runnable/validated image; residual gap is compiler-wall-
-blocked, unobtainable — see docs/compiler-hunt.md + g2-layout.md). PHASE H = turn the decompiled source into a
-real, buildable, portable, multi-game engine (full plan: the "🚀 PHASE H" section below). ✅ **H1 COMPLETE
-(v54, docs/cmake-build.md):** `CMakeLists.txt` + `toolchain/vc42.cmake` build a runnable `build-cmake/yoda.exe`
-via custom commands over the wine wrappers; config matrix `YODA_GAME`/`YODA_VARIANT`/`YODA_PLATFORM` exposed
-(additive `-D`s, SDL FATALs till H4); the default corner is PROVEN reloc-masked byte-identical to the anchor
-objects; progress.py still 211/99.17%. ⏭ **NEXT = H2 (demo → full Yodesk.exe via ifdefs):** reference on disk =
-retail `Yoda Stories/Yodesk.exe` (455 KB) + full data `~/workspace/DesktopAdventures/YODESK.DTA` (4.6 MB); load
-Yodesk.exe as a 2nd Ghidra program, diff vs our demo source, find the demo restrictions (zone/item subset,
-disabled save/load, nag, `if(demo)` gates), wrap each `#ifdef YODA_FULL`-style (fall-through=demo=anchor), add a
-`YODA_VARIANT=FULL` build that loads the full data past the demo boundary. GOVERNING PRINCIPLE: the
-(YODA+DEMO+WIN32) config stays the byte-exact ANCHOR — every extension additive via ifdefs, and progress.py +
-oracles must keep passing on the anchor after any shared-code edit (⚠ H2 adds the FIRST real ifdef guards to
-src/ — re-run progress.py after each to confirm the fall-through kept the anchor at 211). CMake is for the
-EXTENDED builds; keep link_exe.sh/verify/progress as the fidelity gate. NOTE: G2 (byte-identical image) stays
-parked/unreachable — its runnable image is the foundation H builds on.**
+**▶ BUILD / RUN / DEBUG (all proven this session):**
+- Build: `cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY && cmake --build build-indy`
+  (⚠ JOB_POOL wine=1 serializes; parallel wine cl deadlocks). Run: `./run_indy.sh` (CrossOver GUI, USER visual).
+- ⭐ **HEADLESS DEBUG ORACLE (key enabler this session):** CrossOver wine DOES reach `Load()`/worldgen/`OnTimer`
+  headless (the window's timer fires). So `-DYODA_DEBUG=ON` + `#include "DebugLog.h"` (GAME_INDY/YODA_DEBUG-guarded)
+  + `YDBG((...))` logs to `YodaIndy/yoda_debug.log` — a FAST logic-bug oracle for worldgen AND the game loop
+  (traced the goal-gate breakdown, the quest-chain threading, and the OnTimer nFrameMode/transStep loop). ⚠ YODA_DEBUG
+  perturbs byte-matched TUs — keep all YDBG GAME_INDY/YODA_DEBUG-guarded and REVERT (git) before an anchor check;
+  headless run in background + Monitor for the log. Kill stale wine (`pkill -9 -f yoda.exe`) between runs.
+- ⚠ `-DYODA_DEBUG=OFF` for the clean/committed build. `run_full.sh`/build-full (Yoda full) is slow/doesn't trace
+  headless quickly — not a good comparison oracle.
 
-**Compiler thread = PARKED/exhausted.** Thread 1 (Ghidra write-routing) RESOLVED v51. Thread 2 (compiler hunt):
-v52 proved the toolchain LIBS/headers/linker are VC 4.2 (static-lib fingerprint, tools/libfingerprint.py — 1404
-unique windows). v52b: the 3 funcs VC 4.0 byte-matches that 4.2 doesn't (Detonate 0x428680 / ParseZaux 0x423110
-/ ZoneHasIzxItem 0x41bfa0) RESIST faithful 4.2 source-steering (param-pinned / lesson-#7 clone / decl-swap
-regresses). v52c: the interim-cl hunt is EXHAUSTED on public archives — obtainable x86 VC 4.x = 4.0(5270)/
-4.1(6038)/4.2(6166), ALL tested; an interim would be a VC 4.1 beta / Q1-1996 MSDN Dev-Platform VC disc, only on
-BetaArchive (gated). So the app-cl axis stays UNDETERMINED (mixed interim-cl vs pure-4.2-source) but there is
-NO further obtainable compiler lever — do NOT re-run the hunt (docs/compiler-hunt.md v52c). If the USER ever
-drops a VC 4.1 beta at toolchain/vc4X/, A/B via `VCDIR=<it> python3 tools/progress.py` (flips 3 keeping 19 →214).
+**▶ KEY REFERENCE (DESKADV.EXE, all NAMED in Ghidra `program=DESKADV.EXE`):** `IndyGenerate` 1010:8524,
+`IndyPlaceQuestNode` 1010:7f0c (param map: param_3=gridOrder/tag=our nOrder, param_4=reqItem=a4reqItem,
+param_5=step-1/orderSlot=a5reqItem2, param_6=nodeType), `IndySelectPuzzle` 1010:7b58, `IndyPopulateGoalZone`
+1010:5dac, `IndyParseActn`/IACT format (for ACTN — decompile next). Full function table + algorithm in
+docs/phase-h3-indy.md (milestone-4 sections). DesktopAdventures (`~/workspace/DesktopAdventures`) = format/semantics
+reference (its `indy_palette`, `is_yoda` map, assets.c ACTN parse).
 
-**⚠ v53 G2 REALITY CHECK — whole-image byte-identity is DOUBLY BLOCKED (built tools/image_diff.py, the reccmp
-whole-image metric).** (1) .text is +1681 B (the ~43 reg-coloring length walls) → overflows a page-align
-boundary → every later section shifts +0x1000 → every embedded pointer/RVA differs ⇒ byte-identity impossible
-while the reg-coloring wall stands (the SAME central open problem — unobtainable cl). (2) NEW/independent: the
-DATA sections are only ~15–46% content-identical even with the shift accounted (.rdata 15% / .data 35% / .idata
-2% / .rsrc 15%) — our objs lay data out differently, and .rsrc is linker-REBUILT from a .res (same resource
-content, different layout — NOT verbatim, corrects the old claim). ⇒ ~100% byte-identity needs BOTH the wall
-cracked AND full data-layout reconstruction; neither is a quick win, and the wall is a hard blocker regardless.
-**The ACHIEVABLE, essentially-MET G2 deliverable is the runnable, content-validated image** (link_exe.sh
-0/0/exit0; all TUs --scramble-clean; vtcheck 10 / msgcheck 11). Full analysis: docs/g2-layout.md (v53). Metric:
-`python3 tools/image_diff.py`. Optional remaining G2 (all POLISH — cannot reach byte-identity while the wall
-stands, so low-value): .rsrc verbatim-inject, .idata reconciliation, the 5 hard-tail REF-drops, PE timestamp/
-checksum mask. **RECOMMENDATION: accept the runnable/validated image as the G2 deliverable — the ~100% goal is
-provably gated on the same unobtainable cl as the 212 content ceiling.** ↓ (older G2 detail retained below) ↓
-
-**G2 whole-image detail (per-function .text order tracker — mostly done).** State (from
-the milestone log): `tools/g2_link.sh` links the 13 app objs in address order + `tools/g2_diff.py` reports per
-marker LAYOUT (linked addr==orig) vs CONTENT (reloc-masked bytes==orig). Last measured: **LAYOUT 39/378, CONTENT
-225/378**; the running /OPT:REF image builds (tools/link_exe.sh → yoda.exe, 0/0/exit0). (Reconfirmed v52c: g2_link exit 0,
-LAYOUT 39/378, CONTENT 224/378 — the ±1 vs prior is the lesson-#30 obj-nondeterminism noise.) Model + worklist:
-**docs/g2-layout.md**. G2 sub-tasks (see roadmap Phase G2): (1) emission-ORDER reconciliation is mostly done
-(App/Frame/Records/AppData in-order); remaining LAYOUT is GATED by intrinsic reg-coloring LENGTH walls (first =
-SaveStoryHistory 0x402670, +10B each) — those are the SAME residual class as the 211 ceiling, so absolute layout
-caps until the app-cl question resolves (hence byte-matching deferral is coherent). (2) COMDAT fold-vs-survive
-geography (the −5KB /OPT:REF under-reference gap; ??_GCPalette-style). (3) .rdata/.data/vtable/msgmap/string-pool
-layout (vtcheck/msgcheck already validate CONTENT). (4) PE timestamp/checksum masking + linker thunks
-(0x424fb0 jmp, 0x424f69 EH thunk). (5) reccmp-style whole-image diff → progress toward 100%. Start by re-running
-`tools/g2_link.sh && python3 tools/g2_diff.py` to reconfirm LAYOUT/CONTENT, then pick the next divergence from
-docs/g2-layout.md's worklist.
-
-Baseline (reconfirmed v51, unchanged v52): **211 exact / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 CLEAN /
-msgcheck 11 CLEAN**. Tools added v52: tools/exactset.py (per-compiler exact dump), tools/libfingerprint.py
-(which VC libs a binary linked). Toolchains vc4{0,1,2}/ on disk + gitignored `/toolchain/vc4*/`.**
-
-**THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
-(venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
-cross-program comment test PASSED (mcp `set_plate_comment(program="libkotor2.so")` landed on libkotor2.so, active
-YodaDemo untouched). ⇒ writes now route by `program=`. Rule: ALWAYS pass `program=YodaDemo.exe` on mutations
-(see the WRITE ROUTING block above). Nothing pending on this thread.
-
-**THREAD 2 — the compiler hunt: ✅ RESOLVED (v52, 2026-07-08) — the toolchain IS VC 4.2; the residuals are
-SOURCE-side, NOT a compiler wall.** ⭐ The STATIC LIBS settled it (do this check first in future): the exe's
-statically-linked CRT (`LIBCMT.LIB`) + MFC (`NAFXCW.LIB`) code (region ~0x429000–0x44b000) is MS-prebuilt and
-version-specific. Window-matched it (20-byte windows via `tools/exactset`-style script; reuse match.TEXT_VA/RAW)
-against vc40/41/42 libs: **1404 windows unique to vc42, ZERO unique to 4.0/4.1** (e.g. a 96B `_makepath`-family
-CRT run @0x42a9ff is verbatim in vc42/LIBCMT.LIB, absent from 4.0/4.1). ⇒ **libraries = VC 4.2.** Plus headers =
-4.2 (211-max) + app-cl matches 4.1/4.2's 211 not 4.0's 195 + linker 3.10 = 4.2-era. Libs/headers/linker are
-**definitively VC 4.2.** ⚠ **v52b UPDATE — the app-CL axis is UNDETERMINED (do NOT state "all 4.2, residuals
-are source" as settled).** Took the Fable lever-2 stab on the 3 funcs VC 4.0 compiles byte-exact that 4.2
-doesn't (`DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0) — ALL RESIST
-faithful source-steering under 4.2: Detonate's contested regs are the 2 PARAMS (no local to move; only the
-unfaithful param-swap flips it, v39); ParseZaux is the lesson-#7 CLONE family (identical to ParseZax2/3);
-ZoneHasIzx's decl-order swap REGRESSED structurally (align 0→22). Since compiler and libraries are SEPARABLE
-axes, a MIXED toolchain (4.2 libs + an interim app-cl that resolves ~3 tie-breaks the 4.0 way) is fully
-consistent with the lib fingerprint — so the "interim build (5270,6038)" idea is RE-OPENED, not retracted.
-Detonate is the sharp case: body-fixed (v39) + not-faithfully-4.2-reachable + 4.0 makes it exact from our
-faithful source ⇒ the app-cl is likely NOT bit-identical to our 6166 on these tie-breaks. **Status: UNDETERMINED
-between (1) an interim app-cl [4.2 libs] and (2) pure 4.2 + 3 source-locked funcs beyond search.** 211 stands.
-Full detail: **docs/compiler-hunt.md** (v52 RESOLUTION + v52b RESULT). **Next discriminators:** hunt an interim
-cl 10.0x/10.1x (MSDN 1996) and A/B (`VCDIR=<cand> tools/progress.py`; if it flips the 3 keeping the 19 = THE
-build → 214+); OR the Indy(16-bit)/retail-Yoda source witnesses (true decl order / clone differences). Tools:
-`tools/exactset.py` (per-compiler exact dump), `tools/libfingerprint.py` (which VC libs a binary linked),
-`VCDIR=<vc40> tools/asmscore.py …0x428680` (oracle). Toolchains kept: `toolchain/vc4{0,1,2}/` (gitignored).
-
-**If both threads are still blocked and the user wants incremental work:** the content phase is genuinely
-complete (211 exact + effective; runnable /OPT:REF image; ref-graph 22→5; ALL .rdata content — vtables,
-msgmaps, DYNCREATE sizes+names — validated; classes named as original). Only low-value remains: the 5 hard-tail
-REF-drops (each ≤2 funcs, risks a regression) or PE timestamp/checksum + EH-funclet cosmetics. Prefer asking the
-user over manufacturing work.
-- **PARKED / blocked (unchanged):** AppData CObject-trio -0x30 + WorldgenZoneEntry ??_G (self-correct).
-  **Canvas-gap mini** BLOCKED on owning dialog class (msgmap 0x44b1d8, combo ctrl 0x9e). **De-dup step 6**
-  (World, ~102 fields) — docs/dedup-plan.md.
-- **Map non-exact:** `tools/survey.py` + `tools/frontier.py` (need build/*.obj) — remaining non-exact are
-  lesson-#29 intrinsic/park class, NOT content-fixable and (when same-length) layout-neutral.
-
+**▶ ANCHOR / BYTE-MATCH (phases A–G, parked at 211):** unchanged. `progress.py` **211 exact / 99.17%**, link_exe.sh
+**0/0/exit0**, bugscan **0/0/0**, vtcheck **10 CLEAN**, msgcheck **11 CLEAN**. The byte-match ceiling is compiler-
+wall-blocked (docs/compiler-hunt.md + g2-layout.md) — do NOT re-chase. Every H3 edit is GAME_INDY-guarded (fall-
+through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens.
 
 ### Matching progress + tooling (Phase 4 underway)
 - **`src/World/World.{h,cpp}`** — first matched module, written as C++ (Yoda Stories is C++/MFC; member
