@@ -65,7 +65,11 @@ original adopted MOST of the 4.0→4.1 allocator changes (211 like 6038) but not
 closest to 6038 = a VC 4.1 BETA (Jan 1996) or a Q1-1996 MSDN Development Platform VC press. Checked archive.org:
 the ONLY Q1-1996 MSDN item is `msdn-disc3-premium-release-0296` (Feb 1996) = the NT **DDK** disc, no VC
 compiler; the earliest VC compiler presses on archive.org are July 1996 (4.1/6038, already have) + Aug 1996
-(4.2/6166). VC 4.1 betas live on **BetaArchive** (membership/FTP-gated — not fetchable here). ⇒ **the obtainable
+(4.2/6166). VC 4.1 betas live on **BetaArchive** (membership/FTP-gated — not fetchable here). CHECKED + RULED OUT the
+archive.org item `MSDNDeveloperFront` ("MSDN Developer Network January 1996", the Q1-96 Level-2 Development
+Platform): scanned SETUP.iso + both numbered MSDN discs — they're SDK/DDK/OLE2-SDK/DDK, NO `MSDEV/BIN` compiler
+(VC++ was a SEPARATE product, not part of MSDN Level 2; the whole set is SDKs/DDKs/BackOffice/Library). Don't
+re-download it. ⇒ **the obtainable
 x86 VC 4.x line is fully exhausted (5270/6038/6166 all tested); no public interim build to A/B.** If a VC 4.1
 beta / Q1-1996 MSDN Development Platform VC disc is ever sourced (BetaArchive), drop it at `toolchain/vc4X/` and
 `VCDIR=<it> python3 tools/progress.py` — if it flips the 3 keeping the 19 (exact→214+), that's the app-cl and
