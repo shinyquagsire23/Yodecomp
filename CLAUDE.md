@@ -662,20 +662,37 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v52/v52b) — compiler hunt: LIBS proven 4.2, app-CL axis UNDETERMINED. Thread 1 (Ghidra
-write-routing) RESOLVED v51. Thread 2: v52 proved the toolchain LIBS/headers/linker are VC 4.2 (static-lib
-fingerprint = 4.2, 1404 unique windows via tools/libfingerprint.py). BUT v52b showed the 3 funcs VC 4.0
-byte-matches that 4.2 doesn't (Detonate 0x428680 / ParseZaux 0x423110 / ZoneHasIzxItem 0x41bfa0) RESIST
-faithful source-steering under 4.2 (param-pinned / lesson-#7 clone-locked / decl-swap regresses align 0→22).
-Since cl and libs are SEPARABLE, status is UNDETERMINED: (1) a MIXED toolchain = 4.2 libs + interim app-cl that
-resolves ~3 tie-breaks the 4.0 way [re-opens the (5270,6038) cl hunt], or (2) pure 4.2 + 3 source-locked funcs
-beyond search. Baseline canonical build stays VC 4.2 = 211. Do NOT re-assert either "all 4.2, residuals=source"
-or "interim build" as settled — it's genuinely open. Next discriminators (pick with the user): (a) hunt an
-interim cl 10.0x/10.1x (MSDN 1996 Level-2/subscription) + A/B — if it flips the 3 keeping the 19 = THE build
-→214+; (b) Indy(16-bit)/retail-Yoda source-witness (Ghidra NE-load) for true decl order / clone differences;
-(c) G2 whole-image. Tools: tools/exactset.py, tools/libfingerprint.py, VCDIR override + toolchain/vc4{0,1,2}/
-(gitignored). Baseline 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed v51). Full
-detail: docs/compiler-hunt.md (v52 RESOLUTION + v52b RESULT) + THREAD 2.**
+**▶ START HERE (v52c → G2 is the ACTIVE PHASE) — USER DIRECTIVE (2026-07-08): defer further byte-matching
+(raising the 211 exact count) until AFTER the whole-image (G2) work. Make G2 the next-session focus.**
+
+**Compiler thread = PARKED/exhausted.** Thread 1 (Ghidra write-routing) RESOLVED v51. Thread 2 (compiler hunt):
+v52 proved the toolchain LIBS/headers/linker are VC 4.2 (static-lib fingerprint, tools/libfingerprint.py — 1404
+unique windows). v52b: the 3 funcs VC 4.0 byte-matches that 4.2 doesn't (Detonate 0x428680 / ParseZaux 0x423110
+/ ZoneHasIzxItem 0x41bfa0) RESIST faithful 4.2 source-steering (param-pinned / lesson-#7 clone / decl-swap
+regresses). v52c: the interim-cl hunt is EXHAUSTED on public archives — obtainable x86 VC 4.x = 4.0(5270)/
+4.1(6038)/4.2(6166), ALL tested; an interim would be a VC 4.1 beta / Q1-1996 MSDN Dev-Platform VC disc, only on
+BetaArchive (gated). So the app-cl axis stays UNDETERMINED (mixed interim-cl vs pure-4.2-source) but there is
+NO further obtainable compiler lever — do NOT re-run the hunt (docs/compiler-hunt.md v52c). If the USER ever
+drops a VC 4.1 beta at toolchain/vc4X/, A/B via `VCDIR=<it> python3 tools/progress.py` (flips 3 keeping 19 →214).
+
+**⭐ NEXT PHASE — G2 whole-image (byte-identical/runnable image); byte-matching DEFERRED behind it.** State (from
+the milestone log): `tools/g2_link.sh` links the 13 app objs in address order + `tools/g2_diff.py` reports per
+marker LAYOUT (linked addr==orig) vs CONTENT (reloc-masked bytes==orig). Last measured: **LAYOUT 39/378, CONTENT
+225/378**; the running /OPT:REF image builds (tools/link_exe.sh → yoda.exe, 0/0/exit0). (Reconfirmed v52c: g2_link exit 0,
+LAYOUT 39/378, CONTENT 224/378 — the ±1 vs prior is the lesson-#30 obj-nondeterminism noise.) Model + worklist:
+**docs/g2-layout.md**. G2 sub-tasks (see roadmap Phase G2): (1) emission-ORDER reconciliation is mostly done
+(App/Frame/Records/AppData in-order); remaining LAYOUT is GATED by intrinsic reg-coloring LENGTH walls (first =
+SaveStoryHistory 0x402670, +10B each) — those are the SAME residual class as the 211 ceiling, so absolute layout
+caps until the app-cl question resolves (hence byte-matching deferral is coherent). (2) COMDAT fold-vs-survive
+geography (the −5KB /OPT:REF under-reference gap; ??_GCPalette-style). (3) .rdata/.data/vtable/msgmap/string-pool
+layout (vtcheck/msgcheck already validate CONTENT). (4) PE timestamp/checksum masking + linker thunks
+(0x424fb0 jmp, 0x424f69 EH thunk). (5) reccmp-style whole-image diff → progress toward 100%. Start by re-running
+`tools/g2_link.sh && python3 tools/g2_diff.py` to reconfirm LAYOUT/CONTENT, then pick the next divergence from
+docs/g2-layout.md's worklist.
+
+Baseline (reconfirmed v51, unchanged v52): **211 exact / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 CLEAN /
+msgcheck 11 CLEAN**. Tools added v52: tools/exactset.py (per-compiler exact dump), tools/libfingerprint.py
+(which VC libs a binary linked). Toolchains vc4{0,1,2}/ on disk + gitignored `/toolchain/vc4*/`.**
 
 **THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
 (venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the

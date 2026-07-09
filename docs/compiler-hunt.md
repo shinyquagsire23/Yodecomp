@@ -59,6 +59,19 @@ reveal true decl order or clone differences that discriminate (1) vs (2).
 **Toolchains kept locally** (all gitignored `/toolchain/vc4*/`, for A/B + the user's other projects):
 `toolchain/vc40/` cl 5270, `toolchain/vc41/` cl 6038, `toolchain/vc42/` cl 6166 (the canonical one).
 
+**v52c — interim-cl hunt ATTEMPTED, no obtainable candidate (public archives exhausted).** The target window
+is tiny: VC 4.0 shipped Dec 1995 (cl 5270), VC 4.1 was the Feb-1996 subscription upgrade (cl 6038). The
+original adopted MOST of the 4.0→4.1 allocator changes (211 like 6038) but not 3 (like 5270) ⇒ a build between,
+closest to 6038 = a VC 4.1 BETA (Jan 1996) or a Q1-1996 MSDN Development Platform VC press. Checked archive.org:
+the ONLY Q1-1996 MSDN item is `msdn-disc3-premium-release-0296` (Feb 1996) = the NT **DDK** disc, no VC
+compiler; the earliest VC compiler presses on archive.org are July 1996 (4.1/6038, already have) + Aug 1996
+(4.2/6166). VC 4.1 betas live on **BetaArchive** (membership/FTP-gated — not fetchable here). ⇒ **the obtainable
+x86 VC 4.x line is fully exhausted (5270/6038/6166 all tested); no public interim build to A/B.** If a VC 4.1
+beta / Q1-1996 MSDN Development Platform VC disc is ever sourced (BetaArchive), drop it at `toolchain/vc4X/` and
+`VCDIR=<it> python3 tools/progress.py` — if it flips the 3 keeping the 19 (exact→214+), that's the app-cl and
+proves the mixed-toolchain (interim-cl + 4.2 libs) theory. Until then the app-cl axis stays UNDETERMINED and the
+compiler lever is parked.
+
 ---
 ### Appendix — the compiler A/B that (before the lib check) suggested an interim build
 Tested the WHOLE retail x86 4.x line via the `VCDIR` A/B (4.2 MFC headers kept, to isolate the backend from the
