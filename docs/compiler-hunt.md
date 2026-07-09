@@ -65,7 +65,9 @@ original adopted MOST of the 4.0→4.1 allocator changes (211 like 6038) but not
 closest to 6038 = a VC 4.1 BETA (Jan 1996) or a Q1-1996 MSDN Development Platform VC press. Checked archive.org:
 the ONLY Q1-1996 MSDN item is `msdn-disc3-premium-release-0296` (Feb 1996) = the NT **DDK** disc, no VC
 compiler; the earliest VC compiler presses on archive.org are July 1996 (4.1/6038, already have) + Aug 1996
-(4.2/6166). VC 4.1 betas live on **BetaArchive** (membership/FTP-gated — not fetchable here). CHECKED + RULED OUT the
+(4.2/6166). VC 4.1 betas would live on **BetaArchive** — but the USER searched it (2026-07-08) for `4.0a`, `4.0
+subscription`, and `4.1 beta`: **ALL returned NOTHING.** So the interim build is not obtainable on BetaArchive
+either. CHECKED + RULED OUT the
 archive.org item `MSDNDeveloperFront` ("MSDN Developer Network January 1996", the Q1-96 Level-2 Development
 Platform): scanned SETUP.iso + both numbered MSDN discs — they're SDK/DDK/OLE2-SDK/DDK, NO `MSDEV/BIN` compiler
 (VC++ was a SEPARATE product, not part of MSDN Level 2; the whole set is SDKs/DDKs/BackOffice/Library). Don't
@@ -75,6 +77,13 @@ beta / Q1-1996 MSDN Development Platform VC disc is ever sourced (BetaArchive), 
 `VCDIR=<it> python3 tools/progress.py` — if it flips the 3 keeping the 19 (exact→214+), that's the app-cl and
 proves the mixed-toolchain (interim-cl + 4.2 libs) theory. Until then the app-cl axis stays UNDETERMINED and the
 compiler lever is parked.
+
+**⛔ HUNT CLOSED (2026-07-08) — no obtainable interim compiler exists on ANY accessible source.** archive.org
+(public VC presses = 4.0/4.1/4.2, all tested; Jan-96 MSDN Level-2 = no VC) AND BetaArchive (user searched 4.0a /
+4.0 subscription / 4.1 beta → nothing) are both exhausted. The app-cl question (interim-cl mixed-toolchain vs
+pure-4.2 + 3 source-locked funcs) is therefore UNFALSIFIABLE with available artifacts — do NOT spend more time
+hunting compilers. If a VC 4.x beta/interim ever surfaces from a private collection, the A/B recipe above still
+applies; otherwise 211 + effective is the standing content deliverable and the path forward is G2 whole-image.
 
 ---
 ### Appendix — the compiler A/B that (before the lib check) suggested an interim build
