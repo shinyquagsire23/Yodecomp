@@ -10060,6 +10060,13 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             cameraX = 0x140;
             cameraY = 0x140;
             nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
+            // Indy zones have NO entry scripts yet (ACTN not distributed), so the OnTimer case-0xb
+            // WorldEntryStepMaybe path (bWorldInvalid==0) loops forever at step 5 (it relies on a
+            // zone entry-script to advance nFrameMode). Force bWorldInvalid=1 so case 0xb uses
+            // ZoneTransitionStep, which climbs to step 10 and hands off to play mode (nFrameMode=3);
+            // case 0xb clears bWorldInvalid=0 once the entry completes. (TODO: revisit once ACTN
+            // scripts are distributed — WorldEntryStepMaybe is the "proper" first-entry path.)
+            bWorldInvalid = 1;
             bQuestCellsResident = 1;
             BackupRecords();                         // snapshot the as-loaded quest-record block
             if (pView != NULL)
