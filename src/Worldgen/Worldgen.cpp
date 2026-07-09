@@ -3590,7 +3590,7 @@ int CDeskcppDoc::PlacePuzzle(short nOrderMax, short *paPlanGrid, int *pX, int *p
     {
         if (paFar.GetSize() == 0)
         {
-            ((CTheApp *)AfxGetApp())->LogWrite("!!!!No Place to put Find Puzzle!!!\n");
+            ((CDeskcppApp *)AfxGetApp())->LogWrite("!!!!No Place to put Find Puzzle!!!\n");
             nResult = 0;
         }
         else
@@ -3944,7 +3944,7 @@ int CDeskcppDoc::ParseChar(CFile *pFile)
 // VERS must be 0x200.
 int CDeskcppDoc::LoadWorld()
 {
-    CTheApp *pApp = (CTheApp *)AfxGetApp();
+    CDeskcppApp *pApp = (CDeskcppApp *)AfxGetApp();
     if (bStartingGame == 0)
     {
         currentPlanet = pApp->GetProfileInt("OPTIONS", "Terrain", 1);
@@ -4133,7 +4133,7 @@ int CDeskcppDoc::Load()
     int nRet = 1;
     CFile *pFile = new CFile;
     CString strPath;
-    strPath = ((CTheApp *)AfxGetApp())->m_str;
+    strPath = ((CDeskcppApp *)AfxGetApp())->m_str;
     CFileException e;
     if (!pFile->Open(strPath, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, &e))
     {
@@ -4660,7 +4660,7 @@ void CDeskcppDoc::LoadWorldStateFile()
 {
     CFile *pFile = new CFile;
     CString strPath;
-    strPath = ((CTheApp *)AfxGetApp())->m_str;
+    strPath = ((CDeskcppApp *)AfxGetApp())->m_str;
     CFileException e;
     pFile->Open(strPath, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, &e);
     int nDone = 0;

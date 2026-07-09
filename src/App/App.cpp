@@ -25,14 +25,14 @@ class CDeskcppDoc      { public: static const CRuntimeClass classCDeskcppDoc; };
 class CMainFrame { public: static const CRuntimeClass classCMainFrame; };
 class CDeskcppView   { public: static const CRuntimeClass classCDeskcppView; };
 
-/////////////////////////////////////////////////////////////////////////////  CTheApp
+/////////////////////////////////////////////////////////////////////////////  CDeskcppApp
 
 // FUNCTION: YODA 0x00419720  (GetMessageMap)
 // The AppWizard standard CWinApp map (entries @0x44b??? — msgcheck-verified against the original's 8
 // AFX_MSGMAP_ENTRY records): OnAppAbout + the standard file/help commands routed to CWinApp's handlers.
 // v49: was just the About entry; the other 7 were missing (File>New/Open + the context-help block would
 // not dispatch in the recompiled app). IDs/order read from the binary; handlers are CWinApp lib methods.
-BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
+BEGIN_MESSAGE_MAP(CDeskcppApp, CWinApp)
     ON_COMMAND(ID_APP_ABOUT, OnAppAbout)                    // 0xe140
     // Standard file based document commands
     ON_COMMAND(ID_FILE_NEW, CWinApp::OnFileNew)             // 0xe100
@@ -46,18 +46,18 @@ BEGIN_MESSAGE_MAP(CTheApp, CWinApp)
 END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419730
-// FUNCTION: YODA 0x004197b0  (??_GCTheApp scalar-deleting dtor — compiler-generated)
-CTheApp::CTheApp()
+// FUNCTION: YODA 0x004197b0  (??_GCDeskcppApp scalar-deleting dtor — compiler-generated)
+CDeskcppApp::CDeskcppApp()
 {
 }
 
 // theApp — the one global application object (0x00459d58). Defining it at file scope makes the
 // compiler emit the CRT dynamic-initializer thunk cluster, all four byte-exact (reloc-masked):
 //   0x00419830  _$E123  init entry (call ctor-thunk; jmp atexit-thunk)
-//   0x00419840  _$E120  ctor thunk (mov ecx,&theApp; jmp CTheApp::CTheApp)
+//   0x00419840  _$E120  ctor thunk (mov ecx,&theApp; jmp CDeskcppApp::CDeskcppApp)
 //   0x00419850  _$E122  atexit(dtor-thunk)
-//   0x00419860  _$E121  dtor thunk (SEH frame + CTheApp::~CTheApp)
-CTheApp theApp;
+//   0x00419860  _$E121  dtor thunk (SEH frame + CDeskcppApp::~CDeskcppApp)
+CDeskcppApp theApp;
 
 // FUNCTION: YODA 0x004198c0  [EFFECTIVE MATCH: main body structurally identical (asmscore
 //   align=16 = one cmp operand-order on the g_pExistingInstance null test — the inert
@@ -71,7 +71,7 @@ CTheApp theApp;
 // App startup: single-instance guard (activate an existing window instead of a 2nd copy),
 // CPUID/MMX probe, Win3.1 MIDI workaround + frame-delay pick, build the YODADEMO.DTA path,
 // require an 8bpp display, register the doc template, then parse the command line.
-BOOL CTheApp::InitInstance()
+BOOL CDeskcppApp::InitInstance()
 {
     if (m_hPrevInstance != NULL)
         return FALSE;
@@ -187,7 +187,7 @@ BOOL CTheApp::InitInstance()
 }
 
 // FUNCTION: YODA 0x00419ca0
-BOOL CTheApp::OnIdle(LONG lCount)
+BOOL CDeskcppApp::OnIdle(LONG lCount)
 {
     return CWinApp::OnIdle(lCount);
 }
@@ -195,9 +195,9 @@ BOOL CTheApp::OnIdle(LONG lCount)
 // FUNCTION: YODA 0x00419cb0
 // Debug logger — append one line to c:\yodalog.txt (fopen "at" + fputs + fflush + fclose per
 // call). Nearly all callers compiled out under NDEBUG; only WorldgenPlacePuzzle's survives.
-// The original is a CTheApp member (call sites load ECX = AfxGetApp()); the body never reads
+// The original is a CDeskcppApp member (call sites load ECX = AfxGetApp()); the body never reads
 // `this`, so the thiscall codegen is byte-identical to a __stdcall free function (RET 4).
-void CTheApp::LogWrite(char *pszMsg)
+void CDeskcppApp::LogWrite(char *pszMsg)
 {
     FILE *pFile = fopen("c:\\yodalog.txt", "at");
     fputs(pszMsg, pFile);
@@ -225,7 +225,7 @@ END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419df0
 // File>About: modal CAboutDlg parented to the main window.
-void CTheApp::OnAppAbout()
+void CDeskcppApp::OnAppAbout()
 {
     CAboutDlg dlg(AfxGetApp()->m_pMainWnd);
     dlg.DoModal();

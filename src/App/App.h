@@ -15,13 +15,13 @@ protected:
 };
 
 // The application object (one global instance `theApp` @0x00459d58). vftable 0x0044c130.
-class CTheApp : public CWinApp
+class CDeskcppApp : public CWinApp
 {
 public:
     CString m_str;                       // +0xc0
     int     m_nFrameDelay;               // +0xc4  (0x1e on Win3.1/slow, else 0x28; -> World+0x74)
 
-    CTheApp();                                           // 0x00419730
+    CDeskcppApp();                                           // 0x00419730
     virtual BOOL InitInstance();                         // 0x004198c0
     virtual BOOL OnIdle(LONG lCount);                    // 0x00419ca0
     void OnAppAbout();                                   // 0x00419df0
