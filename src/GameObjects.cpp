@@ -133,15 +133,21 @@ void Character::Read(CFile *pFile)
     pFile->Read(name, 0x10);
     pFile->Read(&w1, 2);
     pFile->Read(&w2, 2);
+#ifdef GAME_INDY
+    // Indy's ICHR record (0x4E vs Yoda 0x54) has only TWO 2-byte fields after the name, then a
+    // FULL 24-short (0x30) frame block — it drops Yoda's third short + dword (DESKADV
+    // FUN_1010_069c reads 8+16+2+2 then 0x30 into char+4). The frame LAYOUT/stride is identical
+    // to Yoda (DESKADV FUN_1010_076e == our GetFrameTile). Previously we read Yoda's w3+dw here,
+    // consuming 6 bytes of frame data and shifting every frame by 3 shorts (garbled animation);
+    // the total record size was coincidentally unchanged (we also under-read frames by 0x6), so
+    // CHWP still aligned. w3/dw have no Indy record fields -> pass 0.
+    Init(w1, w2, 0, 0);
+    pFile->Read(frameBuf, 0x30);
+    memcpy(frames, frameBuf, 0x30);
+#else
     pFile->Read(&w3, 2);
     pFile->Read(&dw, 4);
     Init(w1, w2, w3, dw);
-#ifdef GAME_INDY
-    // Indy's ICHR record is 0x4E (vs Yoda 0x54): the 6-byte-shorter tail is the frame block —
-    // 21 frame shorts (0x2a) instead of 24 (0x30). Verified: 27 chars align to CHWP.
-    pFile->Read(frameBuf, 0x2a);
-    memcpy(frames, frameBuf, 0x2a);
-#else
     pFile->Read(frameBuf, 0x30);
     memcpy(frames, frameBuf, 0x30);
 #endif

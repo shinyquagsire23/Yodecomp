@@ -865,6 +865,15 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
         if (pWorld->bWorldInvalid == 0)
             DrawEntities();
         DrawWholeZone();
+#ifdef GAME_INDY
+        // Entering a building interior (door-in) targets a zone that is NOT in the 10x10
+        // overworld grid, so the grid search leaves nCellX/nCellY = -1 and the unguarded Yoda
+        // write below hits mapGrid[-11] (an out-of-bounds store into the World struct that can
+        // corrupt an adjacent pointer -> a later GDI crash). WorldEntryStepMaybe guards this
+        // same store; ZoneTransitionStep (byte-matched to the original) does not. Guard it for
+        // Indy only (Yoda fall-through keeps the exact original unguarded store, anchor 211).
+        if (nCellX >= 0 && nCellY >= 0)
+#endif
         pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
         if (bAborted == 0 && (nMask & 0x800))
         {
@@ -7450,6 +7459,64 @@ void CDeskcppView::CyclePalette()
 {
     if (pWorld->bPaletteAnimEnabled == 0)
         return;
+#ifdef GAME_INDY
+    // Indy animates a different set of palette ranges than Yoda (DESKADV IndyCyclePalette
+    // 1018:8e40). Every tick: ring-rotate [160..167], [224..228], [229..237] UP by one.
+    // Odd tick only: ring-rotate [238..243] DOWN by one + swap 244<->245. Then push the
+    // single animated band [160..245] (count 0x56) to the DIB + screen (Indy has no
+    // [10..14] low band). Reusing Yoda's ranges cycled the wrong (brown) colours.
+    {
+        PALETTEENTRY se;
+        RGBQUAD sc;
+        int i;
+        // ring [160..167] up
+        se = pWorld->sysPalette[167]; sc = pWorld->pSysColorTable[167];
+        for (i = 167; i > 160; i--) {
+            pWorld->sysPalette[i] = pWorld->sysPalette[i - 1];
+            pWorld->pSysColorTable[i] = pWorld->pSysColorTable[i - 1];
+        }
+        pWorld->sysPalette[160] = se; pWorld->pSysColorTable[160] = sc;
+        // ring [224..228] up
+        se = pWorld->sysPalette[228]; sc = pWorld->pSysColorTable[228];
+        for (i = 228; i > 224; i--) {
+            pWorld->sysPalette[i] = pWorld->sysPalette[i - 1];
+            pWorld->pSysColorTable[i] = pWorld->pSysColorTable[i - 1];
+        }
+        pWorld->sysPalette[224] = se; pWorld->pSysColorTable[224] = sc;
+        // ring [229..237] up
+        se = pWorld->sysPalette[237]; sc = pWorld->pSysColorTable[237];
+        for (i = 237; i > 229; i--) {
+            pWorld->sysPalette[i] = pWorld->sysPalette[i - 1];
+            pWorld->pSysColorTable[i] = pWorld->pSysColorTable[i - 1];
+        }
+        pWorld->sysPalette[229] = se; pWorld->pSysColorTable[229] = sc;
+        if ((nPaletteClock++ & 1) != 0) {
+            // ring [238..243] DOWN
+            se = pWorld->sysPalette[238]; sc = pWorld->pSysColorTable[238];
+            for (i = 238; i < 243; i++) {
+                pWorld->sysPalette[i] = pWorld->sysPalette[i + 1];
+                pWorld->pSysColorTable[i] = pWorld->pSysColorTable[i + 1];
+            }
+            pWorld->sysPalette[243] = se; pWorld->pSysColorTable[243] = sc;
+            // swap 244<->245
+            se = pWorld->sysPalette[245];
+            pWorld->sysPalette[245] = pWorld->sysPalette[244];
+            pWorld->sysPalette[244] = se;
+            sc = pWorld->pSysColorTable[245];
+            pWorld->pSysColorTable[245] = pWorld->pSysColorTable[244];
+            pWorld->pSysColorTable[244] = sc;
+        }
+        pWorld->pCanvas->SetPalette(0xa0, 0x56, pWorld->pSysColorTable + 0xa0);
+        CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+        CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa0, 0x56,
+                         &pWorld->sysPalette[0xa0]);
+        ::RealizePalette(pDC->m_hDC);
+        pDC->SelectPalette(pOldPal, 0);
+        ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    }
+    return;
+#endif
     PALETTEENTRY savedEntry;
     RGBQUAD savedColor;
     int i;
