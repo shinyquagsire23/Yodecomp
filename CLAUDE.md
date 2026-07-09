@@ -786,7 +786,24 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v56 — PHASE H3 milestone 2 IN PROGRESS: Indy zone format done, more chunk deltas next; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v57 — PHASE H3 milestone 2 COMPLETE: DESKTOP.DAW fully parses; worldgen (milestone 4) is next; anchor 211)
+**▶ H3 STATE (docs/phase-h3-indy.md):** Indy port under `GAME_INDY`. ⭐ **MILESTONE 2 DONE (engine-confirmed):**
+`build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY`; run
+`./run_indy.sh`) parses the ENTIRE DESKTOP.DAW to ENDF — **366 zones / 157 puzzles / 27 chars** loaded (debug
+log via `-DYODA_DEBUG=ON` confirmed every chunk). Load-time Indy deltas fixed (all `#ifdef GAME_INDY`, anchor
+25989/211 byte-IDENTICAL): IZON header 8B (drop globalVar+planet), ParseZone Indy chunkLen, ReadZone tiles-only,
+PUZ2 drops unk3+itemB, CHAR record 0x4E (frames 0x2a), TNAM name 0x10; dispatcher length-skips the global
+aux/object/script chunks + Indy-only ZNAM/PNAM/ANAM. Method: RAW-BYTE SIMULATION (walk DAW w/ each candidate
+delta, confirm next tag lands exactly) — anchor-safe, beat C++ instrumentation. **⏭ NEXT = MILESTONE 4 (Indy
+worldgen — the big one):** `Generate` infinite-retries (`Generate try #N -> fail`) because it's built around
+Yoda's 3 planets + per-planet goal whitelists (WorldgenSelectPuzzle 9999 arm: planet-goal-id switch) which Indy
+lacks. Needs a `GAME_INDY` worldgen rework — START by decompiling + NAMING DESKADV.EXE's worldgen funcs (user
+directive; worldgen LOGIC can't be read from data bytes). First probe: does Indy have WORLD_MISSION puzzles
+(nType==3)? try bypassing the per-planet whitelist for GAME_INDY (accept any WORLD_MISSION). Also milestone 2b
+(distribute skipped global HTSP objects/ACTN scripts/aux to zones — zones currently tiles-only) + 3 (Indy
+palette, known-wrong). ⚠ debug logging (src/DebugLog.h + -DYODA_DEBUG) perturbs a byte-matched TU's dial even
+#ifdef'd out — use TEMPORARILY, revert before commit (raw-byte sim preferred). ⚠ DESKADV 16-bit (seg:off;
+get_xrefs_to fails on data strings). ⚠ run oracle=USER visual. H1✅ H2✅. ↓ v56/H3-start ↓
 **▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indy under `GAME_INDY`. Scaffolding + the
 HARDEST delta (zone layout) done. `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
 -DYODA_GAME=INDY && cmake --build build-indy`; `./run_indy.sh`) compiles; anchor 211. ⭐ KEY FINDING (from RAW DAW

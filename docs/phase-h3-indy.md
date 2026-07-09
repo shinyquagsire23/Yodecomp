@@ -51,6 +51,13 @@ Indy deltas live in those handlers.
 4. **Worldgen** — Indy world assembly (no planets); a generated Indy adventure is playable.
 5. **Polish** — Indy resources/icon, sound (Indy WAV/MID set), menus.
 
+## Milestone 2 COMPLETE — DESKTOP.DAW fully parses (engine-confirmed 2026-07-08)
+The debug build (`-DYODA_DEBUG=ON`) logged the real `Load()` dispatch: every chunk parses
+`VERS→STUP→SNDS→TILE→ZONE→[globals]→PUZ2→CHAR→CHWP→CAUX→TNAM→ZNAM→PNAM→ANAM→ENDF`, then
+`LOAD COMPLETE, entering worldgen (zones=366 puzzles=157 chars=27 planet=2)`. So the full Indy asset
+set loads correctly. The remaining hang is `Generate` failing every retry (`Generate try #1..N -> fail`)
+= **milestone 4** (Indy worldgen), NOT a load bug.
+
 ## Milestone 2 progress (DESKTOP.DAW parse) — ground-truth findings
 Verified by examining the **raw DAW/DTA bytes** (the data itself — the most reliable ground truth, and
 it sidesteps 16-bit RE). The Yoda `.dta` and Indy `.daw` share the chunk vocabulary but differ in
