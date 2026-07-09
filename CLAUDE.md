@@ -596,7 +596,20 @@ Written to be followable without prior context: each phase lists concrete steps 
   CDeskcppView*). The rename makes the DYNCREATE macro emit the correct .rdata strings NATURALLY (no
   hand-expansion). Byte-match unaffected (symbol names are masked relocs): 211 held, link 0/0/exit0, bugscan
   0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN. VARIABLES keep pWorld/pView (game-concept readable; original var
-  names unknown).**
+  names unknown).** →
+  **211 exact / 99.17 % coverage — v54 (2026-07-08): ⭐ PHASE H STARTED — H1 CMake build environment DONE
+  (docs/cmake-build.md). Wrote `toolchain/vc42.cmake` (toolchain file: Windows/x86 target + wrapper/VC paths)
+  and top-level `CMakeLists.txt` that builds a runnable `build-cmake/yoda.exe` via `add_custom_command`s over
+  the `toolchain/bin/{cl,link}` wrappers — LANGUAGES NONE, because cl 10.20 predates CMake's MSVC ruleset and
+  the wrappers need link_exe.sh's exact invocation shape (cwd=src, bare-basename source → identical `Z:\`
+  provenance) to stay byte-faithful. Config matrix as cache options: `YODA_GAME`(YODA|INDY), `YODA_VARIANT`
+  (DEMO|FULL), `YODA_PLATFORM`(WIN32|SDL; SDL configure-FATALs till H4). Extensions ADDITIVE: default corner
+  adds NO `-D`, INDY→`-D GAME_INDY`, FULL→`-D YODA_FULL`. ⭐ ANCHOR PROVEN PRESERVED: all 13 default-config
+  TUs are reloc-masked byte-identical to the harness `build/*.obj` (per-named-COMDAT compare); progress.py
+  still 211/99.17 %; objects isolated in `build-cmake/obj/` so oracles are untouched. Verified the built exe
+  LOADS + enters its window message loop under wine (0 unresolved). Added a `run` target (mirrors run.sh).
+  USER note recorded for H3: the Indy build must use the Indy app icon/resources, not Yoda's. NEXT = H2
+  (demo→full Yodesk via ifdefs).**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -620,7 +633,14 @@ under `#ifdef GAME_INDY`. **Rule: any ifdef must leave the default config's PREP
 the guard so the demo/Win32/Yoda path is the fall-through) — else the 211 anchor regresses. Keep the existing
 byte-match scripts (link_exe.sh/verify/progress) as the fidelity gate; CMake is for the EXTENDED builds.
 
-### H1 — CMake build environment (VC++ 4.2 under wine) — FOUNDATION, unblocks H2–H4. **START HERE for Phase H.**
+### H1 — CMake build environment (VC++ 4.2 under wine) — ✅ DONE 2026-07-08 (docs/cmake-build.md). FOUNDATION, unblocks H2–H4.
+**✅ Result:** `CMakeLists.txt` + `toolchain/vc42.cmake` build a runnable `build-cmake/yoda.exe` (verified: loads
++ enters its window message loop under wine, 0 unresolved). Custom-command based (LANGUAGES NONE; drives the
+`toolchain/bin/{cl,link}` wrappers in the SAME shape as link_exe.sh — cl 10.20 predates CMake's MSVC ruleset).
+Config matrix exposed as cache options `YODA_GAME`(YODA|INDY) / `YODA_VARIANT`(DEMO|FULL) / `YODA_PLATFORM`
+(WIN32|SDL, SDL FATALs till H4); extensions are ADDITIVE (`-D GAME_INDY`/`-D YODA_FULL`, default adds nothing).
+**ANCHOR PROVEN PRESERVED:** the default corner's 13 TUs are reloc-masked byte-identical to `build/*.obj`;
+progress.py still 211/99.17%. Objects → `build-cmake/obj/` (separate from harness `build/`). Original spec ↓:
 - Write `toolchain/vc42.cmake` (CMAKE_TOOLCHAIN_FILE): point CMAKE_C/CXX_COMPILER at `toolchain/bin/cl`, linker
   at `toolchain/bin/link` (the wine wrappers already Z:\-ify paths), set the MFC/CRT include+lib dirs, force the
   `/MT /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS` flags, static-MFC (NAFXCW) + LIBCMT + Win32 imports +
@@ -653,6 +673,11 @@ byte-match scripts (link_exe.sh/verify/progress) as the fidelity gate; CMake is 
   disasm + the DesktopAdventures reference; guard the deltas `#ifdef GAME_INDY`.
 - Build a 32-bit Indy: engine compiled with GAME_INDY, loads DESKTOP.DAW, runs. (A NEW 32-bit port of the 16-bit
   game on the shared engine — byte-match N/A.)
+- **Resources/icon (USER note 2026-07-08):** the Indy build must use the **Indy app icon** (and Indy's
+  resource set), NOT Yoda's. The H1 WIN32 build copies `YodaDemo.exe`'s `.rsrc` verbatim (Yoda icon) via
+  extract_res.py; for `GAME_INDY`, source the icon/resources from the Indy binary (`INDYDESK/DESKADV.EXE`
+  is 16-bit NE — its resources may need a different extractor; or supply an Indy `.res`/`.ico`). Wire this
+  into CMake so the `-DYODA_GAME=INDY` build links Indy's `.rsrc`.
 - **Done:** a 32-bit binary that plays Indiana Jones' Desktop Adventures from DESKTOP.DAW.
 
 ### H4 — Beyond Win95: portable SDL target — needs the platform HAL grown across H1–H3. LARGEST lift.
@@ -718,7 +743,7 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v50 — PHASE G2: DYNCREATE verify + CLASS RENAME to CDeskcppDoc/CDeskcppView; 211 exact)
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v54 — PHASE H1 DONE: CMake build environment; anchor preserved 211 exact)
 **▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v50** commit (class rename +
 CRuntimeClass); below: bea006a v49 (msgcheck), b6bb67e v48, e961bf9 v47, ec4015c v46, 4f56b58 v45. Tree CLEAN
 (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). ⭐ **v50 RENAMED the doc/view classes to
@@ -743,17 +768,23 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v53 → PHASE H is the FORWARD DIRECTION) — USER DIRECTIVE (2026-07-08): the byte-match phases
+**▶ START HERE (v54 → PHASE H — H1 DONE, H2 IS NEXT) — USER DIRECTIVE (2026-07-08): the byte-match phases
 (A–G) are DONE/parked at their ceilings (211 exact + runnable/validated image; residual gap is compiler-wall-
-blocked, unobtainable — see docs/compiler-hunt.md + g2-layout.md). Pivot to PHASE H: turn the decompiled source
-into a real, buildable, portable, multi-game engine. Full plan: the "🚀 PHASE H" section below. Concrete next
-step = H1 (CMake build environment for the VC++ 4.2 wine toolchain), which unblocks H2 (full Yodesk via
-ifdefs), H3 (32-bit Indy), H4 (SDL port). GOVERNING PRINCIPLE: the (GAME_YODA+YODA_DEMO+WIN32/MFC) config stays
-the byte-exact ANCHOR — every extension is additive via ifdefs/HAL, and progress.py + oracles must keep passing
-on the anchor after any shared-code edit. v53 also: src/ FLATTENED to a single folder w/ faithful AppWizard file
-names (see the SESSION PROTOCOL orient note for the TU→file map); CTheApp→CDeskcppApp; image_diff.py added.
-NOTE: G2 is NOT the active phase anymore (byte-identity is provably unreachable w/ our compiler) — it's parked;
-its runnable/validated image is the H0 foundation Phase H builds on.**
+blocked, unobtainable — see docs/compiler-hunt.md + g2-layout.md). PHASE H = turn the decompiled source into a
+real, buildable, portable, multi-game engine (full plan: the "🚀 PHASE H" section below). ✅ **H1 COMPLETE
+(v54, docs/cmake-build.md):** `CMakeLists.txt` + `toolchain/vc42.cmake` build a runnable `build-cmake/yoda.exe`
+via custom commands over the wine wrappers; config matrix `YODA_GAME`/`YODA_VARIANT`/`YODA_PLATFORM` exposed
+(additive `-D`s, SDL FATALs till H4); the default corner is PROVEN reloc-masked byte-identical to the anchor
+objects; progress.py still 211/99.17%. ⏭ **NEXT = H2 (demo → full Yodesk.exe via ifdefs):** reference on disk =
+retail `Yoda Stories/Yodesk.exe` (455 KB) + full data `~/workspace/DesktopAdventures/YODESK.DTA` (4.6 MB); load
+Yodesk.exe as a 2nd Ghidra program, diff vs our demo source, find the demo restrictions (zone/item subset,
+disabled save/load, nag, `if(demo)` gates), wrap each `#ifdef YODA_FULL`-style (fall-through=demo=anchor), add a
+`YODA_VARIANT=FULL` build that loads the full data past the demo boundary. GOVERNING PRINCIPLE: the
+(YODA+DEMO+WIN32) config stays the byte-exact ANCHOR — every extension additive via ifdefs, and progress.py +
+oracles must keep passing on the anchor after any shared-code edit (⚠ H2 adds the FIRST real ifdef guards to
+src/ — re-run progress.py after each to confirm the fall-through kept the anchor at 211). CMake is for the
+EXTENDED builds; keep link_exe.sh/verify/progress as the fidelity gate. NOTE: G2 (byte-identical image) stays
+parked/unreachable — its runnable image is the foundation H builds on.**
 
 **Compiler thread = PARKED/exhausted.** Thread 1 (Ghidra write-routing) RESOLVED v51. Thread 2 (compiler hunt):
 v52 proved the toolchain LIBS/headers/linker are VC 4.2 (static-lib fingerprint, tools/libfingerprint.py — 1404

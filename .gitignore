@@ -22,6 +22,7 @@
 *.ilk
 build/
 build-link/
+build-cmake/
 tmp/
 *.exe
 
