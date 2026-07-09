@@ -187,6 +187,9 @@ public:
     // ---- cross-TU externs (doc TU / worldgen) ----
     int          LoadWorld();                             // 0x00421fd0
     int          Generate(unsigned int nSeed);            // worldgen driver
+#ifdef GAME_INDY
+    int          IndyGenerate(unsigned int nSeed);        // DESKADV 1010:8524 (Indy worldgen)
+#endif
     unsigned int Randomize();                             // 0x00424380  reseed rand
     void         BackupZoneGrid();                        // zones[0..99] -> [100..199]
     int          Populate();                              // 0x00425e30

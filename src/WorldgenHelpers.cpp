@@ -839,13 +839,23 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
         int ok = 0;
         unsigned int seed = nSeed;
         do {
+            // Indy: IndyGenerate does plan+placement+materialize+play-state (no separate
+            // Populate), same as the Load() dispatcher. The Yoda #else path is byte-identical
+            // to the original (anchor-safe). Without this guard, New World -> StartGame ran the
+            // Yoda Generate, which never converges on Indy data -> infinite reseed loop.
+#ifdef GAME_INDY
+            if (IndyGenerate(seed) == 0)
+#else
             if (Generate(seed) == 0)
+#endif
                 seed = Randomize();
             else
                 ok = ok + 1;
         } while (ok == 0);
+#ifndef GAME_INDY
         BackupZoneGrid();
         Populate();
+#endif
     }
     v->bBusy = 0;
     if (bSkipGenerate == 0)
