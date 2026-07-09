@@ -4239,9 +4239,12 @@ int CDeskcppDoc::Load()
 #ifdef GAME_INDY
         // Indy stores each zone's aux/objects/scripts in GLOBAL chunks (parallel-array layout),
         // not inline per zone. Distribute the AUX chunks back to zones here: ZAUX (IZAX per zone),
-        // ZAX2 (IZX2 -> genCandidateA), ZAX3 (IZX3 -> genCandidateB). The remaining globals are
-        // still length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag, Yoda discards it),
-        // HTSP (objects), ACTN (one IACT lump), and Indy-only PNAM/ANAM (puzzle/actor names).
+        // ZAX2 (IZX2 -> genCandidateA), ZAX3 (IZX3 -> genCandidateB). HTSP (objects) is a keyed
+        // (id,count,12-byte-objects,0xFFFF-terminator) chunk byte-identical to Yoda's, so it falls
+        // through to the shared ParseHtsp dispatch below — objects are REQUIRED by Indy worldgen
+        // (the quest item pools live in DOOR_IN child zones reached via object type 9). Still
+        // length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag, Yoda discards it),
+        // ACTN (one IACT lump, gameplay not worldgen), and Indy-only PNAM/ANAM (puzzle/actor names).
         if (strcmp(tag, "ZAUX") == 0)
         {
             nRet = ParseZauxIndy(pFile);
@@ -4263,7 +4266,7 @@ int CDeskcppDoc::Load()
                 break;
             continue;
         }
-        else if (strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 || strcmp(tag, "HTSP") == 0 ||
+        else if (strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 ||
                  strcmp(tag, "ACTN") == 0 || strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
         {
             pFile->Seek(nLen, CFile::current);
