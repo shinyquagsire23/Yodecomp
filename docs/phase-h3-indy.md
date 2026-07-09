@@ -229,20 +229,37 @@ links (`yoda.exe` 470KB); **anchor still 211** (all changes GAME_INDY-guarded or
   used-puzzles(+0x140)=`storyHistoryNevada`, used-required(+0x15c)=`uniqueRequiredItemsMaybe`. One new
   member: `int indyPlaceOnEdge` (doc+0xc40 edge gate).
 
-### ⚠ RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does Indy generate a playable world?
-Likely-imperfect first cut; the honest uncertainties to check against the run (from the RE, most→least risky):
-1. **Perpendicular-"clear" predicate** in edge-island growth + carve fork stamps (DESKADV `0x12f < neighbor`,
-   modeled `>= PLAN_FORK_S`) — densest 16-bit, highest risk of a malformed map.
-2. **PASS-2 step-to-step item linking** — `reqItem` from `goalTileList[order]`; item threading happens
-   inside `IndyPlaceQuestNode` (each node sets its slot). Confirm the chain links coherently.
-3. **Hero HP / clock / UI-timer tail** — map to entity/UI structs not written yet (`// TODO(integration)`);
-   the player may spawn with wrong/zero HP. `healthLo/healthHi` are the doc's damage fields, not hero HP.
-4. **`IndySelectPuzzle` key field** (DESKADV puzzle+0x18) modeled as itemA-match.
-5. **PlaceQuestNode case-1 edge arm** (object-less OR teleporter accept — pairing intent).
-6. INI persistence (Save/Load placed-zone + story history) omitted — replays won't persist yet.
-If it hangs again: the retry loop is unbounded, so a structural `IndyPlaceQuestNode`/populate failure would
-re-spin. If it crashes: likely a null zone/obj deref in a populate. If it renders a broken map: item (1).
-The DESKADV functions are all named in Ghidra (`program=DESKADV.EXE`) for re-decompiling any suspect piece.
+### ⭐ WORLDGEN CONVERGES (2026-07-09) — the hang is FIXED; two root-cause bugs found via headless trace
+The initial integration HUNG (unbounded retry: `IndyGenerate` returned 0 every seed). A `-DYODA_DEBUG`
+headless trace (CrossOver wine DOES reach `Load()`/worldgen headless — a viable fast oracle) pinpointed the
+GOAL node (type 10) failing on the first quest step with `passReq=1 passPick=1 passPuz=0` — no GOAL_PRIZE
+puzzle matched. Two transcription bugs (both fixed, verified against the DESKADV decompilation of
+`IndyGenerate` 1010:8524 + `IndyPlaceQuestNode` 1010:7f0c + `IndySelectPuzzle` 1010:7b58):
+1. **`IndySelectPuzzle` matched the wrong item.** It compared the candidate puzzle's `itemA` against
+   `reqItemA` (param_4, the *required* item), but DESKADV matches `itemA == param_5` (the **picked** item =
+   `nWorldMissionKey`); param_4 is unused in the match. → `need == nWorldMissionKey`.
+2. **The quest-chain item threading was mis-indexed.** DESKADV's `IndyPlaceQuestNode(gridOrder, reqItem,
+   step-1, nodeType)` uses `param_5 = step-1` (the *order slot*) for the pick, `IndySelectPuzzle` bFirst
+   (`step-1==0`), the `goalTileList[·]` write, and `IndyPopulateGoalZone`'s step-slot — but our code used
+   `nOrder` (the grid ring 1–5) everywhere and PASS-2 passed `-1` for the slot. Fixed: cases 10/0xf/0x10 use
+   `a5reqItem2` (=order-1) for all four; PASS-2 passes `order-1`. This threads the chain: step `order` writes
+   `goalTileList[order-1]`, which step `order-1` reads as its `reqItem` (the downward-linking DESKADV does).
+**Result (headless):** `Generate` SUCCEEDS on the first seed — full 8-step quest chain places + `IndyPlacePuzzlesPass`
++ materialize complete (`totalZones=9 nSteps=8`). Debug instrumentation removed; anchor still 211; clean
+`build-indy` converges.
+
+### ⚠ RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does the generated Indy world RENDER + PLAY?
+Worldgen converges, but headless can't verify rendering/playability. Remaining honest uncertainties:
+1. **Hero HP / clock / UI-timer tail** — `// TODO(integration)`: the DESKADV tail resets the hero Character's
+   HP (entity+0x90=120) + a UI timer; our tail sets doc fields only, so the player may spawn with wrong HP.
+2. **Perpendicular-"clear" predicate** in edge-island growth + carve fork stamps (DESKADV `0x12f < neighbor`,
+   modeled `>= PLAN_FORK_S`) — could still produce a slightly-malformed map layout.
+3. **PlaceQuestNode case-1 edge arm** (object-less OR teleporter accept — pairing intent).
+4. **`IndyPickUnplacedProvidedItem` bAvoidRange** now passes the order slot (was hardcoded 1) — the step-0
+   item-exclusion range (0x21c–0x21f) path is now exercised; confirm no bad picks.
+5. INI persistence (Save/Load placed-zone + story history) omitted — replays won't persist yet.
+The DESKADV functions are all named in Ghidra (`program=DESKADV.EXE`) for re-decompiling any suspect piece;
+the `-DYODA_DEBUG` headless trace (YDBG in DebugLog.h) is the proven fast oracle for worldgen-logic bugs.
 
 ## Anchor discipline
 Every `GAME_INDY` guard's fall-through (no macro) must be the exact Yoda code, so `progress.py` stays 211

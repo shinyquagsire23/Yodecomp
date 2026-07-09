@@ -8700,9 +8700,9 @@ short CDeskcppDoc::IndySelectPuzzle(int bFirst, short nMode, unsigned short reqI
                 continue;
             }
             else continue;
-            // For 10/0xf/0x10: the puzzle's item must equal reqItemA, and a key field
-            // (DESKADV puzzle+0x18) must equal reqItemA arg. Modeled as itemA match:
-            if (need == reqItemA)
+            // For 10/0xf/0x10: DESKADV matches the puzzle's itemA against param_5 (the PICKED
+            // item = nWorldMissionKey), NOT reqItemA (param_4, which is unused in the match).
+            if (need == nWorldMissionKey)
                 return pid;
         }
     }
@@ -8797,22 +8797,22 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
             if (pZone->type == 10 &&
                 IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
             {
-                int item = IndyPickUnplacedProvidedItem(1 /*bAvoidRange*/, nZoneId);
+                int item = IndyPickUnplacedProvidedItem(a5reqItem2, nZoneId);
                 if (item >= 0)
                 {
-                    short puz = IndySelectPuzzle(0, 10, (unsigned short)a4reqItem,
+                    short puz = IndySelectPuzzle(a5reqItem2 == 0, 10, (unsigned short)a4reqItem,
                                                  (unsigned short)item);
                     if (puz >= 0)
                     {
-                        goalTileList.SetAt(nOrder, puz);   // doc+0x136[nOrder] = puzzle id
-                        if (IndyPopulateGoalZone(0 /*tag*/, nOrder, nZoneId) == 1)
+                        goalTileList.SetAt(a5reqItem2, puz);   // doc+0x136[orderSlot] = puzzle id
+                        if (IndyPopulateGoalZone(nOrder, a5reqItem2, nZoneId) == 1)
                         {
                             // record puzzle used (storyHistoryNevada), placed item:
                             storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
                             WorldgenAddZoneEntry((short)item, 0);
                             return nZoneId;
                         }
-                        goalTileList.SetAt(nOrder, (short)-1);
+                        goalTileList.SetAt(a5reqItem2, (short)-1);
                     }
                 }
             }
@@ -8829,15 +8829,15 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
             if (pZone->type == 0xf &&
                 IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
             {
-                int item = IndyPickUnplacedProvidedItem(1, nZoneId);
+                int item = IndyPickUnplacedProvidedItem(a5reqItem2, nZoneId);
                 if (item >= 0)
                 {
-                    short puz = IndySelectPuzzle(0, 0xf, (unsigned short)a4reqItem,
+                    short puz = IndySelectPuzzle(a5reqItem2 == 0, 0xf, (unsigned short)a4reqItem,
                                                  (unsigned short)item);
                     if (puz >= 0)
                     {
-                        goalTileList.SetAt(nOrder, puz);
-                        if (IndyPopulateTradeZone(0, nOrder, nZoneId) == 1)
+                        goalTileList.SetAt(a5reqItem2, puz);
+                        if (IndyPopulateTradeZone(nOrder, a5reqItem2, nZoneId) == 1)
                         {
                             storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
                             WorldgenAddZoneEntry((short)item, 0);
@@ -8851,15 +8851,15 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
             if (pZone->type == 0x10 &&
                 IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
             {
-                int item = IndyPickUnplacedProvidedItem(1, nZoneId);
+                int item = IndyPickUnplacedProvidedItem(a5reqItem2, nZoneId);
                 if (item >= 0)
                 {
-                    short puz = IndySelectPuzzle(0, 0x10, (unsigned short)a4reqItem,
+                    short puz = IndySelectPuzzle(a5reqItem2 == 0, 0x10, (unsigned short)a4reqItem,
                                                  (unsigned short)item);
                     if (puz >= 0)
                     {
-                        goalTileList.SetAt(nOrder, puz);
-                        if (IndyPopulateTransactionZone(0, nOrder, nZoneId) == 1)
+                        goalTileList.SetAt(a5reqItem2, puz);
+                        if (IndyPopulateTransactionZone(nOrder, a5reqItem2, nZoneId) == 1)
                         {
                             storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), puz);
                             WorldgenAddZoneEntry((short)item, 0);
@@ -9954,24 +9954,25 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             if (cell < 0)
                 continue;
             int y = cell / 10, x = cell % 10;
-            short reqItem = ((Puzzle *)puzzles.GetAt((short)goalTileList.GetAt(order)))->itemA;
+            short gtl = (short)goalTileList.GetAt(order);
+            short reqItem = (gtl >= 0) ? ((Puzzle *)puzzles.GetAt(gtl))->itemA : (short)-1;
             int nZone = -1;
             int nodeType;
             if (order == nSteps)
             {
-                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, 10);
+                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, (short)(order - 1), 10);
                 nodeType = 10;
-                if (nZone < 0) goto fail_reset;
+                if (nZone < 0) { goto fail_reset; }
             }
             else
             {
                 nodeType = (rand() % 2 == 0) ? 0x10 : 0xf;
-                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, (short)nodeType);
+                nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, (short)(order - 1), (short)nodeType);
                 if (nZone < 0)
                 {
                     nodeType = (nodeType == 0x10) ? 0xf : 0x10;   // try the other trade/transaction
-                    nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, -1, (short)nodeType);
-                    if (nZone < 0) goto fail_reset;
+                    nZone = IndyPlaceQuestNode((short)GetZoneGridOrder(y, x), reqItem, (short)(order - 1), (short)nodeType);
+                    if (nZone < 0) { goto fail_reset; }
                 }
             }
             mapGrid[cell].zoneType = nodeType;
