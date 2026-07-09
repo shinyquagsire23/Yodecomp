@@ -297,6 +297,24 @@ mode WITHOUT running entry scripts) stays. **Hypotheses to chase next (in order)
 Method: the headless `-DYODA_DEBUG` YDBG oracle (proven this session) + DESKADV.EXE RE. `tmp/actn_sim.py` is the
 ACTN raw-byte simulator if the format ever needs re-checking.
 
+## Gameplay-fidelity findings + tabled TODOs (2026-07-09, user played build-indy)
+User-confirmed after ACTN distribution: **world loads, zone-to-zone movement works, palette looks correct**;
+**buildings can't be entered** (= the entry-trigger work above); plus two tabled items:
+- ✅ **Palette cycling — RESOLVED (Indy DOES cycle; v59 was wrong).** DESKADV.EXE has a CyclePalette twin
+  `FUN_1018_8e40` — structurally IDENTICAL to Yoda's `CDeskcppView::CyclePalette` (same enable-flag gate,
+  same ring ranges 0xec2.../0xfc2...) — and DESKADV **sets the enable flag to 1** during palette init
+  (`1010:506c: MOV word ptr [doc+0xc3c], 0x1`, the OnNewDocument twin). So Indy cycles the palette exactly
+  like Yoda. Fixed: `src/DeskcppDoc.cpp` now sets `bPaletteAnimEnabled = 1` for BOTH games (dropped the
+  `#ifndef GAME_INDY` guard — anchor-safe, Yoda tokens identical). The DesktopAdventures `palette_animate()
+  { if(!is_yoda) return; }` is a reimplementation inaccuracy, NOT the engine's behavior.
+- ⏳ **TODO: player walk-frame FACING DIRECTION wrong for Indy (likely a frame-layout/enum delta).** Yoda's
+  `Character::GetFrameTile` (`src/GameObjects.cpp` ~L164) indexes `frames[24]` = 3 anim banks × 8 facing dirs
+  (banks at +0/+8/+16; row0=up, row1=down, rows2-4=left dy+3, rows5-7=right dy+6). But Indy's ICHR frame block
+  is **0x2a bytes = 21 shorts** (vs Yoda's 0x30 = 24) — so Indy has a DIFFERENT per-bank direction count/order
+  (21 = 3×7?), which shifts the facing index. Fix: RE DESKADV.EXE's `GetWalkFrameTile`/`GetFrameTile` twin for
+  Indy's exact frame-row layout, then add a `GAME_INDY` branch in `Character::GetFrameTile` (and check
+  `ParseChar`'s Indy frame count — currently reads 0x2a into a `frames[24]`). Visual oracle: `./run_indy.sh`.
+
 ### ⚠ (historical) RUN-TEST NEXT (user visual oracle): `./run_indy.sh` — does the generated Indy world RENDER + PLAY?
 Worldgen converges, but headless can't verify rendering/playability. Remaining honest uncertainties:
 1. **Hero HP / clock / UI-timer tail** — `// TODO(integration)`: the DESKADV tail resets the hero Character's

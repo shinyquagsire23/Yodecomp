@@ -77,8 +77,8 @@ extern "C" unsigned char YodaMasterPalette[1024] = {
 
 #ifdef GAME_INDY
 // Indiana Jones' Desktop Adventures palette (256 BGRX entries), from DESKADV.EXE
-// (via the DesktopAdventures reference indy_palette). Indy uses a distinct palette and
-// does NOT cycle it (CyclePalette is a no-op for Indy).
+// (via the DesktopAdventures reference indy_palette). Indy uses a distinct palette;
+// like Yoda it IS cycled at runtime (see bPaletteAnimEnabled below + CyclePalette).
 extern "C" unsigned char IndyMasterPalette[1024] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xc1, 0xcc, 0xd9, 0x00,
@@ -569,7 +569,7 @@ CDeskcppDoc::CDeskcppDoc()
     playerX = 0;
     pEquippedItem = NULL;
 #ifdef GAME_INDY
-    pSysColorTable = IndyMasterPalette;   // Indy has its own palette (no cycling)
+    pSysColorTable = IndyMasterPalette;   // Indy has its own palette (also cycled — see below)
 #else
     pSysColorTable = YodaMasterPalette;
 #endif
@@ -785,9 +785,12 @@ BOOL CDeskcppDoc::OnNewDocument()
 
     HDC hdc = ::GetDC(NULL);
     ::GetDeviceCaps(hdc, BITSPIXEL);
-#ifndef GAME_INDY
-    bPaletteAnimEnabled = 1;   // Indy has no palette cycling (CyclePalette stays a no-op)
-#endif
+    // Enable palette cycling. BOTH games cycle: DESKADV.EXE (Indy) has a CyclePalette twin
+    // (FUN_1018_8e40) with the SAME ring ranges as Yoda's, and sets this enable flag to 1 during
+    // palette init (1010:506c: MOV [doc+0xc3c],1). (v59's "Indy has no cycling" was wrong — the
+    // DesktopAdventures `palette_animate: if(!is_yoda) return;` is a reimplementation inaccuracy.)
+    // Anchor-safe: dropping the #ifndef leaves Yoda's preprocessed tokens identical.
+    bPaletteAnimEnabled = 1;
     int nSys = ::GetDeviceCaps(hdc, NUMCOLORS);
     if (nSys > 0x14) {
         nFull = nSys;

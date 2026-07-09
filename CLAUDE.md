@@ -827,6 +827,13 @@ in `Zone::IactRun`; (2) the whip: `currentWeapon` starts 0, set only when the wh
 ~L1580; weapon tiles 0x1ff–0x205 / Character `frames[7]==0x12`) — granted at start by an entry-script CMD_AddItemToInv
 (blocked by #1) OR by the worldgen tail directly (check DESKADV `IndyGenerate` tail for a seeded starting weapon;
 same area as the hero-HP TODO). Full detail in docs/phase-h3-indy.md ("ACTN … DONE" + "NEXT = the entry-script").
+**▶ v60 ALSO (user played build-indy — world loads, zone movement + palette look right, can't enter buildings):**
+(a) ✅ FIXED palette cycling — Indy DOES cycle (v59 was wrong): DESKADV `FUN_1018_8e40` ≡ Yoda CyclePalette + it
+sets the enable flag (`1010:506c: MOV [doc+0xc3c],1`); dropped the `#ifndef GAME_INDY` guard on
+`bPaletteAnimEnabled=1` in DeskcppDoc.cpp (anchor-safe). (b) ⏳ TODO: player walk FACING DIRECTION wrong for Indy —
+`Character::GetFrameTile` (GameObjects.cpp ~L164) assumes `frames[24]`=3 banks×8 dirs, but Indy's ICHR frame block
+is 0x2a=21 shorts (vs 0x30=24) → different per-bank dir count/order; needs DESKADV GetWalkFrameTile RE + a GAME_INDY
+branch. Both in docs/phase-h3-indy.md "Gameplay-fidelity findings + tabled TODOs".
 **▶ (historical) prior START HERE was ACTN distribution — now DONE. Below is the pre-v60 checkpoint text:**
 **▶ STATE: Indy (`build-indy`) now generates a world, enters play mode, and renders it (USER-confirmed "gets
 in-game").** This session took H3 milestone 4 from "worldgen traced, Yoda model wrong" to a playable Indy world.
