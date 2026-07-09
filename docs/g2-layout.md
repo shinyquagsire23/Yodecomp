@@ -5,6 +5,46 @@ The 212 exact-func / reg-coloring story is about CONTENT (bytes of each function
 (where each function/datum lands) + the residual plumbing. This doc holds the model + the worklist.
 Started v41 (2026-07-08).
 
+## ⭐⭐ v53 WHOLE-IMAGE REALITY CHECK (2026-07-08) — byte-identity is DOUBLY blocked; achievable bar = runnable/validated image
+Built **`tools/image_diff.py`** (the reccmp-style whole-image metric, worklist #6): parses both PE section
+tables + relocations, compares each section, and counts a dword as matching if EQUAL **or** differing by exactly
+the section shift (= a correctly-relocated pointer). Ran it on the link_exe.sh /OPT:REF image vs the original.
+Result — the whole image is FAR from byte-identical, blocked by TWO independent walls (prior g2_diff only saw
+.text FUNCTION addresses, missing this):
+
+**Section structure (same total file size 454144, but):**
+| sec | orig vsize | ours | Δ |
+|---|---|---|---|
+| .text | 302716 | 304397 | **+1681** = the ~43 reg-coloring LENGTH walls |
+| .rdata | 42824 | 42432 | −392 |
+| .data | 28712 | 28736 | +24 |
+| .idata | 9092 | 8966 | −126 |
+| .rsrc | 54900 | 54900 | 0 (size only) |
+
+**Block #1 — the .text wall overflows a page boundary.** +1681 pushes .text past 0x4a000 → it needs 0x4b000 →
+**every later section shifts +0x1000** → every embedded pointer/RVA in .rdata/.data/.idata/.rsrc/.reloc differs
+by 0x1000. So byte-identity is impossible while the reg-coloring wall stands (the SAME wall as the 212 content
+ceiling — now proven to block the IMAGE, not just .text function addresses).
+
+**Block #2 (NEW, independent) — the data sections are LAYOUT-DIVERGENT, only ~15–46% content-identical even
+with the shift accounted:** .rdata 14.9%, .data 35.1%, .idata 1.6%, .rsrc 15.3% (dword =/+shift metric).
+Root causes (our reconstructed objs lay data out differently than the original):
+- **.rsrc is NOT verbatim** (correcting the doc's earlier claim): extract_res.py makes a `.res` that **link.exe
+  REBUILDS** — same resource CONTENT (dialogs/bitmaps/strings byte-faithful), different section LAYOUT
+  (directory order/alignment). A byte-identical .rsrc needs the original's .rsrc bytes INJECTED verbatim +
+  internal-RVA fixup by the shift — a post-link patch, and still shift-blocked.
+- **.idata** (1.6%): our import table (DLL set/order + WAVMIX32 stub) differs structurally from the original's.
+- **.rdata/.data**: const pools, string order, vtable sets, global order all come from our objs in our order.
+
+**⇒ CONCLUSION: a ~100% byte-identical whole image needs BOTH (a) the reg-coloring wall cracked (unobtainable —
+period-correct cl.exe not findable, see docs/compiler-hunt.md) AND (b) full data-section layout reconstruction
+(.rsrc verbatim-inject, .idata reconciliation, .rdata/.data ordering). Neither is a quick win, and (a) is a
+hard blocker regardless of (b).** The ACHIEVABLE, essentially-MET G2 deliverable is the runnable, content-
+validated image: link_exe.sh → yoda.exe (0/0/exit0), all TUs emission-order-correct (--scramble clean),
+.rdata vtables + msgmaps validated (vtcheck/msgcheck). image_diff.py is the standing honesty metric. Do NOT
+pour effort into data-layout reconstruction expecting byte-identity — it can't be reached while (a) stands.
+The narrower g2_diff LAYOUT/CONTENT (39/224 of 378 .text markers) remains the per-function-order tracker.
+
 ## Tooling
 - **`tools/g2_link.sh`** — links the 13 app `.obj`s in ADDRESS order (the v40 link order) + NAFXCW/
   LIBCMT/Win32 imports, with `/OPT:NOREF` + `/MAP:yoda.map`. Output in `$CLAUDE_JOB_DIR/tmp/g2/`.
