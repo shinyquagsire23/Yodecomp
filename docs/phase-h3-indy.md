@@ -51,6 +51,44 @@ Indy deltas live in those handlers.
 4. **Worldgen** — Indy world assembly (no planets); a generated Indy adventure is playable.
 5. **Polish** — Indy resources/icon, sound (Indy WAV/MID set), menus.
 
+## Milestone 2 progress (DESKTOP.DAW parse) — ground-truth findings
+Verified by examining the **raw DAW/DTA bytes** (the data itself — the most reliable ground truth, and
+it sidesteps 16-bit RE). The Yoda `.dta` and Indy `.daw` share the chunk vocabulary but differ in
+**zone layout**:
+- **Yoda = self-contained zone records:** `"ZONE" + nZones(2)`, then each zone = `planet(2)+len(4)+
+  pad(2)` + `IZON`(tiles) + objects(inline) + `ZAUX/ZAX2/ZAX3/ZAX4` + `IACT` scripts(inline).
+- **Indy = parallel arrays:** `"ZONE" + chunkLen(4) + nZones(2)`, then back-to-back `IZON` tile records
+  (NO per-zone planet prefix, NO planet filter — Indy has no planets). Each zone's aux (`IZAX/ZAX2/ZAX4/
+  ZAX3`), objects (`HTSP`) and scripts (`ACTN` — one lump, its length spans all IACTs) are SEPARATE
+  GLOBAL chunks after the zones, plus Indy-only `PNAM`/`ANAM` (puzzle/actor names).
+- **`ReadIzon` is shared** — Indy's IZON consumes the same 8 header bytes (width/height/type/globalVar/
+  planet) + tiles; only the field *semantics* differ, not the byte count.
+
+**Implemented (v56, `#ifdef GAME_INDY`, anchor 211 held):**
+- `ParseZone`: read Indy's `chunkLen(4)` before `nZones`.
+- `ReadZone`: Indy branch = `new Zone; ReadIzon;` (tiles only — no prefix/filter/inline objects/scripts).
+- `Load()` dispatcher: skip the Indy global chunks (`IZAX/ZAX2/ZAX4/ZAX3/HTSP/ACTN/PNAM/ANAM`) by length
+  so the load walks past the zones — their per-zone distribution is the next sub-step (2b+).
+
+**Remaining for a clean full parse (still Yoda-format under GAME_INDY ⇒ will misread):** `PUZ2` (Indy
+record lacks Yoda's `unk3`/`item_b`), `CHAR` (record `0x54`→`0x4E`), `CHWP`/`CAUX`/`TNAM`/name lengths
+(`24`→`16`), and `TILE`/`SNDS` (verify shared). Then **2b** distribute the global HTSP objects + ACTN
+IACT lump + aux back to zones; **3** Indy palette; **4** Indy worldgen (no planets — `Generate`/
+`LoadWorld`/`WorldgenSelectPuzzle` planet logic is Yoda-specific and will fail as-is).
+
+## DESKADV.EXE (Ghidra) — naming practice + RE friction
+**USER directive:** as Indy functions are identified in DESKADV.EXE, **rename them in its Ghidra program**
+(`program=DESKADV.EXE`) so future sessions don't re-discover them. Track named functions below.
+- ⚠ **16-bit RE friction:** DESKADV.EXE is `x86:LE:16 Protected Mode` (segment:offset addrs like
+  `1010:dd0e`). The Ghidra HTTP/MCP `get_xrefs_to` returns *no* references for data-string addresses
+  (16-bit auto-analysis didn't build string xrefs), so the usual "string → referencing function" anchor
+  fails. Tag compares are also **integer** (packed FourCC), not string literals — no "ZONE"/"TILE"
+  strings to anchor on. Workarounds for future sessions: byte-pattern search for the seg:off of a known
+  string, the Ghidra GUI's xref view, or `decompile_function` on a known code address. Anchor strings:
+  `"DESKTOP.DAW"`@1010:dd0e, version-error@1200:0068, file-open-error@11f8:011a.
+- **Named DESKADV.EXE functions so far:** _(none yet — milestone-2 deltas were recovered from raw DAW
+  bytes, not DESKADV code. Name them here when the worldgen/logic deltas force DESKADV decompilation.)_
+
 ## Anchor discipline
 Every `GAME_INDY` guard's fall-through (no macro) must be the exact Yoda code, so `progress.py` stays 211
 and all byte-match oracles pass. Same rule as H2. Only the extended `build-indy` config exercises Indy.

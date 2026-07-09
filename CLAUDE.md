@@ -786,18 +786,23 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v56 — PHASE H3 STARTED: Indy scaffolding done, DESKTOP.DAW-parse deltas next; anchor 211)
-**▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indiana Jones' Desktop Adventures under
-`GAME_INDY`. Scaffolding DONE: `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
--DYODA_GAME=INDY && cmake --build build-indy`) compiles; data file → `DESKTOP.DAW`; `./run_indy.sh` runs
-`YodaIndy/` (INDYDESK data). Anchor 211 held. **⏭ IMMEDIATE NEXT = milestone 2: make DESKTOP.DAW parse** — add
-`#ifdef GAME_INDY` branches to `CDeskcppDoc::Load()` + `Parse*`/`ReadZone` for the format deltas, VERIFYING each
-against **DESKADV.EXE** (16-bit Indy, Ghidra `program=DESKADV.EXE` — ground truth; DesktopAdventures `is_yoda` gates
-= where-to-look map only). Delta list + our-engine sites in docs/phase-h3-indy.md §"Delta surface". Biggest: the
-ACTN/IACT lump (Indy stores all IACTs in one global block). ⚠ 16-bit RE friction (segment:offset addrs, API xref
-lookups fail on them — recover LOGIC via DesktopAdventures + disasm, not codegen-diff). ⚠ run oracle = USER visual
-(headless CPU lies). Anchor rule: every GAME_INDY guard's fall-through = exact Yoda code (progress.py stays 211).
-H1✅ H2✅(full game all 3 planets+save/load/replay). ↓ v55/H2 ↓
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v56 — PHASE H3 milestone 2 IN PROGRESS: Indy zone format done, more chunk deltas next; anchor 211)
+**▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indy under `GAME_INDY`. Scaffolding + the
+HARDEST delta (zone layout) done. `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
+-DYODA_GAME=INDY && cmake --build build-indy`; `./run_indy.sh`) compiles; anchor 211. ⭐ KEY FINDING (from RAW DAW
+BYTES = ground truth): Yoda zones are SELF-CONTAINED records; **Indy zones are PARALLEL ARRAYS** — `"ZONE"+
+chunkLen(4)+nZones(2)` then back-to-back IZON tiles (no planet prefix/filter), with aux(IZAX/ZAX2/ZAX4/ZAX3),
+objects(HTSP), scripts(ACTN=one IACT lump) as SEPARATE GLOBAL chunks + Indy-only PNAM/ANAM. ReadIzon is SHARED.
+**Implemented v56:** ParseZone reads Indy chunkLen; ReadZone Indy branch=tiles-only; Load() dispatcher skips the
+Indy global chunks by length (so it walks past zones). **⏭ NEXT (milestone 2 cont.):** post-ZONE chunks still use
+Yoda format under GAME_INDY ⇒ will misread — need Indy branches for PUZ2 (no unk3/item_b), CHAR (record 0x54→0x4E),
+CHWP/CAUX/TNAM/name-lens(24→16), verify TILE/SNDS shared. Then 2b: distribute global HTSP objects + ACTN IACT lump
++ aux back to zones. Then 3 Indy palette, 4 Indy worldgen (NO planets — Generate/LoadWorld/WorldgenSelectPuzzle
+planet logic is Yoda-specific, will fail as-is). ⚠ USER DIRECTIVE: as DESKADV.EXE functions are identified, RENAME
+them in its Ghidra (`program=DESKADV.EXE`) to avoid dup work — track in docs/phase-h3-indy.md. ⚠ DESKADV is 16-bit
+(seg:off addrs; get_xrefs_to returns nothing for data strings — string-anchor RE fails; tags are integer compares
+not strings). Most format deltas recover from RAW DAW BYTES (better than 16-bit decompile). ⚠ run oracle=USER
+visual. Anchor rule: every GAME_INDY guard fall-through = exact Yoda code (211). H1✅ H2✅. ↓ v55/H2 ↓
 **▶ H2 DONE (core) — USER-CONFIRMED (docs/phase-h2-full-game.md):** the FULL build (`cmake -B build-full
 -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_VARIANT=FULL && cmake --build build-full`; run `./run_full.sh` or
 `./build_run.sh`, against `YodaFull/YODESK.DTA`) loads the full 4.6MB data and PLAYS all three planets

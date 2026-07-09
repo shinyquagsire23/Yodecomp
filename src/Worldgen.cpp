@@ -4222,6 +4222,20 @@ int CDeskcppDoc::Load()
         }              // closes the TRY macro's outer (link-scope) brace
         if (nDone != 0)
             break;
+#ifdef GAME_INDY
+        // Indy stores each zone's aux/objects/scripts in GLOBAL chunks (parallel-array layout),
+        // not inline per zone: IZAX/ZAX2/ZAX4/ZAX3 (aux), HTSP (objects), ACTN (all IACT scripts
+        // in one lump — its length covers the whole lump), plus PNAM/ANAM (puzzle/actor names).
+        // Skip them by length for now so the load completes and reaches worldgen; distributing
+        // them back to zones is the next H3 sub-step (milestone 2b+).
+        if (strcmp(tag, "ZAUX") == 0 || strcmp(tag, "ZAX2") == 0 || strcmp(tag, "ZAX3") == 0 ||
+            strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 || strcmp(tag, "HTSP") == 0 ||
+            strcmp(tag, "ACTN") == 0 || strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
+        {
+            pFile->Seek(nLen, CFile::current);
+            continue;
+        }
+#endif
         if (strcmp(tag, "VERS") == 0)
         {
             if (nLen != 0x200)
@@ -4359,6 +4373,10 @@ void CDeskcppDoc::SetModifiedFlag(BOOL bModified)
 int CDeskcppDoc::ParseZone(CFile *pFile)
 {
     short nZones;
+#ifdef GAME_INDY
+    int nChunkLen;               // Indy's ZONE chunk carries a 4-byte length prefix Yoda lacks
+    pFile->Read(&nChunkLen, 4);  // (verified in DESKTOP.DAW: "ZONE" + len(4) + nZones(2))
+#endif
     pFile->Read(&nZones, 2);
     zones.SetSize(nZones, -1);
     for (int i = 0; i < nZones; i++)
@@ -6344,6 +6362,16 @@ void CDeskcppDoc::SetupGrid()
 // returns the Zone, (Zone *)-1 for skipped, NULL on failure.
 Zone *CDeskcppDoc::ReadZone(CFile *pFile, int idx)
 {
+#ifdef GAME_INDY
+    // Indy zones are parallel-array (verified in DESKTOP.DAW): the ZONE section is back-to-back
+    // IZON tile records with NO per-zone planet/len prefix and NO planet filter (Indy has no
+    // planets). Each zone's objects (HTSP), aux (IZAX/ZAX2/ZAX4/ZAX3) and scripts (ACTN) are
+    // separate GLOBAL chunks parsed after all zones and distributed back to zones — TODO H3.
+    (void)idx;
+    Zone *pZone = new Zone(0x12, 0x12);
+    pZone->ReadIzon(pFile);      // ReadIzon is shared: same 8 header bytes + tiles for both games
+    return pZone;
+#else
     BOOL bForce = FALSE;
     switch (idx)
     {
@@ -6400,6 +6428,7 @@ Zone *CDeskcppDoc::ReadZone(CFile *pFile, int idx)
         return (Zone *)-1;
     }
     return pZone;
+#endif
 }
 
 // ============================== GameView methods (TU tail) ==============================
