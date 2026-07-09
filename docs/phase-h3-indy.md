@@ -125,12 +125,42 @@ bytes (validated to consume ALL 366 records exactly):**
   `ReadZax2`/`ReadZax3` are reused verbatim.
 - **IZX4** (ZAX4): still length-skipped (static-map flag; Yoda `ReadZax4` discards it anyway).
 
-**⏭ NEXT for milestone 4:** (a) VISUAL TEST `build-indy` (`./run_indy.sh`) — does a world now generate +
-play, or still stall? (headless is a poor oracle — USER visual is authoritative). (b) If the goal-zone
-still fails, the `providedItemsB` mirror hypothesis or the missing HTSP objects are the suspects — load
-**HTSP → zone objects** next (`WorldgenPickItemFromZone`/vehicle/DOOR_IN logic reads `pZone->objects`), and
-RE the Indy goal/two-branch item model in **DESKADV.EXE** (`program=DESKADV.EXE`; raw bytes can't reveal
-worldgen LOGIC). (c) Then **ACTN** (one IACT lump → per-zone scripts) for gameplay, **3** Indy palette.
+### ⭐ Worldgen trace RESULT (2026-07-09, user ran instrumented build-indy) — the Yoda quest machinery is the WRONG MODEL for Indy; DECISION: decompile DESKADV.EXE worldgen separately
+A `-DYODA_DEBUG` build (bounded-retry + per-gate logging, since reverted — anchor 211) traced Generate's
+failure through four layers. Each fix revealed the next Yoda-specific assumption Indy's data can't satisfy:
+1. **Planet filter** (`PlaceQuestNode`: `planet==currentPlanet`) → fixed with `currentPlanet=-1`. Zones
+   become candidates. ✅ (kept)
+2. **Goal selection** picks a valid WORLD_MISSION puzzle every try (109/136/134/…). ✅ (kept)
+3. **`PQN type=10` (FINAL_ITEM goal zone) rejects all 15 candidates in phase 2.** The gate
+   `ZoneRequiresItemMaybe(a4)==1 && ZoneRequiresItemMaybe(a5)==1` reads `genCandidateA` (IZX2), but **Indy
+   goal zones have EMPTY IZX2/IZX3** (`genA=0 genB=0` on every candidate), and **Indy puzzles have no
+   itemB** so `a5` is always `-1` (→ `req5` can never be 1). Structurally unsatisfiable.
+4. Relaxing that gate + making the goal single-branch (Indy's single-item puzzles) got the zone to pick a
+   valid item + GOAL_PRIZE puzzle (`itemA=663 puzA=104`), but **`WorldgenPopulateGoalZone` returns 0**: its
+   success paths need `PickUnplacedItemMaybe` (reads `genCandidateB`/IZX3 — empty) or `WorldgenFillQuestItemSpot`
+   (reads `genCandidateA`/IZX2 — empty). Seeding the goal zone's genCandidate lists from its IZAX pool still
+   failed downstream (`populate=0`).
+**Conclusion (user-agreed):** every layer of Yoda's quest builder assumes **two-item puzzles + per-zone
+IZX2/IZX3 required-item lists**, and Indy goal zones have NEITHER — only the single IZAX item pool. Reverse-
+engineering Indy's rules by trial-and-error against Yoda's code doesn't converge and produces semantically
+wrong quests. The RIGHT path (the plan's original directive) is to **decompile DESKADV.EXE's actual Indy
+worldgen** and reimplement it under `GAME_INDY`, rather than bend the Yoda logic. All heuristic patches were
+REVERTED; kept only the correct base: planet fix + goal-selection + aux data loading.
+
+### What Indy's DATA has (confirmed from raw bytes; use as constraints for the DESKADV RE)
+- Puzzles: single-item (no `itemB`); types 0/1/2/3 = TRANSACTION/TRADE/GOAL_PRIZE/WORLD_MISSION (49/49/43/15).
+- Zones: full quest-type spread; **type-10 goal zones (×15) have `providedItemsA` (IZAX pool) but NO
+  IZX2/IZX3**. Regular zones DO have IZX2 (141 zones)/IZX3 (32 zones). So Indy uses IZX2/IZX3 for regular
+  quest zones but NOT goal zones — goal handling is the biggest logic delta.
+- IZAX = one item pool per zone (Yoda has two: providedItemsA + providedItemsB). The `providedItemsB` mirror
+  in `ReadIzaxIndy` is a KNOWN wart to revisit in the rework (Indy is single-pool).
+
+### ⏭ NEXT (milestone 4 = the DESKADV.EXE worldgen RE): decompile + NAME Indy's worldgen in `program=DESKADV.EXE`
+Find Indy's equivalents of `Generate`/`PlaceQuestNode`/`WorldgenSelectPuzzle`/`WorldgenPopulateGoalZone`,
+recover the LOGIC (not codegen — 16-bit), and reimplement under `GAME_INDY`. Anchors to start from: the DAW
+loader (`"DESKTOP.DAW"`@1010:dd0e caller), and `srand`/`rand` call sites (worldgen is rand-heavy). Then the
+remaining sub-steps: **HTSP → zone objects** (worldgen also reads `pZone->objects` for vehicles/DOOR_IN),
+**ACTN** (one IACT lump → per-zone scripts) for gameplay, and **3** Indy palette. USER visual is the run oracle.
 
 ## DESKADV.EXE (Ghidra) — naming practice + RE friction
 **USER directive:** as Indy functions are identified in DESKADV.EXE, **rename them in its Ghidra program**
