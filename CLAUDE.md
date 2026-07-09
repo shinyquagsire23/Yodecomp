@@ -662,15 +662,19 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v52) — compiler hunt REOPENED + advanced. Thread 1 (Ghidra write-routing) RESOLVED v51.
-Thread 2 (compiler hunt): v52 PROVED the reg-coloring residual is compiler-build-sensitive (VC 4.0's cl makes
-3 parked "intrinsic" residuals byte-exact; union 214) and NARROWED the target to an interim cl build in
-(5270,6038). Baseline canonical build stays VC 4.2 = 211 (max single obtainable compiler; 4.1==4.2). Live
-next steps (pick with the user): (a) HUNT an interim VC 4.0-era cl build 10.0x/10.1x on MSDN 1996 discs and
-A/B it — could hit 214+; (b) Fable-Q1 lever-2 decl-position source search under 4.2 to capture the 3 4.0-wins
-(4.0 output = oracle); (c) the Indy/retail source-witness work; (d) G2 whole-image. Toolchains vc40/vc41/vc42
-all on disk + gitignored. Baseline 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed
-v51). See docs/compiler-hunt.md v52 block + THREAD 2 above for the full A/B method + swing-function lists.**
+**▶ START HERE (v52) — compiler hunt RESOLVED. Thread 1 (Ghidra write-routing) RESOLVED v51. Thread 2 (compiler
+hunt): v52 PROVED the toolchain is VC 4.2 throughout (STATIC LIBS fingerprint = 4.2, 1404 unique windows; +
+headers/linker/app-cl all 4.2) = our exact compiler ⇒ the ~48 reg-coloring residuals are SOURCE-FIDELITY diffs,
+NOT a compiler wall (corrects v39 "intrinsic"; retracts the same-session "interim build" mis-inference). VC 4.0
+is a coincidental ORACLE that byte-matches 3 of them (Detonate 0x428680 / ParseZaux 0x423110 / ZoneHasIzxItem
+0x41bfa0), confirming their registers ARE source-reachable. Baseline canonical build stays VC 4.2 = 211. The
+compiler axis is now CLOSED (no different build to find — it's ours). Live next steps (pick with the user):
+(a) ⭐ Fable-Q1 lever-2 — oracle-guided FAITHFUL decl-position source search under 4.2 to capture the 3 (+more)
+oracle-confirmed residuals (use `VCDIR=<vc40> tools/asmscore.py …0x428680` as the target); (b) Indy(16-bit)/
+retail-Yoda source-witness work to recover true decl order (needs Ghidra NE-load); (c) G2 whole-image. Tools:
+`tools/exactset.py` (per-compiler exact dump). Toolchains vc40/vc41/vc42 on disk + gitignored. Baseline 211 /
+link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed v51). Full detail: docs/compiler-hunt.md
+v52 RESOLUTION block + THREAD 2 above.**
 
 **THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
 (venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
@@ -678,25 +682,26 @@ cross-program comment test PASSED (mcp `set_plate_comment(program="libkotor2.so"
 YodaDemo untouched). ⇒ writes now route by `program=`. Rule: ALWAYS pass `program=YodaDemo.exe` on mutations
 (see the WRITE ROUTING block above). Nothing pending on this thread.
 
-**THREAD 2 — the compiler hunt: ⭐ REG-COLORING IS COMPILER-SENSITIVE (v52, 2026-07-08) — target NARROWED to an
-interim build in (cl 5270, 6038).** ⚠ This CORRECTS both v39 ("reg-coloring intrinsic, not compiler-fixable")
-and the v51 "candidate space EMPTY" (which only tested 4.2 *editions*). Fable's key insight: the PE **linker**
-3.10 pins LINK.EXE, NOT CL.EXE — so earlier-cl objects link fine with 4.2's LINK 3.10 + NAFXCW.LIB. Tested the
-whole retail x86 4.x line via `VCDIR` A/B (4.2 headers kept, to isolate the backend from the header dial):
-**VC 4.0 (cl 10.00.5270) = 195 exact but a DIFFERENT set — it makes `DetonateAdjacentTiles` 0x428680 (a PARKED
-"intrinsic" residual) byte-EXACT** + `ParseZaux` 0x423110 + `ZoneHasIzxItemMaybe` 0x41bfa0 (union 214), while
-losing 19 that 4.2 gets; **VC 4.1 (cl 10.10.6038) = byte-identical set to 4.2 (211)**. So our same source under
-4.0-vs-4.2 differs on 22 swing funcs; the ORIGINAL matches 4.2 on 19 + 4.0 on 3 (same TU, one compiler) ⇒ the
-original's C2 allocator is an INTERIM build between 5270 and 6038 (6038-era on 211, 5270-era on 3), close to
-6038. Retail 4.0/4.1/4.2 all now tested + kept: `toolchain/vc4{0,1,2}/` (all gitignored `/toolchain/vc4*/`).
-Full result + exact-diff + the swing-function lists: **docs/compiler-hunt.md** (v52 block). INFRA READY (`VCDIR`
-override; bellwether `VCDIR=<cand> python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680` → exact=True =
-match; full `VCDIR=<cand> python3 tools/progress.py`). **NEXT compiler leads:** an interim cl 10.0x/10.1x build
-(5270,6038) — MSDN Level-2/subscription discs Jan–Jun 1996, a VC 4.0 SP, or a 4.1 beta. **Alternative (Fable
-Q1 lever-2, untried):** the 3 4.0-wins are now proven register-reachable, so a FAITHFUL decl-POSITION search
-under 4.2 (declare-at-first-use / scope-bracketing late locals — allocator keys on frontend symbol-creation
-order) may reproduce 4.0's choice under 4.2, using 4.0's exact output as the oracle. Do the A/B set-diff with
-`$CLAUDE_JOB_DIR/tmp/exactset.py`-style dumps (per-VCDIR exact-name list).
+**THREAD 2 — the compiler hunt: ✅ RESOLVED (v52, 2026-07-08) — the toolchain IS VC 4.2; the residuals are
+SOURCE-side, NOT a compiler wall.** ⭐ The STATIC LIBS settled it (do this check first in future): the exe's
+statically-linked CRT (`LIBCMT.LIB`) + MFC (`NAFXCW.LIB`) code (region ~0x429000–0x44b000) is MS-prebuilt and
+version-specific. Window-matched it (20-byte windows via `tools/exactset`-style script; reuse match.TEXT_VA/RAW)
+against vc40/41/42 libs: **1404 windows unique to vc42, ZERO unique to 4.0/4.1** (e.g. a 96B `_makepath`-family
+CRT run @0x42a9ff is verbatim in vc42/LIBCMT.LIB, absent from 4.0/4.1). ⇒ **libraries = VC 4.2.** Plus headers =
+4.2 (211-max) + app-cl matches 4.1/4.2's 211 not 4.0's 195 + linker 3.10 = 4.2-era. ALL axes = VC 4.2 = our
+exact toolchain (cl 6166). By the fresh-TU determinism axiom, identical compiler+source ⇒ identical bytes, so
+**every non-exact func is a SOURCE-FIDELITY diff.** ⚠ **RETRACTS the same-session "interim build (5270,6038)"
+theory** (it was inferred from the compiler A/B alone; the libs disprove it). The A/B still showed VC 4.0
+compiles 3 funcs byte-exact that 4.2 doesn't (`DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110,
+`ZoneHasIzxItemMaybe` 0x41bfa0) — but that's **VC 4.0 acting as a coincidental ORACLE** (proving the original's
+registers ARE source-reachable), NOT the original compiler. Corrects v39: the residuals are hard SOURCE puzzles
+(attackable), not intrinsic. Toolchains kept: `toolchain/vc4{0,1,2}/` (gitignored `/toolchain/vc4*/`). Full
+detail + the exact-set diff: **docs/compiler-hunt.md** (v52 RESOLUTION block). **ACTIONABLE lever (Fable Q1
+lever-2, untried):** oracle-guided FAITHFUL decl-POSITION search under 4.2 on the 3 oracle-confirmed funcs
+(declare-at-first-use / scope-bracket late locals — allocator keys on frontend symbol-creation order), using
+4.0's byte-exact output as the target; the Indy/retail source witnesses could reveal the true decl order. INFRA:
+`VCDIR=<vc40> python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680` (oracle), `tools/exactset.py`
+(per-compiler exact-set dump for A/B diffs).
 
 **If both threads are still blocked and the user wants incremental work:** the content phase is genuinely
 complete (211 exact + effective; runnable /OPT:REF image; ref-graph 22→5; ALL .rdata content — vtables,

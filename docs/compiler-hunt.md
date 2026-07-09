@@ -11,12 +11,45 @@ context) trying to flip them. ⭐ **CORRECTED v52: the choice is NOT intrinsic �
 The original was built with a slightly DIFFERENT VC 4.x build whose allocator makes the opposite symmetric
 choice on some functions — proven, not conjectured (see the v52 result below).
 
-## ✅ HUNT RESULT v52 (2026-07-08) — reg-coloring IS compiler-sensitive; target = an INTERIM build in (5270, 6038)
-⚠ This SUPERSEDES the v51 "no obtainable x86 candidate / candidate space EMPTY" conclusion below, which was
-premature — it only tested VC 4.2 *editions* (all bit-identical 6166). The real axis is the 4.x **point
-release** (cl build number), because the PE **linker** version (3.10) pins LINK.EXE, NOT CL.EXE (Fable's
-insight): objects from an earlier cl link fine with 4.2's LINK 3.10 + NAFXCW.LIB. Tested the WHOLE x86 4.x line
-via the `VCDIR` A/B (keeping our 4.2 MFC headers to isolate the backend from the header dial, lesson #26):
+## ⭐ RESOLUTION v52 (2026-07-08) — the toolchain IS VC 4.2 (proven by the STATIC LIBS); residuals are SOURCE-side
+**Final answer, after the compiler A/B AND a static-library fingerprint (the decisive evidence):** the original
+`YodaDemo.exe` was built with **VC 4.2 throughout** — cl 10.20.6166 (our exact compiler) + 4.2 headers + 4.2
+libs + LINK 3.10. Therefore, by the fresh-TU determinism axiom (identical compiler+source ⇒ identical bytes),
+**the ~48 non-exact "reg-coloring" residuals are SOURCE-FIDELITY differences, NOT immovable compiler tie-breaks.**
+
+**How the static libs settled it (the clincher — do this kind of check first next time):** the statically-linked
+CRT (`LIBCMT.LIB`) and MFC (`NAFXCW.LIB`) code in the exe's LIBRARY region (~0x429000–0x44b000) is MS-prebuilt
+and version-specific. Window-matched it (20-byte reloc-tolerant windows, `tools/`-style) against vc40/vc41/vc42
+libs: **1404 windows are unique to vc42's libs, ZERO unique to vc40 or vc41** — e.g. a 96-byte `_makepath`-family
+CRT run at VA 0x42a9ff is verbatim in vc42/LIBCMT.LIB and absent from 4.0/4.1. So the LIBRARY axis = VC 4.2,
+unambiguously. Headers = 4.2 (211-max is under 4.2 MFC headers). App-cl = 4.1/4.2-class (211) not 4.0 (195). All
+axes converge on VC 4.2 = OUR toolchain.
+
+**⚠ RETRACTS the "interim build in (5270,6038)" theory** (written earlier this session from the compiler A/B
+alone). The 3 functions VC 4.0 compiles byte-exact that 4.2 doesn't (`DetonateAdjacentTiles` 0x428680, `ParseZaux`
+0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0) are NOT evidence of a different original compiler — the libs disprove
+that. They are 3 functions where **our source is subtly non-faithful** and VC 4.0's *different* allocator
+coincidentally lands on the original's registers. **VC 4.0 is a useful ORACLE** (it confirms the target register
+assignment is reachable → a faithful source form exists), not the build that shipped the game.
+
+**Corrects v39 too:** "reg-coloring intrinsic, not source-fixable" — the practical observation (the source levers
+tried in v37–v40 didn't reach them) stands, but the NATURE is source-fidelity, and the DetonateAdjacentTiles
+param-swap→exact result already proved the registers are source-reachable (the faithful form is just unfound). So
+the residual class is a set of hard SOURCE puzzles (attackable, with 4.0 as an oracle), not a compiler wall.
+
+**Actionable next lever (Fable Q1 lever-2, untried):** an oracle-guided faithful decl-POSITION search under 4.2
+(declare-at-first-use vs hoisted; scope brackets around late-lifetime locals — the allocator keys on frontend
+symbol-creation order) on the 3 oracle-confirmed functions, using VC 4.0's byte-exact output as the target. The
+16-bit Indy / retail-Yoda source witnesses (docs) could reveal the true decl order directly.
+
+**Toolchains kept locally** (all gitignored `/toolchain/vc4*/`, for A/B + the user's other projects):
+`toolchain/vc40/` cl 5270, `toolchain/vc41/` cl 6038, `toolchain/vc42/` cl 6166 (the canonical one).
+
+---
+### Appendix — the compiler A/B that (before the lib check) suggested an interim build
+Tested the WHOLE retail x86 4.x line via the `VCDIR` A/B (4.2 MFC headers kept, to isolate the backend from the
+header dial, lesson #26). The PE **linker** 3.10 pins LINK.EXE not CL.EXE (Fable), so earlier-cl objects link
+fine with 4.2's LINK 3.10 + NAFXCW.LIB — hence testing point releases was valid:
 
 | build | cl | C2.EXE md5 | exact | vs our 4.2 |
 |---|---|---|---|---|
@@ -25,9 +58,10 @@ via the `VCDIR` A/B (keeping our 4.2 MFC headers to isolate the backend from the
 | VC 4.2 (ours) | 10.20.6166 | dcd69f1d… | 211 | baseline |
 | VC 4.2 Enterprise | 10.20.6166 | dcd69f1d… | — | md5-identical to ours (v51) |
 
-**The decisive datum:** `DetonateAdjacentTiles` 0x428680 — a PARKED "intrinsic" ESI↔EDI residual (v39) — is
-**byte-EXACT under VC 4.0's compiler**, non-exact under 4.1/4.2. So the residual class is compiler-fixable.
-The 4.0-vs-4.2 exact-set diff (stable core 192, **union 214**):
+**The observation that started it:** `DetonateAdjacentTiles` 0x428680 — a PARKED "intrinsic" ESI↔EDI residual
+(v39) — is **byte-EXACT under VC 4.0's compiler**, non-exact under 4.1/4.2. (Initially read as "compiler-fixable
+⇒ interim build"; the lib check above reinterprets it as "our source is non-faithful; 4.0 is a coincidental
+oracle.") The 4.0-vs-4.2 exact-set diff (stable core 192, **union 214**):
 - **VC 4.0 wins 3** (exact under 4.0, not 4.2), all in the Worldgen TU, all previously parked reg-coloring:
   `DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110 (the lesson-#7 rotation example), `ZoneHasIzxItemMaybe`
   0x41bfa0.
