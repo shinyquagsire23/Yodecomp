@@ -10049,13 +10049,21 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             playerX = nStartX;                       // DESKADV local_38 -> player start col
             playerY = nStartY;                       // DESKADV local_3a -> player start row
             gameState = 0;                           // in-progress (kept from head)
-            nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb  (== Yoda Populate's nFrameMode=0xb)
             // DESKADV also resets the HERO ENTITY's health to 120 (0x78) at entity+0x90 and clears
-            // entity+0x2c. That is the player Character's HP, not the doc damage accumulators
-            // (healthLo 0..100 / healthHi 0..3). TODO(integration): reset the hero Character HP to
-            // full here (the doc's healthLo/healthHi damage counters are reset by Populate/StartGame).
-            // DESKADV additionally sets a UI/turn-timer dword (doc+0x10a2 = 0xa00160) and a clock
-            // stamp from IndyTime() — engine bookkeeping, wire to our equivalents at integration.
+            // entity+0x2c. That is the player Character's HP; TODO(integration) to wire the hero
+            // Character HP. DESKADV additionally sets a UI/turn-timer (doc+0x10a2) + a clock stamp.
+            // ---- world-entry transition (Indy skips Yoda's Populate(), so replicate its tail —
+            //      src/Worldgen.cpp Populate() lines ~6163-6174 — the world-view handoff). Without
+            //      pView->bBusy=0 the view never renders past the STUP graphic. ----
+            if (pView != NULL)
+                pView->nTargetZoneId = 0;
+            cameraX = 0x140;
+            cameraY = 0x140;
+            nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
+            bQuestCellsResident = 1;
+            BackupRecords();                         // snapshot the as-loaded quest-record block
+            if (pView != NULL)
+                pView->bBusy = 0;                    // release the view so it draws the world
             return 1;
         }
 
