@@ -15,8 +15,8 @@
 // inlined disable call — the EAX staging of the pointer arg is the inlining fingerprint.
 static __inline void DemoDisable(CCmdUI *p)
 {
-#ifdef YODA_FULL
-    p->Enable(1);        // full: Save/Load World + Replay Story are available
+#if defined(YODA_FULL) || defined(GAME_INDY)
+    p->Enable(1);        // full/Indy: Save/Load World + Replay Story are available
 #else
     p->Enable(0);
 #endif
