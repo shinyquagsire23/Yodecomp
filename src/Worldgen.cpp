@@ -4093,6 +4093,41 @@ int CDeskcppDoc::LoadWorld()
         }              // closes the TRY macro's outer (link-scope) brace
         if (nDone != 0)
             break;
+#ifdef GAME_INDY
+        // Indy DAW: aux/scripts are GLOBAL parallel-array chunks, not inline per zone (same as the
+        // Load() dispatcher — LoadWorld is a second copy of the loader, re-run on New World to reset
+        // zone state, and it must apply the identical Indy handling or it misparses the DAW: the
+        // Yoda ParseZaux on Indy's global ZAUX walks off the rails and the chunk loop never reaches
+        // ENDF -> the New World "progress bar jumping / infinite load". ZONE/HTSP/ACTN are shared
+        // (fall through below); ZAUX/ZAX2/ZAX3 use the Indy distributors; ZAX4/IZAX/PNAM/ANAM skip.
+        if (strcmp(tag, "ZAUX") == 0)
+        {
+            nRet = ParseZauxIndy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX2") == 0)
+        {
+            nRet = ParseZax2Indy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX3") == 0)
+        {
+            nRet = ParseZax3Indy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 ||
+                 strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
+        {
+            pFile->Seek(nLen, CFile::current);
+            continue;
+        }
+#endif
         if (strcmp(tag, "VERS") == 0)
         {
             if (nLen != 0x200)

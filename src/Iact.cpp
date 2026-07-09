@@ -803,13 +803,33 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
         case CMD_SetMapTile:
         case CMD_SetMapTileVar:
             result |= 0x20;
+            // sic: the original does NOT bounds-check this tile write (verified in the byte-matched
+            // disasm), relying on valid script coords. Some Indy interior-zone SetMapTile commands
+            // carry out-of-range coords (e.g. y=21087) that crash the raw store; the real Indy
+            // engine tolerates them, so guard the index for Indy only (Yoda fall-through = exact
+            // original, anchor 211). TODO(indy): RE why Indy interior scripts have huge coords
+            // (opcode semantics vs a script-keying/data quirk) for a true root-cause fix.
+#ifdef GAME_INDY
+            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
+#endif
             tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = (short)pCmd->args[3];
             break;
         case CMD_ClearTile:
             result |= 0x20;
+#ifdef GAME_INDY
+            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
+#endif
             tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
             break;
         case CMD_MoveMapTile: {
+#ifdef GAME_INDY
+            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) >= 18u * 18 * 3
+                || (unsigned)((pCmd->args[4] * 18 + pCmd->args[3]) * 3 + pCmd->args[2]) >= 18u * 18 * 3)
+            {
+                result |= 0x20;
+                break;
+            }
+#endif
             short t = tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]];
             tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
             result |= 0x20;
