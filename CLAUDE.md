@@ -675,7 +675,22 @@ BetaArchive (gated). So the app-cl axis stays UNDETERMINED (mixed interim-cl vs 
 NO further obtainable compiler lever — do NOT re-run the hunt (docs/compiler-hunt.md v52c). If the USER ever
 drops a VC 4.1 beta at toolchain/vc4X/, A/B via `VCDIR=<it> python3 tools/progress.py` (flips 3 keeping 19 →214).
 
-**⭐ NEXT PHASE — G2 whole-image (byte-identical/runnable image); byte-matching DEFERRED behind it.** State (from
+**⚠ v53 G2 REALITY CHECK — whole-image byte-identity is DOUBLY BLOCKED (built tools/image_diff.py, the reccmp
+whole-image metric).** (1) .text is +1681 B (the ~43 reg-coloring length walls) → overflows a page-align
+boundary → every later section shifts +0x1000 → every embedded pointer/RVA differs ⇒ byte-identity impossible
+while the reg-coloring wall stands (the SAME central open problem — unobtainable cl). (2) NEW/independent: the
+DATA sections are only ~15–46% content-identical even with the shift accounted (.rdata 15% / .data 35% / .idata
+2% / .rsrc 15%) — our objs lay data out differently, and .rsrc is linker-REBUILT from a .res (same resource
+content, different layout — NOT verbatim, corrects the old claim). ⇒ ~100% byte-identity needs BOTH the wall
+cracked AND full data-layout reconstruction; neither is a quick win, and the wall is a hard blocker regardless.
+**The ACHIEVABLE, essentially-MET G2 deliverable is the runnable, content-validated image** (link_exe.sh
+0/0/exit0; all TUs --scramble-clean; vtcheck 10 / msgcheck 11). Full analysis: docs/g2-layout.md (v53). Metric:
+`python3 tools/image_diff.py`. Optional remaining G2 (all POLISH — cannot reach byte-identity while the wall
+stands, so low-value): .rsrc verbatim-inject, .idata reconciliation, the 5 hard-tail REF-drops, PE timestamp/
+checksum mask. **RECOMMENDATION: accept the runnable/validated image as the G2 deliverable — the ~100% goal is
+provably gated on the same unobtainable cl as the 212 content ceiling.** ↓ (older G2 detail retained below) ↓
+
+**G2 whole-image detail (per-function .text order tracker — mostly done).** State (from
 the milestone log): `tools/g2_link.sh` links the 13 app objs in address order + `tools/g2_diff.py` reports per
 marker LAYOUT (linked addr==orig) vs CONTENT (reloc-masked bytes==orig). Last measured: **LAYOUT 39/378, CONTENT
 225/378**; the running /OPT:REF image builds (tools/link_exe.sh → yoda.exe, 0/0/exit0). (Reconfirmed v52c: g2_link exit 0,
