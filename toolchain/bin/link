@@ -6,6 +6,10 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 VC="${VCDIR:-$HERE/vc42}"        # VCDIR env override lets us A/B-test a candidate VC 4.2 build
 export WINEDEBUG="${WINEDEBUG:--all}"
 export WINEPREFIX="${WINEPREFIX:-$HOME/.wine}"
+# Pre-warm a persistent wineserver so back-to-back LINK/CL invocations skip the multi-second cold
+# start (wineserver otherwise exits ~3s after its last client). Near-instant no-op once one is
+# already persistent; uses the same `wineserver` resolved from PATH as the `wine` below.
+wineserver -p 2>/dev/null || true
 winp(){ printf 'Z:%s' "$(printf '%s' "$1" | sed 's#/#\\#g')"; }
 export LIB="$(winp "$VC/LIB");$(winp "$VC/MFC/LIB")"
 args=()
