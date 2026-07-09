@@ -601,12 +601,21 @@ Written to be followable without prior context: each phase lists concrete steps 
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
 ### 📋 SESSION PROTOCOL (follow this shape every session)
-1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src/<TU> && rm -f ../../build/<TU>.obj &&
-   ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
-   /Fo../../build/<TU>.obj <TU>.cpp` then `python3 tools/verify.py src/<TU>/<TU>.cpp` from repo root
+   **⭐ v53: `src/` is now a SINGLE FLAT FOLDER (no per-TU subdirs)** — the original was a single-folder
+   MFC AppWizard project ("Deskcpp"). Files renamed to their real AppWizard names where known. TU→file map
+   (13 .cpp, address order = link order): `GameTypes`(was AppData 0x401000) → `Score`(World) →
+   `WorldgenHelpers`(GameData) → `GameObjects`(Records) → `Iact` → `Canvas` → `DeskcppView`(GameView) →
+   `IactScript` → `TextDialog`(Dlg) → `MainFrm`(Frame) → `Deskcpp`(App) → `DeskcppDoc`(WorldDoc) → `Worldgen`.
+   Headers: `Deskcpp.h`(App), `DeskcppDoc.h`(WorldDoc), `DeskcppView.h`(GameView), `MainFrm.h`(Frame),
+   `TextDialog.h`(Dlg), `GameObjects.h`+`GameObjectClasses.h`(Records), `IactScript.h`(was IactScriptClasses),
+   `DeskcppStub.h`(was WorldStub), + kept `Canvas.h`/`MapZone.h`/`Worldgen.h`. Older docs below say
+   `src/<Folder>/` — mentally map via this table.
+1. **Orient:** read the ⏭ NEXT SESSION PICKUP block below; `cd src && rm -f ../build/<File>.obj &&
+   ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+   /Fo../build/<File>.obj <File>.cpp` then `python3 tools/verify.py src/<File>.cpp` from repo root
    — confirm the recorded exact-count reproduces BEFORE changing anything (if not, a header drifted;
    bisect first). **⚠ OBJS LIVE IN `build/` (repo root), not next to the .cpp** (v32 hygiene change):
-   all tooling (verify/match/progress/asmscore + link_exe.sh) reads/writes `build/<TU>.obj` via `/Fo`.
+   all tooling (verify/match/progress/asmscore + link_exe.sh) reads/writes `build/<File>.obj` via `/Fo`.
 2. **Ghidra check:** writes now ROUTE by `program=` (v51 fix). ALWAYS pass `program=YodaDemo.exe`
    on every mutation (rename/comment/struct) — it lands on the named program regardless of which is
    active. (No longer need YodaDemo to be the active program; just don't OMIT `program=`, or it
@@ -644,15 +653,16 @@ CRuntimeClass); below: bea006a v49 (msgcheck), b6bb67e v48, e961bf9 v47, ec4015c
 (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). ⭐ **v50 RENAMED the doc/view classes to
 their ORIGINAL names: `World`→`CDeskcppDoc`, `GameView`→`CDeskcppView`** (in source AND Ghidra struct+namespace) —
 known from the binary's CRuntimeClass strings. So the CLASS is now `CDeskcppDoc`/`CDeskcppView` everywhere;
-VARIABLES stay `pWorld`/`pView` (readable). Baselines (compile EVERY TU into `build/` first — `cd src/<TU> &&
-rm -f ../../build/<TU>.obj && ../../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
-/D _MBCS /Fo../../build/<TU>.obj <TU>.cpp`, or `tools/link_exe.sh`): `link_exe.sh` → **0/0/exit 0**;
-`progress.py` → **211 exact / 99.17%** (⚠ was 212 through v44 — v45 traded ~World for the msgmap; v46-v50
-neutral); `bugscan.py --all` → **0/0/0**; **`vtcheck.py` → 10 CLEAN**; **`msgcheck.py` → 11 CLEAN**. Per-TU exact:
-AppData 14/14, App 11/12, Canvas 9/11, Dlg 5/5, Frame 14/18, GameData 13/27, GameView(now CDeskcppView TU) 73/124,
-Iact 2/10, IactScript 11/12, Records 26/33, World 6/8, WorldDoc 7/13, Worldgen 34/91. ⚠ verify.py per-TU can
+VARIABLES stay `pWorld`/`pView` (readable). Baselines (compile EVERY TU into `build/` first — `cd src &&
+rm -f ../build/<File>.obj && ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS
+/D _MBCS /Fo../build/<File>.obj <File>.cpp`, or `tools/link_exe.sh`): `link_exe.sh` → **0/0/exit 0**;
+`progress.py` → **211 exact / 99.17%** (⚠ was 212 through v44 — v45 traded ~CDeskcppDoc for the msgmap; v46-v50
+neutral); `bugscan.py --all` → **0/0/0**; **`vtcheck.py` → 10 CLEAN**; **`msgcheck.py` → 11 CLEAN**. Per-TU exact
+(v53 flat names, was-folder): GameTypes 14/14(AppData), Deskcpp 11/12(App), Canvas 9/11, TextDialog 5/5(Dlg),
+MainFrm 14/18(Frame), WorldgenHelpers 13/27(GameData), DeskcppView 73/124(GameView), Iact 2/10, IactScript 11/12,
+GameObjects 26/33(Records), Score 6/8(World), DeskcppDoc 7/13(WorldDoc), Worldgen 34/91. ⚠ verify.py per-TU can
 UNDERCOUNT ~10 (lesson #30): trust progress.py's 211. **G2: `g2_link.sh && g2_diff.py` → LAYOUT 39/378, CONTENT
-225/378.** **REF-drop oracle (lesson #32): 5 dropped.** Ghidra: current=YodaDemo.exe, SAVED (struct+namespace
+224/378.** **REF-drop oracle (lesson #32): 5 dropped.** Ghidra: current=YodaDemo.exe, SAVED (struct+namespace
 rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (main-thread).
 
 **▶ v45–v50 RESULTS — ref graph 22→5 + ALL .rdata content validated + classes renamed to original:**
