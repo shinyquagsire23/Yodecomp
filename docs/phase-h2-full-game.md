@@ -59,8 +59,9 @@ Confirmed by decompiling the retail twins; left as-is (and one stale comment cor
 - ✅ Loads `YODESK.DTA`; worldgen succeeds with no stall.
 - ✅ **All three planets** generate + play: Hoth, Tatooine (Nevada), Endor (Oregon) — the planet rotation
   (fix #3) works.
-- ✅ **Save World** and **Load World** work (menus enabled under `YODA_FULL`; the demo had the code but
-  grayed the menu).
-- The core loop (generate any planet → play → save → load) has functional parity with retail Yodesk.
-- Open (follow-ups, none blocking): broader endgame/replay playtesting; **Replay Story** exercise; any
-  planet-specific endgame edge cases surfaced only by extended play.
+- ✅ **Save World**, **Load World**, and **Replay Story** all work (menus enabled under `YODA_FULL`; the
+  demo had the code but grayed the menus).
+- The full loop (generate any planet → play → save → load → replay) has functional parity with retail
+  Yodesk. **H2 is complete.**
+- Open (optional, none blocking): extended endgame playtesting for planet-specific edge cases surfaced
+  only by long play.

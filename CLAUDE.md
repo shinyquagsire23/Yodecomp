@@ -671,9 +671,9 @@ progress.py still 211/99.17%. Objects → `build-cmake/obj/` (separate from harn
 - **Done:** `cmake -B build-cmake -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake && cmake --build build-cmake`
   produces a yoda.exe that RUNS the demo (verify under wine). progress.py/oracles unaffected (separate harness).
 
-### H2 — Demo → full Yodesk.exe (ifdef'd; byte-match NOT required) — ✅ CORE COMPLETE v55 (docs/phase-h2-full-game.md).
-**✅ USER-CONFIRMED: all 3 planets (Hoth/Tatooine/Endor) generate + play, Save/Load World work — functional parity
-with retail on the core loop (generate→play→save→load).** Details ↓.
+### H2 — Demo → full Yodesk.exe (ifdef'd; byte-match NOT required) — ✅ COMPLETE v55 (docs/phase-h2-full-game.md).
+**✅ USER-CONFIRMED: all 3 planets (Hoth/Tatooine/Endor) generate + play; Save World, Load World, Replay Story all
+work — full functional parity with retail (generate→play→save→load→replay).** Details ↓.
 **✅ Worldgen unblocked:** the 4 worldgen-blocking demo overrides are guarded `#ifdef YODA_FULL` (fall-through=demo=
 anchor, still 211): (1) data file YODADEMO→YODESK.DTA; (2) ctor currentPlanet=2/worldSize=1 removed; (3) ⭐ LoadWorld
 ~L4013 `currentPlanet=2` (the OPERATIVE Hoth-forcer — re-forces after the ctor, verified vs retail FUN_004248a0 which
@@ -775,11 +775,11 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v55 — PHASE H2 CORE COMPLETE: full game plays all 3 planets + save/load; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v55 — PHASE H2 COMPLETE: full game plays all 3 planets + save/load/replay; anchor 211)
 **▶ H2 DONE (core) — USER-CONFIRMED (docs/phase-h2-full-game.md):** the FULL build (`cmake -B build-full
 -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_VARIANT=FULL && cmake --build build-full`; run `./run_full.sh` or
 `./build_run.sh`, against `YodaFull/YODESK.DTA`) loads the full 4.6MB data and PLAYS all three planets
-(Hoth/Tatooine/Endor), with Save World + Load World working — functional parity with retail on the core loop. 4
+(Hoth/Tatooine/Endor), with Save World + Load World + Replay Story working — full functional parity with retail. 4
 worldgen-blocking demo overrides guarded `#ifdef YODA_FULL` (all fall-through=demo=anchor, progress.py still 211):
 data file, ctor planet/size, LoadWorld ~L4013 planet=2 (the operative Hoth-forcer), goal 0x6c→`WorldgenSelectPuzzle
 (-1,-1,9999)`. All verified vs retail Yodesk.exe (2nd Ghidra program). ⚠ 4 source "demo" comments were MISREADS
