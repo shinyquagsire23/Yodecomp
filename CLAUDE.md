@@ -696,7 +696,18 @@ DesktopAdventures/YODESK.DTA` (its world_generate() is a STUB — not a worldgen
 - **Done:** `yoda_full` launches, loads the full game data, and is playable beyond the demo boundary (verified by
   running it — functional parity with retail Yodesk.exe, not byte-identity).
 
-### H3 — 32-bit Indiana Jones' Desktop Adventures (ifdef'd) — needs H1 + H2's engine/game split.
+### H3 — 32-bit Indiana Jones' Desktop Adventures (ifdef'd) — ⏳ STARTED v56 (docs/phase-h3-indy.md). needs H1 + H2's engine/game split.
+**✅ Scaffolding:** `GAME_INDY` config wired; `Deskcpp.cpp` data file → `DESKTOP.DAW` under `#if defined(GAME_INDY)`
+(anchor 211 held); `build-indy` (`-DYODA_GAME=INDY`) compiles to a valid exe; `YodaIndy/` run folder + `run_indy.sh`
+staged (INDYDESK data+assets). ⭐ APPROACH (USER-directed): DESKADV.EXE (16-bit Indy, in Ghidra `program=DESKADV.EXE`)
+is GROUND TRUTH for every delta; DesktopAdventures `is_yoda` gates are the MAP of WHERE to look (NOT byte-accurate —
+its Yoda ZONE header doesn't even match our ParseZone). **Delta surface (all in the Load()/Parse* asset loaders):**
+data file✅, VERS value, ZONE chunk header (Indy reads chunk LEN), IZAX zone-count, ⭐ACTN/IACT (Indy lumps ALL IACTs
+in one giant section — biggest delta), CHAR record 0x54→0x4E, record/name sizes 26/24→18/16, HTSP object-qty,
+Indy palette (no cycling), worldgen (Indy has NO 3-planet system — planet/goal-whitelist logic is Yoda-specific),
+resources (Indy icon/menu, [[indy-app-icon]]). Milestones: 1✅ scaffolding → 2 DESKTOP.DAW parses (per-delta vs
+DESKADV.EXE) → 3 renders (Indy palette) → 4 worldgen/playable → 5 resources/sound. ⚠ 16-bit DESKADV RE is harder
+(segmented addrs, different codegen) — recover LOGIC not codegen. Original spec ↓:
 - **Reference:** `INDYDESK/DESKADV.EXE` (16-bit NE, the SHARED CDeskcpp engine — confirmed same class names +
   WaveMix + WinG this session) + `~/workspace/DesktopAdventures` (the user's recreation implements BOTH games'
   formats/logic — the authoritative semantic reference) + Indy's data `DESKTOP.DAW`.
@@ -775,7 +786,18 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v55 — PHASE H2 COMPLETE: full game plays all 3 planets + save/load/replay; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v56 — PHASE H3 STARTED: Indy scaffolding done, DESKTOP.DAW-parse deltas next; anchor 211)
+**▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indiana Jones' Desktop Adventures under
+`GAME_INDY`. Scaffolding DONE: `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
+-DYODA_GAME=INDY && cmake --build build-indy`) compiles; data file → `DESKTOP.DAW`; `./run_indy.sh` runs
+`YodaIndy/` (INDYDESK data). Anchor 211 held. **⏭ IMMEDIATE NEXT = milestone 2: make DESKTOP.DAW parse** — add
+`#ifdef GAME_INDY` branches to `CDeskcppDoc::Load()` + `Parse*`/`ReadZone` for the format deltas, VERIFYING each
+against **DESKADV.EXE** (16-bit Indy, Ghidra `program=DESKADV.EXE` — ground truth; DesktopAdventures `is_yoda` gates
+= where-to-look map only). Delta list + our-engine sites in docs/phase-h3-indy.md §"Delta surface". Biggest: the
+ACTN/IACT lump (Indy stores all IACTs in one global block). ⚠ 16-bit RE friction (segment:offset addrs, API xref
+lookups fail on them — recover LOGIC via DesktopAdventures + disasm, not codegen-diff). ⚠ run oracle = USER visual
+(headless CPU lies). Anchor rule: every GAME_INDY guard's fall-through = exact Yoda code (progress.py stays 211).
+H1✅ H2✅(full game all 3 planets+save/load/replay). ↓ v55/H2 ↓
 **▶ H2 DONE (core) — USER-CONFIRMED (docs/phase-h2-full-game.md):** the FULL build (`cmake -B build-full
 -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_VARIANT=FULL && cmake --build build-full`; run `./run_full.sh` or
 `./build_run.sh`, against `YodaFull/YODESK.DTA`) loads the full 4.6MB data and PLAYS all three planets

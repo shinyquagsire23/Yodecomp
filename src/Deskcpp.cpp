@@ -155,7 +155,9 @@ BOOL CDeskcppApp::InitInstance()
     m_str = szPath;
     if (m_str[m_str.GetLength() - 1] != '\\')
         m_str += "\\";
-#ifdef YODA_FULL
+#if defined(GAME_INDY)
+    m_str += "DESKTOP.DAW";       // Indiana Jones' Desktop Adventures data (GAME_INDY)
+#elif defined(YODA_FULL)
     m_str += "YODESK.DTA";        // full retail data (STUP + all-planet tiles); YODA_VARIANT=FULL
 #else
     m_str += "YODADEMO.DTA";

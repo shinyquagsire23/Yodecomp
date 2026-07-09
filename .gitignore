@@ -24,6 +24,7 @@ build/
 build-link/
 build-cmake/
 build-full/
+build-indy/
 tmp/
 *.exe
 
@@ -37,3 +38,6 @@ __pycache__/
 
 # Full-game run folder (copyrighted data + built exe)
 /YodaFull/
+
+# Indy run folder (copyrighted data + built exe)
+/YodaIndy/
