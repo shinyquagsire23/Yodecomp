@@ -7798,7 +7798,11 @@ void CDeskcppView::OnCmdWorldSizeMaybe()
 // ---------------------------------------------------------------------------
 void CDeskcppView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
 {
+#ifdef YODA_FULL
+    pCmdUI->Enable(1);        // full: World Size is selectable
+#else
     pCmdUI->Enable(0);
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -7855,7 +7859,11 @@ void CDeskcppView::OnCmdStats()
 // ---------------------------------------------------------------------------
 void CDeskcppView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 {
+#ifdef YODA_FULL
+    pCmdUI->Enable(1);        // full: Stats is available
+#else
     pCmdUI->Enable(0);
+#endif
 }
 
 // ===========================================================================

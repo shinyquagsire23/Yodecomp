@@ -1941,8 +1941,10 @@ int CDeskcppDoc::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, in
                     }
                     if (bFound == 0 || nRequestedGoalItem >= 0)
                     {
-                        // demo goal-puzzle id whitelists, one per planet (same family as
-                        // ReadZone's demo zone-id whitelist)
+                        // Per-planet goal-puzzle id whitelist (Nevada/Hoth/Endor). NOT a demo
+                        // restriction — retail Yodesk (FUN_00421360, 9999 arm) has the IDENTICAL
+                        // switch, so these are the real full-game mission-puzzle ids per planet.
+                        // (The old "demo whitelist" comment here was a misread; verified 2026-07-08.)
                         if (nPlanet == 1)
                         {
                             switch (i)
@@ -2762,24 +2764,41 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     {
         storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
     }
-    questItemsA.SetAt(nStepsA, 0x6c);
-    questItemsB.SetAt(nStepsB, 0x6c);
-    goalItemTileId = 0x6c;
-    Puzzle *pPuz = (Puzzle *)puzzles.GetAt(0x6c);
+#ifdef YODA_FULL
+    // Full game: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal. On a
+    // replay nRequestedGoalItem already holds the requested goal; otherwise select a WORLD_MISSION
+    // puzzle for the current planet (WorldgenSelectPuzzle, nType 9999 — screened against the
+    // planet's story-replay history). A -1 result = no eligible goal for this seed, so fail and
+    // let LoadWorld's retry loop try a fresh seed. Retail Yodesk Generate (0x00422210, goal region)
+    // did exactly this; the demo replaced the whole selection with the constant 0x6c (puzzle 108).
+    int goal = nRequestedGoalItem;
+    if (goal < 0)
+    {
+        goal = WorldgenSelectPuzzle(-1, -1, 9999, 0);
+        if (goal < 0)
+            return 0;
+    }
+#else
+    int goal = 0x6c;                      // demo hardcode: Hoth's fixed goal (puzzle 108)
+#endif
+    questItemsA.SetAt(nStepsA, goal);
+    questItemsB.SetAt(nStepsB, goal);
+    goalItemTileId = goal;
+    Puzzle *pPuz = (Puzzle *)puzzles.GetAt(goal);
     startItem = pPuz->itemA;
     startItem2Maybe = pPuz->itemB;
-    goalTileList.SetAtGrow(goalTileList.GetSize(), 0x6c);
-    nCurrentGoalItem = 0x6c;
+    goalTileList.SetAtGrow(goalTileList.GetSize(), goal);
+    nCurrentGoalItem = goal;
     switch (currentPlanet)
     {
     case 1:
-        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), 0x6c);
+        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
         break;
     case 2:
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0x6c);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), goal);
         break;
     case 3:
-        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), 0x6c);
+        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), goal);
         break;
     }
     int j;
@@ -3991,9 +4010,17 @@ int CDeskcppDoc::LoadWorld()
             }
         }
     }
+#ifndef YODA_FULL
     currentPlanet = 2;               // sic: demo hardcode — the whole pick above is overridden
     if (pApp != NULL)
         pApp->WriteProfileInt("OPTIONS", "Terrain", 2);
+#else
+    // Full game: keep the rotated planet from the pick above and persist it (retail Yodesk
+    // FUN_004248a0 writes the computed Terrain, with no forced =2). This is the operative
+    // planet selector for new-game worldgen — the CDeskcppDoc ctor override is separate.
+    if (pApp != NULL)
+        pApp->WriteProfileInt("OPTIONS", "Terrain", currentPlanet);
+#endif
 
     int nRet = 1;
     CProgressCtrl progress;

@@ -76,6 +76,12 @@ set(_wm    "${CMAKE_CURRENT_SOURCE_DIR}/toolchain/wavmix32")
 set(_obj   "${CMAKE_CURRENT_BINARY_DIR}/obj")
 file(MAKE_DIRECTORY "${_obj}")
 
+# Serialize the wine toolchain steps. Many concurrent wine32on64 cl.exe invocations contend on
+# the single wineserver and can livelock (observed: a -j8 build wedged with 7 stuck CL.EXE). A
+# depth-1 Ninja job pool runs the compiles/links one at a time — matching tools/link_exe.sh's
+# proven serial loop — so `cmake --build` never needs a manual -j1. (Ninja-only; harmless else.)
+set_property(GLOBAL PROPERTY JOB_POOLS wine=1)
+
 # Translation units in canonical link (address) order. This is the documented .obj order; the
 # functional build doesn't require it, but it keeps intent clear and the map stable.
 set(YODA_TUS
@@ -99,6 +105,7 @@ foreach(_tu ${YODA_TUS})
     DEPENDS "${_src}/${_tu}.cpp" ${_hdrs}
     WORKING_DIRECTORY "${_src}"
     COMMENT "cl (vc4.2) ${_tu}.cpp"
+    JOB_POOL wine
     VERBATIM)
   list(APPEND _objs "${_o}")
 endforeach()
@@ -114,6 +121,7 @@ add_custom_command(
           "${CMAKE_CURRENT_BINARY_DIR}/wavmix32_stub.obj" kernel32.lib
   DEPENDS "${_wm}/wavmix32_stub.c" "${_wm}/wavmix32.def"
   COMMENT "build wavmix32 import lib (stub)"
+  JOB_POOL wine
   VERBATIM)
 
 # ── resources: copy the original .rsrc tree verbatim into a linkable .res ──────────────────────
@@ -146,6 +154,7 @@ add_custom_command(
           comdlg32.lib advapi32.lib shell32.lib comctl32.lib "${_wmlib}"
   DEPENDS ${_objs} "${_res}" "${_wmlib}"
   COMMENT "link yoda.exe (static MFC)"
+  JOB_POOL wine
   VERBATIM)
 
 add_custom_target(yoda_win32 ALL DEPENDS "${_exe}")

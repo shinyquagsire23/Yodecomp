@@ -23,6 +23,7 @@
 build/
 build-link/
 build-cmake/
+build-full/
 tmp/
 *.exe
 
@@ -33,3 +34,6 @@ tmp/
 __pycache__/
 *.pyc
 .claude/
+
+# Full-game run folder (copyrighted data + built exe)
+/YodaFull/

@@ -155,7 +155,11 @@ BOOL CDeskcppApp::InitInstance()
     m_str = szPath;
     if (m_str[m_str.GetLength() - 1] != '\\')
         m_str += "\\";
+#ifdef YODA_FULL
+    m_str += "YODESK.DTA";        // full retail data (STUP + all-planet tiles); YODA_VARIANT=FULL
+#else
     m_str += "YODADEMO.DTA";
+#endif
 
     // needs a palettized (>=8bpp) display
     HDC hdc = ::GetDC(NULL);

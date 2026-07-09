@@ -434,11 +434,17 @@ CDeskcppDoc::CDeskcppDoc()
     if (pApp != NULL)
         pApp->WriteProfileInt("OPTIONS", "Terrain", currentPlanet);
 
-    currentPlanet = 2;                    // demo hardcode: Alaska/Hoth only
+#ifndef YODA_FULL
+    currentPlanet = 2;                    // demo hardcode: Alaska/Hoth only (full: keep the
+                                          // registry-read + planet-rotation value computed above)
+#endif
     rectViewport.left = 8;
     rectViewport.top = 7;
     rectViewport.right = 0x128;
-    worldSize = 1;                        // demo hardcode: small world
+#ifndef YODA_FULL
+    worldSize = 1;                        // demo hardcode: small world (full: keep the
+                                          // registry-read WorldSize value, default 2)
+#endif
     rectInventory.top = 6;
     rectViewport.bottom = 0x127;
     rectInventory.left = 0x133;

@@ -609,7 +609,23 @@ Written to be followable without prior context: each phase lists concrete steps 
   still 211/99.17 %; objects isolated in `build-cmake/obj/` so oracles are untouched. Verified the built exe
   LOADS + enters its window message loop under wine (0 unresolved). Added a `run` target (mirrors run.sh).
   USER note recorded for H3: the Indy build must use the Indy app icon/resources, not Yoda's. NEXT = H2
-  (demo→full Yodesk via ifdefs).**
+  (demo→full Yodesk via ifdefs).** →
+  **211 exact / 99.17 % coverage — v55 (2026-07-08): ⭐ PHASE H2 — full-game worldgen UNBLOCKED (anchor 211
+  held; docs/phase-h2-full-game.md). Loaded retail Yoda Stories/Yodesk.exe as a 2nd Ghidra program and diffed its
+  worldgen against our demo source (twins found via story-history registry strings → callers). Guarded the 4
+  worldgen-blocking demo overrides `#ifdef YODA_FULL` (fall-through=demo=anchor): (1) data file YODADEMO→YODESK.DTA;
+  (2) CDeskcppDoc ctor currentPlanet=2/worldSize=1; (3) ⭐ LoadWorld ~L4013 currentPlanet=2 — the OPERATIVE
+  Hoth-forcer that re-forces after the ctor (verified vs retail FUN_004248a0: rotation switch + WriteProfileInt of
+  the COMPUTED Terrain, no =2); (4) the goal: demo const 0x6c → `nRequestedGoalItem>=0 ? nRequestedGoalItem :
+  WorldgenSelectPuzzle(-1,-1,9999)` + `if(goal<0) return 0` (verified vs retail Generate FUN_00422210 — the demo
+  replaced the whole selection with 0x6c). FULL build now loads the 4.6MB data + generates without the demo's
+  end-of-loading stall (Hoth user-confirmed playable). ⚠ Found FOUR mislabeled source "demo" comments that are
+  actually retail-IDENTICAL (NOT restrictions — corrected the goal-whitelist one in-source): the WorldgenSelectPuzzle
+  per-planet goal whitelist (retail FUN_00421360), ReadZone `currentPlanet==nPlanet||bForce` (bForce=shared zones),
+  Populate rand()%4 goal-zone pick, victory/loss 76/77=0x4c/0x4d (shared force-loaded). Cosmetic gates (Save/Load/
+  Replay/WorldSize/Stats) enabled in FULL. Anchor: 6 src files ifdef-guarded, progress.py 211 (all fall-through
+  token-neutral). ⚠ CMake gained JOB_POOL wine=1 (parallel wine cl deadlocks the wineserver — serialize). NEXT:
+  confirm non-Hoth worlds generate+play; then full save/load audit; then H3/H4.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
@@ -654,7 +670,20 @@ progress.py still 211/99.17%. Objects → `build-cmake/obj/` (separate from harn
 - **Done:** `cmake -B build-cmake -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake && cmake --build build-cmake`
   produces a yoda.exe that RUNS the demo (verify under wine). progress.py/oracles unaffected (separate harness).
 
-### H2 — Demo → full Yodesk.exe (ifdef'd; byte-match NOT required) — needs H1.
+### H2 — Demo → full Yodesk.exe (ifdef'd; byte-match NOT required) — ⏳ IN PROGRESS v55 (docs/phase-h2-full-game.md).
+**✅ Worldgen unblocked:** the 4 worldgen-blocking demo overrides are guarded `#ifdef YODA_FULL` (fall-through=demo=
+anchor, still 211): (1) data file YODADEMO→YODESK.DTA; (2) ctor currentPlanet=2/worldSize=1 removed; (3) ⭐ LoadWorld
+~L4013 `currentPlanet=2` (the OPERATIVE Hoth-forcer — re-forces after the ctor, verified vs retail FUN_004248a0 which
+has NO =2); (4) goal const 0x6c → `nRequestedGoalItem>=0 ? nRequestedGoalItem : WorldgenSelectPuzzle(-1,-1,9999)` +
+`if(goal<0) return 0` (verified vs retail Generate FUN_00422210). FULL build loads the 4.6MB data + generates
+without the demo's end-of-loading stall; Hoth playable (user-confirmed). ⚠ VERIFIED NOT demo (source comments were
+misreads — retail identical, left as-is): the WorldgenSelectPuzzle per-planet goal whitelist (retail FUN_00421360),
+ReadZone `currentPlanet==nPlanet||bForce` (bForce=shared zones), Populate's rand()%4 goal-zone pick, victory/loss
+76/77=0x4c/0x4d (shared force-loaded). Cosmetic gates (Save/Load/Replay/WorldSize/Stats menus) enabled in FULL.
+**⏳ NEXT:** confirm non-Hoth (Nevada/Endor) worlds generate+play (fix 3 wired, pending visual); then audit full
+save/load + replay + any endgame planet-specifics (none block initial play). Retail Yodesk.exe now a 2nd Ghidra
+program (diff twins by story-history strings→callers). Ref binaries: `Yoda Stories/Yodesk.exe`, `~/workspace/
+DesktopAdventures/YODESK.DTA` (its world_generate() is a STUB — not a worldgen ref). Original spec ↓:
 - **Reference on disk:** retail `Yoda Stories/Yodesk.exe` (455 KB, linker 3.10, dated 4 days before the demo) +
   the FULL data `~/workspace/DesktopAdventures/YODESK.DTA` (4.6 MB). Load Yodesk.exe as a 2nd Ghidra program
   and DIFF its functions against our demo source (same engine, near-identical version → most match closely).
@@ -743,7 +772,20 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v54 — PHASE H1 DONE: CMake build environment; anchor preserved 211 exact)
+### ⏭ NEXT SESSION PICKUP (2026-07-08 v55 — PHASE H2 IN PROGRESS: full-game worldgen unblocked; anchor 211 exact)
+**▶ H2 STATE (docs/phase-h2-full-game.md):** the FULL build (`cmake -B build-full -DCMAKE_TOOLCHAIN_FILE=toolchain/
+vc42.cmake -DYODA_VARIANT=FULL && cmake --build build-full`; run via `./run_full.sh` against `YodaFull/YODESK.DTA`)
+LOADS the full 4.6MB data + generates a world without the demo's end-of-loading stall (Hoth user-confirmed). 4
+worldgen-blocking demo overrides guarded `#ifdef YODA_FULL` (all fall-through=demo=anchor, progress.py still 211):
+data file, ctor planet/size, **LoadWorld ~L4013 planet=2 (the operative Hoth-forcer)**, and the goal 0x6c→dynamic
+`WorldgenSelectPuzzle(-1,-1,9999)` selection. All verified vs retail Yodesk.exe (2nd Ghidra program). ⚠ Several
+source "demo" comments were MISREADS (retail identical — do NOT ifdef them): goal whitelist, ReadZone per-planet
+filter, Populate goal-zone pick, victory/loss 76/77. **⏭ IMMEDIATE NEXT:** (a) visually confirm non-Hoth
+(Nevada/Endor) worlds generate+play (fix wired, unverified — if a non-Hoth stall appears, diff that planet's
+worldgen path vs retail); (b) audit full save/load + replay (menus now enabled) for correctness; (c) then H3/H4.
+⚠ WINE BUILD: ninja MUST serialize wine steps (JOB_POOL wine=1 in CMakeLists — parallel wine cl deadlocks the
+wineserver); serial FULL build ~2min. ⚠ headless CPU is a BAD run oracle (steady mid-CPU ≠ stall); the USER's
+visual check is authoritative. Byte-match phases A–G stay parked (211 ceiling, compiler-wall-blocked). ↓ v54/H1 ↓
 **▶ RECONFIRM STATE FIRST (fresh session):** `git log --oneline` tops out at the **v50** commit (class rename +
 CRuntimeClass); below: bea006a v49 (msgcheck), b6bb67e v48, e961bf9 v47, ec4015c v46, 4f56b58 v45. Tree CLEAN
 (USER gitignored YodaDemoCopy/ = their wine runtime copy — don't touch). ⭐ **v50 RENAMED the doc/view classes to
