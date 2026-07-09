@@ -41,8 +41,13 @@ void Zone::ReadIzon(CFile *pFile)
     pFile->Read(&width, 2);
     pFile->Read(&height, 2);
     pFile->Read(&type, 4);
+#ifndef GAME_INDY
     pFile->Read(&globalVar, 2);
     pFile->Read(&planet, 2);
+#endif
+    // Indy's IZON header is 8 bytes (width+height+type) — it drops Yoda's globalVar+planet
+    // (no planets). Verified: the per-zone stride in DESKTOP.DAW is exactly IZON size; reading
+    // the extra 4 bytes overran every zone by 4 and cascaded into a total misalignment.
     for (i = 0; i < width; i++)
         pFile->Read(&tiles[i * 54], height * 6);
 }
