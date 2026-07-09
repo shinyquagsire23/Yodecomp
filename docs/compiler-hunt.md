@@ -11,7 +11,25 @@ context) trying to flip them, and concluded the choice is intrinsic to *this bui
 our compiler byte-matches 211 functions, the residual is most likely that **the original was built with a
 slightly DIFFERENT 4.2 sub-build** whose allocator makes the opposite symmetric choice — NOT a source bug.
 
-## Why a different build is plausible
+## ⛔ HUNT RESULT (2026-07-08 v51 continuation) — no obtainable x86 candidate exists
+Searched Internet Archive / WinWorld / the KB version tables and **downloaded + hash-tested the one
+untested x86 4.2 press (Enterprise)**. Conclusion: **every obtainable x86 4.2 compiler is byte-for-byte
+build 6166 — there is nothing to A/B.**
+- **VC 4.2 Enterprise (archive.org `en_vc42ent`)** — extracted `MSDEV/BIN/{C2,C1XX,CL}.EXE`; all three md5s
+  are **IDENTICAL** to `toolchain/vc42/BIN/*` (`C2.EXE` dcd69f1dd28b02dd03dd7ed02984299a, cl `10.20.6166`).
+  ⇒ Professional and Enterprise ship the SAME x86 backend; edition is not a codegen axis.
+- **VC 4.2b = cl `10.20.6312` is RISC/Alpha ONLY** (KB Q164951; WinWorld lists no x86 4.2b — only 4.2
+  Professional + Enterprise for x86). The 4.2b compiler *targets Alpha* (and its link is 4.20, not the
+  observed 3.10) — it physically cannot emit the x86 code we match. A dead end, not a candidate.
+- **VC 5.0 / VS97** — cl 11.x + link 5.x ≠ the observed link 3.10. Ruled out (as before).
+⇒ **The x86-4.2 candidate space is EMPTY.** The ~48 reg-coloring residuals are a genuine artifact of
+build 6166 itself, not a wrong-sub-build artifact. Barring a *non-public* MS-internal 4.2 refresh (no
+evidence one shipped — the KB refresh tables are RISC-only), there is no compiler to swap in. The section
+below is retained as the (now-answered) rationale; do NOT re-run the x86 hunt. Remaining paths to raise
+211: G2 whole-image, or accept the 6166 ceiling. (The extracted Enterprise binaries confirmed identical
+were discarded — nothing to keep.)
+
+## Why a different build was plausible (rationale — now answered by the HUNT RESULT above)
 - **The binary is dated 1997-02-18** — squarely between VC++ 4.2 (1996) and VC++ 5.0 (VS97, **1997-04-28**).
 - **The linker is 3.10** (4.2-era; VC 5.0 shipped a newer linker) — so it's a 4.2-family toolchain, not 5.0.
 - **Multiple 4.2 cl builds exist:** VC 4.0 = cl `10.00.5270`; base VC 4.2 = cl `10.20.6166` (ours);

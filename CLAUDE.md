@@ -662,8 +662,11 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v51) — content phase is DONE; the two live threads are both PAUSED pending EXTERNAL action (the
-user is obtaining things). Don't manufacture busywork — check the two threads, else ask the user.**
+**▶ START HERE (v51 continuation) — content phase is DONE and BOTH live threads are now CLOSED. Thread 1
+(Ghidra write-routing) RESOLVED v51; Thread 2 (compiler hunt) x86-candidate-space proven EMPTY (this session,
+see below). There is no remaining external blocker AND no obtainable lever to raise 211 short of G2. Don't
+manufacture busywork — the honest next step is EITHER G2 whole-image finishing (real but per-func-exact-neutral)
+OR ask the user. Baseline still 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed).**
 
 **THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
 (venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
@@ -671,18 +674,19 @@ cross-program comment test PASSED (mcp `set_plate_comment(program="libkotor2.so"
 YodaDemo untouched). ⇒ writes now route by `program=`. Rule: ALWAYS pass `program=YodaDemo.exe` on mutations
 (see the WRITE ROUTING block above). Nothing pending on this thread.
 
-**THREAD 2 — the compiler hunt (PAUSED; waiting on a candidate build).** CORRECTION to the old "unobtainable cl"
-framing: **we HAVE + use a genuine VC++ 4.2, cl `10.20.6166` (CL.EXE + C1XX.EXE + C2.EXE) at `toolchain/vc42/`**
-— 211 exact proves it's the right major compiler. The ~48 reg-coloring residuals are most likely a slightly
-DIFFERENT 4.2 sub-build (binary dated 1997-02-18, between VC 4.2/1996 and VC 5.0/1997-04-28; linker 3.10 = 4.2
-family; base 4.2=`10.20.6166` ours, VC 4.2b=`10.20.6312` per KB Q164951). **INFRA READY (v50):**
-`toolchain/bin/{cl,link,lib}` honor a `VCDIR` env override. When the USER supplies a candidate build (they're
-hunting 4.2b / MSDN 1996-97 subscription refreshes on Internet Archive), drop it at `toolchain/vc42b/` and A/B:
-`VCDIR=/abs/path python3 tools/progress.py` (exact **>211** = closer; if it's THE build, many reg-coloring funcs
-flip at once). Fast probe: `VCDIR=<cand> python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680`
-(DetonateAdjacentTiles ESI↔EDI bellwether; reg_pen/identity_miss→0 = match). Full plan: **docs/compiler-hunt.md**.
-If a better build lands, re-baseline everything (g2 absolute layout likely unblocks too — same wall). **Do NOT
-grind reg-coloring funcs by hand (source-side exhausted v37-v40) — the compiler build is the only lever.**
+**THREAD 2 — the compiler hunt: ✅ x86 CANDIDATE SPACE CLOSED (v51 continuation, 2026-07-08).** We HAVE + use a
+genuine VC++ 4.2, cl `10.20.6166` (CL/C1XX/C2.EXE at `toolchain/vc42/`) — 211 exact proves it's the right major
+compiler. HUNT DONE: downloaded + hash-tested the one untested x86 4.2 press — **VC 4.2 Enterprise
+(archive.org `en_vc42ent`)'s `MSDEV/BIN/{C2,C1XX,CL}.EXE` are byte-for-byte IDENTICAL md5s to ours** (cl
+`10.20.6166`; `C2.EXE` dcd69f1d…). Professional==Enterprise x86 backend. **VC 4.2b = cl `10.20.6312` is
+RISC/Alpha-ONLY** (KB Q164951 + WinWorld: no x86 4.2b) → its compiler *targets Alpha*, cannot emit our x86
+code (and its link is 4.20 ≠ observed 3.10). VC5/VS97 = link 5.x ≠ 3.10. ⇒ **the x86-4.2 candidate space is
+EMPTY; the ~48 reg-coloring residuals are a genuine artifact of build 6166, not a wrong-sub-build.** Details +
+the "do not re-run the x86 hunt" note: **docs/compiler-hunt.md**. INFRA (`VCDIR` override on
+`toolchain/bin/{cl,link,lib}`, drop at `toolchain/vc42b/`, `VCDIR=<cand> python3 tools/progress.py`; bellwether
+`tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680`) stays READY **only** if a *non-public* MS-internal 4.2
+refresh ever surfaces (no evidence one shipped). **Do NOT grind reg-coloring funcs by hand (source-side
+exhausted v37-v40); with no candidate compiler, the only remaining lever is G2 whole-image.**
 
 **If both threads are still blocked and the user wants incremental work:** the content phase is genuinely
 complete (211 exact + effective; runnable /OPT:REF image; ref-graph 22→5; ALL .rdata content — vtables,
