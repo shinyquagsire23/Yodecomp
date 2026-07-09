@@ -331,9 +331,33 @@ All GAME_INDY-guarded, anchor 211 held. Verified against DESKADV.EXE (three para
    correct start zone now active, re-check whether the whip appears via pickup. (Also pending: wire the hero
    Character HP=120 in the IndyGenerate tail — currently only doc fields are set.)
 
+### ⭐ v63 — New World infloop root-caused+FIXED; door crash root-caused (backtrace) + guarded
+User re-test after v62: **palette FIXED, animations FIXED**; New World still infloops, door still crashes. Both
+now root-caused via a saved GUI backtrace + headless repro (all GAME_INDY-guarded, anchor 211):
+- **New World infinite load / progress-bar thrashing — FIXED.** `OnNewWorld → StartGame → LoadWorld()` re-parses
+  DESKTOP.DAW to reset zone state, but `LoadWorld` is a SECOND copy of the DAW loader that only had the Yoda chunk
+  dispatch — on the Indy DAW (global parallel-array aux) the Yoda `ParseZaux` walked off the global ZAUX and the
+  loop never hit ENDF → infinite load. Ported `Load()`'s Indy branch into `LoadWorld` (ParseZauxIndy/ZAX2Indy/
+  ZAX3Indy; skip ZAX4/IZAX/PNAM/ANAM; ZONE/HTSP/ACTN shared). Headless repro (inject OnNewWorld on 1st play tick):
+  before = OnNewWorld never returns; after = returns + IndyGenerate converges (2nd seed). ⚠ LESSON: there are TWO
+  DAW loaders (`Load` 0x4158 initial, `LoadWorld` 0x421fd0 New-World reset) — every load-format delta must be
+  applied to BOTH.
+- **Door-entry crash — root-caused, guarded (band-aid; deeper RE pending).** Saved GUI backtrace (YodaIndy/
+  backtrace.txt) → PF write at yoda+0x6128. Mapped via OUR build's `/MAP` (NOT YodaDemo's layout!): the crash is in
+  `Zone::IactRunCommands` `CMD_SetMapTile`: `tiles[(args[1]*18+args[0])*3+args[2]] = args[3]` with **args[1]=21087**
+  (args=[7,21087,1,828]) → wildly OOB store. The script FORMAT is byte-identical to Yoda (conditions 14B, commands
+  0xc+len+text — verified vs DESKADV FUN_1010_047e reading PUSH 0xc / PUSH 0x2), so args[1]=21087 is GENUINE data
+  in some interior-zone SetMapTile. The byte-matched original does NOT bounds-check (relies on valid coords), so the
+  real Indy engine must tolerate it. Guarded the tile index in SetMapTile/ClearTile/MoveMapTile for Indy. ⚠ This is
+  a band-aid — the true root cause (why Indy interior scripts carry huge coords: opcode/executor semantics vs a
+  script-keying quirk) is UNRESOLVED. Headless can't reproduce (a TransitionZoneDoor injection entered interior 107
+  cleanly) — the crash needs a specific interior/trigger. Needs USER re-test + RE of Indy's command executor
+  (find the DESKADV IactRunCommands twin; check if opcode 0 is SetMapTile for Indy or if it bounds-checks/uses the
+  zone's real width instead of 18).
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`, then remaining)
-1. **USER VISUAL RE-TEST:** New World (no infloop?), palette (correct colours?), character facing (correct?),
-   entering a building (crash gone?). Report which persist.
+1. **USER VISUAL RE-TEST:** New World (infloop gone?), entering a building (crash gone? interior looks right?).
+   Palette + animations already confirmed fixed.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
    auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
 3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).

@@ -824,13 +824,24 @@ interiors (cell=-1,-1) — guarded it for Indy (WorldEntryStepMaybe already guar
 (headless-invisible) — NEEDS user re-test to confirm. (5) **Whip** — DESKADV RE proved Indy does NOT seed a
 starting weapon at worldgen (inventory doc+0x78 is emptied, never filled); the whip comes from GAMEPLAY (OBJ_WEAPON
 pickup or an IACT CMD_AddItemToInv) — pending.
-**▶ START HERE (v62): USER VISUAL RE-TEST `./run_indy.sh`** — New World (no infloop?), palette (colours right?),
-char facing (right?), enter a building (crash gone?). Report which persist. Then: (a) whip — does it now appear via
-pickup with the correct start zone active? if not, RE how Indy grants the starting whip; (b) hero-HP tail — set
-player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does; we only set doc fields). The door
-crash, if it persists, is real-GDI-only — get a GUI crash ADDRESS (headless TransitionZoneDoor injection does NOT
-reproduce it). Key DESKADV addrs: IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / FUN_1010_069c / GetFrameTile
-FUN_1010_076e, IndyGenerate 1010:8524, IndyStartNewGameMaybe 1020:0ed0.
+**▶ v63 (palette + animations CONFIRMED fixed by user; New World FIXED; door root-caused+guarded):**
+- **New World infloop FIXED:** `OnNewWorld→StartGame→LoadWorld()` is a SECOND DAW loader (0x421fd0) that only had
+  the Yoda chunk dispatch → misparsed the Indy DAW (Yoda ParseZaux on global ZAUX; loop never hits ENDF). Ported
+  Load()'s Indy branch into LoadWorld. ⚠ LESSON: TWO DAW loaders (Load 0x4158 / LoadWorld 0x421fd0) — apply every
+  load-format delta to BOTH. Verified headlessly (OnNewWorld returns + IndyGenerate converges).
+- **Door crash root-caused + guarded (BAND-AID):** GUI backtrace (YodaIndy/backtrace.txt) mapped via OUR /MAP
+  (relink build-indy objs with /MAP — NOT YodaDemo layout!) → `Zone::IactRunCommands` CMD_SetMapTile
+  `tiles[(args[1]*18+args[0])*3+args[2]]` with args[1]=21087 (OOB). Script format byte-identical to Yoda (verified
+  vs DESKADV cmd reader FUN_1010_047e: PUSH 0xc + PUSH 0x2 + text), so coords are GENUINE data. Guarded the tile
+  index for Indy in SetMapTile/ClearTile/MoveMapTile. ⚠ TRUE root cause UNRESOLVED — needs RE of the DESKADV
+  IactRunCommands twin (is opcode 0 = SetMapTile for Indy? does it bounds-check / use the zone's real width vs 18?).
+**▶ START HERE (v63): USER VISUAL RE-TEST `./run_indy.sh`** — New World (infloop gone?), enter a building (crash
+gone? interior tiles look right?). Then: (a) door deeper RE if interiors are visually broken (the huge-coords
+mystery — RE the DESKADV IactRunCommands twin); (b) whip — does it appear via pickup with the correct start zone?
+if not, RE how Indy grants it (OBJ_WEAPON pickup vs IACT CMD_AddItemToInv); (c) hero-HP tail — set player Character
+HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does; we only set doc fields). Key DESKADV addrs:
+IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / FUN_1010_069c / GetFrameTile FUN_1010_076e / cmd reader
+FUN_1010_047e, IndyGenerate 1010:8524, IndyStartNewGameMaybe 1020:0ed0.
 **▶ v61 (prior): START-ZONE TARGET bug FIXED.** IndyGenerate tail hardcoded nTargetZoneId=0 (Yoda demo layout);
 Indy's start zone is dynamic → set `nTargetZoneId = GetZoneCell(nStartX,nStartY)`. The bWorldInvalid=1 self-climb
 is CORRECT for Indy (no scripted intro entry — start zone has zero cond-0/1 scripts), not a workaround. Detail in
