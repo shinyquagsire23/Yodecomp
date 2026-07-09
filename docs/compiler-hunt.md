@@ -7,27 +7,58 @@ functions exactly, which proves it is the correct MAJOR compiler.
 
 **The open problem:** ~48 functions differ from the original ONLY in register allocation (symmetric ESI/EDI /
 ECX/EDX role swaps). v37–v40 exhausted the source-side levers (flags, PCH, COMDAT set, emission order, decl
-context) trying to flip them, and concluded the choice is intrinsic to *this build's* register allocator. Since
-our compiler byte-matches 211 functions, the residual is most likely that **the original was built with a
-slightly DIFFERENT 4.2 sub-build** whose allocator makes the opposite symmetric choice — NOT a source bug.
+context) trying to flip them. ⭐ **CORRECTED v52: the choice is NOT intrinsic — it is COMPILER-BUILD-sensitive.**
+The original was built with a slightly DIFFERENT VC 4.x build whose allocator makes the opposite symmetric
+choice on some functions — proven, not conjectured (see the v52 result below).
 
-## ⛔ HUNT RESULT (2026-07-08 v51 continuation) — no obtainable x86 candidate exists
-Searched Internet Archive / WinWorld / the KB version tables and **downloaded + hash-tested the one
-untested x86 4.2 press (Enterprise)**. Conclusion: **every obtainable x86 4.2 compiler is byte-for-byte
-build 6166 — there is nothing to A/B.**
-- **VC 4.2 Enterprise (archive.org `en_vc42ent`)** — extracted `MSDEV/BIN/{C2,C1XX,CL}.EXE`; all three md5s
-  are **IDENTICAL** to `toolchain/vc42/BIN/*` (`C2.EXE` dcd69f1dd28b02dd03dd7ed02984299a, cl `10.20.6166`).
-  ⇒ Professional and Enterprise ship the SAME x86 backend; edition is not a codegen axis.
-- **VC 4.2b = cl `10.20.6312` is RISC/Alpha ONLY** (KB Q164951; WinWorld lists no x86 4.2b — only 4.2
-  Professional + Enterprise for x86). The 4.2b compiler *targets Alpha* (and its link is 4.20, not the
-  observed 3.10) — it physically cannot emit the x86 code we match. A dead end, not a candidate.
-- **VC 5.0 / VS97** — cl 11.x + link 5.x ≠ the observed link 3.10. Ruled out (as before).
-⇒ **The x86-4.2 candidate space is EMPTY.** The ~48 reg-coloring residuals are a genuine artifact of
-build 6166 itself, not a wrong-sub-build artifact. Barring a *non-public* MS-internal 4.2 refresh (no
-evidence one shipped — the KB refresh tables are RISC-only), there is no compiler to swap in. The section
-below is retained as the (now-answered) rationale; do NOT re-run the x86 hunt. Remaining paths to raise
-211: G2 whole-image, or accept the 6166 ceiling. (The extracted Enterprise binaries confirmed identical
-were discarded — nothing to keep.)
+## ✅ HUNT RESULT v52 (2026-07-08) — reg-coloring IS compiler-sensitive; target = an INTERIM build in (5270, 6038)
+⚠ This SUPERSEDES the v51 "no obtainable x86 candidate / candidate space EMPTY" conclusion below, which was
+premature — it only tested VC 4.2 *editions* (all bit-identical 6166). The real axis is the 4.x **point
+release** (cl build number), because the PE **linker** version (3.10) pins LINK.EXE, NOT CL.EXE (Fable's
+insight): objects from an earlier cl link fine with 4.2's LINK 3.10 + NAFXCW.LIB. Tested the WHOLE x86 4.x line
+via the `VCDIR` A/B (keeping our 4.2 MFC headers to isolate the backend from the header dial, lesson #26):
+
+| build | cl | C2.EXE md5 | exact | vs our 4.2 |
+|---|---|---|---|---|
+| VC 4.0 | 10.00.5270 | 958c47f9… | **195** | wins 3, loses 19 (DIFFERENT set) |
+| VC 4.1 | 10.10.6038 | 6d07c3f7… | 211 | **byte-identical set to 4.2** |
+| VC 4.2 (ours) | 10.20.6166 | dcd69f1d… | 211 | baseline |
+| VC 4.2 Enterprise | 10.20.6166 | dcd69f1d… | — | md5-identical to ours (v51) |
+
+**The decisive datum:** `DetonateAdjacentTiles` 0x428680 — a PARKED "intrinsic" ESI↔EDI residual (v39) — is
+**byte-EXACT under VC 4.0's compiler**, non-exact under 4.1/4.2. So the residual class is compiler-fixable.
+The 4.0-vs-4.2 exact-set diff (stable core 192, **union 214**):
+- **VC 4.0 wins 3** (exact under 4.0, not 4.2), all in the Worldgen TU, all previously parked reg-coloring:
+  `DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110 (the lesson-#7 rotation example), `ZoneHasIzxItemMaybe`
+  0x41bfa0.
+- **VC 4.2 wins 19** (exact under 4.2, not 4.0): ReadIzon, Clear, Fill, FindTile, DrawGameArea, FindEntityAt,
+  IactScript ctor/Read, ParseActn, ParseHtsp, OnToggleSound/Music, Randomize, OnNewWorld, LoadStoryHistoryAlaska,
+  RemoveZoneEntry2, WorldgenPickItemFromZone, FindAdjacentGateDirMaybe, OnOpenDocument, FindEntityAt.
+
+**What this pins:** our SAME source, compiled under 4.0 vs 4.2, produces different bytes on 22 swing functions;
+the ORIGINAL binary matches the 4.2 bytes on 19 and the 4.0 bytes on 3 — INSIDE the same TU (Worldgen, one
+compiler). So the original's C2 allocator is NEITHER 4.0 nor 4.2: it has the 6038-era behavior on 211 functions
+but the 5270-era behavior on 3. ⇒ **the target is a cl build strictly in (5270, 6038), very close to 6038** — an
+interim VC 4.0-era release (service pack / MSDN mid-1996 refresh with cl 10.0x–10.1x) not in the retail
+4.0/4.1/4.2 line. 4.1 (6038) already == 4.2, so the 3-function transition happened just before 6038.
+
+**Status of the hunt:** NARROWED, not closed. The obtainable retail x86 4.x line is exhausted (4.0/4.1/4.2 all
+tested). Remaining candidate = an interim cl 10.0x/10.1x build between 5270 and 6038 (MSDN Level-2/subscription
+discs Jan–Jun 1996, VC 4.0 SP, or a 4.1 beta). If found, A/B it via `VCDIR`; if it flips the 3 while keeping the
+19, it is THE build and exact → 214+. Toolchains kept locally: `toolchain/vc40/` (cl 5270), `toolchain/vc41/`
+(cl 6038), `toolchain/vc42/` (cl 6166) — all gitignored (`/toolchain/vc4*/`).
+
+**Alternative lever (Fable Q1-2):** the 3 4.0-wins are now proven register-reachable, so a faithful
+decl-POSITION source search under 4.2 (declare-at-first-use vs hoisted; scope brackets around late-lifetime
+locals — the allocator keys on frontend symbol-creation order) MIGHT reproduce 4.0's choice under 4.2. Untried;
+uses 4.0's exact output as the oracle. Worth a focused attempt on Detonate/ParseZaux/ZoneHasIzxItem.
+
+---
+## (SUPERSEDED v51 note — kept for history) "no obtainable x86 candidate exists"
+The v51 pass concluded the candidate space was empty, but only tested 4.2 *editions* (Pro/Enterprise, both
+6166). It missed the point-release axis (linker pins LINK not CL). v52 above corrects it. Still valid from v51:
+VC 4.2b (cl 10.20.6312) is RISC/Alpha-only (targets Alpha, link 4.20 ≠ 3.10 — useless for x86); VC 5.0/VS97 link
+5.x ≠ 3.10. Those remain ruled out; the live target is the (5270,6038) interim build.
 
 ## Why a different build was plausible (rationale — now answered by the HUNT RESULT above)
 - **The binary is dated 1997-02-18** — squarely between VC++ 4.2 (1996) and VC++ 5.0 (VS97, **1997-04-28**).

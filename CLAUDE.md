@@ -662,11 +662,15 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v51 continuation) — content phase is DONE and BOTH live threads are now CLOSED. Thread 1
-(Ghidra write-routing) RESOLVED v51; Thread 2 (compiler hunt) x86-candidate-space proven EMPTY (this session,
-see below). There is no remaining external blocker AND no obtainable lever to raise 211 short of G2. Don't
-manufacture busywork — the honest next step is EITHER G2 whole-image finishing (real but per-func-exact-neutral)
-OR ask the user. Baseline still 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed).**
+**▶ START HERE (v52) — compiler hunt REOPENED + advanced. Thread 1 (Ghidra write-routing) RESOLVED v51.
+Thread 2 (compiler hunt): v52 PROVED the reg-coloring residual is compiler-build-sensitive (VC 4.0's cl makes
+3 parked "intrinsic" residuals byte-exact; union 214) and NARROWED the target to an interim cl build in
+(5270,6038). Baseline canonical build stays VC 4.2 = 211 (max single obtainable compiler; 4.1==4.2). Live
+next steps (pick with the user): (a) HUNT an interim VC 4.0-era cl build 10.0x/10.1x on MSDN 1996 discs and
+A/B it — could hit 214+; (b) Fable-Q1 lever-2 decl-position source search under 4.2 to capture the 3 4.0-wins
+(4.0 output = oracle); (c) the Indy/retail source-witness work; (d) G2 whole-image. Toolchains vc40/vc41/vc42
+all on disk + gitignored. Baseline 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed
+v51). See docs/compiler-hunt.md v52 block + THREAD 2 above for the full A/B method + swing-function lists.**
 
 **THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
 (venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
@@ -674,19 +678,25 @@ cross-program comment test PASSED (mcp `set_plate_comment(program="libkotor2.so"
 YodaDemo untouched). ⇒ writes now route by `program=`. Rule: ALWAYS pass `program=YodaDemo.exe` on mutations
 (see the WRITE ROUTING block above). Nothing pending on this thread.
 
-**THREAD 2 — the compiler hunt: ✅ x86 CANDIDATE SPACE CLOSED (v51 continuation, 2026-07-08).** We HAVE + use a
-genuine VC++ 4.2, cl `10.20.6166` (CL/C1XX/C2.EXE at `toolchain/vc42/`) — 211 exact proves it's the right major
-compiler. HUNT DONE: downloaded + hash-tested the one untested x86 4.2 press — **VC 4.2 Enterprise
-(archive.org `en_vc42ent`)'s `MSDEV/BIN/{C2,C1XX,CL}.EXE` are byte-for-byte IDENTICAL md5s to ours** (cl
-`10.20.6166`; `C2.EXE` dcd69f1d…). Professional==Enterprise x86 backend. **VC 4.2b = cl `10.20.6312` is
-RISC/Alpha-ONLY** (KB Q164951 + WinWorld: no x86 4.2b) → its compiler *targets Alpha*, cannot emit our x86
-code (and its link is 4.20 ≠ observed 3.10). VC5/VS97 = link 5.x ≠ 3.10. ⇒ **the x86-4.2 candidate space is
-EMPTY; the ~48 reg-coloring residuals are a genuine artifact of build 6166, not a wrong-sub-build.** Details +
-the "do not re-run the x86 hunt" note: **docs/compiler-hunt.md**. INFRA (`VCDIR` override on
-`toolchain/bin/{cl,link,lib}`, drop at `toolchain/vc42b/`, `VCDIR=<cand> python3 tools/progress.py`; bellwether
-`tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680`) stays READY **only** if a *non-public* MS-internal 4.2
-refresh ever surfaces (no evidence one shipped). **Do NOT grind reg-coloring funcs by hand (source-side
-exhausted v37-v40); with no candidate compiler, the only remaining lever is G2 whole-image.**
+**THREAD 2 — the compiler hunt: ⭐ REG-COLORING IS COMPILER-SENSITIVE (v52, 2026-07-08) — target NARROWED to an
+interim build in (cl 5270, 6038).** ⚠ This CORRECTS both v39 ("reg-coloring intrinsic, not compiler-fixable")
+and the v51 "candidate space EMPTY" (which only tested 4.2 *editions*). Fable's key insight: the PE **linker**
+3.10 pins LINK.EXE, NOT CL.EXE — so earlier-cl objects link fine with 4.2's LINK 3.10 + NAFXCW.LIB. Tested the
+whole retail x86 4.x line via `VCDIR` A/B (4.2 headers kept, to isolate the backend from the header dial):
+**VC 4.0 (cl 10.00.5270) = 195 exact but a DIFFERENT set — it makes `DetonateAdjacentTiles` 0x428680 (a PARKED
+"intrinsic" residual) byte-EXACT** + `ParseZaux` 0x423110 + `ZoneHasIzxItemMaybe` 0x41bfa0 (union 214), while
+losing 19 that 4.2 gets; **VC 4.1 (cl 10.10.6038) = byte-identical set to 4.2 (211)**. So our same source under
+4.0-vs-4.2 differs on 22 swing funcs; the ORIGINAL matches 4.2 on 19 + 4.0 on 3 (same TU, one compiler) ⇒ the
+original's C2 allocator is an INTERIM build between 5270 and 6038 (6038-era on 211, 5270-era on 3), close to
+6038. Retail 4.0/4.1/4.2 all now tested + kept: `toolchain/vc4{0,1,2}/` (all gitignored `/toolchain/vc4*/`).
+Full result + exact-diff + the swing-function lists: **docs/compiler-hunt.md** (v52 block). INFRA READY (`VCDIR`
+override; bellwether `VCDIR=<cand> python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680` → exact=True =
+match; full `VCDIR=<cand> python3 tools/progress.py`). **NEXT compiler leads:** an interim cl 10.0x/10.1x build
+(5270,6038) — MSDN Level-2/subscription discs Jan–Jun 1996, a VC 4.0 SP, or a 4.1 beta. **Alternative (Fable
+Q1 lever-2, untried):** the 3 4.0-wins are now proven register-reachable, so a FAITHFUL decl-POSITION search
+under 4.2 (declare-at-first-use / scope-bracketing late locals — allocator keys on frontend symbol-creation
+order) may reproduce 4.0's choice under 4.2, using 4.0's exact output as the oracle. Do the A/B set-diff with
+`$CLAUDE_JOB_DIR/tmp/exactset.py`-style dumps (per-VCDIR exact-name list).
 
 **If both threads are still blocked and the user wants incremental work:** the content phase is genuinely
 complete (211 exact + effective; runnable /OPT:REF image; ref-graph 22→5; ALL .rdata content — vtables,
