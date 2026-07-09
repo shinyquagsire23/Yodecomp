@@ -799,7 +799,35 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-08 v57 — PHASE H3 milestone 2 COMPLETE: DESKTOP.DAW fully parses; worldgen (milestone 4) is next; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v58 — PHASE H3 milestone 4: Indy worldgen TRACED; the Yoda quest model is wrong for Indy → NEXT = decompile DESKADV.EXE worldgen; anchor 211)
+**▶ START HERE = the DESKADV.EXE 16-bit worldgen RE (user-agreed pivot; docs/phase-h3-indy.md).** This session
+proved (via an instrumented `-DYODA_DEBUG` build the USER ran; since reverted) that Indy worldgen can't be made
+to work by patching Yoda's `Generate`: every layer of Yoda's quest builder assumes **two-item puzzles + per-zone
+IZX2/IZX3 required-item lists**, and **Indy goal zones (type 10) have EMPTY IZX2/IZX3** + **Indy puzzles have no
+itemB** (so `a5`/second-item is always -1). Trace: planet fix ✅ + goal selection ✅ reach the FINAL_ITEM goal
+zone → `ZoneRequiresItemMaybe` gate (reads genCandidateA/IZX2) rejects all 15 candidates → relaxing it +
+single-branch goal reaches `WorldgenPopulateGoalZone` which ALSO needs IZX2/IZX3 → `populate=0`. Doesn't
+converge. **DECISION: decompile + NAME Indy's worldgen in `program=DESKADV.EXE`** (16-bit NE, 1429 funcs, raw
+Win32 ordinal imports — NOT MFC; seg:off addrs; `get_xrefs_to` fails on data strings; NO CRT rand import →
+in-binary PRNG). Recover LOGIC not codegen; reimplement Indy `Generate`/`PlaceQuestNode`/`WorldgenSelectPuzzle`/
+`WorldgenPopulateGoalZone` under `GAME_INDY`. Anchors: DAW-loader (`"DESKTOP.DAW"`@1010:dd0e) + rand/srand call
+sites (worldgen is rand-heavy). Data constraints (raw-byte confirmed): single-item puzzles (types 0/1/2/3 =
+TRANSACTION/TRADE/GOAL_PRIZE/WORLD_MISSION, 49/49/43/15); goal zones have `providedItemsA` (IZAX pool) but no
+IZX2/IZX3; regular zones DO have IZX2 (141)/IZX3 (32). Best tackled with dedicated focus (consider a `fable`
+agent for the 16-bit analysis). **KEPT + committed base (correct, anchor 211):** planet fix (`currentPlanet=-1`
+for Indy — no planets; ctor+LoadWorld), goal selection (WorldgenSelectPuzzle 9999 accepts any WORLD_MISSION for
+Indy + dynamic goal path), aux DATA loading (`Parse{Zaux,Zax2,Zax3}Indy` + `ReadIzaxIndy` — Indy IZAX =
+`mission_spec(2) num_entries(2) {charId,x,y}×n(6B) count(2) items`, one pool; IZX2/IZX3 reuse ReadZax2/3), and
+the `cobArray4/5`→`providedItemsA/B` rename (Ghidra-synced). ⚠ `ReadIzaxIndy` mirrors the single IZAX pool into
+`providedItemsB` — a KNOWN wart to revisit in the rework (Indy is single-pool). Commits: 05c0e12 (planet+goal+
+aux), 6a5f335 (trace + revert heuristics). ⚠ Indy `build-indy` currently HANGS at worldgen (known; the RE fixes
+it). Remaining after worldgen: HTSP→zone objects, ACTN→per-zone scripts, Indy palette. H1✅ H2✅.
+**▶ BUILD/RUN TOOLING (this session):** `wineserver -p` persistence is in the BUILD wrappers only
+(`toolchain/bin/{cl,link}`, ~/.wine — ~4× compile speedup); it was REMOVED from the run scripts (a headless
+`wineserver -p` on the CrossOver bottle leaves later GUI runs windowless — do NOT re-add it there). Fixed
+`build_run_indy.sh` (`-DYODA_GAME=INDY` into `build-indy`). ⚠ debug logging (src/DebugLog.h + -DYODA_DEBUG)
+perturbs the byte-matched Worldgen TU's dial — use TEMPORARILY, `git checkout` to revert before any anchor
+check. ⚠ run oracle = USER visual (headless MFC has no window → never reaches worldgen). ↓ v57/H3-milestone-2 ↓
 **▶ H3 STATE (docs/phase-h3-indy.md):** Indy port under `GAME_INDY`. ⭐ **MILESTONE 2 DONE (engine-confirmed):**
 `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY`; run
 `./run_indy.sh`) parses the ENTIRE DESKTOP.DAW to ENDF — **366 zones / 157 puzzles / 27 chars** loaded (debug
@@ -807,15 +835,7 @@ log via `-DYODA_DEBUG=ON` confirmed every chunk). Load-time Indy deltas fixed (a
 25989/211 byte-IDENTICAL): IZON header 8B (drop globalVar+planet), ParseZone Indy chunkLen, ReadZone tiles-only,
 PUZ2 drops unk3+itemB, CHAR record 0x4E (frames 0x2a), TNAM name 0x10; dispatcher length-skips the global
 aux/object/script chunks + Indy-only ZNAM/PNAM/ANAM. Method: RAW-BYTE SIMULATION (walk DAW w/ each candidate
-delta, confirm next tag lands exactly) — anchor-safe, beat C++ instrumentation. **⏭ NEXT = MILESTONE 4 (Indy
-worldgen — the big one):** `Generate` infinite-retries (`Generate try #N -> fail`) because it's built around
-Yoda's 3 planets + per-planet goal whitelists (WorldgenSelectPuzzle 9999 arm: planet-goal-id switch) which Indy
-lacks. Needs a `GAME_INDY` worldgen rework — START by decompiling + NAMING DESKADV.EXE's worldgen funcs (user
-directive; worldgen LOGIC can't be read from data bytes). First probe: does Indy have WORLD_MISSION puzzles
-(nType==3)? try bypassing the per-planet whitelist for GAME_INDY (accept any WORLD_MISSION). Also milestone 2b
-(distribute skipped global HTSP objects/ACTN scripts/aux to zones — zones currently tiles-only) + 3 (Indy
-palette, known-wrong). ⚠ debug logging (src/DebugLog.h + -DYODA_DEBUG) perturbs a byte-matched TU's dial even
-#ifdef'd out — use TEMPORARILY, revert before commit (raw-byte sim preferred). ⚠ DESKADV 16-bit (seg:off;
+delta, confirm next tag lands exactly) — anchor-safe, beat C++ instrumentation. ⚠ DESKADV 16-bit (seg:off;
 get_xrefs_to fails on data strings). ⚠ run oracle=USER visual. H1✅ H2✅. ↓ v56/H3-start ↓
 **▶ H3 STATE (docs/phase-h3-indy.md):** porting the shared engine to Indy under `GAME_INDY`. Scaffolding + the
 HARDEST delta (zone layout) done. `build-indy` (`cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake
