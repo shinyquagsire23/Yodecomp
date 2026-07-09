@@ -626,7 +626,20 @@ Written to be followable without prior context: each phase lists concrete steps 
   Populate rand()%4 goal-zone pick, victory/loss 76/77=0x4c/0x4d (shared force-loaded). Cosmetic gates (Save/Load/
   Replay/WorldSize/Stats) enabled in FULL. Anchor: 6 src files ifdef-guarded, progress.py 211 (all fall-through
   token-neutral). ⚠ CMake gained JOB_POOL wine=1 (parallel wine cl deadlocks the wineserver — serialize). NEXT:
-  confirm non-Hoth worlds generate+play; then full save/load audit; then H3/H4.**
+  confirm non-Hoth worlds generate+play; then full save/load audit; then H3/H4.** →
+  **211 exact / 25989 B byte-identical — v56–v57 (2026-07-08): ⭐ PHASE H2 COMPLETE (user-confirmed all 3 planets
+  play + Save/Load/Replay) + PHASE H3 STARTED, milestone 2 (Indy DAW load) DONE. H3: port shared engine to
+  Indiana Jones' Desktop Adventures under `GAME_INDY` (`build-indy`; data → DESKTOP.DAW). The FULL 2.36MB DAW now
+  parses to ENDF — engine-confirmed 366 zones/157 puzzles/27 chars. Indy load deltas (all #ifdef GAME_INDY,
+  Yoda fall-through, anchor byte-IDENTICAL): ⭐ zones are PARALLEL-ARRAY not self-contained; IZON header 8B
+  (drop globalVar+planet — was the zone-misalign/jumping-bar bug); ParseZone Indy chunkLen; ReadZone tiles-only;
+  PUZ2 drops unk3+itemB; CHAR record 0x4E (frames 0x2a); TNAM name 0x10; dispatcher length-skips global
+  aux/HTSP/ACTN + Indy-only ZNAM/PNAM/ANAM. ⭐ METHOD: raw-byte SIMULATION (walk DAW w/ each candidate delta,
+  confirm next tag lands exactly) proved every delta anchor-safe w/o a run — beat C++ instrumentation (which
+  perturbs a byte-matched TU's dial even #ifdef'd out; used only temporarily). Next = MILESTONE 4 Indy worldgen
+  (Generate infinite-retries — Yoda 3-planet/goal-whitelist logic; needs DESKADV.EXE decompile+naming). Full H1
+  (CMake) + H2 + H3-milestone-2 all this session; anchor never moved. docs/phase-h3-indy.md, phase-h2-full-game.md,
+  cmake-build.md.**
   Full per-session milestone history in PLAN_COMPLETED.md.
   ~100 % = G2's byte-identical whole-image build. Track effective-match bytes separately (G, not %).
 
