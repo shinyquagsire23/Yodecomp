@@ -662,19 +662,20 @@ rename done). ⚠ BUDGET: Fable weekly reset 2026-07-09 23:00 America/Boise (mai
   bug); classes RENAMED World→CDeskcppDoc, GameView→CDeskcppView (source: 323 tokenizer edits; Ghidra: struct +
   namespace) → DYNCREATE macro now emits correct .rdata strings. Codegen-neutral (211 held). USER-directed.
 
-**▶ START HERE (v52) — compiler hunt RESOLVED. Thread 1 (Ghidra write-routing) RESOLVED v51. Thread 2 (compiler
-hunt): v52 PROVED the toolchain is VC 4.2 throughout (STATIC LIBS fingerprint = 4.2, 1404 unique windows; +
-headers/linker/app-cl all 4.2) = our exact compiler ⇒ the ~48 reg-coloring residuals are SOURCE-FIDELITY diffs,
-NOT a compiler wall (corrects v39 "intrinsic"; retracts the same-session "interim build" mis-inference). VC 4.0
-is a coincidental ORACLE that byte-matches 3 of them (Detonate 0x428680 / ParseZaux 0x423110 / ZoneHasIzxItem
-0x41bfa0), confirming their registers ARE source-reachable. Baseline canonical build stays VC 4.2 = 211. The
-compiler axis is now CLOSED (no different build to find — it's ours). Live next steps (pick with the user):
-(a) ⭐ Fable-Q1 lever-2 — oracle-guided FAITHFUL decl-position source search under 4.2 to capture the 3 (+more)
-oracle-confirmed residuals (use `VCDIR=<vc40> tools/asmscore.py …0x428680` as the target); (b) Indy(16-bit)/
-retail-Yoda source-witness work to recover true decl order (needs Ghidra NE-load); (c) G2 whole-image. Tools:
-`tools/exactset.py` (per-compiler exact dump). Toolchains vc40/vc41/vc42 on disk + gitignored. Baseline 211 /
-link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed v51). Full detail: docs/compiler-hunt.md
-v52 RESOLUTION block + THREAD 2 above.**
+**▶ START HERE (v52/v52b) — compiler hunt: LIBS proven 4.2, app-CL axis UNDETERMINED. Thread 1 (Ghidra
+write-routing) RESOLVED v51. Thread 2: v52 proved the toolchain LIBS/headers/linker are VC 4.2 (static-lib
+fingerprint = 4.2, 1404 unique windows via tools/libfingerprint.py). BUT v52b showed the 3 funcs VC 4.0
+byte-matches that 4.2 doesn't (Detonate 0x428680 / ParseZaux 0x423110 / ZoneHasIzxItem 0x41bfa0) RESIST
+faithful source-steering under 4.2 (param-pinned / lesson-#7 clone-locked / decl-swap regresses align 0→22).
+Since cl and libs are SEPARABLE, status is UNDETERMINED: (1) a MIXED toolchain = 4.2 libs + interim app-cl that
+resolves ~3 tie-breaks the 4.0 way [re-opens the (5270,6038) cl hunt], or (2) pure 4.2 + 3 source-locked funcs
+beyond search. Baseline canonical build stays VC 4.2 = 211. Do NOT re-assert either "all 4.2, residuals=source"
+or "interim build" as settled — it's genuinely open. Next discriminators (pick with the user): (a) hunt an
+interim cl 10.0x/10.1x (MSDN 1996 Level-2/subscription) + A/B — if it flips the 3 keeping the 19 = THE build
+→214+; (b) Indy(16-bit)/retail-Yoda source-witness (Ghidra NE-load) for true decl order / clone differences;
+(c) G2 whole-image. Tools: tools/exactset.py, tools/libfingerprint.py, VCDIR override + toolchain/vc4{0,1,2}/
+(gitignored). Baseline 211 / link 0/0/exit0 / bugscan 0/0/0 / vtcheck 10 / msgcheck 11 (reconfirmed v51). Full
+detail: docs/compiler-hunt.md (v52 RESOLUTION + v52b RESULT) + THREAD 2.**
 
 **THREAD 1 — Ghidra write-routing: ✅ RESOLVED (v51).** The MCP bridge was repointed to the new package bridge
 (venv `~/workspace/ghidra-mcp/.venv`, mcp 1.28.1) which sends `program=` as a query param; CC restarted; the
@@ -688,20 +689,23 @@ statically-linked CRT (`LIBCMT.LIB`) + MFC (`NAFXCW.LIB`) code (region ~0x429000
 version-specific. Window-matched it (20-byte windows via `tools/exactset`-style script; reuse match.TEXT_VA/RAW)
 against vc40/41/42 libs: **1404 windows unique to vc42, ZERO unique to 4.0/4.1** (e.g. a 96B `_makepath`-family
 CRT run @0x42a9ff is verbatim in vc42/LIBCMT.LIB, absent from 4.0/4.1). ⇒ **libraries = VC 4.2.** Plus headers =
-4.2 (211-max) + app-cl matches 4.1/4.2's 211 not 4.0's 195 + linker 3.10 = 4.2-era. ALL axes = VC 4.2 = our
-exact toolchain (cl 6166). By the fresh-TU determinism axiom, identical compiler+source ⇒ identical bytes, so
-**every non-exact func is a SOURCE-FIDELITY diff.** ⚠ **RETRACTS the same-session "interim build (5270,6038)"
-theory** (it was inferred from the compiler A/B alone; the libs disprove it). The A/B still showed VC 4.0
-compiles 3 funcs byte-exact that 4.2 doesn't (`DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110,
-`ZoneHasIzxItemMaybe` 0x41bfa0) — but that's **VC 4.0 acting as a coincidental ORACLE** (proving the original's
-registers ARE source-reachable), NOT the original compiler. Corrects v39: the residuals are hard SOURCE puzzles
-(attackable), not intrinsic. Toolchains kept: `toolchain/vc4{0,1,2}/` (gitignored `/toolchain/vc4*/`). Full
-detail + the exact-set diff: **docs/compiler-hunt.md** (v52 RESOLUTION block). **ACTIONABLE lever (Fable Q1
-lever-2, untried):** oracle-guided FAITHFUL decl-POSITION search under 4.2 on the 3 oracle-confirmed funcs
-(declare-at-first-use / scope-bracket late locals — allocator keys on frontend symbol-creation order), using
-4.0's byte-exact output as the target; the Indy/retail source witnesses could reveal the true decl order. INFRA:
-`VCDIR=<vc40> python3 tools/asmscore.py src/Worldgen/Worldgen.cpp 0x428680` (oracle), `tools/exactset.py`
-(per-compiler exact-set dump for A/B diffs).
+4.2 (211-max) + app-cl matches 4.1/4.2's 211 not 4.0's 195 + linker 3.10 = 4.2-era. Libs/headers/linker are
+**definitively VC 4.2.** ⚠ **v52b UPDATE — the app-CL axis is UNDETERMINED (do NOT state "all 4.2, residuals
+are source" as settled).** Took the Fable lever-2 stab on the 3 funcs VC 4.0 compiles byte-exact that 4.2
+doesn't (`DetonateAdjacentTiles` 0x428680, `ParseZaux` 0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0) — ALL RESIST
+faithful source-steering under 4.2: Detonate's contested regs are the 2 PARAMS (no local to move; only the
+unfaithful param-swap flips it, v39); ParseZaux is the lesson-#7 CLONE family (identical to ParseZax2/3);
+ZoneHasIzx's decl-order swap REGRESSED structurally (align 0→22). Since compiler and libraries are SEPARABLE
+axes, a MIXED toolchain (4.2 libs + an interim app-cl that resolves ~3 tie-breaks the 4.0 way) is fully
+consistent with the lib fingerprint — so the "interim build (5270,6038)" idea is RE-OPENED, not retracted.
+Detonate is the sharp case: body-fixed (v39) + not-faithfully-4.2-reachable + 4.0 makes it exact from our
+faithful source ⇒ the app-cl is likely NOT bit-identical to our 6166 on these tie-breaks. **Status: UNDETERMINED
+between (1) an interim app-cl [4.2 libs] and (2) pure 4.2 + 3 source-locked funcs beyond search.** 211 stands.
+Full detail: **docs/compiler-hunt.md** (v52 RESOLUTION + v52b RESULT). **Next discriminators:** hunt an interim
+cl 10.0x/10.1x (MSDN 1996) and A/B (`VCDIR=<cand> tools/progress.py`; if it flips the 3 keeping the 19 = THE
+build → 214+); OR the Indy(16-bit)/retail-Yoda source witnesses (true decl order / clone differences). Tools:
+`tools/exactset.py` (per-compiler exact dump), `tools/libfingerprint.py` (which VC libs a binary linked),
+`VCDIR=<vc40> tools/asmscore.py …0x428680` (oracle). Toolchains kept: `toolchain/vc4{0,1,2}/` (gitignored).
 
 **If both threads are still blocked and the user wants incremental work:** the content phase is genuinely
 complete (211 exact + effective; runnable /OPT:REF image; ref-graph 22→5; ALL .rdata content — vtables,

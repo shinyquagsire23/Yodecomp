@@ -37,10 +37,24 @@ tried in v37–v40 didn't reach them) stands, but the NATURE is source-fidelity,
 param-swap→exact result already proved the registers are source-reachable (the faithful form is just unfound). So
 the residual class is a set of hard SOURCE puzzles (attackable, with 4.0 as an oracle), not a compiler wall.
 
-**Actionable next lever (Fable Q1 lever-2, untried):** an oracle-guided faithful decl-POSITION search under 4.2
-(declare-at-first-use vs hoisted; scope brackets around late-lifetime locals — the allocator keys on frontend
-symbol-creation order) on the 3 oracle-confirmed functions, using VC 4.0's byte-exact output as the target. The
-16-bit Indy / retail-Yoda source witnesses (docs) could reveal the true decl order directly.
+**Attempted next lever (Fable Q1 lever-2) — v52b RESULT: the 3 RESIST faithful source-steering under 4.2.**
+Took the stab with 4.0's byte-exact output as the oracle; all three are structurally stuck:
+- `DetonateAdjacentTiles` 0x428680 — the contested ESI/EDI hold the two **params** x/y (created in fixed sig
+  order; no local to reposition). v39 already proved only the UNFAITHFUL param-swap flips it. Lever-2 N/A.
+- `ParseZaux` 0x423110 — the **lesson-#7 clone family** (byte-identical source to `ParseZax2`/`ParseZax3`);
+  can't differentiate identical source faithfully (fixing one rotates the clones).
+- `ZoneHasIzxItemMaybe` 0x41bfa0 — decl-order swap (`int i=0` before `int nCount=...GetSize()`) REGRESSED
+  structurally (align 0→22), not a clean reg flip; also a sibling family (`ZoneFindInIzxList`).
+⇒ No faithful 4.2 source form readily reproduces them. **This TEMPERS the "residuals are source-attackable"
+optimism above and RE-OPENS the interim-cl possibility** (I over-retracted it): the compiler and libraries are
+SEPARABLE axes, so a MIXED toolchain — VC 4.2 libs/headers/linker (proven) + an app-cl that resolves these ~3
+tie-breaks the 4.0 way while resolving the other 211 the 4.2 way — is fully consistent with the lib fingerprint.
+Detonate is the sharp case: body-fixed (v39) + not-faithfully-4.2-reachable + 4.0 produces it from our faithful
+source ⇒ under strict determinism the app-cl is likely NOT bit-identical to our 6166 on these tie-breaks.
+**Honest status: UNDETERMINED between (1) a slightly-different interim app-cl [4.2 libs] — re-motivates the
+narrow cl hunt in (5270,6038); and (2) pure 4.2 with 3 source-locked functions beyond our search.** 211 stands
+as the achievable exact count with our toolchain. The 16-bit Indy / retail-Yoda source witnesses could still
+reveal true decl order or clone differences that discriminate (1) vs (2).
 
 **Toolchains kept locally** (all gitignored `/toolchain/vc4*/`, for A/B + the user's other projects):
 `toolchain/vc40/` cl 5270, `toolchain/vc41/` cl 6038, `toolchain/vc42/` cl 6166 (the canonical one).
