@@ -519,8 +519,8 @@ Zone::~Zone()
     n = entities.GetSize();
     for (i = 0; i < n; i++) { CObject *p = entities[i]; if (p) delete p; }
     entities.SetSize(0, -1);
-    cobArray4.SetSize(0, -1);
-    cobArray5.SetSize(0, -1);
+    providedItemsA.SetSize(0, -1);
+    providedItemsB.SetSize(0, -1);
     genCandidateA.SetSize(0, -1);
     genCandidateB.SetSize(0, -1);
 }

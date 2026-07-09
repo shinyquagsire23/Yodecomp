@@ -273,6 +273,13 @@ public:
     int  ParseSnds(CFile *pFile);                        // 0x004233f0
     int  ParseActn(CFile *pFile);                        // 0x00423510
     int  ParseHtsp(CFile *pFile);                        // 0x004236b0
+#ifdef GAME_INDY
+    // Indy parallel-array aux distributors (Indy-only; the global ZAUX/ZAX2/ZAX3 chunks hold one
+    // back-to-back sub-record per zone with no per-zone header — distribute them to zones).
+    int  ParseZauxIndy(CFile *pFile);
+    int  ParseZax2Indy(CFile *pFile);
+    int  ParseZax3Indy(CFile *pFile);
+#endif
     void LoadWorldStateFile();                           // 0x00423850
     virtual void Serialize(CArchive &ar);                // 0x00423b30
     void SetCurrentToIntroZone();                        // 0x00423d20

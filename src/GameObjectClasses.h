@@ -218,10 +218,15 @@ public:                              // +0x00 = CObject vtable
     CObArray       objects;          // +0x7a8
     CObArray       iactScripts;      // +0x7bc
     CObArray       entities;         // +0x7d0
-    CWordArray     cobArray4;        // +0x7e4  PROVEN CWordArray (ReadZaux: CWordArray::SetAtGrow(ushort))
-    CWordArray     cobArray5;        // +0x7f8  same — element type WORD, layout identical to CDWordArray
-    CWordArray     genCandidateA;    // +0x80c  ALSO CWordArray (ReadZax2: CWordArray::SetAtGrow(ushort))
-    CWordArray     genCandidateB;    // +0x820  same (ReadZax3)
+    // IZAX carries two per-zone item pools the worldgen quest builder draws from: the items this
+    // zone can OFFER for the two parallel quest branches. WorldgenPickItemFromZone(sel=0) picks
+    // from providedItemsA (itemA branch), sel=1 from providedItemsB (itemB branch);
+    // ZoneHasIzxItemMaybe / WorldgenPlaceItemForLockChainMaybe test membership. (CWordArray proven
+    // by ReadZaux's CWordArray::SetAtGrow(ushort); WORD elements, layout == CDWordArray.)
+    CWordArray     providedItemsA;   // +0x7e4  IZAX item list 1 (quest branch A pool)
+    CWordArray     providedItemsB;   // +0x7f8  IZAX item list 2 (quest branch B pool)
+    CWordArray     genCandidateA;    // +0x80c  IZX2 list (ReadZax2: CWordArray::SetAtGrow(ushort))
+    CWordArray     genCandidateB;    // +0x820  IZX3 list (ReadZax3)
     int            tempVar;          // +0x834
     int            randVar;          // +0x838
     int            doorReturnX;      // +0x83c  door return pos: where the player re-enters when exiting back (TransitionZoneDoor; also ReadSavedState)
@@ -248,6 +253,9 @@ public:                              // +0x00 = CObject vtable
     void           ReadZax2(CFile *pFile);                               // 0x00406410 (Iact .obj)
     void           ReadZax3(CFile *pFile);                               // 0x00406490 (Iact .obj)
     void           ReadZax4(CFile *pFile);                               // 0x00406510 (Iact .obj, this unused)
+#ifdef GAME_INDY
+    void           ReadIzaxIndy(CFile *pFile);   // Indy IZAX (6-byte entities + one item pool)
+#endif
     int            IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce); // 0x00406550 (Iact .obj)
     int            IactRun(int event, int x, int y, int dx, int dy, int a5,
                            CDC *pDC, CDeskcppDoc *pWorld, CDeskcppView *pView);              // 0x00406780 (Iact .obj)

@@ -202,7 +202,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
 
 // FUNCTION: YODA 0x00406270
 // Parses an IZAX record: entity list (count read twice — the first is a placeholder field),
-// then two word lists into cobArray4/cobArray5.
+// then two word lists into providedItemsA/providedItemsB.
 void Zone::ReadZaux(CFile *pFile)
 {
     char  tag[5];
@@ -233,7 +233,7 @@ void Zone::ReadZaux(CFile *pFile)
         i = count;              // orig: mov ax/movsx pair (+3B) — inst-selection, see Zax2 note
         do {
             pFile->Read(&n, 2);
-            cobArray4.SetAtGrow(cobArray4.GetSize(), n);
+            providedItemsA.SetAtGrow(providedItemsA.GetSize(), n);
         } while (--i != 0);
     }
     pFile->Read(&count, 2);
@@ -241,7 +241,7 @@ void Zone::ReadZaux(CFile *pFile)
         i = count;              // orig: mov ax/movsx pair (+3B) — inst-selection, see Zax2 note
         do {
             pFile->Read(&n, 2);
-            cobArray5.SetAtGrow(cobArray5.GetSize(), n);
+            providedItemsB.SetAtGrow(providedItemsB.GetSize(), n);
         } while (--i != 0);
     }
 }
@@ -302,6 +302,45 @@ void Zone::ReadZax4(CFile *pFile)
     pFile->Read(&size, 4);
     pFile->Read(&count, 2);
 }
+
+#ifdef GAME_INDY
+// Indy IZAX record (parallel-array layout — NOT a byte-match function; Indy-only). Format
+// reverse-engineered from DESKTOP.DAW raw bytes and validated to consume ALL 366 records exactly:
+//   tag(4)="IZAX", size(4), mission_spec(2), num_entries(2),
+//   num_entries * { charId(2), x(2), y(2) }   (6-byte entities, vs Yoda's 44-byte),
+//   count(2), items[count] (2 bytes each).
+// Indy's IZAX carries only ONE item pool (Yoda has two: providedItemsA + providedItemsB). The
+// worldgen quest builder's goal-zone placement needs items in BOTH branches, so we feed the single
+// Indy pool to both providedItemsA and providedItemsB. (HYPOTHESIS pending DESKADV.EXE worldgen RE
+// — Indy's actual two-branch item model is unconfirmed; this at least lets Generate proceed.)
+void Zone::ReadIzaxIndy(CFile *pFile)
+{
+    char  tag[4];
+    int   size;
+    short mission;
+    short count;
+    short n;
+    int   i;
+
+    pFile->Read(tag, 4);
+    pFile->Read(&size, 4);
+    pFile->Read(&mission, 2);        // mission-specific flag (unused by worldgen)
+    pFile->Read(&count, 2);          // number of entities
+    for (i = 0; i < count; i++) {
+        MapEntity *e = new MapEntity;
+        pFile->Read(&e->charId, 2);
+        pFile->Read(&e->x, 2);
+        pFile->Read(&e->y, 2);
+        entities.SetAtGrow(entities.GetSize(), e);
+    }
+    pFile->Read(&count, 2);          // provided-item pool size
+    for (i = 0; i < count; i++) {
+        pFile->Read(&n, 2);
+        providedItemsA.SetAtGrow(providedItemsA.GetSize(), n);
+        providedItemsB.SetAtGrow(providedItemsB.GetSize(), n);   // mirror (see note above)
+    }
+}
+#endif
 
 // FUNCTION: YODA 0x00406550  [WIP: +26B — found-vs-r EBP contest: orig found=EBP/r=stack,
 //   ours r=EBP/found=stack (memory-form found tests cost the bytes). Control flow verified

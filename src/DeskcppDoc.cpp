@@ -434,7 +434,9 @@ CDeskcppDoc::CDeskcppDoc()
     if (pApp != NULL)
         pApp->WriteProfileInt("OPTIONS", "Terrain", currentPlanet);
 
-#ifndef YODA_FULL
+#if defined(GAME_INDY)
+    currentPlanet = -1;                   // Indy has no planets (see LoadWorld) — matches all zones
+#elif !defined(YODA_FULL)
     currentPlanet = 2;                    // demo hardcode: Alaska/Hoth only (full: keep the
                                           // registry-read + planet-rotation value computed above)
 #endif

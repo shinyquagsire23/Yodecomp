@@ -36,8 +36,8 @@ int gNeedleTable[26] = {
 // [EFFECTIVE: align=12 — clean ESI/EDI rename + one arg-marshal slot at the recursion call
 // (orig loads visible into CX and sel into EAX; ours AX/ECX). Twin 0x41c0b0 scores align=0
 // with the identical source shape → TU-phase tie-break, joint pass.]
-// Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in cobArray4 (sel==0)
-// or cobArray5? Boolean twin of ZoneFindInIzxList.
+// Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in providedItemsA (sel==0)
+// or providedItemsB? Boolean twin of ZoneFindInIzxList.
 int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
 {
     int found = 0;
@@ -46,13 +46,13 @@ int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
         return 0;
     if (sel != 0)
     {
-        int nCount = pZone->cobArray5.GetSize();
+        int nCount = pZone->providedItemsB.GetSize();
         int i = 0;
         if (nCount > 0)
         {
             do
             {
-                if ((short)pZone->cobArray5.GetAt(i) == itemId)
+                if ((short)pZone->providedItemsB.GetAt(i) == itemId)
                 {
                     found = 1;
                     break;
@@ -63,13 +63,13 @@ int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
     }
     else
     {
-        int nCount = pZone->cobArray4.GetSize();
+        int nCount = pZone->providedItemsA.GetSize();
         int i = 0;
         if (nCount > 0)
         {
             do
             {
-                if ((short)pZone->cobArray4.GetAt(i) == itemId)
+                if ((short)pZone->providedItemsA.GetAt(i) == itemId)
                 {
                     found = 1;
                     break;
@@ -263,7 +263,7 @@ int CDeskcppDoc::ZoneProvidesItem(short zoneId, short itemId)
 }
 
 // FUNCTION: YODA 0x0041c490
-// Recursive lookup of itemId in cobArray4 (sel==0) or cobArray5 (sel!=0); returns the stored
+// Recursive lookup of itemId in providedItemsA (sel==0) or providedItemsB (sel!=0); returns the stored
 // value or -1, descending DOOR_IN child zones.
 int CDeskcppDoc::ZoneFindInIzxList(short zoneId, short itemId, int sel)
 {
@@ -274,13 +274,13 @@ int CDeskcppDoc::ZoneFindInIzxList(short zoneId, short itemId, int sel)
         return -1;
     if (sel != 0)
     {
-        int nCount = pZone->cobArray5.GetSize();
+        int nCount = pZone->providedItemsB.GetSize();
         int i = 0;
         if (nCount > 0)
         {
             do
             {
-                v = (short)pZone->cobArray5.GetAt(i);
+                v = (short)pZone->providedItemsB.GetAt(i);
                 if (itemId == v)
                 {
                     result = v;
@@ -292,13 +292,13 @@ int CDeskcppDoc::ZoneFindInIzxList(short zoneId, short itemId, int sel)
     }
     else
     {
-        int nCount = pZone->cobArray4.GetSize();
+        int nCount = pZone->providedItemsA.GetSize();
         int i = 0;
         if (nCount > 0)
         {
             do
             {
-                v = (short)pZone->cobArray4.GetAt(i);
+                v = (short)pZone->providedItemsA.GetAt(i);
                 if (itemId == v)
                 {
                     result = v;
@@ -639,8 +639,8 @@ int CDeskcppDoc::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, shor
 }
 
 // FUNCTION: YODA 0x0041cdc0
-// Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's cobArray4 (sel==0)
-// or cobArray5 lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
+// Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's providedItemsA (sel==0)
+// or providedItemsB lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
 // DOOR_IN children. nResult lives in EAX end-to-end (0 / 1 / last recursion result).
 int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
 {
@@ -651,13 +651,13 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short i
         Zone *pZone = (Zone *)zones.GetAt(zoneId);
         if (sel != 0)
         {
-            int nCount = pZone->cobArray5.GetSize();
+            int nCount = pZone->providedItemsB.GetSize();
             int i = 0;
             if (nCount > 0)
             {
                 do
                 {
-                    if ((short)pZone->cobArray5.GetAt(i) == itemId)
+                    if ((short)pZone->providedItemsB.GetAt(i) == itemId)
                     {
                         bFound = 1;
                         break;
@@ -668,13 +668,13 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short i
         }
         else
         {
-            int nCount = pZone->cobArray4.GetSize();
+            int nCount = pZone->providedItemsA.GetSize();
             int i = 0;
             if (nCount > 0)
             {
                 do
                 {
-                    if ((short)pZone->cobArray4.GetAt(i) == itemId)
+                    if ((short)pZone->providedItemsA.GetAt(i) == itemId)
                     {
                         bFound = 1;
                         break;
@@ -878,7 +878,7 @@ int CDeskcppDoc::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, sho
 // zero-reg-vs-imm guard compares, and the return-0 epilogue not folding into the common
 // tail (2 extra insns). Tie-break/layout family, joint pass.]
 // Place itemId as a useful object: if the zone's genCandidateA (IZAX) lists it (and the zone
-// has EMPTY cobArray4/genCandidateB lists), pick the target object type from the item tile's
+// has EMPTY providedItemsA/genCandidateB lists), pick the target object type from the item tile's
 // flags (TILE_WEAPON -> OBJ_THE_FORCE, TILE_LOCATOR -> OBJ_LOCATOR, TILE_ITEM ->
 // OBJ_QUEST_ITEM_SPOT) and drop it on a random object of that type; else recurse into DOOR_IN
 // children. Returns 1 on success (nPlaced).
@@ -889,7 +889,7 @@ int CDeskcppDoc::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, shor
     int nPlaced = 0;
     if (zoneId < 0 || CheckZoneItemsAvailable(zoneId) == 0 ||
         (pZone = (Zone *)zones.GetAt(zoneId)) == NULL ||
-        pZone->cobArray4.GetSize() > 0 || pZone->genCandidateB.GetSize() > 0)
+        pZone->providedItemsA.GetSize() > 0 || pZone->genCandidateB.GetSize() > 0)
         return 0;
     int nCount = pZone->genCandidateA.GetSize();
     int i = 0;
@@ -976,7 +976,7 @@ int CDeskcppDoc::WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId, shor
 // NOT nested ifs, in EH functions). Residual: bIn-zero placement + a reg double-swap in the
 // uniqueRequiredItems dedup block (decl-order probe made it worse -- reverted). Joint pass.]
 // Transit-zone item assignment (quest-path cases 2-7): pick a random not-yet-placed item from
-// the zone's cobArray4 (sel==0) or cobArray5, push it onto the worklist (priority 5 for
+// the zone's providedItemsA (sel==0) or providedItemsB, push it onto the worklist (priority 5 for
 // Zone.type==6, else nOrder) and register it; if the zone's IZAX lists exactly ONE required
 // item, that item is deduped through uniqueRequiredItemsMaybe @0x234 — a repeat aborts with 0.
 int CDeskcppDoc::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int sel)
@@ -989,9 +989,9 @@ int CDeskcppDoc::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int 
         return 0;
     int nCount;
     if (sel != 0)
-        nCount = pZone->cobArray5.GetSize();
+        nCount = pZone->providedItemsB.GetSize();
     else
-        nCount = pZone->cobArray4.GetSize();
+        nCount = pZone->providedItemsA.GetSize();
     if (nCount == 0)
         return 0;
     if (CheckZoneItemsAvailable(zoneId) == 0)
@@ -1003,7 +1003,7 @@ int CDeskcppDoc::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int 
             int i = 0;
             do
             {
-                unsigned short v = pZone->cobArray5.GetAt(i);
+                unsigned short v = pZone->providedItemsB.GetAt(i);
                 if (IsItemPlaced(v) == 0)
                     paItems.SetAtGrow(paItems.GetSize(), v);
                 i++;
@@ -1018,7 +1018,7 @@ int CDeskcppDoc::WorldgenAssignTransitItemMaybe(short zoneId, short nOrder, int 
             int i = 0;
             do
             {
-                unsigned short v = pZone->cobArray4.GetAt(i);
+                unsigned short v = pZone->providedItemsA.GetAt(i);
                 if (IsItemPlaced(v) == 0)
                     paItems.SetAtGrow(paItems.GetSize(), v);
                 i++;
@@ -1790,12 +1790,12 @@ int CDeskcppDoc::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
     CWordArray candidates;
     if (sel != 0)
     {
-        short nItems = (short)pZone->cobArray5.GetSize();
+        short nItems = (short)pZone->providedItemsB.GetSize();
         if (nItems > 0)
         {
             for (int i = 0; i < nItems; i++)
             {
-                int v = pZone->cobArray5.GetAt(i);
+                int v = pZone->providedItemsB.GetAt(i);
                 if (IsItemPlaced(v) == 0)
                 {
                     // sic: identical arms — the original tests the (dead) a2 flag and does the
@@ -1810,12 +1810,12 @@ int CDeskcppDoc::WorldgenPickItemFromZone(short zoneId, short a2, int sel)
     }
     else
     {
-        short nItems = (short)pZone->cobArray4.GetSize();
+        short nItems = (short)pZone->providedItemsA.GetSize();
         if (nItems > 0)
         {
             for (int i = 0; i < nItems; i++)
             {
-                int v = pZone->cobArray4.GetAt(i);
+                int v = pZone->providedItemsA.GetAt(i);
                 if (IsItemPlaced(v) == 0)
                 {
                     if (n == 0)
@@ -1892,6 +1892,13 @@ int CDeskcppDoc::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, in
             case 9999:
                 if (pPuz->nType == PUZZLE_TYPE_WORLD_MISSION)
                 {
+#ifdef GAME_INDY
+                    // Indy has no planets and no per-planet goal-id whitelist, so every
+                    // WORLD_MISSION puzzle is an eligible goal (phase 2 still screens it
+                    // against the goal-tile list). Verified from DESKTOP.DAW: 15 type-3
+                    // (WORLD_MISSION) puzzles exist; the Yoda planet-2 whitelist matched only 1.
+                    list.SetAtGrow(list.GetSize(), i);
+#else
                     int bFound = 0;
                     int nPlanet = currentPlanet;
                     if (nPlanet == 1)
@@ -1975,6 +1982,7 @@ int CDeskcppDoc::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, in
                                 list.SetAtGrow(list.GetSize(), i);
                         }
                     }
+#endif
                 }
                 break;
             }
@@ -2764,13 +2772,14 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     {
         storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
     }
-#ifdef YODA_FULL
-    // Full game: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal. On a
-    // replay nRequestedGoalItem already holds the requested goal; otherwise select a WORLD_MISSION
-    // puzzle for the current planet (WorldgenSelectPuzzle, nType 9999 — screened against the
-    // planet's story-replay history). A -1 result = no eligible goal for this seed, so fail and
-    // let LoadWorld's retry loop try a fresh seed. Retail Yodesk Generate (0x00422210, goal region)
-    // did exactly this; the demo replaced the whole selection with the constant 0x6c (puzzle 108).
+#if defined(YODA_FULL) || defined(GAME_INDY)
+    // Full game / Indy: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal.
+    // On a replay nRequestedGoalItem already holds the requested goal; otherwise select a
+    // WORLD_MISSION puzzle (WorldgenSelectPuzzle, nType 9999 — Yoda screens it against the current
+    // planet's story-replay history + goal-id whitelist; Indy accepts any WORLD_MISSION). A -1
+    // result = no eligible goal for this seed, so fail and let the retry loop try a fresh seed.
+    // Retail Yodesk Generate (0x00422210, goal region) did exactly this; the demo replaced the
+    // whole selection with the constant 0x6c (puzzle 108).
     int goal = nRequestedGoalItem;
     if (goal < 0)
     {
@@ -4010,7 +4019,12 @@ int CDeskcppDoc::LoadWorld()
             }
         }
     }
-#ifndef YODA_FULL
+#if defined(GAME_INDY)
+    currentPlanet = -1;              // Indy has no planets: -1 matches every zone's planet=-1
+                                     // (Zone ctor default; Indy's IZON carries no planet field),
+                                     // so PlaceQuestNode's `planet == currentPlanet` accepts all
+                                     // zones and the Yoda per-planet story switches all no-op.
+#elif !defined(YODA_FULL)
     currentPlanet = 2;               // sic: demo hardcode — the whole pick above is overridden
     if (pApp != NULL)
         pApp->WriteProfileInt("OPTIONS", "Terrain", 2);
@@ -4224,13 +4238,33 @@ int CDeskcppDoc::Load()
             break;
 #ifdef GAME_INDY
         // Indy stores each zone's aux/objects/scripts in GLOBAL chunks (parallel-array layout),
-        // not inline per zone: IZAX/ZAX2/ZAX4/ZAX3 (aux), HTSP (objects), ACTN (all IACT scripts
-        // in one lump — its length covers the whole lump), plus PNAM/ANAM (puzzle/actor names).
-        // Skip them by length for now so the load completes and reaches worldgen; distributing
-        // them back to zones is the next H3 sub-step (milestone 2b+).
-        if (strcmp(tag, "ZAUX") == 0 || strcmp(tag, "ZAX2") == 0 || strcmp(tag, "ZAX3") == 0 ||
-            strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 || strcmp(tag, "HTSP") == 0 ||
-            strcmp(tag, "ACTN") == 0 || strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
+        // not inline per zone. Distribute the AUX chunks back to zones here: ZAUX (IZAX per zone),
+        // ZAX2 (IZX2 -> genCandidateA), ZAX3 (IZX3 -> genCandidateB). The remaining globals are
+        // still length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag, Yoda discards it),
+        // HTSP (objects), ACTN (one IACT lump), and Indy-only PNAM/ANAM (puzzle/actor names).
+        if (strcmp(tag, "ZAUX") == 0)
+        {
+            nRet = ParseZauxIndy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX2") == 0)
+        {
+            nRet = ParseZax2Indy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX3") == 0)
+        {
+            nRet = ParseZax3Indy(pFile);
+            if (nRet == 0)
+                break;
+            continue;
+        }
+        else if (strcmp(tag, "ZAX4") == 0 || strcmp(tag, "IZAX") == 0 || strcmp(tag, "HTSP") == 0 ||
+                 strcmp(tag, "ACTN") == 0 || strcmp(tag, "PNAM") == 0 || strcmp(tag, "ANAM") == 0)
         {
             pFile->Seek(nLen, CFile::current);
             continue;
@@ -4478,6 +4512,52 @@ int CDeskcppDoc::ParseZax2(CFile *pFile)
     }
     return 1;
 }
+
+#ifdef GAME_INDY
+// Indy aux distributors (NOT byte-match functions — Indy-only). The Indy ZAUX/ZAX2/ZAX3 chunks are
+// parallel arrays: after the chunk tag+len, N back-to-back sub-records (one per zone, IN ORDER) with
+// NO per-zone 8-byte header (unlike Yoda's Parse* which read `buf[8]` before each sub-record).
+// IZX2/IZX3 records are byte-identical to Yoda's, so ReadZax2/ReadZax3 are reused verbatim; only
+// IZAX differs (ReadIzaxIndy). Verified against DESKTOP.DAW: each walks exactly 366 records.
+int CDeskcppDoc::ParseZauxIndy(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    for (int i = 0; i < nCount; i++)
+    {
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadIzaxIndy(pFile);
+    }
+    return 1;
+}
+
+int CDeskcppDoc::ParseZax2Indy(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    for (int i = 0; i < nCount; i++)
+    {
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadZax2(pFile);      // IZX2 record format identical to Yoda -> genCandidateA
+    }
+    return 1;
+}
+
+int CDeskcppDoc::ParseZax3Indy(CFile *pFile)
+{
+    short nCount = (short)zones.GetSize();
+    for (int i = 0; i < nCount; i++)
+    {
+        Zone *pZone = (Zone *)zones.GetAt(i);
+        if (pZone == NULL)
+            return 0;
+        pZone->ReadZax3(pFile);      // IZX3 record format identical to Yoda -> genCandidateB
+    }
+    return 1;
+}
+#endif
 
 // FUNCTION: YODA 0x00423290
 // [EFFECTIVE: block-layout — original parks the nDone++ arm at function end; ours inlines

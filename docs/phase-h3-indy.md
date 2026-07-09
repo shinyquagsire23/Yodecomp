@@ -90,11 +90,47 @@ delta found + fixed, so `Load()` walks `DESKTOP.DAW` cleanly to `ENDF`:
 Method note: the raw-byte simulation (walk the DAW with each candidate delta, confirm the next tag lands
 exactly) proved every delta WITHOUT a run — faster + anchor-safe vs C++ instrumentation.
 
-**Remaining (past the parse): 2b** distribute the skipped global HTSP objects + ACTN IACT lump + aux back
-to zones (so zones have content); **3** Indy palette; **4** Indy worldgen — the big one: `Generate`/
-`LoadWorld`/`WorldgenSelectPuzzle` are built around Yoda's 3 planets + per-planet goal whitelists, which
-don't exist in Indy, so worldgen will fail/stall as-is and needs a `GAME_INDY` rework (likely from
-DESKADV.EXE logic — where the raw bytes can't help, so DESKADV decompilation + naming starts here).
+## Milestone 4 IN PROGRESS — worldgen root-cause fix + aux distribution (2026-07-09)
+
+**Root cause of the `Generate try #N -> fail` infinite retry (found + fixed):** `PlaceQuestNode` filters
+candidate zones by `pZone->planet == currentPlanet`, but **Indy has no planets** — the Indy IZON header
+carries no planet field, so every Indy zone keeps the `Zone` ctor default `planet == -1`, while
+`currentPlanet` was forced to `2` (demo/ctor hardcode). Result: the candidate list was ALWAYS empty →
+`PlaceQuestNode` returned 0xffff → `goto fail_a` → Generate returned 0 → retried forever.
+
+**The Indy planet model (fix, all `#ifdef GAME_INDY`, anchor 211 held):** set `currentPlanet = -1` for Indy
+(in both the `CDeskcppDoc` ctor and `LoadWorld`'s forcer). `-1` == every zone's `planet == -1`, so the
+zone filter accepts ALL zones, AND every `switch (currentPlanet)` (the Nevada/Alaska/Oregon story-history
+branches) naturally falls through to no-op — exactly right for a planet-less game. Verified from raw bytes:
+all 366 Indy zones carry a full spread of quest-node `type`s (type 10 FINAL_ITEM ×15, 15/16/17 present),
+so the generator has zones of every type to place.
+
+**Goal selection (fix):** enabled the FULL-game dynamic goal path for Indy (`#if defined(YODA_FULL) ||
+defined(GAME_INDY)`), and gave `WorldgenSelectPuzzle`'s `9999` (WORLD_MISSION) arm a `GAME_INDY` branch that
+accepts ANY WORLD_MISSION puzzle (no per-planet whitelist / no story-history screen — both Yoda-specific).
+Verified from raw bytes: DESKTOP.DAW has **15 WORLD_MISSION (nType==3) puzzles**; the Yoda planet-2
+whitelist would have matched only 1.
+
+**Milestone 2b (aux distribution) — DONE for aux (ZAUX/ZAX2/ZAX3):** the worldgen quest builder needs each
+zone's item pools (`WorldgenPickItemFromZone` reads `providedItemsA`/`providedItemsB`; renamed from
+`cobArray4`/`cobArray5`), which were empty because the Indy global aux chunks were length-skipped. Now
+distributed to zones via `Parse{Zaux,Zax2,Zax3}Indy` (Indy-only). ⭐ **Indy aux format cracked from raw
+bytes (validated to consume ALL 366 records exactly):**
+- **IZAX** (ZAUX): `mission_spec(2) + num_entries(2) + num_entries×{charId,x,y}(6B each) + count(2) +
+  items(2 each)` — 6-byte entities (vs Yoda's 44) and only ONE item pool (Yoda has two). `ReadIzaxIndy`
+  populates entities + `providedItemsA`; ⚠ it also MIRRORS the single pool into `providedItemsB`
+  (HYPOTHESIS: the goal-zone placement needs both branches; Indy's real two-branch model is unconfirmed —
+  needs DESKADV.EXE worldgen RE).
+- **IZX2** (ZAX2) → `genCandidateA`, **IZX3** (ZAX3) → `genCandidateB`: byte-IDENTICAL to Yoda, so
+  `ReadZax2`/`ReadZax3` are reused verbatim.
+- **IZX4** (ZAX4): still length-skipped (static-map flag; Yoda `ReadZax4` discards it anyway).
+
+**⏭ NEXT for milestone 4:** (a) VISUAL TEST `build-indy` (`./run_indy.sh`) — does a world now generate +
+play, or still stall? (headless is a poor oracle — USER visual is authoritative). (b) If the goal-zone
+still fails, the `providedItemsB` mirror hypothesis or the missing HTSP objects are the suspects — load
+**HTSP → zone objects** next (`WorldgenPickItemFromZone`/vehicle/DOOR_IN logic reads `pZone->objects`), and
+RE the Indy goal/two-branch item model in **DESKADV.EXE** (`program=DESKADV.EXE`; raw bytes can't reveal
+worldgen LOGIC). (c) Then **ACTN** (one IACT lump → per-zone scripts) for gameplay, **3** Indy palette.
 
 ## DESKADV.EXE (Ghidra) — naming practice + RE friction
 **USER directive:** as Indy functions are identified in DESKADV.EXE, **rename them in its Ghidra program**
