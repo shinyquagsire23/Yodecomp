@@ -2500,3 +2500,13 @@ IndyPlaySound call sites; every Indy_MapSoundId entry confirmed, none missing) �
 docs/phase-h3-indy.md "v73". Anchor 211 re-verified. Open items carried to v74's pickup: M0-finish
 (native doc creation + YODESK.DTA + wine log diff — DONE in v74), M1 gdi/, Indy stragglers (IACT
 specials, INI replay, optional menus, audible USER-VERIFY), DESKADV Ghidra sweep (~214 unnamed).
+
+### ⏮ v74 pickup (condensed 2026-07-10, superseded by v75)
+H4 M0 COMPLETE + oracle GREEN: native arm64 bootstrap (theApp InitInstance → doc template → real
+microfx CWinApp::OnFileNew → CDeskcppDoc), YODESK.DTA Load (658 zones), fixed-seed
+Generate+Populate, WORLD/CELL digest byte-identical to same-seed wine run. Delivered: MSVC-4.2
+rand/srand LCG shim, INI-backed profile API, real GetModuleFileName, CFile '\\'→'/', DIBSection
+calloc buffer, stub-view DATA-layout fix (lesson 5: union overlays in DeskcppStub.h/GameObjects.h),
+lesson 6 (header presence = dial input at zero tokens — DebugLog.h include must stay guarded),
+YODA_SEED/digest debug rig, m_nFrameDelay named. Open items carried: M1 gdi/ (DONE in v75),
+MainFrm.h stub views before M2, Indy stragglers (IACT specials, INI replay, menus), DESKADV sweep.

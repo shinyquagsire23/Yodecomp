@@ -23,7 +23,9 @@ Phase H (extension — functional correctness, not byte-matching) status:
 - **H2 full Yoda Stories** ✅ (docs/phase-h2-full-game.md) — all 3 planets generate + play; Save/Load/Replay work.
 - **H3 Indy 32-bit port** ⏳ broadly PLAYABLE (docs/phase-h3-indy.md) — DAW load, worldgen, ACTN scripts,
   doors, HUD, palette, resources (Indy icon/title/About) all done + user-confirmed; minor tails remain.
-- **H4 SDL portable target** — NOT STARTED (spec below).
+- **H4 SDL portable target** — ⏳ M0+M1 COMPLETE (docs/phase-h4-sdl.md): whole game compiles+links
+  natively on macOS, worldgen byte-identical to Win32, zones render natively (BMP + SDL window).
+  Next: M2 event pump.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -215,39 +217,35 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v74 — ⭐ H4 M0 COMPLETE, ORACLE GREEN: native macOS worldgen BYTE-IDENTICAL to Win32; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v75 — ⭐ H4 M1 COMPLETE: native zone rendering (BMP + SDL window) via real gdi/; anchor 211)
 
-**▶ v74 this session (all H4):** ⭐ **M0 finished end-to-end and the oracle is GREEN**: the native
-arm64 build bootstraps the real game object graph (theApp virtual InitInstance → doc template →
-real `CWinApp::OnFileNew` in microfx → CDeskcppDoc/CMainFrame/CDeskcppView), `Load()` parses
-YODESK.DTA (658 zones), fixed-seed `Generate()`+`Populate()` run, and the WORLD/CELL digest is
-**byte-identical (mod CRLF) to a same-seed wine run** of build-full-dbg. Repro + all mechanisms in
-**docs/phase-h4-sdl.md** (READ IT before touching microfx/stub headers). Delivered: (1) microfx
-real pieces — OnFileNew SDI creation, MSVC-4.2 rand/srand LCG (afxwin.h redirects game TUs;
-holdrand=1), INI-backed Get/WriteProfileInt/String ("<exebase>.INI", same format as the Win32
-INI), real GetModuleFileName, CFile::Open '\\'→'/' normalization, CreateDIBSection real calloc
-buffer, FromHandle(NULL)→NULL (single-instance guard). (2) ⭐ **stub-view DATA-layout trap fixed**
-(doc lesson 5): DeskcppStub.h + GameObjects.h got parallel YODA_PORTABLE class bodies — real types
-in full-declaration order + anonymous-union overlays for the raw MFC-guts names
-(tileArray/zoneObjects…), `zones[200]`=mapGrid+backup, paZonePtrGrid=intptr_t[120] (+1 PTRINT site
-in WorldgenHelpers). Offsets probe-verified ≡ full view. (3) ⭐ new anchor lesson (doc lesson 6):
-an UNGUARDED `#include "DebugLog.h"` in Worldgen.cpp flips IsZoneUsed off byte-exact even with
-line numbers re-aligned — header presence is a dial input at zero tokens; the include is now
-`#ifdef YODA_DEBUG`-guarded with its lines reclaimed from comments. (4) Worldgen.cpp YODA_DEBUG
-oracle rig: `YODA_SEED` env pins Randomize; WORLD/CELL digest at Load's tail. (5) DeskcppDoc.cpp
-`+0xc4` read → named `m_nFrameDelay` under YODA_PORTABLE (that TODO is CLOSED).
+**▶ v75 this session (H4 M1):** ⭐ **M1 done, oracle GREEN by eyeball on 4 zone types** (title/
+desert/interior/snow — pixels, palette, masked blits all correct). Delivered: (1)
+`microfx/src/gdi/mfxgdi.cpp` — REAL memory DCs + 8bpp DIB sections (tagged HDC__/HBITMAP__
+objects), clipped BitBlt (all-SRCCOPY), Set/GetDIBColorTable; pure C++, NO SDL dependency
+(worldgen_smoke stays headless). Canvas's `(BITMAPINFO*)&biHeader` cast is load-bearing
+(palette[256] follows the header → becomes bmiColors; CreateDIBSection copies it in, Win32-
+faithful). (2) `microfx/include/microfx.h` extension API (MfxGetDCDib/MfxWriteDibBMP) —
+presentation reads the DIB behind the handles; game TUs never include it. (3) `zone_view`
+harness (the M1 oracle): bootstrap → Load → SetCurrentToIntroZone / GetZoneById+RefreshZone →
+8-bit .bmp dump and/or `--show` live SDL window (DIB bits wrapped as an INDEX8 SDL_Surface —
+the milestone in one line). ⚠ TRAP found: `GetZoneById` slots for OFF-PLANET zones hold **-1,
+not NULL** (the game only ever queries on-planet ids; any harness must filter `(Zone*)-1`).
+Zero src/ edits this milestone — anchor untouched by construction, re-verified 211. Repro +
+mechanisms in **docs/phase-h4-sdl.md** (READ IT before touching microfx/stub headers).
 
-**▶ GOAL 2 — H4 next = M1 (the main thread):**
-- **M1 gdi/:** Canvas's CreateDIBSection framebuffer ≈ 8-bit paletted SDL_Surface (pData writes +
-  calloc'd buffer already work); SetDIBColorTable ≈ palette; BitBlt ≈ SDL blit; render a zone to a
-  window or dump a PNG (oracle: eyeball vs a wine screenshot).
-- ⚠ BEFORE M2 (pump): fix MainFrm.h's 32-bit stub views (`CDeskcppView` pads/`FrameWorld`/
-  `MusicThread`) — same layout-trap class as lesson 5; harmless until CMainFrame handlers run.
-- Then M2 pump (SDL events → WM_* → existing message maps; SetTimer 0x1d1d drives OnTimer),
-  M3 SDL2_mixer (WaveMix + MCI MIDI), M4 resources/dialogs (embedded .res + reslib-in-C++).
-- ⚠ worldgen needs Terrain∈{1,2,3}: Indy contaminates the shared bottle yoda.INI with Terrain=-1,
-  which makes Yoda Generate retry FOREVER (planet filter matches nothing) — pinned-seed runs hang
-  at 100% CPU. `worldgen_smoke <seed> [data.dta]`; `-` = unpinned.
+**▶ GOAL 2 — H4 next = M2 (the main thread):**
+- ⚠ FIRST: fix MainFrm.h's 32-bit stub views (`CDeskcppView` pads/`FrameWorld`/`MusicThread`) —
+  same layout-trap class as doc lesson 5; harmless until CMainFrame handlers run.
+- **M2 pump:** CWinApp::Run = SDL event loop → synthesize WM_KEYDOWN/WM_MOUSEMOVE/WM_TIMER into
+  the EXISTING message maps (SetTimer 0x1d1d drives OnTimer = the game loop). Screen DC = one
+  more gdi DIB: OnDraw's BitBlt lands in it, pump presents it to the SDL window surface per
+  frame (zone_view's ShowDib is the seed of that code). Oracle: walk around a zone natively.
+- Then M3 SDL2_mixer (WaveMix + MCI MIDI), M4 resources/dialogs (embedded .res + reslib-in-C++).
+- ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry, 100% CPU;
+  Indy contaminates shared INIs). The doc ctor RE-PICKS the planet every run and writes it back —
+  per-planet zone ids move between runs. `worldgen_smoke <seed> [data.dta]` (`-` = unpinned);
+  `zone_view <seed> [data.dta] [--zone id] [--dump x.bmp] [--show]`.
 
 **▶ GOAL 1 — Indy stragglers (small, backlog):** ⏳ USER-VERIFY remap SFX + MIDs in-game; IACT cmd 0x13
 rect arg-order + cond specials 0/8/9/0xb/0x14–0x16 vs DESKADV jump tables; INI replay persistence;
@@ -260,7 +258,8 @@ MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller
 unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
 
 **▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN —
-re-verified v74 AFTER all of the above (incl. recompiling the 5 touched TUs). All Indy work
+v75 touched ZERO shared sources (all changes in microfx/ + cmake/PortableSDL.cmake + harness);
+progress.py re-verified 211. All Indy work
 GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug rig YODA_DEBUG-guarded (committed
 builds OFF); after ANY shared-TU edit rerun the oracle table. H4 rule of thumb: fix portability in
 microfx headers/stubs first; touch a game TU only for __asm / pointer-width casts, always guarded,

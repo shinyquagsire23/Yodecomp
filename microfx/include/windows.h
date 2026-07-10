@@ -538,6 +538,7 @@ LONG     SetBitmapBits(HBITMAP hbm, DWORD cb, const void* pvBits);
 LONG     GetBitmapBits(HBITMAP hbm, LONG cb, LPVOID pvBits);
 HBITMAP  CreateBitmap(int nWidth, int nHeight, UINT nPlanes, UINT nBitCount, const void* lpBits);
 UINT     SetDIBColorTable(HDC hdc, UINT iStart, UINT cEntries, const RGBQUAD* prgbq);
+UINT     GetDIBColorTable(HDC hdc, UINT iStart, UINT cEntries, RGBQUAD* prgbq);
 BOOL     RoundRect(HDC hdc, int l, int t, int r, int b, int w, int h);
 COLORREF SetPixel(HDC hdc, int x, int y, COLORREF color);
 COLORREF GetPixel(HDC hdc, int x, int y);

@@ -1,6 +1,18 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M0 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v74). ALL 13 game TUs compile AND
+*Status: M1 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v75). The gdi/ layer is REAL (memory DCs +
+8bpp DIB sections + BitBlt + SetDIBColorTable, pure C++ — `microfx/src/gdi/mfxgdi.cpp`), and the
+`zone_view` harness renders zones natively through the game's OWN path
+(CDeskcppDoc::RefreshZone → Canvas::BlitFast/BlitMasked → DIB) with the game palette: verified by
+eyeball on the intro/title zone, a Tatooine 18×18 desert zone, a 9×9 interior, and a Hoth snow
+zone, both as 8-bit .bmp dumps (headless) and in a live SDL window (`--show`,
+SDL_CreateRGBSurfaceWithFormatFrom wrapping the DIB bits as INDEX8). Repro (build-sdl as below):
+`./zone_view 0x2a --dump zone.bmp` (intro zone) or `--zone <id>` / `--show`. ⚠ zone-id slots for
+zones NOT on the current planet hold a **-1 sentinel, not NULL** (GetZoneById returns it
+unchecked; the game only ever asks for on-planet ids) — any harness must filter `(Zone*)-1`.
+Anchor untouched by construction (zero src/ edits this milestone) and re-verified: 211 exact.*
+
+*M0 status (v74): ALL 13 game TUs compile AND
 whole-archive-link natively on arm64 macOS, and the FULL GAME BOOTSTRAP runs headless: theApp →
 InitInstance → doc template → CWinApp::OnFileNew (real SDI doc/frame/view creation) →
 CDeskcppDoc::Load() parses YODESK.DTA (658 zones) → fixed-seed Generate()+Populate() succeed →
@@ -91,14 +103,25 @@ GetProfileInt/String + Write*** ("<exebase>.INI" next to the exe, same [OPTIONS]
 format as the Win32 build's <exe>.INI — copy a bottle INI over verbatim to align runs), and
 **MSVC-4.2 rand()/srand()** (afxwin.h redirects the game TUs to the exact CRT LCG
 `x*214013+2531011 >>16 &0x7fff`, holdrand init 1 — worldgen parity depends on it).
-STUBBED (M1/M2/M3/M4): GDI drawing (null handles), USER (no-ops), WaveMix/MCI, dialogs
-(DoModal→IDCANCEL), LoadString.
+REAL as of M1 (gdi/mfxgdi.cpp — pure C++, no SDL dependency, so worldgen_smoke stays headless):
+CreateCompatibleDC/DeleteDC (memory DC = one DIB selection slot), CreateDIBSection (8bpp only:
+tagged HBITMAP__ object, pixels top-down pitch==width, color table initialized from bmiColors —
+Canvas's `(BITMAPINFO*)&biHeader` cast is load-bearing: palette[256] sits right after the header),
+SelectObject (bitmap→DC; non-bitmap handles pass through), DeleteObject, BitBlt (clipped 8bpp
+row copy, rop ignored — the game is all-SRCCOPY), Set/GetDIBColorTable. Presentation reads the
+DIB back out via the extension API in `microfx/include/microfx.h` (MfxGetDCDib / MfxWriteDibBMP);
+game TUs never include it. The M2 screen DC will be one of these DIBs too — OnDraw's BitBlt
+lands in it and the pump presents it per frame (SDL window surface).
+STUBBED (M2/M3/M4): screen palette objects (Create/AnimatePalette — the DIB color table is the
+render truth so cycling can go through SetDIBColorTable), pens/brushes/Pie/FillRect HUD drawing,
+USER (no-ops), WaveMix/MCI, dialogs (DoModal→IDCANCEL), LoadString.
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
 BOTH wine and native. Set Terrain to 1/2/3 before oracle runs. The doc ctor re-picks the planet
 with one `rand()%2` — deterministic and equal on both sides (first rand() call of the process).
-Next milestone M1: Canvas→SDL_Surface, render a zone to a window / dump PNG.
+Next milestone M2: event pump (SDL events → WM_* → existing message maps; SetTimer 0x1d1d →
+OnTimer game loop) — but FIRST fix MainFrm.h's 32-bit stub views (lesson-5 class of trap).
 
 ## The core idea
 
@@ -174,8 +197,9 @@ microfx/
   (GameTypes, Score, WorldgenHelpers, GameObjects, Worldgen, Iact, IactScript…) with host clang.
   **Oracle:** a tiny native `worldgen_main` harness loads YODESK.DTA, runs worldgen with a fixed seed, and
   its YDBG log diffs clean against the same-seed wine/Win32 log. (Headless, fast, no window needed.)
-- **M1 — Canvas → SDL.** `gdi/` shim; Canvas's 8-bit DIBSection framebuffer becomes an 8-bit paletted
-  SDL_Surface (pData pixel writes work unchanged). **Oracle:** render one zone to an SDL window / dump PNG.
+- **M1 — Canvas → SDL.** ✅ v75. `gdi/` real DIB/DC objects (pure C++); `zone_view` harness renders
+  zones via the game's RefreshZone into the Canvas DIB — .bmp dump + SDL window both verified
+  (intro/desert/interior/snow zones, correct palette + masked blits).
 - **M2 — app shell + pump.** CWinApp::Run event pump; SDL events → WM_KEYDOWN/WM_MOUSEMOVE/… → the
   EXISTING message-map handlers; SetTimer → WM_TIMER drives OnTimer (the game loop). **Oracle:** walk
   around a zone natively.

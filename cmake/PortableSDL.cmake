@@ -83,5 +83,16 @@ else()
     "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
 endif()
 
+# ── M1 oracle: render a zone through the real Canvas/gdi path (BMP dump; --show = SDL window) ─
+add_executable(zone_view "${_mfx}/harness/zone_view.cpp")
+target_include_directories(zone_view PRIVATE "${_src}")
+target_link_libraries(zone_view PRIVATE yoda_game)
+if(APPLE)
+  target_link_options(zone_view PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
+else()
+  target_link_options(zone_view PRIVATE
+    "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
+endif()
+
 message(STATUS "yoda: portable SDL build — microfx + TUs: ${YODA_PORTABLE_TUS} "
                "(SDL2 ${SDL2_FOUND})")

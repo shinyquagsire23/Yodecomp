@@ -508,23 +508,9 @@ BOOL     CopyRect(LPRECT dst, const RECT* src) { *dst = *src; return TRUE; }
 UINT     GetNearestPaletteIndex(HPALETTE, COLORREF) { return 0; }
 int      FillRect(HDC, const RECT*, HBRUSH) { return 1; }
 
-HDC      CreateCompatibleDC(HDC) { static int s_fake; return (HDC)&s_fake; }   // nonzero: Canvas requires a "DC" to build its framebuffer
-BOOL     DeleteDC(HDC) { return TRUE; }
-HGDIOBJ  SelectObject(HDC, HGDIOBJ h) { return h; }
-BOOL     DeleteObject(HGDIOBJ) { return TRUE; }
+// CreateCompatibleDC/DeleteDC/SelectObject/DeleteObject/CreateDIBSection/BitBlt/
+// SetDIBColorTable are REAL as of M1 — gdi/mfxgdi.cpp (DIB sections + memory DCs).
 int      GetObjectA(HGDIOBJ, int, LPVOID) { return 0; }
-HBITMAP  CreateDIBSection(HDC, const BITMAPINFO* pbmi, UINT, void** ppvBits, HANDLE, DWORD)
-{
-    // real pixel storage (8-bit only in this app) so Canvas's pData writes work pre-M1;
-    // Canvas::Clear memsets the buffer unguarded, so this cannot stay a null stub
-    long w = pbmi->bmiHeader.biWidth;
-    long h = pbmi->bmiHeader.biHeight;
-    if (h < 0) h = -h;
-    void* pBits = calloc((size_t)w * (size_t)h, 1);
-    if (ppvBits) *ppvBits = pBits;
-    return (HBITMAP)pBits;
-}
-BOOL     BitBlt(HDC, int, int, int, int, HDC, int, int, DWORD) { return TRUE; }
 BOOL     PatBlt(HDC, int, int, int, int, DWORD) { return TRUE; }
 int      GetDeviceCaps(HDC, int index)
 {
@@ -555,7 +541,6 @@ HGDIOBJ  GetStockObject(int) { return 0; }
 LONG     SetBitmapBits(HBITMAP, DWORD, const void*) { return 0; }
 LONG     GetBitmapBits(HBITMAP, LONG, LPVOID) { return 0; }
 HBITMAP  CreateBitmap(int, int, UINT, UINT, const void*) { return 0; }
-UINT     SetDIBColorTable(HDC, UINT, UINT, const RGBQUAD*) { return 0; }
 BOOL     RoundRect(HDC, int, int, int, int, int, int) { return TRUE; }
 void     PostQuitMessage(int) {}
 COLORREF SetPixel(HDC, int, int, COLORREF c) { return c; }
