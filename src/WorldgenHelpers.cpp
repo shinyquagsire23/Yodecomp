@@ -659,6 +659,10 @@ void CDeskcppDoc::OnUpdateNewWorld(CCmdUI *pCmdUI)
 // File>Load World: permanently grayed in the demo.
 void CDeskcppDoc::OnUpdateLoadWorld(CCmdUI *pCmdUI)
 {
+#if defined(GAME_INDY) || defined(YODA_FULL)
+    if (nFrameMode == 1 || nFrameMode == 4 || nFrameMode == 5 || nFrameMode == 6
+        || nFrameMode == 9 || nFrameMode == 0xb) { pCmdUI->Enable(0); return; }
+#endif
     DemoDisable(pCmdUI);
 }
 
@@ -666,6 +670,14 @@ void CDeskcppDoc::OnUpdateLoadWorld(CCmdUI *pCmdUI)
 // File>Replay Story: permanently grayed in the demo (the handler is still linked).
 void CDeskcppDoc::OnUpdateReplayStory(CCmdUI *pCmdUI)
 {
+#if defined(GAME_INDY) || defined(YODA_FULL)
+    // Replay/Load regenerate the world; when enabled (full/Indy) they must be grayed during the
+    // same busy frame-modes New World gates on — especially a text dialog (mode 5). Otherwise the
+    // player can trigger a re-entrant world regen while a textbox is open (the text drew over the
+    // STUP graphic and it crashed on dialog exit). Demo path (DemoDisable -> Enable(0)) unaffected.
+    if (nFrameMode == 1 || nFrameMode == 4 || nFrameMode == 5 || nFrameMode == 6
+        || nFrameMode == 9 || nFrameMode == 0xb) { pCmdUI->Enable(0); return; }
+#endif
     DemoDisable(pCmdUI);
 }
 
