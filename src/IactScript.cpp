@@ -12,6 +12,82 @@
 // global (0x459e28); the exact figure is a G2 layout detail — 2048 comfortably holds any text.
 char Iact_szCmdTextBuf[2048];
 
+#ifdef GAME_INDY
+// Indy renumbers the IACT condition/command opcodes vs Yoda (same engine, different enums —
+// RE'd from DESKADV.EXE: runner FUN_1010_2910, executor FUN_1010_2eb6). Record sizes, arg
+// offsets, the tile formula tiles[(y*18+x)*3+layer], event numbers (1=Walk 2=Bump 3=Drag
+// 4/5=Enter) and every field offset are IDENTICAL — ONLY the opcode numbering differs. So we
+// translate each Indy opcode to its Yoda equivalent at parse time and let the byte-matched Yoda
+// interpreter run unchanged. 0xff = an opcode with no Yoda case (interpreter default: commands
+// no-op, conditions pass). ⚠ A few are best-guess/imperfect (marked): the rare condition specials
+// (Indy 0/8/9/0xb/0x14..0x16) and the arg-order of DrawOverlay (Indy 0x10). The high-impact,
+// jump-table-confirmed ones (entry gates, walk/bump/drag, randvar, the 1<->2 tile-cmd swap, the
+// SayText/ShowText moves) are exact — those fix the crash + silent NPCs + un-gated building entry.
+static const unsigned char kIndyCondToYoda[0x17] = {
+    /*0x00*/ 0x15,  // special start/global+tile check — TODO(indy): map precisely (rare); pass for now
+    /*0x01*/ 0x04,  // Walk
+    /*0x02*/ 0x02,  // BumpTile
+    /*0x03*/ 0x03,  // DragItem
+    /*0x04*/ 0x00,  // FirstEnter
+    /*0x05*/ 0x01,  // Enter
+    /*0x06*/ 0x05,  // TempVarEq (zone counter)
+    /*0x07*/ 0x15,  // always-pass
+    /*0x08*/ 0x12,  // state==-1  -> GameCompleted (guess)
+    /*0x09*/ 0x11,  // state== 1  -> GameInProgress (guess)
+    /*0x0a*/ 0x0d,  // HasItem (⚠ Indy tests NOT-in-inventory; sense may be inverted — TODO)
+    /*0x0b*/ 0x15,  // RandVar-present (guess) -> pass
+    /*0x0c*/ 0x08,  // RandVarLs
+    /*0x0d*/ 0x06,  // RandVarEq
+    /*0x0e*/ 0x07,  // RandVarGt
+    /*0x0f*/ 0x10,  // ZoneSolved (⚠ negation — TODO)
+    /*0x10*/ 0x09,  // EnterVehicle
+    /*0x11*/ 0x0b,  // EnemyDead
+    /*0x12*/ 0x0c,  // AllEnemiesDead
+    /*0x13*/ 0x0a,  // CheckMapTile (args a0=val,a1=x,a2=y,a3=layer — same as Yoda)
+    /*0x14*/ 0x1c,  // experience/quest check (guess)
+    /*0x15*/ 0x19,  // GlobalVarEq (guess)
+    /*0x16*/ 0x15   // threshold/goal check (guess) -> pass
+};
+static const unsigned char kIndyCmdToYoda[0x24] = {
+    /*0x00*/ 0x00,  // SetMapTile (identical formula + arg order)
+    /*0x01*/ 0x02,  // MoveMapTile   <-- Indy 1/2 are SWAPPED vs Yoda
+    /*0x02*/ 0x01,  // ClearTile     <-- (this swap is the door-entry crash)
+    /*0x03*/ 0x15,  // ShowObject
+    /*0x04*/ 0x16,  // HideObject
+    /*0x05*/ 0x04,  // SayText        <-- text moved (silent NPCs)
+    /*0x06*/ 0x09,  // WaitTicks
+    /*0x07*/ 0xff,  // no-op
+    /*0x08*/ 0xff,  // no-op
+    /*0x09*/ 0x0d,  // SetTempVar (zone counter)
+    /*0x0a*/ 0x0e,  // AddTempVar
+    /*0x0b*/ 0x08,  // RenderChanges/redraw
+    /*0x0c*/ 0x06,  // RedrawTile
+    /*0x0d*/ 0x0c,  // Random (-> RandVar)
+    /*0x0e*/ 0x11,  // LockCamera
+    /*0x0f*/ 0x10,  // ReleaseCamera
+    /*0x10*/ 0x03,  // DrawOverlayTile (⚠ Indy swaps a0/a1 vs Yoda — TODO position)
+    /*0x11*/ 0x12,  // SetPlayerPos
+    /*0x12*/ 0x13,  // MoveCamera/teleport (guess)
+    /*0x13*/ 0x13,  // MoveCamera (4-coord)
+    /*0x14*/ 0xff,  // view-update (uncertain) -> no-op
+    /*0x15*/ 0x14,  // FlagOnce
+    /*0x16*/ 0x17,  // ShowEntity
+    /*0x17*/ 0x18,  // HideEntity
+    /*0x18*/ 0x19,  // ShowAllEntities
+    /*0x19*/ 0x1a,  // HideAllEntities
+    /*0x1a*/ 0x13,  // MoveCamera (timed)
+    /*0x1b*/ 0x1f,  // WinGame/end
+    /*0x1c*/ 0x05,  // ShowText        <-- text moved (silent NPCs)
+    /*0x1d*/ 0x1c,  // AddItemToInv
+    /*0x1e*/ 0x1b,  // SpawnItem (sets frame-mode 9 — guess)
+    /*0x1f*/ 0x20,  // LoseGame/end
+    /*0x20*/ 0x1d,  // RemoveItemFromInv
+    /*0x21*/ 0x1e,  // MarkZoneSolved
+    /*0x22*/ 0x21,  // WarpToMap
+    /*0x23*/ 0xff   // no-op
+};
+#endif
+
 // ============================== IactScript ==============================
 
 // FUNCTION: YODA 0x00418700
@@ -121,6 +197,10 @@ void IactCondition::Read(CFile *pFile)
 
     pFile->Read(buf, 0xe);
     opcode  = buf[0];
+#ifdef GAME_INDY
+    if ((unsigned)opcode < 0x17)     // translate Indy condition opcode -> Yoda equivalent
+        opcode = kIndyCondToYoda[opcode];
+#endif
     args[0] = buf[1];
     args[1] = buf[2];
     args[2] = buf[3];
@@ -153,6 +233,10 @@ void IactCommand::Read(CFile *pFile)
 
     pFile->Read(buf, 0xc);
     opcode  = buf[0];
+#ifdef GAME_INDY
+    if ((unsigned)opcode < 0x24)     // translate Indy command opcode -> Yoda equivalent
+        opcode = kIndyCmdToYoda[opcode];
+#endif
     args[0] = buf[1];
     args[1] = buf[2];
     args[2] = buf[3];
