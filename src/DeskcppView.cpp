@@ -1301,14 +1301,14 @@ void CDeskcppView::FireWeaponStep(int nStep)
     bBusy = 1;
     int nWeaponTile = pWeapon->frames[7];
 #ifdef GAME_INDY
-    // Indy's whip is a reusable melee weapon flagged TILE_LIGHTSABER (bit 18) in tile metadata
-    // (DA: tile_metadata & TILE_LIGHTSABER — same "extend" weapon class as Luke's saber), but its
-    // icon tile id is NOT one of Yoda's hardcoded reusable ids (0x12 lightsaber / 0x1fe Force). So
-    // key the "reusable, never deplete/remove" test off the flag; else the whip depletes to unk48<=0
-    // after one swing and RemoveItem drops it. Yoda #else path = exact original (anchor 211).
+    // Indy's whip is a reusable MELEE weapon; guns are the depletable class. DESKADV (RE'd) keys
+    // its weapon class off tile flag bit 16 = TILE_LIGHT_BLASTER (it tests NO bit-18/TILE_LIGHTSABER
+    // — that was a DesktopAdventures reimpl assumption). So treat any non-blaster weapon tile as
+    // reusable (never deplete unk48 / never RemoveItem). Yoda's hardcoded reusable ids (0x12
+    // lightsaber / 0x1fe Force) don't apply to Indy's whip tile. Yoda #else = exact original.
     if (nStep == 0 && (nWeaponTile == 0x1fe ||
                        (pWorld->GetTileData(nWeaponTile) != NULL &&
-                        (pWorld->GetTileData(nWeaponTile)->flags & TILE_LIGHTSABER))))
+                        !(pWorld->GetTileData(nWeaponTile)->flags & TILE_LIGHT_BLASTER))))
 #else
     if (nStep == 0 && (pWeapon->frames[7] == 0x1fe || pWeapon->frames[7] == 0x12))
 #endif
@@ -1563,7 +1563,7 @@ cleanup:
 #ifdef GAME_INDY
     if (pWeapon->unk48 <= 0 && pWeapon->frames[7] != 0x1fe &&
         !(pWorld->GetTileData(pWeapon->frames[7]) != NULL &&
-          (pWorld->GetTileData(pWeapon->frames[7])->flags & TILE_LIGHTSABER)))
+          !(pWorld->GetTileData(pWeapon->frames[7])->flags & TILE_LIGHT_BLASTER)))
 #else
     if (pWeapon->unk48 <= 0 && pWeapon->frames[7] != 0x1fe && pWeapon->frames[7] != 0x12)
 #endif
@@ -7014,6 +7014,15 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                     break;
                 if ((nMask & 0x2a) != 0)
                 {
+#ifndef GAME_INDY
+                    // Indy's bump handler (DESKADV FUN_1018_733e) has NO persistent text-lock
+                    // branch: a bump script's text command shows its dialog SYNCHRONOUSLY inside
+                    // IactRun (frame-mode transiently 5), so by here the text is already on screen
+                    // and the handler just aborts the move. Yoda instead parks in frame-mode 3 +
+                    // bTextDialogShown + bInputLocked and returns — for Indy that extra lock eats
+                    // the next user press, so the "home sweet home" text appears one step late and
+                    // the door warp needs a back-and-forth. Skip it for Indy; fall through to the
+                    // plain move-abort below (matches DESKADV). Yoda #else path = exact original.
                     if ((nMask & 2) != 0 && (nMask & 0x808) == 0)
                     {
                         pWorld->nFrameMode = 3;
@@ -7027,6 +7036,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                         bInputLocked = 0;
                         return;
                     }
+#endif
                     if (pWorld->nFrameMode == 2)
                         pWorld->nFrameMode = 3;
                     pWorld->DrawPlayer();
