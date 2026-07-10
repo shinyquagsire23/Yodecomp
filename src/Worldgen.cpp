@@ -7636,6 +7636,14 @@ void CDeskcppView::DrawWeaponBox(CDC *pDC)
 // COLOR_3DFACE fill; raised 1px bevel on the tight rect.
 void CDeskcppView::DrawWeaponIcon(CDC *pDC)
 {
+#ifdef GAME_INDY
+    // Indy has no weapon-charge / ammo bar: the whip (and Indy's other weapons) are not the
+    // ammo-metered Yoda blaster/rifle/force types, so frames[7] never matches a case above and
+    // nMult=0 → the "spent" black column fills the whole 0x1e-tall bar (the all-black bar the
+    // player sees). Indiana Jones' Desktop Adventures never rendered this bar. Skip it for Indy.
+    // (GAME_INDY-guarded; the Yoda #else path below is the exact original — anchor unaffected.)
+    return;
+#endif
     int bReleaseDC = 0;
     CPalette *pOldPal;
     if (pDC == NULL)

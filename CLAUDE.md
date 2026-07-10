@@ -808,8 +808,21 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v69 — PHASE H3 milestone 4: door FIXED at the root (IACT command opcode off-by-one); OPEN: user visual re-test, Indy resources; anchor 211)
-**▶ v69 — THE DOOR FIXED (root cause, not the symptom). Awaiting user visual re-test (GAME_INDY, anchor 211;
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v70 — PHASE H3 milestone 4: door CONFIRMED working + Indy ammo bar removed; OPEN: Indy resources, minor tails; anchor 211)
+**▶ v70 — USER CONFIRMED the door works (single walk-through). Fixed the whip's all-black ammo bar (GAME_INDY,
+anchor 211; detail docs/phase-h3-indy.md "v70").** `DrawWeaponIcon` (0x428c40) draws Yoda's green/black weapon-charge
+column; the whip's `frames[7]` matches no ammo weapon → `nMult=0` → the black "spent" column fills the whole bar.
+RE-confirmed exhaustively (DESKADV.EXE): **Indy renders NO ammo bar** — color 0x91 appears nowhere; the HUD twin
+`FUN_1010_e542` draws bevels + a health PIE (`FUN_1018_a242`) + a state-icon strip + inventory + the weapon BOX
+(`FUN_1018_adf2`, exists), NO charge column. FIX = `#ifdef GAME_INDY return;` at the top of `DrawWeaponIcon`
+(src/Worldgen.cpp); `DrawWeaponBox` kept (Indy has it). build-indy links clean; anchor 211 (guarded).
+**▶ START HERE (v70): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the black ammo bar is gone (whip box still shows).
+Remaining OPEN (non-blocking, in priority order): (1) proper Indy resources (.res title/icon/menus → retires the temp
+title override + [[indy-app-icon]]); (2) startup-wav name (minor); (3) hero-HP tail (entity+0x90=120 in IndyGenerate
+tail); (4) verify still-uncertain IACT opcodes (0x13 rect arg-order vs DrawZoneCellRect; condition specials
+0/8/9/0xb/0x14..0x16); (5) INI replay persistence. All anchor-safe / GAME_INDY-guarded.
+<!-- prior pickup (v69, kept for context) -->
+**▶ v69 — THE DOOR FIXED (root cause, not the symptom). USER-CONFIRMED working v70 (GAME_INDY, anchor 211;
 detail docs/phase-h3-indy.md "v69").** RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
 case-for-case: the v64 `kIndyCmdToYoda` table had a shifted cluster 0x0b–0x14. ⭐ **Indy cmd 0x11 is RedrawTile,
 NOT SetPlayerPos** — so s26's `RedrawTile(7,14)` (repaint the opened door) ran as SetPlayerPos and TELEPORTED the

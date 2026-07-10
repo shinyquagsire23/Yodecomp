@@ -486,9 +486,21 @@ redraws were incomplete (0x0c/0x14), and scripted player hide/show during camera
 unverified (cosmetic). anchor 211 (GAME_INDY-guarded), build-indy links clean. ⏳ USER: visual re-test — the house
 door should now warp on a single walk-through (no back-and-forth).
 
+### ⭐ v70 — door CONFIRMED working; removed Indy's (nonexistent) ammo bar (anchor 211)
+User (after v69): the house door warps on a single walk-through now ✅. New minor bug: the whip's ammo bar shows
+solid black. Root cause: `DrawWeaponIcon` (0x428c40, the Yoda green/black weapon-charge column) keys the per-shot
+"spent" height off `frames[7]` matching a Yoda ammo weapon (blaster/rifle/force/saber 0x12/0x1fe/0x1ff/0x200/0x201);
+the whip matches none → `nMult=0` → `nHeight = 0x1e - ammo*0 = 0x1e` → the black spent-column fills the ENTIRE bar.
+⭐ RE-confirmed (DESKADV.EXE, exhaustive): **Indy renders NO ammo bar.** The green fill color 0x91 appears NOWHERE
+in game code (72,288-instruction scan); the HUD-refresh twin `FUN_1010_e542` draws bevels → health PIE meter
+(`FUN_1018_a242`, GDI Pie() green/yellow/red tiers) → state-icon strip (`FUN_1018_9c32`) → inventory → the weapon
+BOX (`FUN_1018_adf2`, which DOES exist = bevel + 30×30 equipped-weapon icon, no ammo geometry). No charge-column
+function exists — consistent with the melee whip having no ammo. FIX: `#ifdef GAME_INDY return;` at the top of
+`DrawWeaponIcon` (skip the bar); `DrawWeaponBox` stays (Indy has it). `src/Worldgen.cpp`; anchor 211 (guarded).
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. **Door** — confirm the single-walk-through warp works now (v69 root fix). If a residual quirk remains, it's the
-   small-interior center-shift (DA map.c center_shift for zones < screen), not the opcode map.
+1. **Door + ammo bar** — v69 door + v70 ammo-bar fixes; confirm the black bar is gone (whip box still shows). If a
+   residual door quirk remains, it's the small-interior center-shift (DA map.c center_shift for zones < screen).
 2. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
 3. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); the two rare/uncertain opcodes
    (0x13 rect arg-order, condition specials 0/8/9/0xb/0x14..0x16); INI replay persistence.
