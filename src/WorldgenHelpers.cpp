@@ -11,6 +11,15 @@
 #include <string.h>
 #pragma intrinsic(strcpy)
 
+// Pointer-through-int walk of paZonePtrGrid (StartGame): the grid holds Zone*/Tile* — on the
+// 64-bit portable build the walker must be pointer-sized. The anchor config preprocesses
+// PTRINT back to the ORIGINAL `int` token (same device as Worldgen.cpp/DeskcppView.cpp).
+#ifdef YODA_PORTABLE
+#define PTRINT intptr_t
+#else
+#define PTRINT int
+#endif
+
 // Demo-limiting helper: the three permanently-grayed menu items (Save/Load/Replay) share an
 // inlined disable call — the EAX staging of the pointer arg is the inlining fingerprint.
 static __inline void DemoDisable(CCmdUI *p)
@@ -825,7 +834,7 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
     }
     inventory.SetSize(0, -1);
     UpdateAllViews(0, 0, 0);
-    int *pg = paZonePtrGrid;
+    PTRINT *pg = paZonePtrGrid;
     MapZone *mz = zones;
     for (int r = 0; r < 10; r++) {
         for (int col = 0; col < 10; col++) {

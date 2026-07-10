@@ -44,3 +44,4 @@ __pycache__/
 
 # Indy run folder (copyrighted data + built exe)
 /YodaIndy/
+build-full-dbg/

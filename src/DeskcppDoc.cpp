@@ -4,6 +4,9 @@
 // Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
 #include "DeskcppDoc.h"
 #include <string.h>
+#ifdef YODA_PORTABLE
+#include "Deskcpp.h"    // CDeskcppApp: named access to m_nFrameDelay (the +0xc4 raw read below)
+#endif
 
 extern "C" int rand(void);
 // The 256-entry master color table (RGBQUAD[256], .data 0x00456230), extracted from the
@@ -460,7 +463,13 @@ CDeskcppDoc::CDeskcppDoc()
             gameSpeed = 0x5f;
         if (gameSpeed > 0xb9)
             gameSpeed = 0xb9;
+#ifdef YODA_PORTABLE
+        // the +0xc4 raw read below is CDeskcppApp::m_nFrameDelay at its MFC-4.2 layout offset;
+        // microfx's CWinApp has a different size, so the portable build must use the name
+        nFrameDelay = ((CDeskcppApp *)pApp)->m_nFrameDelay;
+#else
         nFrameDelay = *(int *)((char *)pApp + 0xc4);   // TODO: name the CWinApp-derived field
+#endif
     }
 
     // planet rotation for the next game (every 5th completion forces the cycle)

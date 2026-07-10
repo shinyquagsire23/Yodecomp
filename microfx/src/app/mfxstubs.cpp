@@ -3,6 +3,12 @@
 // A stub that must not be silently hit at runtime logs once via MFX_STUB.
 #include <afxwin.h>
 #include <afxcmn.h>
+#include <ctype.h>             // tolower (INI profile lookup)
+#ifdef __APPLE__
+#include <mach-o/dyld.h>       // _NSGetExecutablePath (GetModuleFileNameA)
+#else
+#include <unistd.h>            // readlink /proc/self/exe
+#endif
 
 #define MFX_STUB() ((void)0)   // quiet for now; flip to a log when the pump goes live
 
@@ -10,6 +16,8 @@
 CWnd::~CWnd() {}
 CWnd* CWnd::FromHandle(HWND hWnd)
 {
+    if (!hWnd)                        // MFC: NULL handle maps to no object (the game's
+        return 0;                     // single-instance FindWindow guard depends on this)
     static CWnd wrap;                 // M2: real permanent/temporary handle map
     wrap.m_hWnd = hWnd;
     return &wrap;
@@ -259,7 +267,7 @@ CWinThread* AfxBeginThread(AFX_THREADPROC, LPVOID, int, UINT, DWORD, void*)
 CDocTemplate::CDocTemplate(UINT nIDResource, CRuntimeClass* pDocClass,
                            CRuntimeClass* pFrameClass, CRuntimeClass* pViewClass)
     : m_nIDResource(nIDResource), m_pDocClass(pDocClass),
-      m_pFrameClass(pFrameClass), m_pViewClass(pViewClass) {}
+      m_pFrameClass(pFrameClass), m_pViewClass(pViewClass), m_pDoc(0) {}
 
 extern CWinApp* g_pMfxApp;
 CWinApp::CWinApp(LPCSTR lpszAppName)
@@ -279,11 +287,30 @@ HCURSOR CWinApp::LoadCursor(LPCSTR lpszName) const { return ::LoadCursorA(AfxGet
 HCURSOR CWinApp::LoadStandardCursor(LPCSTR lpszName) const { return ::LoadCursorA(0, lpszName); }
 HICON   CWinApp::LoadIcon(UINT nID) const { return ::LoadIconA(AfxGetResourceHandle(), MAKEINTRESOURCE(nID)); }
 
-// AppWizard command targets — real behavior lands with the pump (M2)
+// SDI CSingleDocTemplate::OpenDocumentFile(NULL): create doc + frame + view from the template's
+// runtime classes, wire them together, then OnNewDocument + initial update. No real HWNDs yet
+// (CWnd::Create is still a stub pre-M2), but the object graph the game logic walks —
+// AfxGetApp→template→doc→view, GetFirstViewPosition/GetNextView, AfxGetMainWnd — is real.
 void CWinApp::OnFileNew()
 {
-    // SDI: create doc/frame/view from the template and OnNewDocument (real impl at M2)
-    MFX_STUB();
+    CDocTemplate* pTemplate = m_pDocTemplate;
+    if (!pTemplate || !pTemplate->m_pDocClass)
+        return;
+    if (pTemplate->m_pDoc)              // SDI: one document, ever
+        return;
+    CDocument* pDoc = (CDocument*)pTemplate->m_pDocClass->CreateObject();
+    pTemplate->m_pDoc = pDoc;
+    CFrameWnd* pFrame = pTemplate->m_pFrameClass
+        ? (CFrameWnd*)pTemplate->m_pFrameClass->CreateObject() : 0;
+    if (pFrame)
+        m_pMainWnd = pFrame;
+    CView* pView = pTemplate->m_pViewClass
+        ? (CView*)pTemplate->m_pViewClass->CreateObject() : 0;
+    if (pView)
+        pDoc->AddView(pView);
+    pDoc->OnNewDocument();
+    if (pView)
+        pView->OnInitialUpdate();
 }
 void CWinApp::OnFileOpen() { MFX_STUB(); }
 void CWinApp::OnAppExit() { MFX_STUB(); }
@@ -292,12 +319,129 @@ void CWinApp::OnHelpIndex() {}
 void CWinApp::OnHelpUsing() {}
 void CWinApp::OnContextHelp() {}
 
-// profile settings — INI-style file next to the executable (registry equivalent)
-UINT CWinApp::GetProfileInt(LPCSTR, LPCSTR, int nDefault) { return (UINT)nDefault; }   // M2: real store
-BOOL CWinApp::WriteProfileInt(LPCSTR, LPCSTR, int) { return TRUE; }
-CString CWinApp::GetProfileString(LPCSTR, LPCSTR, LPCSTR lpszDefault)
-    { return CString(lpszDefault ? lpszDefault : ""); }
-BOOL CWinApp::WriteProfileString(LPCSTR, LPCSTR, LPCSTR) { return TRUE; }
+// profile settings — real INI store, "<exebase>.INI" next to the executable (the Win32 build
+// keeps the same [OPTIONS]/[GameData] format in <exe>.INI in the Windows dir, so a bottle's
+// INI can be copied over verbatim — that is how the M0 worldgen oracle aligns settings).
+static void MfxProfilePath(char* szIni, size_t nCap)
+{
+    char szExe[1024];
+    GetModuleFileNameA(0, szExe, sizeof(szExe));
+    strncpy(szIni, szExe, nCap - 5);
+    szIni[nCap - 5] = 0;
+    char* pDot = strrchr(szIni, '.');
+    char* pSlash = strrchr(szIni, '/');
+    if (pDot && (!pSlash || pDot > pSlash)) *pDot = 0;
+    strcat(szIni, ".INI");
+}
+static int MfxStrICmp(const char* a, const char* b)
+{
+    for (;; a++, b++) {
+        int d = tolower((unsigned char)*a) - tolower((unsigned char)*b);
+        if (d || !*a) return d;
+    }
+}
+static BOOL MfxProfileLookup(LPCSTR lpszSection, LPCSTR lpszEntry, CString& strOut)
+{
+    char szIni[1100];
+    MfxProfilePath(szIni, sizeof(szIni));
+    FILE* f = fopen(szIni, "r");
+    if (!f) return FALSE;
+    char line[512];
+    int bInSection = 0;
+    BOOL bFound = FALSE;
+    while (fgets(line, sizeof(line), f)) {
+        size_t n = strlen(line);
+        while (n && (line[n-1] == '\n' || line[n-1] == '\r' || line[n-1] == ' ')) line[--n] = 0;
+        if (line[0] == '[') {
+            char* pEnd = strchr(line, ']');
+            if (pEnd) { *pEnd = 0; bInSection = MfxStrICmp(line + 1, lpszSection) == 0; }
+            continue;
+        }
+        if (!bInSection) continue;
+        char* pEq = strchr(line, '=');
+        if (!pEq) continue;
+        *pEq = 0;
+        if (MfxStrICmp(line, lpszEntry) == 0) { strOut = pEq + 1; bFound = TRUE; break; }
+    }
+    fclose(f);
+    return bFound;
+}
+static BOOL MfxProfileWrite(LPCSTR lpszSection, LPCSTR lpszEntry, LPCSTR lpszValue)
+{
+    char szIni[1100];
+    MfxProfilePath(szIni, sizeof(szIni));
+    // read whole file, replace or append the key within its section, rewrite
+    CString strOut;
+    char line[512];
+    int bInSection = 0, bWritten = 0;
+    FILE* f = fopen(szIni, "r");
+    if (f) {
+        while (fgets(line, sizeof(line), f)) {
+            size_t n = strlen(line);
+            while (n && (line[n-1] == '\n' || line[n-1] == '\r')) line[--n] = 0;
+            if (line[0] == '[') {
+                if (bInSection && !bWritten) {          // leaving the section: append key
+                    strOut += lpszEntry; strOut += "="; strOut += lpszValue; strOut += "\n";
+                    bWritten = 1;
+                }
+                char szName[512];
+                strcpy(szName, line + 1);
+                char* pEnd = strchr(szName, ']');
+                if (pEnd) *pEnd = 0;
+                bInSection = MfxStrICmp(szName, lpszSection) == 0;
+            }
+            else if (bInSection && !bWritten) {
+                char szKey[512];
+                strcpy(szKey, line);
+                char* pEq = strchr(szKey, '=');
+                if (pEq) {
+                    *pEq = 0;
+                    if (MfxStrICmp(szKey, lpszEntry) == 0) {
+                        strOut += lpszEntry; strOut += "="; strOut += lpszValue; strOut += "\n";
+                        bWritten = 1;
+                        continue;
+                    }
+                }
+            }
+            strOut += line; strOut += "\n";
+        }
+        fclose(f);
+        if (bInSection && !bWritten) {                  // section was last in the file
+            strOut += lpszEntry; strOut += "="; strOut += lpszValue; strOut += "\n";
+            bWritten = 1;
+        }
+    }
+    if (!bWritten) {
+        strOut += "["; strOut += lpszSection; strOut += "]\n";
+        strOut += lpszEntry; strOut += "="; strOut += lpszValue; strOut += "\n";
+    }
+    f = fopen(szIni, "w");
+    if (!f) return FALSE;
+    fputs((const char*)strOut, f);
+    fclose(f);
+    return TRUE;
+}
+UINT CWinApp::GetProfileInt(LPCSTR lpszSection, LPCSTR lpszEntry, int nDefault)
+{
+    CString s;
+    return MfxProfileLookup(lpszSection, lpszEntry, s) ? (UINT)atoi(s) : (UINT)nDefault;
+}
+BOOL CWinApp::WriteProfileInt(LPCSTR lpszSection, LPCSTR lpszEntry, int nValue)
+{
+    char szVal[32];
+    sprintf(szVal, "%d", nValue);
+    return MfxProfileWrite(lpszSection, lpszEntry, szVal);
+}
+CString CWinApp::GetProfileString(LPCSTR lpszSection, LPCSTR lpszEntry, LPCSTR lpszDefault)
+{
+    CString s;
+    if (MfxProfileLookup(lpszSection, lpszEntry, s)) return s;
+    return CString(lpszDefault ? lpszDefault : "");
+}
+BOOL CWinApp::WriteProfileString(LPCSTR lpszSection, LPCSTR lpszEntry, LPCSTR lpszValue)
+{
+    return MfxProfileWrite(lpszSection, lpszEntry, lpszValue ? lpszValue : "");
+}
 
 // CWinThread has no map of its own — CWinApp's chains straight to CCmdTarget's root.
 BEGIN_MESSAGE_MAP(CWinApp, CCmdTarget)
@@ -364,13 +508,22 @@ BOOL     CopyRect(LPRECT dst, const RECT* src) { *dst = *src; return TRUE; }
 UINT     GetNearestPaletteIndex(HPALETTE, COLORREF) { return 0; }
 int      FillRect(HDC, const RECT*, HBRUSH) { return 1; }
 
-HDC      CreateCompatibleDC(HDC) { return 0; }
+HDC      CreateCompatibleDC(HDC) { static int s_fake; return (HDC)&s_fake; }   // nonzero: Canvas requires a "DC" to build its framebuffer
 BOOL     DeleteDC(HDC) { return TRUE; }
 HGDIOBJ  SelectObject(HDC, HGDIOBJ h) { return h; }
 BOOL     DeleteObject(HGDIOBJ) { return TRUE; }
 int      GetObjectA(HGDIOBJ, int, LPVOID) { return 0; }
-HBITMAP  CreateDIBSection(HDC, const BITMAPINFO*, UINT, void** ppvBits, HANDLE, DWORD)
-    { if (ppvBits) *ppvBits = 0; return 0; }
+HBITMAP  CreateDIBSection(HDC, const BITMAPINFO* pbmi, UINT, void** ppvBits, HANDLE, DWORD)
+{
+    // real pixel storage (8-bit only in this app) so Canvas's pData writes work pre-M1;
+    // Canvas::Clear memsets the buffer unguarded, so this cannot stay a null stub
+    long w = pbmi->bmiHeader.biWidth;
+    long h = pbmi->bmiHeader.biHeight;
+    if (h < 0) h = -h;
+    void* pBits = calloc((size_t)w * (size_t)h, 1);
+    if (ppvBits) *ppvBits = pBits;
+    return (HBITMAP)pBits;
+}
 BOOL     BitBlt(HDC, int, int, int, int, HDC, int, int, DWORD) { return TRUE; }
 BOOL     PatBlt(HDC, int, int, int, int, DWORD) { return TRUE; }
 int      GetDeviceCaps(HDC, int index)
@@ -423,7 +576,25 @@ int      GetClipBox(HDC, LPRECT r) { if (r) SetRect(r, 0, 0, 0, 0); return 1; }
 DWORD    GetVersion(void) { return 0xC3B60004; }   // report Win95 (4.0 build 950)
 HINSTANCE GetModuleHandleA(LPCSTR) { return 0; }
 DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
-    { if (nSize) lpFilename[0] = 0; return 0; }    // M2: real exe path
+{
+    // real exe path, '/'-separated; the game derives its data-file directory from this
+    // (InitInstance: _splitpath/_makepath, then appends "\\<GAME>.DTA" — CFile::Open
+    // normalizes the mixed separators back to '/')
+    if (nSize == 0) return 0;
+    char szBuf[1024];
+    szBuf[0] = 0;
+#ifdef __APPLE__
+    uint32_t nBuf = sizeof(szBuf);
+    if (_NSGetExecutablePath(szBuf, &nBuf) != 0)
+        szBuf[0] = 0;
+#else
+    ssize_t n = readlink("/proc/self/exe", szBuf, sizeof(szBuf) - 1);
+    if (n > 0) szBuf[n] = 0; else szBuf[0] = 0;
+#endif
+    strncpy(lpFilename, szBuf, nSize - 1);
+    lpFilename[nSize - 1] = 0;
+    return (DWORD)strlen(lpFilename);
+}
 HANDLE   CreateEventA(void*, BOOL, BOOL, LPCSTR) { return (HANDLE)1; }
 BOOL     SetEvent(HANDLE) { return TRUE; }
 BOOL     ResetEvent(HANDLE) { return TRUE; }

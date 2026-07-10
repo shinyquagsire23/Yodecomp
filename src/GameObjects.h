@@ -21,6 +21,35 @@ public:
     void DrawZoneCell(short x, short y);        // 0x00409460 (redraw one map cell)
 };
 
+#ifdef YODA_PORTABLE
+// 64-bit-safe stub view (H4): real types up to the last member this TU touches, so offsets
+// equal the full declaration's on any ABI (the #else pads are 32-bit-pinned). `characters`
+// stays the raw m_pData view of the characters CObArray (anonymous-union overlay of the
+// microfx layout). Truncated after it — this TU never allocates or sizeof's the doc.
+class CDeskcppDoc : public CDocument
+{
+public:
+    virtual ~CDeskcppDoc();          // Itanium key-function pin -> DeskcppDoc.cpp
+    int         unk50;               // +0x0050
+    int         unk54;               // +0x0054
+    int         totalZones;          // +0x0058
+    int         nFrameMode;          // +0x005c
+    int         nMapChangeReason;    // +0x0060
+    int         abortFrame;          // +0x0064
+    int         gameState;           // +0x0068
+    int         nRequestedGoalItem;  // +0x006c
+    int         score;               // +0x0070
+    int         nFrameDelay;         // +0x0074
+    int         timeBase;            // +0x0078
+    int         timeOffset;          // +0x007c
+    CObArray    tiles;               // +0x080  Tile* array (GetProjectileTile's paTiles)
+    CObArray    zones;               // +0x094
+    CObArray    inventory;           // +0x0a8
+    union { CObArray charactersArr;  // +0x0bc
+            struct { void *_vChars; Character **characters; int _nChars; int _mChars; }; };
+    int FindTile(void *pTile);                  // 0x00403aa0
+};
+#else
 class CDeskcppDoc
 {
 public:
@@ -30,5 +59,6 @@ public:
     Character **characters;          // +0x0c0
     int FindTile(void *pTile);                  // 0x00403aa0
 };
+#endif // YODA_PORTABLE
 
 #endif

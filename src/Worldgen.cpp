@@ -1,13 +1,13 @@
-// Worldgen TU (0x41c340–0x429000): worldgen + .wld save/load + .dta load (doc class source file).
-// Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
+// Worldgen TU (0x41c340–0x429000): worldgen + .wld save/load + .dta load. Flags: /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include "Worldgen.h"
-
-// Pointer-through-int casts faithful to the original 32-bit code (a `// sic` bug value): on the
-// 64-bit portable build a direct (int) cast is ill-formed, so those sites cast through PTRINT —
-// the anchor config preprocesses it back to the ORIGINAL `(int)` tokens.
+#ifdef YODA_DEBUG
+#include "DebugLog.h"   // YDBG for the worldgen digest. ⚠ MUST stay guarded: including it in the
+#endif                  // anchor build flips IsZoneUsed off byte-exact (header presence = a dial
+                        // input even at zero tokens — same family as the afxcmn-header lesson).
+// Pointer-through-int casts faithful to the original 32-bit code (`// sic` bug values): a direct (int) cast is ill-formed on the 64-bit portable build, so those sites cast through PTRINT; the anchor preprocesses PTRINT back to the ORIGINAL `(int)` token.
 #ifdef YODA_PORTABLE
 #define PTRINT intptr_t
 #else
@@ -4450,6 +4450,22 @@ int CDeskcppDoc::Load()
 #ifndef GAME_INDY
         Populate();
 #endif
+#ifdef YODA_DEBUG
+        // M0 worldgen oracle: digest of the generated world for native-vs-wine log diffing
+        YDBG(("WORLD seed=0x%08x zones=%d totalZones=%d planet=%d size=%d\n",
+              worldSeed, nZonesLoaded, totalZones, currentPlanet, worldSize));
+        for (int dy = 0; dy < 10; dy++)
+            for (int dx = 0; dx < 10; dx++)
+            {
+                MapZone *pCell = &mapGrid[dy * 10 + dx];
+                YDBG(("CELL %d,%d id=%d type=%d q0=%d q1=%d q5=%d q6=%d a=%d b=%d c=%d f30=%d "
+                      "fs=%d fA=%d fB=%d fC=%d fD=%d\n",
+                      dx, dy, pCell->id, pCell->zoneType, pCell->cellQuestSlot0,
+                      pCell->cellQuestSlot1, pCell->cellQuestSlot5, pCell->cellQuestSlot6,
+                      pCell->cellItemA, pCell->cellItemB, pCell->cellItemC, pCell->field30,
+                      pCell->flagSolved, pCell->flagA, pCell->flagB, pCell->flagC, pCell->flagD));
+            }
+#endif
         return 1;
     }
     return nRet;
@@ -5259,6 +5275,13 @@ void CDeskcppDoc::OnUpdateToggleMusic(CCmdUI *pCmdUI)
 // (one of 3 rotating byte layouts).
 unsigned int CDeskcppDoc::Randomize()
 {
+#ifdef YODA_DEBUG
+    // debug oracle: pin the world seed (env YODA_SEED, e.g. "0x2a") so a native-SDL run and a
+    // wine/Win32 run of the same data file can be log-diffed (docs/phase-h4-sdl.md M0)
+    const char *pszSeed = getenv("YODA_SEED");
+    if (pszSeed != NULL)
+        return (unsigned int)strtoul(pszSeed, NULL, 0);
+#endif
     POINT pt;
     GetCursorPos(&pt);
     time_t t = time(NULL);

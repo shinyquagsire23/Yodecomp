@@ -1013,6 +1013,7 @@ public:
                  CRuntimeClass* pFrameClass, CRuntimeClass* pViewClass);
     UINT m_nIDResource;
     CRuntimeClass *m_pDocClass, *m_pFrameClass, *m_pViewClass;
+    CDocument* m_pDoc;                 // SDI: the one open document (set by CWinApp::OnFileNew)
 };
 
 class CSingleDocTemplate : public CDocTemplate
@@ -1102,5 +1103,16 @@ AFX_MODULE_STATE* AfxGetModuleState();
 #define ID_DEFAULT_HELP   0xE147
 #define AFX_IDS_APP_TITLE 0xE000
 #define AFX_IDP_FAILED_TO_OPEN_DOC 0xF005
+
+// ── MSVC-4.2-compatible rand()/srand() ───────────────────────────────────────────────────────
+// Worldgen seeds srand(worldSeed) and consumes rand() heavily; the same seed must produce the
+// same world as the /MT-static-CRT Win32 build (the M0 log-diff oracle), so the game TUs'
+// rand/srand are redirected to the exact MSVC CRT LCG. Declared before the defines so a later
+// <cstdlib> `using ::rand;` still resolves. Every game TU includes this header, so all call
+// sites are covered.
+extern "C" int  mfx_rand(void);
+extern "C" void mfx_srand(unsigned int nSeed);
+#define rand  mfx_rand
+#define srand mfx_srand
 
 #endif // MICROFX_AFXWIN_H

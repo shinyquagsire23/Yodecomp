@@ -2488,3 +2488,15 @@ rect arg-order + cond specials 0/8/9/0xb/0x14–0x16; INI replay; optional Indy 
 scope measured (~214 app-code unnamed: seg 1010=91, 1018=109, 1020=14; 1000/1008 = MFC/CRT library,
 skip). v73 then VERIFIED the whole remap against DESKADV (all 28 IndyPlaySound call sites + both
 SNDS tables: every entry CONFIRMED, none wrong, none missing).
+
+## ⏮ PRIOR PICKUP (v73, 2026-07-10) — condensed (superseded by v74: M0 oracle GREEN)
+
+v73 delivered: (1) H4 microfx strategy designed AND M0 achieved — MFC-4.2-subset drop-in headers
+(`microfx/`), all 13 game TUs compile + whole-archive-link natively on arm64 macOS; guarded
+shared-TU edits (Canvas asm blits ×2, Deskcpp CPUID, PTRINT ×11, GameTypes AppWnd map, Worldgen.h
+portable dtor decl), design + portable lessons (key-function/ODR vtable trap; END_TRY swallow) in
+docs/phase-h4-sdl.md. (2) Indy sound-id remap FULLY VERIFIED vs DESKADV (both SNDS tables + all 28
+IndyPlaySound call sites; every Indy_MapSoundId entry confirmed, none missing) — verdict table in
+docs/phase-h3-indy.md "v73". Anchor 211 re-verified. Open items carried to v74's pickup: M0-finish
+(native doc creation + YODESK.DTA + wine log diff — DONE in v74), M1 gdi/, Indy stragglers (IACT
+specials, INI replay, optional menus, audible USER-VERIFY), DESKADV Ghidra sweep (~214 unnamed).

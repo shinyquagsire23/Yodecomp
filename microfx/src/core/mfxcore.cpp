@@ -287,6 +287,14 @@ CFile::~CFile()
 BOOL CFile::Open(LPCSTR pszFileName, UINT nOpenFlags, CFileException* pError)
 {
     ASSERT(m_pStream == 0);
+    // The game builds Win32-shaped paths ("<dir>\\FILE.DTA" via _makepath + '\\' appends);
+    // fopen on POSIX hosts needs forward slashes.
+    char szPath[1024];
+    size_t nLen = strlen(pszFileName);
+    if (nLen >= sizeof(szPath)) nLen = sizeof(szPath) - 1;
+    for (size_t i = 0; i < nLen; i++)
+        szPath[i] = pszFileName[i] == '\\' ? '/' : pszFileName[i];
+    szPath[nLen] = 0;
     const char* mode;
     if (nOpenFlags & modeCreate)
         mode = (nOpenFlags & modeNoTruncate) ? "r+b" : "w+b";
@@ -296,9 +304,9 @@ BOOL CFile::Open(LPCSTR pszFileName, UINT nOpenFlags, CFileException* pError)
         mode = "r+b";                 // Win32 modeWrite w/o modeCreate opens existing
     else
         mode = "rb";
-    m_pStream = fopen(pszFileName, mode);
+    m_pStream = fopen(szPath, mode);
     if (!m_pStream && (nOpenFlags & modeCreate) && (nOpenFlags & modeNoTruncate))
-        m_pStream = fopen(pszFileName, "w+b");   // create-if-missing
+        m_pStream = fopen(szPath, "w+b");   // create-if-missing
     if (!m_pStream)
     {
         if (pError)
@@ -593,6 +601,15 @@ void AfxAbort()
 {
     fprintf(stderr, "microfx: AfxAbort\n");
     abort();
+}
+
+// ── MSVC-4.2 CRT rand()/srand() (afxwin.h redirects the game TUs here) ───────────────────────
+static unsigned long g_mfxHoldrand = 1;    // MSVC CRT initial state
+extern "C" void mfx_srand(unsigned int nSeed) { g_mfxHoldrand = nSeed; }
+extern "C" int mfx_rand(void)
+{
+    g_mfxHoldrand = g_mfxHoldrand * 214013UL + 2531011UL;
+    return (int)((g_mfxHoldrand >> 16) & 0x7fff);
 }
 
 // ── CCmdTarget root message map ──────────────────────────────────────────────────────────────

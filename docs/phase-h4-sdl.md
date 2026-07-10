@@ -1,27 +1,46 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M0 ACHIEVED (2026-07-10, v73). ALL 13 game TUs compile AND whole-archive-link natively on
-arm64 macOS (`cmake -B build-sdl -DYODA_PLATFORM=SDL && cmake --build build-sdl` →
-`build-sdl/worldgen_smoke` passes core-class self-tests). Anchor re-verified after: 211 exact, link
-0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN.*
+*Status: M0 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v74). ALL 13 game TUs compile AND
+whole-archive-link natively on arm64 macOS, and the FULL GAME BOOTSTRAP runs headless: theApp →
+InitInstance → doc template → CWinApp::OnFileNew (real SDI doc/frame/view creation) →
+CDeskcppDoc::Load() parses YODESK.DTA (658 zones) → fixed-seed Generate()+Populate() succeed →
+WORLD/CELL digest logged. **The native digest is byte-identical (modulo CRLF) to a same-seed
+same-INI wine/Win32 run of build-full-dbg** — all 100 map cells, zone ids/types, quest items.
+Repro: `cmake -B build-sdl -DYODA_PLATFORM=SDL -DYODA_VARIANT=FULL -DYODA_DEBUG=ON && cmake
+--build build-sdl && (cd build-sdl && ln -sf ../YodaFull/YODESK.DTA . && cp <bottle>/windows/
+yoda.INI worldgen_smoke.INI && ./worldgen_smoke 0x2a)`; wine side: build-full-dbg (YODA_DEBUG=ON)
+exe in YodaFull/, `YODA_SEED=0x2a` env, digest lands in YodaFull/yoda_debug.log on first paint.
+Ensure Terrain∈{1,2,3} in BOTH INIs first (see the ⚠ below), and reset both INIs before each run
+(the doc ctor writes the re-picked planet back). `worldgen_smoke -` = unpinned random seeds.
+Anchor re-verified after: 211 exact, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck
+11 CLEAN.*
 
 *Owner decision (user): implement a subset of MFC and reuse the existing macros/message-map
 conventions, rather than ifdef'ing every MFC touch — "otherwise it'll be a tangle of ifdefs and
 whack-a-mole-ing. OpenJKDF2 ultimately had to operate similarly with the menus and stuff like WM_PAINT."*
 
-## Shared-source footprint (v73 — keep this list complete)
+## Shared-source footprint (v74 — keep this list complete)
 
 The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-neutral, oracles re-run):
 - `Canvas.cpp` — 2 regions: `BlitFast`/`BlitMasked` hand-asm tails behind `#ifndef YODA_PORTABLE`
   with C equivalents in the portable branch (32-byte row copy / color-key blit).
 - `Deskcpp.cpp` — 1 region: the CPUID `__asm` probe guarded out (flag already 0 → C blit paths).
-- `DeskcppView.cpp` + `Worldgen.cpp` — `PTRINT` macro (anchor: `#define PTRINT int` → original
-  tokens; portable: `intptr_t`) at 11 pointer-through-int cast sites (IactProbeMove's dead a5 arg
-  ×10, the `// sic` equipped-item degrade ×1).
+- `DeskcppView.cpp` + `Worldgen.cpp` + `WorldgenHelpers.cpp` — `PTRINT` macro (anchor:
+  `#define PTRINT int` → original tokens; portable: `intptr_t`) at 12 pointer-through-int sites
+  (IactProbeMove's dead a5 arg ×10, the `// sic` equipped-item degrade ×1, StartGame's
+  paZonePtrGrid clear walk ×1).
 - `GameTypes.cpp` — `AppWnd` message map defined under `YODA_PORTABLE` (original data @0x44b000:
   WM_TIMER+WM_PAINT; anchor never emits the vtable, clang's key-function rule does).
 - `Worldgen.h` — portable-only `virtual ~CDeskcppDoc();` declared FIRST in the facade view of the
   class (see ODR lesson below).
+- `DeskcppDoc.cpp` — guarded `#include "Deskcpp.h"` + named `m_nFrameDelay` access replacing the
+  `*(int*)((char*)pApp + 0xc4)` MFC-4.2-offset read (ctor path; microfx CWinApp is smaller).
+- `DeskcppStub.h` + `GameObjects.h` — full parallel `class CDeskcppDoc` under `YODA_PORTABLE`
+  (lesson 5 below); anchor branch untouched in the `#else`.
+- `Worldgen.cpp` — v74 debug-oracle instrumentation, ALL under `YODA_DEBUG`: guarded
+  `#include "DebugLog.h"` (⚠ must stay guarded — lesson 6), `YODA_SEED` env override in
+  `Randomize()`, WORLD/CELL digest at `Load()`'s success tail. Added top-of-file lines were
+  reclaimed from comments so every function keeps its original line number.
 
 ## ⭐ Lessons (portable-build class, distinct from byte-match lessons)
 
@@ -39,15 +58,47 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
    game needed only ~6 error batches of afx/Win32 additions.
 4. Warnings from clang on faithful `// sic` code are expected (tautological WORD==-1, `&aPlan[109]`
    bound) — do not "fix" them; they are the original engine.
+5. **Multi-declared CDeskcppDoc, part 2 — DATA layout (v74).** The byte-match era's stub views
+   (DeskcppStub.h for Iact/WorldgenHelpers, GameObjects.h for GameObjects) model the class as
+   32-bit pads + raw MFC-4.2 internals (CObArray guts as `tileArray`/`tileCount`, pointer grids
+   as `int[]`). On LP64 those offsets diverge from the full declaration (probe: sizeof 14136 vs
+   14888, `placedZoneIds` 560 vs 792) → the doc constructed by DeskcppDoc.cpp is read at wrong
+   offsets → wild crashes deep in worldgen. Fix (no TU edits): a parallel `#ifdef YODA_PORTABLE`
+   class body per stub header using REAL types in the full declaration's order (layout equal by
+   construction), with the raw-guts names kept alive as anonymous-union overlays of the microfx
+   CObArray layout `{vptr, m_pData, m_nSize, m_nMaxSize}`, `zones[200]` = mapGrid+mapGridBackup,
+   and `paZonePtrGrid` as `intptr_t[120]` (+1 PTRINT site). Verified with a per-view offsetof
+   probe diffed against the full view (kept conceptually in `tools/`-style scratch; re-derive
+   with clang -DYODA_PORTABLE offsetof dumps if views change). ⚠ STILL OPEN for M2: MainFrm.h's
+   `CDeskcppView`/`FrameWorld`/`MusicThread` stub views are the same trap class — fix before the
+   pump delivers messages to CMainFrame handlers.
+6. **Header presence is an anchor dial input even at ZERO tokens (v74).** Adding an unguarded
+   `#include "DebugLog.h"` to Worldgen.cpp flipped `IsZoneUsed` (DIFF(2)) off byte-exact even
+   after re-aligning all line numbers — with YODA_DEBUG off the header contributes only a macro
+   definition, yet VC4.2's dial still moved (same family as the afxcmn-header lesson,
+   PLAN_COMPLETED). Keep debug includes inside `#ifdef YODA_DEBUG`, and reclaim any added
+   top-of-file lines from comments so function line numbers stay identical (lesson #23).
 
-## What runs vs what's stubbed (M0)
+## What runs vs what's stubbed (v74)
 
 REAL in microfx: CString/CFile/CArchive/collections/CObject/CRuntimeClass/exceptions (core/),
-message-map data structures + macros, GetTickCount/Sleep, rect helpers, _splitpath/_makepath.
-STUBBED (M1/M2/M3/M4): all GDI (returns null handles), all USER (no-ops), WaveMix/MCI, registry,
-dialogs (DoModal→IDCANCEL), CWinApp::OnFileNew (doc creation), profile settings, LoadString.
-Next milestone M0-finish/M1: real doc-creation path + YODESK.DTA load + fixed-seed worldgen log diff
-vs wine, then Canvas→SDL_Surface.
+message-map data structures + macros, GetTickCount/Sleep, rect helpers, _splitpath/_makepath,
+**CWinApp::OnFileNew** (SDI doc/frame/view creation from the template's CRuntimeClasses),
+**GetModuleFileName** (real exe path; the game derives the data dir from it — CFile::Open
+normalizes the game's '\\'-shaped paths to '/'), **CreateDIBSection** (callocs the pixel buffer —
+Canvas::Clear writes it unguarded) + nonzero CreateCompatibleDC, **INI-backed
+GetProfileInt/String + Write*** ("<exebase>.INI" next to the exe, same [OPTIONS]/[GameData]
+format as the Win32 build's <exe>.INI — copy a bottle INI over verbatim to align runs), and
+**MSVC-4.2 rand()/srand()** (afxwin.h redirects the game TUs to the exact CRT LCG
+`x*214013+2531011 >>16 &0x7fff`, holdrand init 1 — worldgen parity depends on it).
+STUBBED (M1/M2/M3/M4): GDI drawing (null handles), USER (no-ops), WaveMix/MCI, dialogs
+(DoModal→IDCANCEL), LoadString.
+⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
+so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
+makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
+BOTH wine and native. Set Terrain to 1/2/3 before oracle runs. The doc ctor re-picks the planet
+with one `rand()%2` — deterministic and equal on both sides (first rand() call of the process).
+Next milestone M1: Canvas→SDL_Surface, render a zone to a window / dump PNG.
 
 ## The core idea
 
