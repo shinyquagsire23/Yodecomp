@@ -355,9 +355,36 @@ now root-caused via a saved GUI backtrace + headless repro (all GAME_INDY-guarde
   (find the DESKADV IactRunCommands twin; check if opcode 0 is SetMapTile for Indy or if it bounds-checks/uses the
   zone's real width instead of 18).
 
+### ⭐ v64 — THE FUNDAMENTAL FIX: Indy IACT opcodes are RENUMBERED (fixes NPC dialog + door crash + entry gates)
+User confirmed talking-to-NPCs also fails → the whole IACT system is misinterpreted, not a one-off. RE of the
+DESKADV.EXE IACT RUNTIME (agent): runner `FUN_1010_2910` (=Zone::IactRun), executor `FUN_1010_2eb6`
+(=Zone::IactRunCommands). ⭐ **The condition AND command OPCODES are RENUMBERED between Yoda and Indy** — but
+record sizes (cond 14B / cmd 0xc+2+text), arg offsets (op@+4, args@+6..+0xe), the tile formula
+`tiles[(y*18+x)*3+layer]`, event numbers (1=Walk 2=Bump 3=Drag 4/5=Enter), and every zone/script field offset are
+IDENTICAL. Running Indy scripts through the Yoda opcode switches mis-dispatched everything:
+- Indy **ClearTile=2** ran as Yoda **MoveMapTile=2** → the Yoda handler reads arg3/arg4 (uninitialized in an Indy
+  ClearTile) as a destination coord → wild `tiles[]` write == the **door-entry crash** (the args[1]=21087 garbage).
+- Indy **SayText=5 / ShowText=0x1c** ran as the wrong Yoda handlers == **silent NPCs**.
+- Indy **FirstEnter=4 / Enter=5** ran as Yoda **Walk=4 / TempVarEq=5**, and Yoda's cond switch DEFAULTS-TO-PASS for
+  unknown opcodes == building-entry scripts never gated (fired at wrong times / not at all).
+**Fix (`src/IactScript.cpp`, GAME_INDY):** two lookup tables `kIndyCondToYoda[0x17]` / `kIndyCmdToYoda[0x24]`
+translate each Indy opcode → its Yoda equivalent in `IactCondition::Read` / `IactCommand::Read`, so the byte-matched
+Yoda interpreter runs unchanged. Verified by dumping the remapped script table: `s[0] C op=0`=FirstEnter,
+`s[1] C op=1`=Enter, `C op=10`=CheckMapTile `[val,x,y,layer]`, `C op=2`=BumpTile `[3,11,584]`, `M op=0`=SetMapTile
+`[3,10,0,1]`, `M op=12`=Random `[3]` — all sane. The full Indy→Yoda maps are in-source (from DESKADV jump tables
+@1010:2f8a for cmds; the cond switch @1010:2910). ⚠ Key/high-impact opcodes are jump-table-CONFIRMED; a few rare
+condition specials (Indy cond 0/8/9/0xb/0x14–0x16) and DrawOverlay's arg-order (Indy cmd 0x10 swaps a0/a1) are
+best-guess TODOs (marked in-source) — refine if a specific script misbehaves. anchor 211 held (all guarded);
+the earlier tile-write bounds guard in Iact.cpp stays as defense-in-depth.
+⭐ LESSON: "shared engine, shared enum" was WRONG — DA's iact.h uses one enum for both games but the actual
+BINARIES renumber the opcodes. Always confirm opcode semantics against DESKADV.EXE, not DA.
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`, then remaining)
-1. **USER VISUAL RE-TEST:** New World (infloop gone?), entering a building (crash gone? interior looks right?).
-   Palette + animations already confirmed fixed.
+1. **USER VISUAL RE-TEST (big one):** talk to NPCs (dialog appears now?), enter buildings (no crash? interior +
+   scripted events work?), New World (no infloop). Report anything still broken — likely a mis-mapped rare opcode.
+2. If a specific interaction misbehaves, the culprit is a best-guess opcode in `kIndyCondToYoda`/`kIndyCmdToYoda`
+   (src/IactScript.cpp) — RE that exact case in DESKADV runner FUN_1010_2910 / executor FUN_1010_2eb6 and correct
+   the table entry.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
    auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
 3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).
