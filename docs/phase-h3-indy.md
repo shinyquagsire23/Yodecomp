@@ -445,13 +445,23 @@ User after v66: whip persists ✅; door STILL broken. New items: no sound, Yoda 
   draw-player-tiles helper — find the true handler that sets the camera + note whether it triggers the door warp),
   or add a GAME_INDY DOOR_IN-warp check after SetPlayerPos lands the player on a DOOR_IN cell. Needs live iteration.
 
+### ⭐ v68 — user re-test: whip damage / title / audio WORK; fixed mid-textbox Replay crash
+User: whip damages ✅, title ✅, audio mostly ✅ (startup wav maybe a different name — minor). New + fixed:
+- **Crash: Replay Story while a textbox is open — FIXED.** `OnUpdateReplayStory` / `OnUpdateLoadWorld` only called
+  `DemoDisable` (enables Save/Load/Replay for Indy/full) with NO frame-mode guard — unlike `OnUpdateNewWorld`. So
+  Replay/Load stayed enabled during a text dialog (frame-mode 5), letting a re-entrant world regen fire mid-textbox
+  (text drew over STUP, crashed on dialog exit). For GAME_INDY/YODA_FULL, gray them during New World's busy modes
+  (1/4/5/6/9/0xb). `src/WorldgenHelpers.cpp`.
+- ⏳ **Startup wav (minor).** Audio mostly works (SNDS names load by bare filename now). The startup sound may map to
+  a name Indy doesn't ship / a hardcoded id — low priority; check the SNDS id→name for the intro chime vs the WAVs
+  in the run folder if it matters.
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. Verify: sound works now; window title says "Indiana Jones' Desktop Adventures"; whip persists.
-2. Door (s26/SetPlayerPos hypothesis above) — RE the Indy SetPlayerPos handler + door-warp trigger, or a targeted
-   GAME_INDY warp-after-SetPlayerPos. Live iteration.
-3. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
-4. Remaining polish: hero-HP tail (entity+0x90=120 in IndyGenerate tail); any mis-mapped rare IACT opcode; INI
-   replay persistence.
+1. **Door (main open item)** — s26/SetPlayerPos hypothesis: RE the Indy SetPlayerPos handler + door-warp trigger, or
+   a targeted GAME_INDY DOOR_IN-warp-after-SetPlayerPos. Live iteration.
+2. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
+3. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); any mis-mapped rare IACT opcode;
+   INI replay persistence.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
    auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
 3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).

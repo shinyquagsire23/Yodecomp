@@ -808,7 +808,22 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v67 — PHASE H3 milestone 4: Indy PLAYABLE — whip/sound FIXED, title temp-patched; OPEN: door warp (s26/SetPlayerPos), Indy resources; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v68 — PHASE H3 milestone 4: Indy PLAYABLE — whip damage/sound/title/Replay-crash all fixed; OPEN: door warp (s26/SetPlayerPos), Indy resources; anchor 211)
+**▶ v68 — user re-test: whip DAMAGES ✅, title ✅, audio mostly ✅. Fixed the mid-textbox Replay crash (GAME_INDY,
+anchor 211; detail docs/phase-h3-indy.md "v68"):** `OnUpdateReplayStory`/`OnUpdateLoadWorld` only called DemoDisable
+(enables them for Indy) with NO frame-mode guard (unlike OnUpdateNewWorld) → Replay/Load stayed enabled during a
+text dialog (mode 5) → re-entrant world regen mid-textbox → text over STUP → crash on dialog exit. Fixed: gray them
+during New World's busy modes (1/4/5/6/9/0xb) for GAME_INDY/YODA_FULL. (Prior v67 fixes user-confirmed: whip damage =
+UseWeapon nType=3 for non-blaster; sound = drop `sfx\` prefix; title = temp SetWindowText.)
+**▶ START HERE (v68): the DOOR (main open gameplay item).** House door = script s26: `BumpTile(7,14,828) →
+ClearTile(open) + SetPlayerPos(7,14)[lands player ON the door cell] + SayText('...home away from home...') +
+FlagOnce`. HYPOTHESIS: SetPlayerPos puts the player on the DOOR_IN cell via the camera but our CMD_SetPlayerPos
+doesn't run the walk-onto-DOOR_IN warp check → must step off+on ("back then forward"). NEXT: RE the Indy SetPlayerPos
+handler (cmd 0x11; FUN_1010_e934 looked like a draw-tiles helper — find the true one + whether it triggers the warp)
+OR add a GAME_INDY DOOR_IN-warp-after-SetPlayerPos in CMD_SetPlayerPos (src/Iact.cpp). Needs live iteration. Also:
+proper Indy resources (.res title/icon/menus, retires temp title + [[indy-app-icon]]); startup-wav name (minor);
+hero-HP tail; INI replay persistence.
+**▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
 **▶ v67 — whip user-CONFIRMED fixed; sound + window-title fixed; door narrowed (all GAME_INDY, anchor 211; detail
 docs/phase-h3-indy.md "v67"):** (1) **Sound FIXED** — `SoundInit` loaded waves from `"sfx\<name>"` (Yoda's
 subfolder) but Indy's WAVs are in the game root → all failed silently. Load by bare name for Indy. (2) **Window
@@ -822,9 +837,6 @@ the player on the DOOR_IN cell via the camera but our `CMD_SetPlayerPos` does NO
 check → must step off+on. v66 lock-removal was correct but orthogonal. NEXT: RE Indy SetPlayerPos handler (cmd 0x11;
 FUN_1010_e934 looked like a draw-tiles helper — find the real one + whether it triggers the warp) OR add a
 GAME_INDY DOOR_IN-warp-after-SetPlayerPos. Needs live iteration.
-**▶ START HERE (v67): USER VISUAL RE-TEST `./run_indy.sh`** — sound works? title right? whip persists? Then the door
-(s26/SetPlayerPos hypothesis) + proper Indy resources. Remaining polish: hero-HP tail (entity+0x90=120 in
-IndyGenerate tail); any mis-mapped rare IACT opcode (kIndyCond/CmdToYoda in src/IactScript.cpp); INI replay persistence.
 **▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
 (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v66"). RE agent: DESKADV bump handler
 FUN_1018_733e / runner FUN_1010_2910 / cmd-exec FUN_1010_2eb6.** (1) **Door ordering** — our OnBumpTile has a
