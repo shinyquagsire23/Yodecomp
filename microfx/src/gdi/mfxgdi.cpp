@@ -24,6 +24,7 @@
 
 #define MFX_TAG_DIB 0x42494458   // 'XDIB'
 #define MFX_TAG_DC  0x00434458   // 'XDC'
+#define MFX_TAG_PAL 0x4c415058   // 'XPAL'
 
 struct HBITMAP__ {               // an 8bpp DIB section
     unsigned int   nTag;
@@ -33,13 +34,22 @@ struct HBITMAP__ {               // an 8bpp DIB section
     RGBQUAD        aPal[256];
 };
 
-struct HDC__ {                   // a memory DC: one DIB selection slot
+struct HPALETTE__ {              // a logical palette (M2: the game's screen palette + cycling)
+    unsigned int nTag;
+    UINT         nEntries;
+    PALETTEENTRY aPal[256];
+    HDC          hdcRealized;    // last DC realized into — AnimatePalette writes through to it
+};
+
+struct HDC__ {                   // a memory DC: one DIB selection slot + one palette slot
     unsigned int nTag;
     HBITMAP      hDib;           // currently selected DIB (may be 0)
+    HPALETTE     hPal;           // currently selected palette (may be 0)
 };
 
 static int MfxIsDib(void *h) { return h && ((HBITMAP__ *)h)->nTag == MFX_TAG_DIB; }
 static int MfxIsDc(HDC h)    { return h && h->nTag == MFX_TAG_DC; }
+static int MfxIsPal(void *h) { return h && ((HPALETTE__ *)h)->nTag == MFX_TAG_PAL; }
 
 // ── DC lifecycle ─────────────────────────────────────────────────────────────────────────────
 
@@ -92,7 +102,11 @@ BOOL DeleteObject(HGDIOBJ h)
         free(hDib->pBits);
         free(hDib);
     }
-    return TRUE;                 // pens/brushes/palettes are still stub handles — nothing to free
+    else if (MfxIsPal(h)) {
+        ((HPALETTE__ *)h)->nTag = 0;
+        free(h);
+    }
+    return TRUE;                 // pens/brushes are still stub handles — nothing to free
 }
 
 HGDIOBJ SelectObject(HDC hdc, HGDIOBJ h)
@@ -148,6 +162,137 @@ BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy
                 pSrc->pBits + (size_t)(sy + row) * pSrc->nWidth + sx,
                 (size_t)cx);
     return TRUE;
+}
+
+// ── palettes (M2) ────────────────────────────────────────────────────────────────────────────
+// The game builds ONE CPalette from CDeskcppDoc::sysPalette and realizes it into the screen DC
+// on every paint (OnDraw / the CMainFrame WM_PALETTE* handlers); CyclePalette animates ring
+// ranges each tick. Model: a palette is 256 PALETTEENTRYs; RealizePalette copies them into the
+// DC's selected-DIB color table (the render truth); AnimatePalette writes through to the last
+// DC the palette was realized into, so cycling shows up without a re-realize — Win32-faithful
+// for the game's single-screen use.
+
+static void MfxPalToDib(HPALETTE hPal, HDC hdc, UINT iStart, UINT nCount)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return;
+    if (iStart >= 256) return;
+    if (iStart + nCount > 256) nCount = 256 - iStart;
+    RGBQUAD *pDst = hdc->hDib->aPal + iStart;
+    const PALETTEENTRY *pSrc = hPal->aPal + iStart;
+    for (UINT i = 0; i < nCount; i++) {
+        pDst[i].rgbRed      = pSrc[i].peRed;
+        pDst[i].rgbGreen    = pSrc[i].peGreen;
+        pDst[i].rgbBlue     = pSrc[i].peBlue;
+        pDst[i].rgbReserved = 0;
+    }
+}
+
+HPALETTE CreatePalette(const LOGPALETTE *plpal)
+{
+    if (!plpal) return 0;
+    HPALETTE h = (HPALETTE)calloc(1, sizeof(HPALETTE__));
+    if (!h) return 0;
+    h->nTag = MFX_TAG_PAL;
+    h->nEntries = plpal->palNumEntries;
+    if (h->nEntries > 256) h->nEntries = 256;
+    memcpy(h->aPal, plpal->palPalEntry, h->nEntries * sizeof(PALETTEENTRY));
+    return h;
+}
+
+HPALETTE CreateHalftonePalette(HDC)
+{
+    // 6x6x6 color cube + gray tail — close enough to Win32's; Canvas overwrites its DIB table
+    // with the game palette (SetPalette) right after sampling this.
+    HPALETTE h = (HPALETTE)calloc(1, sizeof(HPALETTE__));
+    if (!h) return 0;
+    h->nTag = MFX_TAG_PAL;
+    h->nEntries = 256;
+    for (int i = 0; i < 216; i++) {
+        h->aPal[i].peRed   = (BYTE)((i / 36) * 51);
+        h->aPal[i].peGreen = (BYTE)(((i / 6) % 6) * 51);
+        h->aPal[i].peBlue  = (BYTE)((i % 6) * 51);
+    }
+    for (int i = 216; i < 256; i++)
+        h->aPal[i].peRed = h->aPal[i].peGreen = h->aPal[i].peBlue = (BYTE)((i - 216) * 255 / 39);
+    return h;
+}
+
+HPALETTE SelectPalette(HDC hdc, HPALETTE hPal, BOOL /*bForceBackground*/)
+{
+    if (!MfxIsDc(hdc)) return hPal;
+    HPALETTE hOld = hdc->hPal;
+    hdc->hPal = MfxIsPal(hPal) ? hPal : 0;
+    return hOld;
+}
+
+UINT RealizePalette(HDC hdc)
+{
+    if (!MfxIsDc(hdc) || !MfxIsPal(hdc->hPal)) return 0;
+    hdc->hPal->hdcRealized = hdc;
+    MfxPalToDib(hdc->hPal, hdc, 0, hdc->hPal->nEntries);
+    return hdc->hPal->nEntries;
+}
+
+BOOL AnimatePalette(HPALETTE hPal, UINT iStart, UINT nEntries, const PALETTEENTRY *ppe)
+{
+    if (!MfxIsPal(hPal) || !ppe || iStart >= 256) return FALSE;
+    if (iStart + nEntries > 256) nEntries = 256 - iStart;
+    memcpy(hPal->aPal + iStart, ppe, nEntries * sizeof(PALETTEENTRY));
+    if (MfxIsDc(hPal->hdcRealized) && hPal->hdcRealized->hPal == hPal)
+        MfxPalToDib(hPal, hPal->hdcRealized, iStart, nEntries);
+    return TRUE;
+}
+
+UINT GetPaletteEntries(HPALETTE hPal, UINT iStart, UINT nEntries, LPPALETTEENTRY ppe)
+{
+    if (!MfxIsPal(hPal) || !ppe || iStart >= 256) return 0;
+    if (iStart + nEntries > 256) nEntries = 256 - iStart;
+    memcpy(ppe, hPal->aPal + iStart, nEntries * sizeof(PALETTEENTRY));
+    return nEntries;
+}
+
+UINT SetPaletteEntries(HPALETTE hPal, UINT iStart, UINT nEntries, const PALETTEENTRY *ppe)
+{
+    if (!MfxIsPal(hPal) || !ppe || iStart >= 256) return 0;
+    if (iStart + nEntries > 256) nEntries = 256 - iStart;
+    memcpy(hPal->aPal + iStart, ppe, nEntries * sizeof(PALETTEENTRY));
+    return nEntries;
+}
+
+UINT GetSystemPaletteEntries(HDC, UINT iStart, UINT nEntries, LPPALETTEENTRY ppe)
+{
+    // the Win95 8-bit static palette: 10 low + 10 high system colors, middle zeroed
+    static const BYTE aStatic[20][3] = {
+        {0x00,0x00,0x00},{0x80,0x00,0x00},{0x00,0x80,0x00},{0x80,0x80,0x00},{0x00,0x00,0x80},
+        {0x80,0x00,0x80},{0x00,0x80,0x80},{0xc0,0xc0,0xc0},{0xc0,0xdc,0xc0},{0xa6,0xca,0xf0},
+        {0xff,0xfb,0xf0},{0xa0,0xa0,0xa4},{0x80,0x80,0x80},{0xff,0x00,0x00},{0x00,0xff,0x00},
+        {0xff,0xff,0x00},{0x00,0x00,0xff},{0xff,0x00,0xff},{0x00,0xff,0xff},{0xff,0xff,0xff},
+    };
+    if (!ppe || iStart >= 256) return 0;
+    if (iStart + nEntries > 256) nEntries = 256 - iStart;
+    for (UINT i = 0; i < nEntries; i++) {
+        UINT n = iStart + i;
+        int nStatic = (n < 10) ? (int)n : (n >= 246 ? (int)(n - 246 + 10) : -1);
+        ppe[i].peRed   = nStatic >= 0 ? aStatic[nStatic][0] : 0;
+        ppe[i].peGreen = nStatic >= 0 ? aStatic[nStatic][1] : 0;
+        ppe[i].peBlue  = nStatic >= 0 ? aStatic[nStatic][2] : 0;
+        ppe[i].peFlags = 0;
+    }
+    return nEntries;
+}
+
+UINT GetNearestPaletteIndex(HPALETTE hPal, COLORREF cr)
+{
+    if (!MfxIsPal(hPal)) return 0;
+    int r = (int)(cr & 0xff), g = (int)((cr >> 8) & 0xff), b = (int)((cr >> 16) & 0xff);
+    UINT nBest = 0;
+    long nBestDist = 0x7fffffff;
+    for (UINT i = 0; i < hPal->nEntries; i++) {
+        long dr = r - hPal->aPal[i].peRed, dg = g - hPal->aPal[i].peGreen, db = b - hPal->aPal[i].peBlue;
+        long d = dr * dr + dg * dg + db * db;
+        if (d < nBestDist) { nBestDist = d; nBest = i; }
+    }
+    return nBest;
 }
 
 // ── extension API (microfx.h) — presentation reads the DIB back out ────────────────────────

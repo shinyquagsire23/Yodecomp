@@ -1,6 +1,35 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M1 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v75). The gdi/ layer is REAL (memory DCs +
+*Status: M2 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v76). THE GAME RUNS NATIVELY ON macOS:
+`build-sdl/yoda` boots to the Yoda Stories title screen, auto-plays the intro into the starting
+Dagobah zone, ticks the real game loop (SetTimer 0x1d1d → WM_TIMER → CDeskcppView::OnTimer →
+Tick), takes keyboard/mouse input through the game's OWN message maps, and the hero WALKS
+(camera scroll included). Verified two ways: (1) `game_walk` — the deterministic headless
+walk oracle (bootstrap → first WM_PAINT → Load @ pinned seed → pump timers to play mode →
+synthesize WM_KEYDOWN arrows → assert cameraX/Y moved; exit 0 = GREEN, walk.bmp dumped);
+(2) live SDL window screenshots (`YODA_SHOT=<prefix>` env dumps the screen DIB every 2s):
+title screen w/ correct palette + starfield → intro auto-advance → zone with Luke/X-wing/
+R2-D2 correctly rendered → hero displaced + viewport scrolled after a YODA_AUTOKEY hold.
+Delivered in v76: mfxwnd.cpp (HWND object model, the AFX_MSGMAP dispatch engine decoding all
+17 AfxSig shapes, real SetTimer/KillTimer table, posted-msg queue, real SDI bootstrap
+LoadFrame→WM_CREATE→OnCreateClient→view-with-real-HWND), mfxpump.cpp (SDL events → WM_* →
+maps; screen-DIB present per frame w/ integer YODA_SCALE), gdi palettes (CreatePalette/
+Select/Realize→DIB-color-table, AnimatePalette write-through for cycling), yoda_main.cpp
+(AfxWinMain equivalent) + `yoda` target. HUD chrome (pens/brushes/Pie/FillRect bevels),
+child controls, dialogs and sound remain stubbed → right panel black, bubbles auto-dismiss
+(GetMessage stub) — M3/M4. worldgen_smoke digest re-verified byte-identical to the pre-M2
+reference (the real-window bootstrap is worldgen-neutral); zone_view GREEN; anchor 211.*
+
+*M2 repro: `cmake --build build-sdl && cd build-sdl && cp <ini> game_walk.INI && ./game_walk
+0x2a` (headless, exit 0 = GREEN) · `cp <ini> yoda.INI && YODA_SHOT=shot YODA_AUTOKEY=11000:39:2500
+./yoda` (SDL window; VK 0x27=RIGHT held 11s→13.5s; shots land in shotNN.bmp). Ensure
+Terrain∈{1,2,3} in the INI (the ⚠ below). ⚠ Walk-oracle trap: `playerX/playerY` are the 10x10
+WORLD-MAP cell — the in-zone hero anchor is `cameraX/cameraY` (pixels, cell*32; the F8 debug
+dialog shows /32). ⚠ SDL turns SIGTERM into SDL_QUIT: kill → SC_CLOSE → ConfirmExit →
+auto-IDYES (AfxMessageBox stub) → PostQuitMessage — the polite exit path, exercised on every
+run.*
+
+*M1 status (v75): COMPLETE. The gdi/ layer is REAL (memory DCs +
 8bpp DIB sections + BitBlt + SetDIBColorTable, pure C++ — `microfx/src/gdi/mfxgdi.cpp`), and the
 `zone_view` harness renders zones natively through the game's OWN path
 (CDeskcppDoc::RefreshZone → Canvas::BlitFast/BlitMasked → DIB) with the game palette: verified by
@@ -53,6 +82,12 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
   `#include "DebugLog.h"` (⚠ must stay guarded — lesson 6), `YODA_SEED` env override in
   `Randomize()`, WORLD/CELL digest at `Load()`'s success tail. Added top-of-file lines were
   reclaimed from comments so every function keeps its original line number.
+- `MainFrm.h` — v76: the 32-bit stub views (`CDeskcppView` pads / `FrameWorld` / `MusicThread`)
+  wrapped in `#ifdef YODA_PORTABLE` parallel bodies (lesson-5 pattern: real types in the full
+  declarations' order; MusicThread mirrors microfx CWinThread {CCmdTarget, m_pMainWnd,
+  m_bAutoDelete, m_hThread}). Verified by a 12-field offsetof probe diffed stub-vs-real
+  (IDENTICAL) AND the anchor oracle table re-run FULL GREEN after recompiling the Frame TU
+  (the anchor branch moved down ~170 header lines — dial did not rotate).
 
 ## ⭐ Lessons (portable-build class, distinct from byte-match lessons)
 
@@ -81,9 +116,9 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
    CObArray layout `{vptr, m_pData, m_nSize, m_nMaxSize}`, `zones[200]` = mapGrid+mapGridBackup,
    and `paZonePtrGrid` as `intptr_t[120]` (+1 PTRINT site). Verified with a per-view offsetof
    probe diffed against the full view (kept conceptually in `tools/`-style scratch; re-derive
-   with clang -DYODA_PORTABLE offsetof dumps if views change). ⚠ STILL OPEN for M2: MainFrm.h's
-   `CDeskcppView`/`FrameWorld`/`MusicThread` stub views are the same trap class — fix before the
-   pump delivers messages to CMainFrame handlers.
+   with clang -DYODA_PORTABLE offsetof dumps if views change). MainFrm.h's
+   `CDeskcppView`/`FrameWorld`/`MusicThread` stub views were the same trap class — FIXED v76
+   (see the footprint list above) before the pump went live.
 6. **Header presence is an anchor dial input even at ZERO tokens (v74).** Adding an unguarded
    `#include "DebugLog.h"` to Worldgen.cpp flipped `IsZoneUsed` (DIFF(2)) off byte-exact even
    after re-aligning all line numbers — with YODA_DEBUG off the header contributes only a macro
@@ -110,18 +145,38 @@ Canvas's `(BITMAPINFO*)&biHeader` cast is load-bearing: palette[256] sits right 
 SelectObject (bitmap→DC; non-bitmap handles pass through), DeleteObject, BitBlt (clipped 8bpp
 row copy, rop ignored — the game is all-SRCCOPY), Set/GetDIBColorTable. Presentation reads the
 DIB back out via the extension API in `microfx/include/microfx.h` (MfxGetDCDib / MfxWriteDibBMP);
-game TUs never include it. The M2 screen DC will be one of these DIBs too — OnDraw's BitBlt
-lands in it and the pump presents it per frame (SDL window surface).
-STUBBED (M2/M3/M4): screen palette objects (Create/AnimatePalette — the DIB color table is the
-render truth so cycling can go through SetDIBColorTable), pens/brushes/Pie/FillRect HUD drawing,
-USER (no-ops), WaveMix/MCI, dialogs (DoModal→IDCANCEL), LoadString.
+game TUs never include it.
+REAL as of M2 (app/mfxwnd.cpp pure C++ + app/mfxpump.cpp SDL-only + gdi palettes):
+**HWND objects** (tagged HWND__ {CWnd*, parent, id, rect, visible}; first parentless Create =
+the root, which sizes the shared screen DC's 8bpp DIB — GetDC(anything incl. NULL) returns that
+one DC; view at (0,0) so view coords == DIB coords), **the message-map dispatch engine**
+(GetMessageMap chain walk + all 17 AfxSig decodings via MFC-style member-pointer union;
+WM_COMMAND routes view→frame→app), **SendMessage/PostMessage** (+queue), **SetTimer/KillTimer**
+(real table; MfxPumpTimers fires WM_TIMER — 0x1d1d is the game loop), **the SDI bootstrap**
+(LoadFrame → virtual PreCreateWindow (CMainFrame pins 525x310) → WM_CREATE → CFrameWnd::OnCreate
+→ OnCreateClient → view CreateObject+Create+AddView+SetActiveView; OnFileNew never paints —
+first WM_PAINT comes from the pump, so headless harnesses keep the M0 flow), **CView::OnPaint**
+(→ CPaintDC + OnDraw, map entry on CView's map), **capture/focus + GetAsyncKeyState/GetCursorPos**
+(pump-fed state arrays), **palettes** (gdi: CreatePalette/CreateHalftonePalette real objects;
+SelectPalette per-DC slot; RealizePalette → entries into the selected DIB's color table;
+AnimatePalette writes through to the last-realized DC — palette cycling works), **CWinThread::Run**
+(mfxpump.cpp: SDL_PollEvent → VK translate → WM_KEYDOWN/UP/CHAR/MOUSE* to focus/capture target;
+SDL_QUIT → SC_CLOSE (2nd = hard quit); FOCUS_GAINED/LOST → WM_ACTIVATE (the game's own
+pause-on-deactivate runs); per-frame present = screen DIB wrapped as INDEX8 SDL_Surface +
+SDL_SetPaletteColors + BlitScaled at integer YODA_SCALE (default 2); YODA_SHOT / YODA_AUTOKEY
+debug oracles), and the **`yoda` executable** (harness/yoda_main.cpp = AfxWinMain equivalent).
+STUBBED (M3/M4): pens/brushes/Pie/FillRect HUD drawing (right panel renders black),
+child controls (CEdit/CButton/CScrollBar Create → no HWND; inventory scrollbar invisible),
+WaveMix/MCI sound, dialogs (DoModal→IDCANCEL; TextDialog::Run's modal loop exits immediately —
+GetMessage stub — so text bubbles auto-dismiss), LoadString, cursors.
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
 BOTH wine and native. Set Terrain to 1/2/3 before oracle runs. The doc ctor re-picks the planet
 with one `rand()%2` — deterministic and equal on both sides (first rand() call of the process).
-Next milestone M2: event pump (SDL events → WM_* → existing message maps; SetTimer 0x1d1d →
-OnTimer game loop) — but FIRST fix MainFrm.h's 32-bit stub views (lesson-5 class of trap).
+Next milestone M3: audio — snd/ over SDL2_mixer (WaveMix channel set ≈ Mix_Chunk channels,
+MCI MIDI ≈ Mix_Music; AfxBeginThread's music thread can stay a no-thread object — the WaveMix
+pump can run off the SDL pump loop instead).
 
 ## The core idea
 
@@ -200,9 +255,11 @@ microfx/
 - **M1 — Canvas → SDL.** ✅ v75. `gdi/` real DIB/DC objects (pure C++); `zone_view` harness renders
   zones via the game's RefreshZone into the Canvas DIB — .bmp dump + SDL window both verified
   (intro/desert/interior/snow zones, correct palette + masked blits).
-- **M2 — app shell + pump.** CWinApp::Run event pump; SDL events → WM_KEYDOWN/WM_MOUSEMOVE/… → the
-  EXISTING message-map handlers; SetTimer → WM_TIMER drives OnTimer (the game loop). **Oracle:** walk
-  around a zone natively.
+- **M2 — app shell + pump.** ✅ v76. CWinThread::Run SDL pump; events → WM_* → the EXISTING
+  message-map handlers; real SetTimer → WM_TIMER 0x1d1d drives OnTimer (the game loop); screen
+  DIB presented per frame. **Oracle GREEN both ways:** `game_walk` (headless, deterministic —
+  hero cameraX/Y moves under synthesized arrow keys) + live-window YODA_SHOT screenshots
+  (title → intro → zone → hero walked/camera scrolled).
 - **M3 — audio.** snd/ over SDL2_mixer (WAV channels ≈ WaveMix, Mix_Music ≈ MCI MIDI for Indy).
 - **M4 — resources + UI chrome.** res/ embedded-blob loader (cursors, icons, strings); TextDialog +
   save/load dialogs; menus (SDL UI or keyboard shortcuts first).

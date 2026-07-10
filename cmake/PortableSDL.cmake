@@ -99,5 +99,29 @@ else()
     "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
 endif()
 
+# ── M2 oracle: headless walk harness (drives the dispatch/timer layer, no window) ───────────
+add_executable(game_walk "${_mfx}/harness/game_walk.cpp")
+target_include_directories(game_walk PRIVATE "${_src}")
+target_link_libraries(game_walk PRIVATE yoda_game)
+if(APPLE)
+  target_link_options(game_walk PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
+else()
+  target_link_options(game_walk PRIVATE
+    "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
+endif()
+
+# ── M2: the game itself — real entry point + SDL event pump (needs SDL2) ────────────────────
+if(SDL2_FOUND)
+  add_executable(yoda "${_mfx}/harness/yoda_main.cpp")
+  target_include_directories(yoda PRIVATE "${_src}")
+  target_link_libraries(yoda PRIVATE yoda_game)
+  if(APPLE)
+    target_link_options(yoda PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
+  else()
+    target_link_options(yoda PRIVATE
+      "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
+  endif()
+endif()
+
 message(STATUS "yoda: portable SDL build — microfx + TUs: ${YODA_PORTABLE_TUS} "
                "(SDL2 ${SDL2_FOUND})")

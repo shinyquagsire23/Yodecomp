@@ -912,6 +912,7 @@ public:
     virtual void OnInitialUpdate();
     virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint);
     virtual void OnActivateView(BOOL bActivate, CView* pActivateView, CView* pDeactiveView);
+    afx_msg void OnPaint();            // real MFC: CPaintDC + OnDraw (map entry on CView's map)
 
     CDocument* m_pDocument;
     DECLARE_MESSAGE_MAP()
@@ -927,6 +928,8 @@ public:
     virtual BOOL LoadFrame(UINT nIDResource, DWORD dwDefaultStyle = 0,
                            CWnd* pParentWnd = 0, CCreateContext* pContext = 0);
     virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
+    afx_msg int OnCreate(LPCREATESTRUCT lpcs);   // real MFC: chains to OnCreateClient (the game's
+                                                 // CMainFrame::OnCreate calls this explicitly)
     CView* GetActiveView() const { return m_pViewActive; }
     void SetActiveView(CView* pViewNew, BOOL bNotify = TRUE) { m_pViewActive = pViewNew; }
     CDocument* GetActiveDocument();
@@ -1103,6 +1106,7 @@ AFX_MODULE_STATE* AfxGetModuleState();
 #define ID_DEFAULT_HELP   0xE147
 #define AFX_IDS_APP_TITLE 0xE000
 #define AFX_IDP_FAILED_TO_OPEN_DOC 0xF005
+#define AFX_IDW_PANE_FIRST 0xE900
 
 // ── MSVC-4.2-compatible rand()/srand() ───────────────────────────────────────────────────────
 // Worldgen seeds srand(worldSeed) and consumes rand() heavily; the same seed must produce the

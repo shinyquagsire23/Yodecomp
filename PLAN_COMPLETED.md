@@ -2510,3 +2510,16 @@ calloc buffer, stub-view DATA-layout fix (lesson 5: union overlays in DeskcppStu
 lesson 6 (header presence = dial input at zero tokens — DebugLog.h include must stay guarded),
 YODA_SEED/digest debug rig, m_nFrameDelay named. Open items carried: M1 gdi/ (DONE in v75),
 MainFrm.h stub views before M2, Indy stragglers (IACT specials, INI replay, menus), DESKADV sweep.
+
+### ⏮ v75 pickup (condensed; superseded by v76)
+
+H4 M1 COMPLETE: real gdi/ layer (mfxgdi.cpp — tagged HDC__/HBITMAP__ memory DCs + 8bpp DIB
+sections, clipped all-SRCCOPY BitBlt, Set/GetDIBColorTable; pure C++, no SDL) + microfx.h
+extension API (MfxGetDCDib/MfxWriteDibBMP) + zone_view harness (BMP dump + --show SDL window);
+oracle GREEN by eyeball on title/desert/interior/snow zones. Canvas's `(BITMAPINFO*)&biHeader`
+cast is load-bearing (palette[256] after the header = bmiColors). TRAP: GetZoneById off-planet
+slots hold -1 not NULL. Also v75: YODA_BUGFIX flag — 12 crash/UB/leak sic-sites fixed via
+line-neutral YODA_SIC_FIX/YODA_SIC_RETURN/BUGLOG macros (3 synced header-tail copies), behavior
+bugs kept; digest A/B identical ON/OFF; sic#11 fires on seed 0x2a. Open items carried: M2 pump
+(DONE in v76 — game runs natively, hero walks), MainFrm.h stub views (DONE in v76), Indy
+stragglers, DESKADV sweep.

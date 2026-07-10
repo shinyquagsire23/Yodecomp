@@ -13,19 +13,10 @@
 #define MFX_STUB() ((void)0)   // quiet for now; flip to a log when the pump goes live
 
 // ── CWnd family ──────────────────────────────────────────────────────────────────────────────
+// (FromHandle / Create / DestroyWindow / GetParent / GetParentFrame are REAL as of M2 —
+// app/mfxwnd.cpp owns the HWND object model and the message-map dispatch engine.)
 CWnd::~CWnd() {}
-CWnd* CWnd::FromHandle(HWND hWnd)
-{
-    if (!hWnd)                        // MFC: NULL handle maps to no object (the game's
-        return 0;                     // single-instance FindWindow guard depends on this)
-    static CWnd wrap;                 // M2: real permanent/temporary handle map
-    wrap.m_hWnd = hWnd;
-    return &wrap;
-}
 HWND CWnd::GetSafeHwnd() const { return this ? m_hWnd : 0; }
-BOOL CWnd::Create(LPCSTR, LPCSTR, DWORD, const RECT&, CWnd*, UINT, CCreateContext*)
-    { MFX_STUB(); return TRUE; }
-BOOL CWnd::DestroyWindow() { MFX_STUB(); return TRUE; }
 BOOL CWnd::IsWindowVisible() const { return TRUE; }
 BOOL CWnd::IsWindowEnabled() const { return TRUE; }
 CDC* CWnd::GetDC() { return CDC::FromHandle(::GetDC(m_hWnd)); }
@@ -37,8 +28,6 @@ BOOL CWnd::SetWindowPos(const CWnd* pAfter, int x, int y, int cx, int cy, UINT n
 int  CWnd::GetWindowText(LPSTR lpsz, int nMax) const { if (nMax > 0) lpsz[0] = 0; return 0; }
 void CWnd::GetWindowText(CString& rString) const { rString.Empty(); }
 void CWnd::CenterWindow(CWnd*) { MFX_STUB(); }
-CWnd* CWnd::GetParent() const { MFX_STUB(); return 0; }
-CFrameWnd* CWnd::GetParentFrame() const { MFX_STUB(); return 0; }   // M2: real parent chain
 CWnd* CWnd::GetDlgItem(int) const { MFX_STUB(); return 0; }
 void CWnd::ScreenToClient(LPRECT lpRect) const
 {
@@ -199,6 +188,7 @@ void CView::OnInitialUpdate() { OnUpdate(0, 0, 0); }
 void CView::OnUpdate(CView*, LPARAM, CObject*) { Invalidate(); }
 void CView::OnActivateView(BOOL, CView*, CView*) {}
 BEGIN_MESSAGE_MAP(CView, CWnd)
+    ON_WM_PAINT()                    // real MFC: CView::OnPaint → CPaintDC + OnDraw (mfxwnd.cpp)
 END_MESSAGE_MAP()
 
 const RECT CFrameWnd::rectDefault = { 0, 0, 640, 480 };
@@ -207,8 +197,7 @@ CRuntimeClass* CFrameWnd::GetRuntimeClass() const { return &CFrameWnd::classCFra
 CObject* CFrameWnd::CreateObject() { return new CFrameWnd; }
 CFrameWnd::CFrameWnd() : m_pViewActive(0), m_bAutoMenuEnable(TRUE) {}
 CFrameWnd::~CFrameWnd() {}
-BOOL CFrameWnd::LoadFrame(UINT, DWORD, CWnd*, CCreateContext*) { MFX_STUB(); return TRUE; }
-BOOL CFrameWnd::OnCreateClient(LPCREATESTRUCT, CCreateContext*) { MFX_STUB(); return TRUE; }
+// LoadFrame / OnCreate / OnCreateClient are REAL as of M2 (mfxwnd.cpp).
 CDocument* CFrameWnd::GetActiveDocument()
     { return m_pViewActive ? m_pViewActive->GetDocument() : 0; }
 BEGIN_MESSAGE_MAP(CFrameWnd, CWnd)
@@ -255,7 +244,7 @@ CString CFileDialog::GetPathName() const { return m_strPath; }
 CWinThread::CWinThread() : m_pMainWnd(0), m_bAutoDelete(TRUE), m_hThread(0) {}
 CWinThread::~CWinThread() {}
 int  CWinThread::ExitInstance() { return 0; }
-int  CWinThread::Run() { return 0; }
+// CWinThread::Run is the M2 SDL event pump — app/mfxpump.cpp (headless no-op without SDL2).
 BOOL CWinThread::OnIdle(LONG) { return FALSE; }
 
 CWinThread* AfxBeginThread(AFX_THREADPROC, LPVOID, int, UINT, DWORD, void*)
@@ -287,31 +276,8 @@ HCURSOR CWinApp::LoadCursor(LPCSTR lpszName) const { return ::LoadCursorA(AfxGet
 HCURSOR CWinApp::LoadStandardCursor(LPCSTR lpszName) const { return ::LoadCursorA(0, lpszName); }
 HICON   CWinApp::LoadIcon(UINT nID) const { return ::LoadIconA(AfxGetResourceHandle(), MAKEINTRESOURCE(nID)); }
 
-// SDI CSingleDocTemplate::OpenDocumentFile(NULL): create doc + frame + view from the template's
-// runtime classes, wire them together, then OnNewDocument + initial update. No real HWNDs yet
-// (CWnd::Create is still a stub pre-M2), but the object graph the game logic walks —
-// AfxGetApp→template→doc→view, GetFirstViewPosition/GetNextView, AfxGetMainWnd — is real.
-void CWinApp::OnFileNew()
-{
-    CDocTemplate* pTemplate = m_pDocTemplate;
-    if (!pTemplate || !pTemplate->m_pDocClass)
-        return;
-    if (pTemplate->m_pDoc)              // SDI: one document, ever
-        return;
-    CDocument* pDoc = (CDocument*)pTemplate->m_pDocClass->CreateObject();
-    pTemplate->m_pDoc = pDoc;
-    CFrameWnd* pFrame = pTemplate->m_pFrameClass
-        ? (CFrameWnd*)pTemplate->m_pFrameClass->CreateObject() : 0;
-    if (pFrame)
-        m_pMainWnd = pFrame;
-    CView* pView = pTemplate->m_pViewClass
-        ? (CView*)pTemplate->m_pViewClass->CreateObject() : 0;
-    if (pView)
-        pDoc->AddView(pView);
-    pDoc->OnNewDocument();
-    if (pView)
-        pView->OnInitialUpdate();
-}
+// CWinApp::OnFileNew is REAL as of M2 (mfxwnd.cpp): full MFC SDI bootstrap — doc, then
+// LoadFrame (WM_CREATE → OnCreateClient → view window), then OnNewDocument + initial update.
 void CWinApp::OnFileOpen() { MFX_STUB(); }
 void CWinApp::OnAppExit() { MFX_STUB(); }
 void CWinApp::OnHelp() {}
@@ -456,12 +422,8 @@ HCURSOR  SetCursor(HCURSOR h) { return h; }
 HCURSOR  LoadCursorA(HINSTANCE, LPCSTR) { return 0; }
 HICON    LoadIconA(HINSTANCE, LPCSTR) { return 0; }
 int      ShowCursor(BOOL) { return 0; }
-BOOL     GetCursorPos(LPPOINT p) { if (p) { p->x = 0; p->y = 0; } return TRUE; }
-SHORT    GetAsyncKeyState(int) { return 0; }
-UINT     SetTimer(HWND, UINT id, UINT, void*) { return id; }
-BOOL     KillTimer(HWND, UINT) { return TRUE; }
-LRESULT  SendMessageA(HWND, UINT, WPARAM, LPARAM) { return 0; }
-BOOL     PostMessageA(HWND, UINT, WPARAM, LPARAM) { return TRUE; }
+// GetCursorPos / GetAsyncKeyState / SetTimer / KillTimer / SendMessageA / PostMessageA are
+// REAL as of M2 (mfxwnd.cpp — pump-fed state, timer table, message-map dispatch).
 BOOL     GetMessageA(LPMSG, HWND, UINT, UINT) { return FALSE; }
 BOOL     TranslateMessage(const MSG*) { return FALSE; }
 LRESULT  DispatchMessageA(const MSG*) { return 0; }
@@ -475,22 +437,14 @@ HWND     FindWindowA(LPCSTR, LPCSTR) { return 0; }
 BOOL     BringWindowToTop(HWND) { return TRUE; }
 BOOL     IsIconic(HWND) { return FALSE; }
 HWND     GetLastActivePopup(HWND h) { return h; }
-HWND     GetActiveWindow(void) { return 0; }
-HDC      GetDC(HWND) { return 0; }
-int      ReleaseDC(HWND, HDC) { return 1; }
-BOOL     ShowWindow(HWND, int) { return TRUE; }
+// GetActiveWindow / GetDC / ReleaseDC / ShowWindow / DestroyWindow / SetFocus / SetCapture /
+// ReleaseCapture / GetClientRect / GetWindowRect are REAL as of M2 (mfxwnd.cpp).
 BOOL     EnableWindow(HWND, BOOL) { return TRUE; }
-BOOL     DestroyWindow(HWND) { return TRUE; }
 BOOL     MoveWindow(HWND, int, int, int, int, BOOL) { return TRUE; }
 BOOL     SetWindowPos(HWND, HWND, int, int, int, int, UINT) { return TRUE; }
 BOOL     SetWindowTextA(HWND, LPCSTR) { return TRUE; }
-HWND     SetFocus(HWND h) { return h; }
-HWND     SetCapture(HWND h) { return h; }
-BOOL     ReleaseCapture(void) { return TRUE; }
-BOOL     ScreenToClient(HWND, LPPOINT) { return TRUE; }
+BOOL     ScreenToClient(HWND, LPPOINT) { return TRUE; }   // window client == screen (one window)
 BOOL     ClientToScreen(HWND, LPPOINT) { return TRUE; }
-BOOL     GetClientRect(HWND, LPRECT r) { if (r) SetRect(r, 0, 0, 0, 0); return TRUE; }
-BOOL     GetWindowRect(HWND, LPRECT r) { if (r) SetRect(r, 0, 0, 0, 0); return TRUE; }
 int      GetScrollPos(HWND, int) { return 0; }
 int      SetScrollPos(HWND, int, int nPos, BOOL) { return nPos; }
 BOOL     GetScrollRange(HWND, int, LPINT lpMin, LPINT lpMax)
@@ -498,14 +452,11 @@ BOOL     GetScrollRange(HWND, int, LPINT lpMin, LPINT lpMax)
 BOOL     SetScrollRange(HWND, int, int, int, BOOL) { return TRUE; }
 BOOL     ShowScrollBar(HWND, int, BOOL) { return TRUE; }
 BOOL     DrawIcon(HDC, int, int, HICON) { return TRUE; }
-BOOL     InvalidateRect(HWND, const RECT*, BOOL) { return TRUE; }
-BOOL     UpdateWindow(HWND) { return TRUE; }
-BOOL     RedrawWindow(HWND, const RECT*, HRGN, UINT) { return TRUE; }
+// InvalidateRect / UpdateWindow / RedrawWindow are REAL as of M2 (mfxwnd.cpp dirty flag).
 HWND     GetParent(HWND) { return 0; }
 void     FatalAppExitA(UINT, LPCSTR msg)
     { fprintf(stderr, "microfx: FatalAppExit: %s\n", msg ? msg : ""); abort(); }
 BOOL     CopyRect(LPRECT dst, const RECT* src) { *dst = *src; return TRUE; }
-UINT     GetNearestPaletteIndex(HPALETTE, COLORREF) { return 0; }
 int      FillRect(HDC, const RECT*, HBRUSH) { return 1; }
 
 // CreateCompatibleDC/DeleteDC/SelectObject/DeleteObject/CreateDIBSection/BitBlt/
@@ -525,14 +476,8 @@ int      GetDeviceCaps(HDC, int index)
     default:          return 0;
     }
 }
-HPALETTE CreatePalette(const LOGPALETTE*) { return 0; }
-HPALETTE CreateHalftonePalette(HDC) { return 0; }
-UINT     RealizePalette(HDC) { return 0; }
-HPALETTE SelectPalette(HDC, HPALETTE h, BOOL) { return h; }
-BOOL     AnimatePalette(HPALETTE, UINT, UINT, const PALETTEENTRY*) { return TRUE; }
-UINT     GetPaletteEntries(HPALETTE, UINT, UINT, LPPALETTEENTRY) { return 0; }
-UINT     SetPaletteEntries(HPALETTE, UINT, UINT, const PALETTEENTRY*) { return 0; }
-UINT     GetSystemPaletteEntries(HDC, UINT, UINT, LPPALETTEENTRY) { return 0; }
+// Palettes (Create/CreateHalftone/Realize/Select/Animate/Get/Set/GetSystemPaletteEntries/
+// GetNearestPaletteIndex) are REAL as of M2 — gdi/mfxgdi.cpp (entries → DIB color table).
 HBRUSH   CreateSolidBrush(COLORREF) { return 0; }
 HPEN     CreatePen(int, int, COLORREF) { return 0; }
 HFONT    CreateFontA(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, LPCSTR)
@@ -542,7 +487,7 @@ LONG     SetBitmapBits(HBITMAP, DWORD, const void*) { return 0; }
 LONG     GetBitmapBits(HBITMAP, LONG, LPVOID) { return 0; }
 HBITMAP  CreateBitmap(int, int, UINT, UINT, const void*) { return 0; }
 BOOL     RoundRect(HDC, int, int, int, int, int, int) { return TRUE; }
-void     PostQuitMessage(int) {}
+// PostQuitMessage is REAL as of M2 (mfxwnd.cpp — sets the pump's quit flag).
 COLORREF SetPixel(HDC, int, int, COLORREF c) { return c; }
 COLORREF GetPixel(HDC, int, int) { return 0; }
 BOOL     Polygon(HDC, const POINT*, int) { return TRUE; }
