@@ -505,9 +505,11 @@ function exists — consistent with the melee whip having no ammo. FIX: `#ifdef 
 
 ### ⭐ v71 — milestone 5: proper Indy RESOURCES (app icon + title); CDeskcppDoc RECT/unk docs (anchor 211)
 User: playtesting build-indy finds few remaining Indy issues; centering fixed by eye. Two items done:
-- **Indy app icon + title (retires the temp `SetWindowText` hack + [[indy-app-icon]]).** `tools/make_indy_res.py`
-  builds the GAME_INDY `.res` = Yoda's `.rsrc` base (our code references YodaDemo's dialog/menu/bitmap/control IDs,
-  so a wholesale swap would break the UI) with only the app IDENTITY swapped for Indy's:
+- **Indy app icon + title + About credits (retires the temp `SetWindowText` hack + [[indy-app-icon]]).**
+  `tools/make_res.py` (+ shared `tools/reslib.py`; supersedes make_indy_res.py) builds the extended-config `.res`
+  = Yoda's `.rsrc` base (our code references YodaDemo's integer resource IDs, so a wholesale swap breaks the UI)
+  with only game/variant resources overridden. `make_res.py <yoda> <out> --indy <DESKADV.EXE>` (GAME_INDY) /
+  `--full <Yodesk.exe>` (YODA_FULL) / else extract_res.py (demo anchor). For GAME_INDY the app IDENTITY is Indy's:
   - `IDR_MAINFRAME == 2` for this MFC app (menu/icon/doc-template string all id 2; confirmed by
     `new CSingleDocTemplate(2, …)` in InitInstance — NOT the usual 128). App icon = GROUP_ICON id 2 → member ICON
     (Yoda→ICON 11, Indy→ICON 1). The tool parses `INDYDESK/DESKADV.EXE` (a **16-bit NE** — its own NE resource-table
@@ -518,18 +520,28 @@ User: playtesting build-indy finds few remaining Indy issues; centering fixed by
     AFX_IDS_APP_TITLE 0xE000/57344; both = "Desktop Adventures", NOT "Indiana Jones' Desktop Adventures" — the temp
     override's guess). The tool patches both MFC string-table blocks. The runtime `SetWindowText` override is removed
     from `src/Deskcpp.cpp` (title now flows from the resource via the doc template).
-  - Wired in `CMakeLists.txt`: `YODA_GAME==INDY` → `make_indy_res.py` (needs both binaries), else `extract_res.py`.
-    Anchor unaffected (Yoda build still uses extract_res.py; the Deskcpp.cpp edit is inside a `#ifdef GAME_INDY`
-    block that was empty for Yoda → token-identical, 211 held). ⏳ USER: visual confirm the Indy icon + titlebar.
+  - **About dialog (id 100 = IDD_ABOUTBOX):** rewritten with Indy's title + credits ("Indiana Jones and his
+    Desktop Adventures", "The Desktop Adventures Team" + Hal Barwood/Wayne Cline/Mark Crowley/Reed Derleth/Paul
+    LeFevre/Tom Payne, "© 1996 LucasArts", caption "About Desktop Adventures"). Method: SUBSTITUTE Indy text into
+    YodaDemo's OWN 32-bit DLGTEMPLATE via reslib's `parse_dlg32`/`build_dlg32` (round-trip byte-validated on both
+    binaries) — avoids converting DESKADV's 16-bit dialog (16-bit ordinal-width ambiguity makes a faithful parse
+    fiddly). Title static widened for the longer text; About icon → app icon (id 2). The Yoda credits are ONE
+    multi-line static (7-control dialog: icon, title, copyright, OK, credits-block, version, group-box frame).
+- **Full-Yoda About (YODA_FULL — "the full version shouldn't say Demo"):** `make_res.py --full <Yodesk.exe>`
+  replaces DIALOG 100 with the retail Yodesk.exe's (a 32-bit PE → copies verbatim) so the About reads
+  "Yoda(tm) Stories", not the demo's "Yoda(tm) Stories Demo". Verified: build-full links + its About has no "Demo".
+  - Wired in `CMakeLists.txt`: INDY → `make_res.py --indy`; YODA_FULL → `make_res.py --full`; demo → extract_res.py.
+    Anchor unaffected (demo uses extract_res.py; no `src/` changed for About — only tools/ + CMake; the earlier
+    Deskcpp.cpp title edit is in a `#ifdef GAME_INDY` block empty for Yoda). ⏳ USER: confirm both About boxes.
   - Menus left as Yoda's (Indy menu id 2 may differ in text but our command IDs match Yoda's; a swap risks
     command-dispatch mismatch — deferred as optional).
 - **CDeskcppDoc struct documentation** (separate cleanup, user-requested; codegen-neutral, anchor 211): 2 mystery
   RECTs identified + reader-verified (`rectAmmoBar` +0x32b4, `rectHealthDial` +0x32c4), 3 more int-quads → RECT,
   ~14 unks resolved from Ghidra readers. Details in CLAUDE.md v71 pickup.
 
-### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. **Indy icon + title** — v71 resources; confirm the titlebar shows "Desktop Adventures" + the Indy icon (taskbar
-   + title bar). If the icon looks wrong, check GROUP_ICON id 2's member in DESKADV vs what the frame loads.
+### ⏭ NEXT (user visual re-test `./run_indy.sh` + full-Yoda)
+1. **Indy icon + title + About** — v71 resources; confirm the titlebar shows "Desktop Adventures" + the Indy icon,
+   and Help>About shows Indy's credits. Full-Yoda: About should read "Yoda(tm) Stories" (no "Demo").
 2. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); the two rare/uncertain opcodes
    (0x13 rect arg-order, condition specials 0/8/9/0xb/0x14..0x16); INI replay persistence.
 3. (optional) Indy menus (id 2) if the menu text should read Indy's.

@@ -812,21 +812,30 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
 **▶ v71 — this session (two items; anchor 211 held throughout). USER: playtesting build-indy finds few remaining
 Indy issues; fixed the weapon-box centering by eye.**
 
-**(1) ⭐ Milestone 5 — proper Indy RESOURCES (app icon + title; retires the temp SetWindowText hack +
-[[indy-app-icon]]).** `tools/make_indy_res.py` builds the GAME_INDY `.res` = Yoda's `.rsrc` base (our code
-references YodaDemo's dialog/menu/bitmap/control IDs — a wholesale swap breaks the UI) with only the app IDENTITY
-swapped for Indy's, sourced from `INDYDESK/DESKADV.EXE` (16-bit NE → the tool has its own NE resource-table reader,
-since extract_res.py only walks a PE `.rsrc`):
-- App icon: `IDR_MAINFRAME==2` for this app (`new CSingleDocTemplate(2,…)`; menu/icon/string all id 2, NOT 128).
-  Copies Indy's GROUP_ICON id 2 + member ICON verbatim (DIB + dir formats identical NE↔PE), remaps its RT_ICON
+**(1) ⭐ Milestone 5 — extended-config RESOURCES: Indy app icon + title + About credits, and full-Yoda About
+(no "Demo"). Retires the temp SetWindowText hack + [[indy-app-icon]].** `tools/make_res.py` (+ shared
+`tools/reslib.py`) builds the extended-config `.res` = Yoda's `.rsrc` base (our code references YodaDemo's integer
+resource IDs — a wholesale swap breaks the UI) with only game/variant-specific resources overridden. CMake picks
+the flag by config: `make_res.py <yoda> <out> --indy <DESKADV.EXE>` (GAME_INDY) / `--full <Yodesk.exe>`
+(YODA_FULL) / else `extract_res.py` (pure demo anchor). Superseded/removed `make_indy_res.py`.
+- **Indy app icon:** `IDR_MAINFRAME==2` for this app (`new CSingleDocTemplate(2,…)`; menu/icon/string/About all
+  id 2, NOT the usual 128). reslib parses the 16-bit NE DESKADV.EXE (extract_res.py only walks a PE `.rsrc`),
+  copies Indy's GROUP_ICON 2 + member ICON verbatim (DIB + dir formats identical NE↔PE), remaps its RT_ICON
   ordinal to a free 901 (Yoda uses 1..11), drops Yoda's GROUP_ICON 2 / ICON 11.
-- Title = **"Desktop Adventures"** (the AUTHENTIC DESKADV.EXE title — string id 2 doc-template AND AFX_IDS_APP_TITLE
-  0xE000/57344, both; NOT "Indiana Jones' Desktop Adventures"). Removed the runtime SetWindowText override from
-  `src/Deskcpp.cpp` (title now flows from the resource via the doc template).
-- Wired `CMakeLists.txt`: `YODA_GAME==INDY` → make_indy_res.py (needs both binaries) else extract_res.py. VERIFIED:
-  build-indy links (438KB), PE re-parse shows GROUP_ICON 2→ICON 901 + str 2/57344="Desktop Adventures". Anchor
-  unaffected (Yoda uses extract_res.py; Deskcpp.cpp edit is in a `#ifdef GAME_INDY` block empty for Yoda). ⏳ USER:
-  visual confirm the Indy icon + "Desktop Adventures" titlebar via `./run_indy.sh`. Menus left Yoda's (optional swap).
+- **Indy title = "Desktop Adventures"** (AUTHENTIC DESKADV.EXE title — string id 2 doc-template AND
+  AFX_IDS_APP_TITLE 0xE000/57344; NOT "Indiana Jones' Desktop Adventures"). Removed the runtime SetWindowText
+  override from `src/Deskcpp.cpp` (title now flows from the resource via the doc template).
+- **Indy About dialog (id 100):** rewritten with Indy's title/credits ("Indiana Jones and his Desktop
+  Adventures", "The Desktop Adventures Team" + 6 names, "© 1996 LucasArts", caption "About Desktop Adventures")
+  by substituting Indy text into YodaDemo's OWN 32-bit DLGTEMPLATE — reslib's parse_dlg32/build_dlg32 is
+  round-trip byte-validated on both binaries, so this avoids the fiddly 16-bit→32-bit dialog conversion
+  (16-bit ordinal-width ambiguity). Title static widened for the longer text; About icon → app icon (id 2).
+- **Full-Yoda About (YODA_FULL):** `--full` replaces DIALOG 100 with the retail Yodesk.exe's (a 32-bit PE →
+  copies verbatim) so the About reads "Yoda(tm) Stories" instead of the demo's "Yoda(tm) Stories Demo".
+- VERIFIED end-to-end: build-indy + build-full both link; PE re-parse of each exe confirms the swapped icon/
+  title/About. Anchor unaffected — the DEMO anchor uses extract_res.py and NO `src/` changed for the About
+  work (only tools/ + CMake). ⏳ USER: `./run_indy.sh` (Indy icon/titlebar/About) + full-Yoda About has no "Demo".
+  Menus left Yoda's (optional swap; command IDs match).
 
 **(2) CDeskcppDoc struct documentation** (user-requested cleanup; codegen-neutral — Ghidra's struct was ahead of our
 header, synced both ways; verified progress 211, bugscan 0/0/0, link 0/0, GAME_INDY compiles):
@@ -862,9 +871,10 @@ header, synced both ways; verified progress 211, bugscan 0/0/0, link 0/0, GAME_I
    box+ammo region. Exact coords from DESKADV UI-rect init `FUN_1010_4666`: `[left=0x180 top=0x100 right=0x1a0
    bottom=0x120]` (vs Yoda 0x190/0xfc/0x1b0/0x11c — 16px left onto the old ammo-bar spot + 4px down). `#ifdef
    GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc ctor (`src/DeskcppDoc.cpp`).
-**▶ START HERE (v71): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the v71 Indy resources — the titlebar should
-read **"Desktop Adventures"** and the app/taskbar icon should be Indy's (not Yoda's). Weapon-box centering already
-user-fixed (v70). Then remaining OPEN (non-blocking, priority order): (1) startup-wav name (minor); (2) hero-HP tail
+**▶ START HERE (v71): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the v71 Indy resources — titlebar reads
+**"Desktop Adventures"**, the app/taskbar icon is Indy's (not Yoda's), and Help>About shows Indy's credits
+("Indiana Jones and his Desktop Adventures" / "The Desktop Adventures Team"). For the full-Yoda build, the About
+box should read "Yoda(tm) Stories" (no "Demo"). Weapon-box centering already user-fixed (v70). Then remaining OPEN (non-blocking, priority order): (1) startup-wav name (minor); (2) hero-HP tail
 (entity+0x90=120 in IndyGenerate tail); (3) verify still-uncertain IACT opcodes (0x13 rect arg-order vs
 DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); (4) INI replay persistence; (5) OPTIONAL: Indy menus
 (menu id 2 — swap only if the menu text should read Indy's; risks command-dispatch mismatch, deferred). All

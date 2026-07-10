@@ -142,20 +142,36 @@ if(NOT EXISTS "${_orig_exe}")
     "The WIN32 build copies its .rsrc for a runnable image. Place YodaDemo.exe there "
     "(it is copyrighted and gitignored — acquire it separately).")
 endif()
+# Extended configs keep Yoda's .rsrc as the base (our code references YodaDemo's integer resource
+# IDs) and override only the resources that reflect the game/variant (tools/make_res.py): GAME_INDY
+# swaps the app icon + title + About-dialog credits (from DESKADV.EXE); YODA_FULL swaps the About
+# dialog for the retail one (so it reads "Yoda(tm) Stories", not the demo's "…Demo"). The pure demo
+# anchor uses extract_res.py (verbatim) — unchanged.
 if(YODA_GAME STREQUAL "INDY")
-  # GAME_INDY: keep Yoda's .rsrc as the base (our code references its dialog/control IDs) but swap
-  # the app IDENTITY — icon + title string — for Indy's, from DESKADV.EXE. See make_indy_res.py.
   set(_indy_exe "${CMAKE_CURRENT_SOURCE_DIR}/INDYDESK/DESKADV.EXE")
   if(NOT EXISTS "${_indy_exe}")
     message(FATAL_ERROR
-      "The GAME_INDY build sources its app icon + title from Indy's binary at ${_indy_exe}\n"
+      "The GAME_INDY build sources its icon/title/About from Indy's binary at ${_indy_exe}\n"
       "(copyrighted and gitignored — acquire it separately).")
   endif()
   add_custom_command(
     OUTPUT  "${_res}"
-    COMMAND python3 "${_tools}/make_indy_res.py" "${_orig_exe}" "${_indy_exe}" "${_res}"
-    DEPENDS "${_tools}/make_indy_res.py" "${_orig_exe}" "${_indy_exe}"
-    COMMENT "build Indy resources (Yoda base + Indy icon/title -> yoda.res)"
+    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --indy "${_indy_exe}"
+    DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_indy_exe}"
+    COMMENT "build Indy resources (Yoda base + Indy icon/title/About -> yoda.res)"
+    VERBATIM)
+elseif(YODA_VARIANT STREQUAL "FULL")
+  set(_full_exe "${CMAKE_CURRENT_SOURCE_DIR}/Yoda Stories/Yodesk.exe")
+  if(NOT EXISTS "${_full_exe}")
+    message(FATAL_ERROR
+      "The YODA_FULL build sources its retail About dialog from ${_full_exe}\n"
+      "(copyrighted and gitignored — acquire it separately).")
+  endif()
+  add_custom_command(
+    OUTPUT  "${_res}"
+    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --full "${_full_exe}"
+    DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_full_exe}"
+    COMMENT "build full-Yoda resources (Yoda base + retail About -> yoda.res)"
     VERBATIM)
 else()
   add_custom_command(
