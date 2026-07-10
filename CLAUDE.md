@@ -823,7 +823,6 @@ handler (cmd 0x11; FUN_1010_e934 looked like a draw-tiles helper — find the tr
 OR add a GAME_INDY DOOR_IN-warp-after-SetPlayerPos in CMD_SetPlayerPos (src/Iact.cpp). Needs live iteration. Also:
 proper Indy resources (.res title/icon/menus, retires temp title + [[indy-app-icon]]); startup-wav name (minor);
 hero-HP tail; INI replay persistence.
-**▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
 **▶ v67 — whip user-CONFIRMED fixed; sound + window-title fixed; door narrowed (all GAME_INDY, anchor 211; detail
 docs/phase-h3-indy.md "v67"):** (1) **Sound FIXED** — `SoundInit` loaded waves from `"sfx\<name>"` (Yoda's
 subfolder) but Indy's WAVs are in the game root → all failed silently. Load by bare name for Indy. (2) **Window
