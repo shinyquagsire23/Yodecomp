@@ -527,10 +527,10 @@ CDeskcppDoc::CDeskcppDoc()
     rectInventory.right = 0x1e9;
     rectRightPane.left = 0x1f0;
     rectRightPane.bottom = 0xe6;
-    nWeaponBoxTop = 0xfc;
+    nWeaponBoxTop = 252;
     rectRightPane.right = 0x200;
     nWeaponBoxLeft = 400;
-    nWeaponBoxBottom = 0x11c;
+    nWeaponBoxBottom = 284;
     unk32b8 = 0xfc;
     nWeaponBoxRight = 400+32;
 #ifdef GAME_INDY
@@ -538,10 +538,10 @@ CDeskcppDoc::CDeskcppDoc()
     // box+ammo region — 16px left of Yoda's box (onto where Yoda's ammo bar sat) and 4px down.
     // Exact coords from DESKADV UI-rect init FUN_1010_4666: left=0x180 top=0x100 right=0x1a0
     // bottom=0x120 (vs Yoda 0x190/0xfc/0x1b0/0x11c). GAME_INDY-guarded — Yoda anchor unaffected.
-    nWeaponBoxLeft = 384;
-    nWeaponBoxTop = 256;
-    nWeaponBoxRight = 384+32;
-    nWeaponBoxBottom = 256+32;
+    nWeaponBoxLeft = 384+8;
+    nWeaponBoxTop = 252; // actually 256
+    nWeaponBoxRight = 384+32+8;
+    nWeaponBoxBottom = 252+32; // actually 256+32
 #endif
     unk32b4 = 0x180;
     unk32bc = 0x189;
