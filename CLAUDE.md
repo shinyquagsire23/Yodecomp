@@ -242,8 +242,11 @@ pickup) — silence while walking is faithful.
 **▶ v78 bonus — INDY×SDL BUILDS & RUNS natively** (`cmake -B build-sdl-indy -DYODA_PLATFORM=SDL
 -DYODA_GAME=INDY`): DESKTOP.DAW loads, 15 WAVs open, all 5 MCI sequencers open, startup
 THEME.MID audibly plays (fluidsynth; SoundFont resolution = YODA_SOUNDFONT env > Mix defaults >
-probe > brew fluid-synth demo font — demo font is not GM-faithful, suggest a real GM .sf2 for
-fidelity). Needed 3 shared-TU fixes in Worldgen.cpp (the ONLY v78 src/ edit): VC4.2
+probe > brew fluid-synth demo font). ⚠ The demo font is NOT GM-faithful — user heard percussion
+as an intermittent "wip-wip" laser (absent under wine, which uses the Windows GM synth) = the
+classic non-GM-bank drum-channel symptom. FIXED on this machine: GeneralUser GS installed at
+`/opt/homebrew/share/soundfonts/default.sf2` (the shim's first probe path — no env var needed);
+document this for other machines. Needed 3 shared-TU fixes in Worldgen.cpp (the ONLY v78 src/ edit): VC4.2
 old-for-scope leaks that clang hard-errors on → `#ifdef YODA_PORTABLE` decls at function top
 (NEVER `int` in the later `for` — C2374 under VC4.2). All 3 inside the GAME_INDY region that
 runs to EOF ⇒ anchor tokens + line provenance untouched; full oracle table re-run GREEN
@@ -260,6 +263,11 @@ runs to EOF ⇒ anchor tokens + line provenance untouched; full oracle table re-
 - Known-rough (user-accepted): drag redraws at tick rate — SDL_Cursor option later, KEEP
   software cursors a build option (DS port interest). Text bubbles auto-dismiss (GetMessage
   stub) + F8 debug box (DoModal stub) = M4 items.
+- M4 TEST CASE (user playtest v78): world-map (locator) → CLICK a visited zone tile → the
+  balloon auto-dismisses (GetMessage stub) AND the world never redraws (recover: press L
+  twice — the L path calls the full zone redraw explicitly; the balloon-dismiss path's
+  invalidate/repaint is what's being skipped). Verify fixed when TextDialog's real modal
+  loop lands. Pressing L to stow redraws fine.
 - ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry, 100% CPU).
   Harness INIs: `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and
   writes it back — reset the INI before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed>

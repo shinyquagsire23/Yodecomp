@@ -207,7 +207,11 @@ Flush/Close/Free halt-safe; Pump = no-op, SDL_mixer self-mixes, so AfxBeginThrea
 deliberate no-thread object), and **mciSendString** covering exactly the game's four
 sequencer shapes ("open sequencer!<file> alias <NAME>" / "play <NAME> from 1" / "stop" /
 "close") over Mix_Music, with SoundFont resolution for fluidsynth MIDI (YODA_SOUNDFONT env >
-Mix defaults > probe list > brew fluid-synth demo font). YODA_SNDLOG=1 traces to stderr.
+Mix defaults > probe list > brew fluid-synth demo font). ⚠ A non-GM bank (the demo font)
+renders the percussion channel as melodic patches — user-reported as an intermittent
+"wip-wip" laser sound absent under wine; install a GM bank at
+/opt/homebrew/share/soundfonts/default.sf2 (first probe path; GeneralUser GS works) or set
+YODA_SOUNDFONT. YODA_SNDLOG=1 traces to stderr.
 Yoda: theme + intro + SFX user-confirmed audible and mixing. Indy: MCI sequencers open +
 THEME.MID plays natively (build-sdl-indy — config now builds and runs; in-game playtest
 pending). Known M4 tail: the polite-exit path never runs the view dtor (pump exit doesn't
