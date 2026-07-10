@@ -246,6 +246,13 @@ token-identical.
 define structs, diff behavior vs our GAME_INDY code. Good agent fodder (read-only sweeps). Feed found
 deltas back into goal 1 (the music model came from exactly this kind of dig — string cluster → xrefs →
 twins). ⚠ 16-bit offsets ≠ our 32-bit offsets (the +0x90 misread) — match twins by STRUCTURE, not offset.
+- **Scope (measured v72):** 1181 funcs total, 853 unnamed — but segs **1000=MFC / 1008=CRT are LIBRARY**
+  (skip, like YodaDemo's 0x429000+): the app-code target is **~214 unnamed** = seg 1010 (91 FUN_*, doc/
+  parse/worldgen/IACT), 1018 (109, view/UI/sound/dialogs), 1020 (14, doc cmd handlers/StartGame).
+- Method that works: pick a twin-rich area (our named Yoda function list = the map), find the DESKADV twin
+  by string/import xrefs or caller structure, name `Indy*`, plate-comment with the Yoda twin address.
+  Some data xrefs are unresolved in the NE binary — search PUSH of the (negative) DGROUP offset instead.
+  Note: undiscovered functions exist (IndyViewOnUpdate needed create_function) — check gaps.
 
 **▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN.
 All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; fall-through = original tokens.
