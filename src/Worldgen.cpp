@@ -867,7 +867,7 @@ int CDeskcppDoc::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, sho
     if (CheckZoneItemsAvailable(zoneId) == 0)
     {
         RemoveZoneEntry2(item1a);
-        RemoveZoneEntry2(item1a);   // sic: should be item2 (docs/engine-bugs.md #11)
+        RemoveZoneEntry2(item1a); YODA_SIC_FIX(BUGLOG(("sic#11 lock-chain rollback: item2=%d left registered (behavior kept, log only)\n", (int)item2));) // sic: should be item2 (docs/engine-bugs.md #11)
         return 0;
     }
     int nOk = 0;
@@ -5388,7 +5388,7 @@ void CDeskcppDoc::OnSaveWorld()
     CFileDialog *pDlg = new CFileDialog(0, "wld", "savegame", 0x80006, strFilter, (CWnd *)pView);
     CString strTitle;
     strTitle.LoadString(0xe032);
-    pDlg->m_ofn.lpstrInitialDir = lpszSaveDir;  // sic: dereferences pDlg BEFORE the null
+    YODA_SIC_FIX(if (pDlg != NULL)) pDlg->m_ofn.lpstrInitialDir = lpszSaveDir; // sic: dereferences pDlg BEFORE the null
                                                      // check below (engine-bugs.md #13)
     if (pDlg == NULL)
     {
@@ -5715,7 +5715,7 @@ void CDeskcppDoc::OnLoadWorld()
         if (g_bReplayMode == 0)
         {
             pDlg = new CFileDialog(1, "wld", "*.wld", 0x1006, strFilter, NULL);
-            pDlg->m_ofn.lpstrInitialDir = lpszSaveDir;  // sic: dereferences pDlg BEFORE
+            YODA_SIC_FIX(if (pDlg != NULL)) pDlg->m_ofn.lpstrInitialDir = lpszSaveDir; // sic: dereferences pDlg BEFORE
             if (pDlg == NULL)                                //      the null check
                 return;
             pDlg->m_ofn.Flags &= ~0x10;
@@ -8534,7 +8534,7 @@ int CDeskcppDoc::IndyPopulateTradeZone(short nQueueTag, int nStepSlot, int nZone
     if (IndyCheckZoneItemsAvailable(nZoneId) == 0)
     {
         RemoveZoneEntry2(lockItem);
-        RemoveZoneEntry2(lockItem);   // sic: DESKADV removes lockItem twice (mirror engine-bug)
+        RemoveZoneEntry2(lockItem); YODA_SIC_FIX(BUGLOG(("sic#11i Indy lock-chain rollback: rewardItem=%d left registered (behavior kept, log only)\n", (int)rewardItem));) // sic: DESKADV removes lockItem twice (mirror engine-bug)
         return 0;
     }
     bool ok;

@@ -214,3 +214,39 @@ protected:
 };
 
 #endif
+
+// ── YODA_BUGFIX: guarded fixes for ORIGINAL engine bugs (docs/engine-bugs.md) ───────────────
+// YODA_SIC_FIX(x) expands to NOTHING in byte-match builds (anchor preprocessed tokens are
+// unchanged; same trick as PTRINT) and to the fix code under -D YODA_BUGFIX (CMake YODA_BUGFIX,
+// default ON for every non-anchor config). Fix sites sit on the SAME source line as the
+// original statement so no function's line number moves (lesson #23). BUGLOG(("fmt", ...)) —
+// double parens, VC4.2 has no variadic macros — appends to yoda_bugfix.log in the cwd,
+// recording that the ORIGINAL engine would have hit the edge condition. Crash/UB/leak fixes
+// only: behavior-shaping bugs (worldgen quirks, script-index clobber) stay faithful.
+// This block is duplicated in Worldgen.h / DeskcppStub.h / DeskcppDoc.h (no shared header
+// exists across those TUs, and adding an include to a byte-matched TU is forbidden — lesson 6);
+// the #ifndef makes the copies idempotent. Keep them identical.
+#ifndef YODA_SIC_FIX
+#ifdef YODA_BUGFIX
+#include <stdio.h>
+#include <stdarg.h>
+static inline void YodaBugLog(const char *fmt, ...)
+{
+    FILE *f = fopen("yoda_bugfix.log", "a");
+    if (f == NULL)
+        return;
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+    fclose(f);
+}
+#define YODA_SIC_FIX(x) x
+#define YODA_SIC_RETURN(x) { x return; }
+#define BUGLOG(args) YodaBugLog args
+#else
+#define YODA_SIC_FIX(x)
+#define YODA_SIC_RETURN(x) return;
+#define BUGLOG(args) ((void)0)
+#endif
+#endif // YODA_SIC_FIX

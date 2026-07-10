@@ -25,6 +25,11 @@ option(YODA_DEBUG "Enable debug logging (src/DebugLog.h)" OFF)
 if(YODA_DEBUG)
   add_compile_definitions(YODA_DEBUG)
 endif()
+# The SDL config is never byte-matched — engine crash-bug fixes default ON (docs/engine-bugs.md).
+option(YODA_BUGFIX "Fix original engine crash bugs (logs hits to yoda_bugfix.log)" ON)
+if(YODA_BUGFIX)
+  add_compile_definitions(YODA_BUGFIX)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

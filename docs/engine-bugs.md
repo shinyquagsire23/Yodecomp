@@ -9,6 +9,42 @@ in `src/`, the source carries a `// sic:` or NOTE comment pointing here.
 Scope note: demo-build *limitations* (goal=108 hardcode, grayed Save/Load/Replay, pre-seeded
 Alaska story list) are intentional and documented in CLAUDE.md's GameData notes, not here.
 
+## YODA_BUGFIX — guarded fixes for production builds (2026-07-10, v75)
+
+CMake option `YODA_BUGFIX` (default **ON** for every non-anchor config — FULL / INDY / SDL;
+forced OFF + hard error on the byte-match anchor). Under `-D YODA_BUGFIX`, the `YODA_SIC_FIX(x)`
+/ `YODA_SIC_RETURN(x)` / `BUGLOG((fmt, ...))` macros (defined identically at the tail of
+Worldgen.h / DeskcppStub.h / DeskcppDoc.h — keep the three copies in sync) activate CRASH/UB/LEAK
+fixes at the `// sic:` sites and append a line to **yoda_bugfix.log** (cwd) whenever the ORIGINAL
+engine would have hit the edge. In anchor builds every macro expands to empty / bare `return;` on
+the same source line — preprocessed tokens and line numbers are unchanged (PTRINT trick; anchor
+re-verified 211 after every touched TU).
+
+**Policy: crash class only.** Behavior-shaping bugs stay faithful — fixing them would change
+rand() consumption / worldgen output / script scheduling and break seed-parity with the real
+game (the H4 M0 digest oracle depends on reproducing them). Verified: the fixed build's worldgen
+digest is byte-identical to the unfixed build at the same seed/INI.
+
+| bug | status under YODA_BUGFIX |
+|---|---|
+| #1 script-index clobber | **kept** (script scheduling = behavior; no log — would fire per evaluation) |
+| #2 EnemyDead OOB | **fixed** (idx<0 or ==count → condition fails) + log |
+| #3 Show/HideEntity OOB | **fixed** (skip) + log; SetMapTile/ClearTile/MoveMapTile OOB guards widened from GAME_INDY-only to all bugfix builds + log |
+| #4 SayText/ShowText article pre-buffer read | **fixed** (probe skipped when pos<2) + log |
+| #5 IactRun prologue pWorld deref | **kept** (callers always valid; restructuring = codegen risk for zero gain) |
+| #6 RemoveItemFromInv missing pView check | **fixed** (guard added) |
+| #7 unreachable OOM dialogs | **kept** (dead code, harmless) |
+| #8 unguarded pCanvas->Clear() | **fixed** (guard) + log |
+| #9 16-of-20 UI tile ptr clear | **fixed** (clears all 20) |
+| #10 shuffle guard never fires | **kept** (fix would change rand() sequence → worldgen parity); no log (fires every shuffle) |
+| #11 rollback removes item1a twice | **log-only** (fix would change worldgen; hits ARE seen in the wild — seed 0x2a logs two) + Indy mirror logged (`sic#11i`) |
+| #12 teleporter scan result discarded | **kept** (worldgen behavior; log would be per-candidate spam) |
+| #13 uninitialized nMask (×2 sites) | **fixed** (zero-init) + log when the IactRun was skipped |
+| #14 OnDragItem Artoo DC+palette leak | **fixed** (released on both arms) + log |
+| UpdateDragCursor pBitmap leak (unnumbered) | **fixed** (deleted on Attach failure) + log |
+| SaveGame/LoadGame pDlg deref before null check (unnumbered) | **fixed** (store guarded; the existing null check then reports) |
+| GetZoneById off-planet **-1 sentinel** (hardening, not a bug — the game never queries off-planet ids) | **fixed** (returns NULL) + log |
+
 ## Confirmed bugs
 
 ### 1. `COND_CheckCellItems` clobbers the script-loop index — script iteration restarts

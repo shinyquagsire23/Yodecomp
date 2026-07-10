@@ -555,7 +555,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                 case COND_EnemyDead:
                     // sic: '<' not '<=' — args[0]==GetSize() reads past the array
                     // (docs/engine-bugs.md #2)
-                    if (entities.GetSize() < pCond->args[0]
+                    YODA_SIC_FIX(if (pCond->args[0] < 0 || entities.GetSize() == pCond->args[0]) { BUGLOG(("sic#2 EnemyDead: idx=%d n=%d, OOB read avoided\n", (int)pCond->args[0], (int)entities.GetSize())); matched = 0; break; }) if (entities.GetSize() < pCond->args[0]
                         || ((MapEntity *)entities[pCond->args[0]])->charId != -1)
                         matched = 0;
                     break;
@@ -809,24 +809,24 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             // engine tolerates them, so guard the index for Indy only (Yoda fall-through = exact
             // original, anchor 211). TODO(indy): RE why Indy interior scripts have huge coords
             // (opcode semantics vs a script-keying/data quirk) for a true root-cause fix.
-#ifdef GAME_INDY
+#if defined(GAME_INDY) || defined(YODA_BUGFIX)
             if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
 #endif
-            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = (short)pCmd->args[3];
+            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = (short)pCmd->args[3]; YODA_SIC_FIX(else BUGLOG(("sic SetMapTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
             break;
         case CMD_ClearTile:
             result |= 0x20;
-#ifdef GAME_INDY
+#if defined(GAME_INDY) || defined(YODA_BUGFIX)
             if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
 #endif
-            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
+            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1; YODA_SIC_FIX(else BUGLOG(("sic ClearTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
             break;
         case CMD_MoveMapTile: {
-#ifdef GAME_INDY
+#if defined(GAME_INDY) || defined(YODA_BUGFIX)
             if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) >= 18u * 18 * 3
                 || (unsigned)((pCmd->args[4] * 18 + pCmd->args[3]) * 3 + pCmd->args[2]) >= 18u * 18 * 3)
             {
-                result |= 0x20;
+                YODA_SIC_FIX(BUGLOG(("sic MoveMapTile: OOB src=%d,%d dst=%d,%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[3], (int)pCmd->args[4], (int)pCmd->args[2]));) result |= 0x20;
                 break;
             }
 #endif
@@ -866,7 +866,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                         if (c >= 'A')
                             c = (char)toupper(c);
                         if ((c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
-                            && (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
+                            && YODA_SIC_FIX((pos >= 2 || (BUGLOG(("sic#4 SayText: article probe at pos=%d, pre-buffer read avoided\n", pos)), 0)) &&) (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
                             head.SetAt(pos - 1, 'n');
                             head += " ";
                         }
@@ -885,7 +885,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                         if (c >= 'A')
                             c = (char)toupper(c);
                         if ((c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
-                            && (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
+                            && YODA_SIC_FIX((pos >= 2 || (BUGLOG(("sic#4 ShowText: article probe at pos=%d, pre-buffer read avoided\n", pos)), 0)) &&) (head[pos - 2] == 'A' || head[pos - 2] == 'a')) {
                             head.SetAt(pos - 1, 'n');
                             head += " ";
                         }
@@ -1041,14 +1041,14 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             break; }
         case CMD_ShowEntity: {
             // sic: no bounds check, unlike ShowObject (docs/engine-bugs.md #3)
-            MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
+            YODA_SIC_FIX(if (pCmd->args[0] < 0 || pCmd->args[0] >= entities.GetSize()) { BUGLOG(("sic#3 ShowEntity: OOB idx=%d (n=%d)\n", (int)pCmd->args[0], (int)entities.GetSize())); break; }) MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
             if (p != NULL) {
                 p->active = 1;
                 result |= 0x40;
             }
             break; }
         case CMD_HideEntity: {
-            MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
+            YODA_SIC_FIX(if (pCmd->args[0] < 0 || pCmd->args[0] >= entities.GetSize()) { BUGLOG(("sic#3 HideEntity: OOB idx=%d (n=%d)\n", (int)pCmd->args[0], (int)entities.GetSize())); break; }) MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
             if (p != NULL) {
                 p->active = 0;
                 result |= 0x40;
@@ -1107,7 +1107,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                     }
                 } else {
                     short item = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
-                    if (item >= 0 && pWorld->tileArray[item] != NULL) {
+                    if (YODA_SIC_FIX(pView != NULL &&) item >= 0 && pWorld->tileArray[item] != NULL) {
                         pView->RemoveItem(pWorld->tileArray[item]);
                         result |= 0x400;
                     }

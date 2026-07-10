@@ -917,7 +917,7 @@ Tile *CDeskcppDoc::GetTileData(int idx)
 // FUNCTION: YODA 0x00403a70
 Zone *CDeskcppDoc::GetZoneById(short id)
 {
-    if (id >= 0 && id < zoneCount)
+    if (id >= 0 && id < zoneCount YODA_SIC_FIX(&& (zoneObjects[id] != (Zone *)-1 || (BUGLOG(("sic GetZoneById(%d): off-planet -1 slot, returning NULL\n", (int)id)), 0))))
         return zoneObjects[id];
     return 0;
 }

@@ -79,7 +79,12 @@ when tokens are neutral — prefer end-of-file additions / same-line decls (less
 ⚠ Objects live in **`build/`** (repo root), not next to sources: compile with
 `cd src && ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../build/<File>.obj <File>.cpp`.
 progress.py's count is name-keyed and robust; a lone verify.py per-TU number is a lower bound (lesson #30).
-Original engine bugs are reproduced, not fixed — `docs/engine-bugs.md` + `// sic:` comments.
+Original engine bugs are reproduced, not fixed, in the ANCHOR — `docs/engine-bugs.md` + `// sic:`
+comments. Non-anchor configs default **`YODA_BUGFIX=ON`**: crash/UB/leak sic-sites are fixed via the
+line-neutral `YODA_SIC_FIX`/`YODA_SIC_RETURN`/`BUGLOG` macros (tail of Worldgen.h/DeskcppStub.h/
+DeskcppDoc.h — 3 identical copies, keep synced) and hits log to `yoda_bugfix.log`; behavior-shaping
+bugs (worldgen quirks, script scheduling) stay faithful so seed-parity holds (digest A/B verified).
+Per-bug status table: docs/engine-bugs.md.
 
 ## 🔨 Build / run / debug (Phase H)
 
@@ -233,6 +238,13 @@ the milestone in one line). ⚠ TRAP found: `GetZoneById` slots for OFF-PLANET z
 not NULL** (the game only ever queries on-planet ids; any harness must filter `(Zone*)-1`).
 Zero src/ edits this milestone — anchor untouched by construction, re-verified 211. Repro +
 mechanisms in **docs/phase-h4-sdl.md** (READ IT before touching microfx/stub headers).
+⭐ **Also v75: `YODA_BUGFIX` flag** (user-requested) — default ON for FULL/INDY/SDL, hard-error on
+the anchor: 12 crash/UB/leak sic-sites fixed via line-neutral `YODA_SIC_FIX`/`YODA_SIC_RETURN`/
+`BUGLOG` macros (3 identical header copies at the tails of Worldgen.h/DeskcppStub.h/DeskcppDoc.h);
+behavior bugs kept + logged (yoda_bugfix.log). Worldgen digest A/B verified identical ON vs OFF;
+anchor oracles re-run FULL GREEN after recompiling all 7 header-consumer TUs; wine FULL build
+compiles+links with the macros expanding. sic#11 (lock-chain rollback) fires FOR REAL on seed
+0x2a — the log rig works. Status table: docs/engine-bugs.md.
 
 **▶ GOAL 2 — H4 next = M2 (the main thread):**
 - ⚠ FIRST: fix MainFrm.h's 32-bit stub views (`CDeskcppView` pads/`FrameWorld`/`MusicThread`) —

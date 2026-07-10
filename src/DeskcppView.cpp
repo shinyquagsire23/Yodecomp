@@ -1034,11 +1034,11 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
     {
         DrawDirectionArrows(pDC);
         short nSavedMode = (short)pWorld->nFrameMode;
-        unsigned short nMask;                  // sic: uninitialized when the IactRun
+        unsigned short nMask; YODA_SIC_FIX(nMask = 0;) // sic: uninitialized when the IactRun
                                                //      below is skipped (engine-bugs #13)
         if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
             nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
-                                                                 pDC, pWorld, this);
+                                                                 pDC, pWorld, this); YODA_SIC_FIX(else BUGLOG(("sic#13 ZoneTransitionStep: entry IactRun skipped, mask defaulted to 0\n"));)
         if (nMask & 4)
             pWorld->UpdateCamera();
         bSkipEntryIactMaybe = 0;
@@ -1185,11 +1185,11 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
         else if (nStep == 10)
         {
             DrawDirectionArrows(pDC);
-            unsigned short nMask;              // sic: uninitialized when the IactRun
+            unsigned short nMask; YODA_SIC_FIX(nMask = 0;) // sic: uninitialized when the IactRun
                                                //      below is skipped (engine-bugs #13)
             if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
                 nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
-                                                                     pDC, pWorld, this);
+                                                                     pDC, pWorld, this); YODA_SIC_FIX(else BUGLOG(("sic#13 OnTimer step10: entry IactRun skipped, mask defaulted to 0\n"));)
             if (nMask & 4)
                 pWorld->UpdateCamera();
             bSkipEntryIactMaybe = 0;
@@ -5022,10 +5022,10 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
             break;
         case 0x13:
             PlaySound(6);
-            return;     // sic: leaks the DC + selected palette
+            YODA_SIC_RETURN(BUGLOG(("sic#14 OnDragItem: Artoo case 0x13 — DC+palette released\n")); pDC->SelectPalette(pOldPal, 0); ReleaseDC(pDC);) // sic: leaks the DC + selected palette
         case 0x14:
             PlaySound(6);
-            return;     // sic: leaks the DC + selected palette
+            YODA_SIC_RETURN(BUGLOG(("sic#14 OnDragItem: Artoo case 0x14 — DC+palette released\n")); pDC->SelectPalette(pOldPal, 0); ReleaseDC(pDC);) // sic: leaks the DC + selected palette
         }
         // Show the Artoo speech balloon over the target cell.
         pWorld->GetTileData(0x31a);
@@ -6220,7 +6220,7 @@ void CDeskcppView::UpdateDragCursor(int bClear)
     }              // closes the TRY macro's outer (link-scope) brace
     int nBpp = dcMem.GetDeviceCaps(BITSPIXEL);
     if (!pBitmap->Attach(::CreateBitmap(32, 32, 1, nBpp, NULL)))
-        return;
+        YODA_SIC_RETURN(BUGLOG(("sic UpdateDragCursor: CBitmap::Attach failed, pBitmap freed\n")); delete pBitmap;) // sic: pBitmap leak (early return skips the delete)
     CBitmap *pOldBmp = dcMem.SelectObject(pBitmap);
     int *pX = &nDragLastScreenX;
     if (*pX >= 0)

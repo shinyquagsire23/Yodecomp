@@ -71,6 +71,23 @@ if(YODA_GAME STREQUAL "YODA" AND YODA_VARIANT STREQUAL "DEMO" AND YODA_PLATFORM 
 else()
   set(_is_anchor FALSE)
 endif()
+
+# Guarded fixes for ORIGINAL engine bugs (docs/engine-bugs.md; YODA_SIC_FIX/BUGLOG macros).
+# Crash/UB/leak sites only — behavior-shaping bugs stay faithful (worldgen parity). Default:
+# ON for every non-anchor config, OFF for the byte-match anchor (tokens must stay original).
+if(_is_anchor)
+  set(_bugfix_default OFF)
+else()
+  set(_bugfix_default ON)
+endif()
+option(YODA_BUGFIX "Fix original engine crash bugs (logs hits to yoda_bugfix.log)" ${_bugfix_default})
+if(YODA_BUGFIX AND _is_anchor)
+  message(FATAL_ERROR "YODA_BUGFIX=ON would perturb the byte-match anchor config — "
+                      "use it only with FULL / INDY / SDL builds.")
+endif()
+if(YODA_BUGFIX)
+  list(APPEND _extra_defs /D YODA_BUGFIX)
+endif()
 if(_is_anchor)
   set(_anchor_note " (byte-match anchor config)")
 else()

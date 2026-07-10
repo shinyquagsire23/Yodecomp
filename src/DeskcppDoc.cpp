@@ -905,11 +905,11 @@ BOOL CDeskcppDoc::OnNewDocument()
     }
     if (pCanvas != NULL)
         pCanvas->SetPalette(0, 0x100, (RGBQUAD *)pSysColorTable);
-    pCanvas->Clear();               // sic: unguarded — crashes if the Canvas alloc failed
+    YODA_SIC_FIX(if (pCanvas == NULL) BUGLOG(("sic#8 OnNewDocument: Canvas alloc failed, Clear() skipped\n")); else) pCanvas->Clear(); // sic: unguarded — crashes if the Canvas alloc failed
 
     Tile **p = apUiTiles;
     for (k = 0x10; k != 0; k--)
-        *p++ = NULL;                // sic: only 16 of the 20 cached ptrs are cleared
+        *p++ = NULL; YODA_SIC_FIX(for (k = 4; k != 0; k--) *p++ = NULL;) // sic: only 16 of the 20 cached ptrs are cleared
 
     ::ReleaseDC(NULL, hdc);
     bStateFileLoaded = 0;
