@@ -13,6 +13,15 @@
 #include "Worldgen.h"
 #include "TextDialog.h"
 
+// IactProbeMove's a5 arg carries &pWorld->tiles through an `int` param the callee never reads
+// (faithful to the original 32-bit call). On the 64-bit portable build that cast is ill-formed,
+// so the sites cast through PTRINT: anchor preprocesses to the ORIGINAL `(int)` tokens.
+#ifdef YODA_PORTABLE
+#define PTRINT intptr_t
+#else
+#define PTRINT int
+#endif
+
 // --- WAVMIX32 imports (all __stdcall) -----------------------------------------
 extern "C" {
     UINT WINAPI WaveMixPump(void);
@@ -136,8 +145,8 @@ static void Indy_MidiCloseAll()
 // Shared engine code hardcodes YODA sound ids, but the two games' SNDS tables differ
 // (Yoda 5=eep/6=nogo vs Indy 5=ROAR/6=DOOR/8=NOGO...). Translate at the PlaySound
 // boundary; data-driven ids (IACT args, weapon sounds) bypass via PlaySoundData.
-// -1 = no Indy equivalent (silent). TODO: verify the -1 set + 0xb per-site against the
-// DESKADV twins during the Indy RE sweep.
+// -1 = no Indy equivalent (silent). VERIFIED v73 vs DESKADV: all 28 IndyPlaySound call
+// sites push only {0,1,3,4,8,0x0e-0x11,0x13}; whole -1 set + 0xb->7 CONFIRMED correct.
 static int Indy_MapSoundId(int nYodaSoundId)
 {
     switch (nYodaSoundId)
@@ -2067,7 +2076,7 @@ void CDeskcppView::Tick()
                             (*pBulletStep)++;
                             short *pBY = &pEnt->bulletY;
                             short *pBX = &pEnt->bulletX;
-                            nRet = pZone->IactProbeMove(*pBX, *pBY, *pBDX, *pBDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pBX, *pBY, *pBDX, *pBDY, (PTRINT)&pWorld->tiles, 0);
                             if (nRet != 1)
                             {
                                 bMoved = 0;
@@ -2192,7 +2201,7 @@ void CDeskcppView::Tick()
                             }
                             short *pY = &pEnt->y;
                             short *pX = &pEnt->x;
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             switch (nRet)
                             {
                             case 2: nDX++; break;
@@ -2306,7 +2315,7 @@ void CDeskcppView::Tick()
                                 }
                             }
                             short *pY = &pEnt->y;
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             if (bTurned)
                             {
                                 switch (nRet)
@@ -2413,7 +2422,7 @@ void CDeskcppView::Tick()
                                 nDY = rand() % 3 - 1;
                             }
                             short *pY = &pEnt->y;
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             switch (nRet)
                             {
                             case 2: nDX++; break;
@@ -2539,7 +2548,7 @@ void CDeskcppView::Tick()
                                 nDX = rand() % 3 - 1;
                                 nDY = rand() % 3 - 1;
                             }
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             switch (nRet)
                             {
                             case 2: nDX++; break;
@@ -2632,7 +2641,7 @@ void CDeskcppView::Tick()
                                 }
                             }
                             short *pY = &pEnt->y;
-                            nRet = pZone->IactProbeMove(nX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(nX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             if (bTurned)
                             {
                                 switch (nRet)
@@ -2751,7 +2760,7 @@ void CDeskcppView::Tick()
                                 }
                             }
                             short *pY = &pEnt->y;
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             if (bTurned)
                             {
                                 switch (nRet)
@@ -2843,7 +2852,7 @@ void CDeskcppView::Tick()
                             }
                             short *pY = &pEnt->y;
                             short *pX = &pEnt->x;
-                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                            nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                             switch (nRet)
                             {
                             case 1:
@@ -2987,7 +2996,7 @@ void CDeskcppView::Tick()
                             {
                                 pY = &pEnt->y;
                                 pX = &pEnt->x;
-                                nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (int)&pWorld->tiles, 0);
+                                nRet = pZone->IactProbeMove(*pX, *pY, nDX, nDY, (PTRINT)&pWorld->tiles, 0);
                                 switch (nRet)
                                 {
                                 case 2: nDX++; break;
@@ -7292,7 +7301,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                 }
                 if (bPush || (nMask & 4) != 0)
                     break;
-                switch (pWorld->currentZone->IactProbeMove(cx, cy, dx2, dy2, (int)&pWorld->tiles, 0))
+                switch (pWorld->currentZone->IactProbeMove(cx, cy, dx2, dy2, (PTRINT)&pWorld->tiles, 0))
                 {
                 case 0:
                     UpdatePlayerWalkFrame();

@@ -36,10 +36,18 @@ set_property(CACHE YODA_GAME     PROPERTY STRINGS YODA INDY)
 set_property(CACHE YODA_VARIANT  PROPERTY STRINGS DEMO FULL)
 set_property(CACHE YODA_PLATFORM PROPERTY STRINGS WIN32 SDL)
 
+# ── H4 portable target: a completely separate build path (host compiler + SDL2 + microfx) ────
+# The SDL config never touches the wine/VC4.2 toolchain: configure WITHOUT
+# -DCMAKE_TOOLCHAIN_FILE, e.g.  cmake -B build-sdl -DYODA_PLATFORM=SDL && cmake --build build-sdl
+# Game TUs compile UNMODIFIED — microfx/include/ shadows <afxwin.h> et al. (docs/phase-h4-sdl.md).
 if(YODA_PLATFORM STREQUAL "SDL")
-  message(FATAL_ERROR
-    "YODA_PLATFORM=SDL (the portable/SDL target) is Phase H4 and not implemented yet. "
-    "Use YODA_PLATFORM=WIN32 (the default).")
+  if(CMAKE_TOOLCHAIN_FILE MATCHES "vc42")
+    message(FATAL_ERROR "YODA_PLATFORM=SDL uses the HOST compiler — configure without "
+                        "-DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake.")
+  endif()
+  enable_language(CXX C)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/PortableSDL.cmake")
+  return()
 endif()
 
 # ── derive the additive defines (default adds nothing → byte-identical to link_exe.sh) ────────

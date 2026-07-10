@@ -174,6 +174,17 @@ void Canvas::BlitFast(void* src, int flags, short height,
     int rows = height;
     int stride = (short)srcStride;
     int cw     = canvasW;
+#ifdef YODA_PORTABLE
+    // Portable equivalent of the two hand-asm paths below: 32-byte (one tile) row copies.
+    char* sp = (char*)s;
+    char* dp = dst;
+    for (int r = rows; r > 0; r--) {
+        memcpy(dp, sp, 32);
+        sp += (unsigned short)srcStride;
+        dp += (unsigned short)canvasW;
+    }
+    (void)stride; (void)cw;
+#else
     if (App_bCpuHasMMX != 0) {
         __asm {
         _emit 0x66      // pushaw
@@ -267,6 +278,7 @@ void Canvas::BlitFast(void* src, int flags, short height,
         _emit 0x66      // popaw
         _emit 0x61
     }
+#endif // YODA_PORTABLE
 }
 
 // EFFECTIVE MATCH (4B reg-alloc residual): the two independent movsx loads (destX, canvasW) in the dst
@@ -290,6 +302,19 @@ void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
     volatile struct { int lo, hi; } keyq;
     keyq.lo = 0;
     keyq.hi = 0;
+#ifdef YODA_PORTABLE
+    // Portable equivalent of the two hand-asm paths below: color-keyed 32-byte row blit
+    // (bytes equal to `key` are transparent — the scalar path's per-byte cmp/je).
+    char* sp = (char*)s;
+    char* dp = dst;
+    for (int r = rows; r > 0; r--) {
+        for (int i = 0; i < 32; i++)
+            if (sp[i] != key) dp[i] = sp[i];
+        sp += (unsigned short)srcStride;
+        dp += (unsigned short)canvasW;
+    }
+    (void)keyq;
+#else
     if (App_bCpuHasMMX != 0) {
         __asm {
         _emit 0x66      // pushaw
@@ -620,4 +645,5 @@ void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
         _emit 0x66      // popaw
         _emit 0x61
     }
+#endif // YODA_PORTABLE
 }

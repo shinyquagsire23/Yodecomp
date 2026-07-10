@@ -2471,3 +2471,20 @@ through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens
   this-in-ESI landing are not source-steerable — annotate and defer to G1, don't grind.
 
 
+
+## ⏮ PRIOR PICKUP (v72, 2026-07-10) — condensed (superseded by v73: microfx M0 + remap verified)
+
+v72 delivered: CLAUDE.md consolidation (history → this file); ⭐ Indy MIDI music end-to-end +
+USER-CONFIRMED (MCI command strings, SNDS 0x0e–0x11 = MIDs, eerie=0x12/eep=0x13, per-id opened
+flags, stop-all on ToggleMusic-off/new-game, close-all in view dtor; DESKADV functions named:
+IndySoundInit 1018:4c54, IndyPlaySound 1010:e43c, IndyStopAllMusic 1018:6e34, IndyPlayThemeMusic
+1018:6dd0, IndyViewOnUpdate 1010:e1aa, IndyViewTeardownMaybe 1010:dff0, IndyOnToggleMusic
+1010:c092); ⭐ Yoda→Indy sound-id remap `Indy_MapSoundId` (games' SNDS tables differ; data-driven
+ids bypass via PlaySoundData, demo `#define PlaySoundData PlaySound` token-neutral); v71 "hero-HP
+entity+0x90=120" was a 16-bit-offset misread — 0x78 = Indy INTRO ZONE (Yoda 0x5d), StartGame
+literals GAME_INDY→0x78. Gotcha: mmsystem.h #defines PlaySound→PlaySoundA (#undef); winmm.lib in
+CMake link. Open items rolled to v73: USER-VERIFY of the remap SFX/music moments; IACT cmd 0x13
+rect arg-order + cond specials 0/8/9/0xb/0x14–0x16; INI replay; optional Indy menus; DESKADV sweep
+scope measured (~214 app-code unnamed: seg 1010=91, 1018=109, 1020=14; 1000/1008 = MFC/CRT library,
+skip). v73 then VERIFIED the whole remap against DESKADV (all 28 IndyPlaySound call sites + both
+SNDS tables: every entry CONFIRMED, none wrong, none missing).

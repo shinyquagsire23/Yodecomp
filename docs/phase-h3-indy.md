@@ -610,9 +610,20 @@ The 16-bit model (mirrored in our port, all `GAME_INDY`-guarded):
 5=eep/6=nogo vs Indy 5=ROAR/6=DOOR/8=NOGO...), so every hardcoded Yoda id in shared code played the
 WRONG Indy sound. Under GAME_INDY, `PlaySound` translates hardcoded Yoda ids (5→0x13 eep, 6→8 nogo,
 0xb→7 explode, 0x3a/0x3d/0x3e/0x3f→FLOURISH/THEME/DEFEAT/VICTORY MIDs; Yoda-only concepts
-0x1f–0x23/0x2a/0x2b/0x31/0x34/0x37 → −1 silent, TODO verify per-site in the RE sweep), while the
+0x1f–0x23/0x2a/0x2b/0x31/0x34/0x37 → −1 silent), while the
 data-driven (Indy-native) ids — IACT `pCmd->args[0]`, `pWeapon->weaponCharId` — bypass via
 **`PlaySoundData`** (demo: `#define PlaySoundData PlaySound`, token-neutral).
+
+**✅ v73 remap VERIFIED against DESKADV ground truth** (agent sweep: both SNDS tables extracted from
+YODESK.DTA / DESKTOP.DAW + ALL 28 `IndyPlaySound` call sites disassembled): Indy's WAV table ends at
+0x0d (`IndyPlaySound` branches `if (id < 0xe)`; 0x0e–0x11 MIDI, 0x12 eerie, 0x13 eep hardcoded), so
+every Yoda id ≥0x1f has no possible Indy WAV. Hardcoded ids DESKADV ever pushes: {0,1,3,4,8} SFX +
+{0x0e,0x10,0x11} music + 0x13 eep — key twins: damage→0x13 @1010:1bd4, bump-NOGO→8 @1018:837f/83e6
+(FUN_1018_733e = OnBumpTile twin), walk→3 @1018:b09b, win→0x11 @1018:21d7, lose→0x10 @1018:2497,
+new-game→0x0e @1020:0fa9. IACT dispatcher @1010:33b6 pushes the RAW script arg (matches our
+PlaySoundData bypass — no double remap). Every mapping CONFIRMED, none WRONG, none missing; the
+Indy-only WAVs (ROAR/DOOR/WHIP/GUNSHOT/MACHETE/SPEAR/ARROW) are all data-driven and reachable.
+Nit: Yoda SNDS order is 0x1f=saberout, 0x20=armed (both −1, no functional impact).
 
 **Intro zone:** the v71 "hero-HP tail (entity+0x90=120)" was a misread — 16-bit view+0x90 is our
 `nTargetZoneId`, and 0x78=120 is **Indy's intro zone id** (Yoda 0x5d=93); IndyStartNewGameMaybe pushes

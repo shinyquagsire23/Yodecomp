@@ -26,6 +26,8 @@ build-cmake/
 build-full/
 build-indy/
 build-demo/
+build-sdl/
+mfx_smoke.tmp
 tmp/
 *.exe
 

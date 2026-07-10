@@ -5,6 +5,15 @@
 #include <time.h>
 #include "Worldgen.h"
 
+// Pointer-through-int casts faithful to the original 32-bit code (a `// sic` bug value): on the
+// 64-bit portable build a direct (int) cast is ill-formed, so those sites cast through PTRINT —
+// the anchor config preprocesses it back to the ORIGINAL `(int)` tokens.
+#ifdef YODA_PORTABLE
+#define PTRINT intptr_t
+#else
+#define PTRINT int
+#endif
+
 // ---- .data lookup tables (extracted from the original binary) ----
 // 10x10 worldgen grid-order priority ring (0x00456630): outer ring 5 -> center 1.
 int gWorldgenGridOrderTable[100] = {
@@ -7158,7 +7167,7 @@ void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         nType = 3;
 #endif
     else
-        nType = nType != 0 ? 3 : (int)pSavedItem;  // sic: degrades to the saved equipped-item POINTER value
+        nType = nType != 0 ? 3 : (PTRINT)pSavedItem;  // sic: degrades to the saved equipped-item POINTER value
     short nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);
     switch (nStep)
     {

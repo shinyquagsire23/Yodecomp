@@ -42,15 +42,19 @@ Phase H (extension — functional correctness, not byte-matching) status:
    missed, naming functions + defining structs along the way (same conventions as YodaDemo; 16-bit NE,
    segmented addresses — recover LOGIC, not codegen).
 
-### H4 spec — Beyond Win95: portable SDL target
-- De-MFC/de-Win32 behind a platform HAL (`#ifdef YODA_PORTABLE`): Canvas/DIBSection/WinG blitting → SDL
-  surfaces/renderer; WaveMix/MMSYSTEM (+ MIDI) → SDL_mixer; the MFC app/doc/view shell → a portable main
-  loop + event pump; Win32 CFile/registry/paths → SDL_RWops/stdio; dialogs/menus/bitmaps → an SDL UI or
-  embedded assets.
-- **Reference:** `~/workspace/DesktopAdventures` is already a portable recreation — mirror its platform
-  abstraction, but drive it from OUR decompiled logic.
-- Incremental order: video/blit layer first (Canvas → SDL), then input, then audio, then the app/doc/view shell.
-  SDL2, targeting macOS/Linux/Windows.
+### H4 spec — Beyond Win95: portable SDL target via "microfx" (full design: docs/phase-h4-sdl.md)
+- **Strategy (user-set 2026-07-10): implement a source-compatible MFC SUBSET ("microfx"), not per-call
+  ifdefs.** All game TUs get MFC solely via `<afxwin.h>/<afxext.h>/<afxcmn.h>/<afxcoll.h>/<mmsystem.h>`;
+  the SDL config puts `microfx/include/` first on the include path so those SAME directives resolve to OUR
+  drop-in headers (MFC+Win32 subset over SDL2). The 13 TUs compile UNMODIFIED → anchor preserved by
+  construction (no token or line-number changes; the lesson-#23 hazard never arises). Same shape as
+  OpenJKDF2's Win95-API shim, one level up: keep the MFC-shaped code, reimplement MFC. Existing message
+  maps/DYNCREATE/afx macros keep working — the pump synthesizes WM_* from SDL events into EXISTING handlers.
+- Milestones (each with an oracle — docs/phase-h4-sdl.md): M0 core classes + logic TUs native, worldgen-log
+  diff vs wine · M1 Canvas→SDL_Surface (8-bit DIBSection ≈ paletted surface) · M2 event pump/timers/input ·
+  M3 SDL2_mixer audio (WaveMix + MCI MIDI) · M4 resources/dialogs/menus.
+- **References:** `~/workspace/DesktopAdventures` (SDL patterns, NOT behavior truth), `~/workspace/OpenJKDF2`
+  (shim precedent). SDL2, macOS/Linux/Windows.
 - **Done when:** a native SDL build of Yoda Stories runs on macOS AND the Win32/MFC byte-match anchor still passes.
 
 ## 🛡 THE ANCHOR (never regress this)
@@ -211,48 +215,45 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v72 — CLAUDE.md consolidated; ⭐ Indy MIDI MUSIC DONE (user-confirmed) + sound-id remap + intro zone; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v73 — ⭐ H4 microfx M0 ACHIEVED: whole game compiles+links natively on macOS; Indy sound remap VERIFIED vs DESKADV; anchor 211)
 
-**▶ v72 this session:** (1) consolidated CLAUDE.md (history → PLAN_COMPLETED.md "ARCHIVED FROM CLAUDE.md";
-cite lessons as PLAN_COMPLETED.md lesson #N). (2) ⭐ **Indy MIDI music implemented end-to-end and
-USER-CONFIRMED audible** ("ok that definitely played a midi"). Full model + DESKADV function map in
-docs/phase-h3-indy.md "v72"; the RE'd functions are NAMED in Ghidra (IndySoundInit 1018:4c54, IndyPlaySound
-1010:e43c, IndyStopAllMusic 1018:6e34, IndyPlayThemeMusic 1018:6dd0, IndyViewOnUpdate 1010:e1aa,
-IndyViewTeardownMaybe 1010:dff0, IndyOnToggleMusic 1010:c092; program saved). Key facts: SNDS ids 0x0e–0x11
-are MIDs via MCI command strings; hardcoded extras eerie.mid=0x12 / eep.wav=0x13; per-id opened flags;
-stop-all on ToggleMusic-off + new game; close-all in the view dtor. (3) ⭐ **Yoda→Indy sound-id remap**
-(`Indy_MapSoundId` in DeskcppView.cpp): the games' SNDS tables differ (Yoda 6=nogo vs Indy 6=DOOR…), so every
-hardcoded Yoda id in shared code played the WRONG Indy sound; data-driven ids (IACT args, weaponCharId)
-bypass via `PlaySoundData` (demo: `#define PlaySoundData PlaySound`, token-neutral). (4) v71's "hero-HP
-entity+0x90=120" was a MISREAD: 16-bit view+0x90 = our nTargetZoneId; 0x78=120 = **Indy's intro zone**
-(Yoda 0x5d=93) — StartGame's two literals now GAME_INDY→0x78. Gotcha: mmsystem.h #defines PlaySound→
-PlaySoundA (#undef after include); winmm.lib added to the CMake link. Anchor verified after: 211 exact,
-link 0/0/exit0, bugscan 0/0/0.
+**▶ v73 this session:** (1) ⭐ **H4 microfx strategy (user-set) designed AND M0 achieved**: a
+source-compatible MFC-4.2-subset shim (`microfx/include/` shadows `<afxwin.h>` et al., `microfx/src/`
+implements over-stubs/SDL2) — ALL 13 game TUs compile and whole-archive-link natively on arm64 macOS.
+`cmake -B build-sdl -DYODA_PLATFORM=SDL && cmake --build build-sdl && ./build-sdl/worldgen_smoke` → OK.
+Design + shared-source footprint + ⭐ portable-lessons (key-function/ODR hazard of the multi-declared
+CDeskcppDoc; END_TRY swallow semantics) in **docs/phase-h4-sdl.md** — read it before touching microfx.
+Guarded shared-TU edits (all anchor-token-neutral, oracles re-verified): Canvas asm blits ×2, Deskcpp
+CPUID, PTRINT casts ×11 (DeskcppView/Worldgen), AppWnd map (GameTypes), Worldgen.h portable dtor decl.
+(2) ⭐ **Indy sound-id remap FULLY VERIFIED** vs DESKADV ground truth (agent sweep: both SNDS tables from
+the data files + ALL 28 IndyPlaySound call sites disassembled): every Indy_MapSoundId entry CONFIRMED
+(−1 set = subsystems Indy lacks; 0xb→7 explode; music ids; PlaySoundData bypass matches DESKADV's raw
+script-arg path); NO missing sounds. Verdict table in docs/phase-h3-indy.md "v73". That goal-1 item is
+CLOSED (only the audible USER-VERIFY remains).
 
-**▶ GOAL 1 — remaining Indy stragglers (priority order):**
-- ⏳ USER-VERIFY: new-game flourish MID, victory/defeat MIDs, Music-toggle stop, intro-zone anim (0x78),
-  and that SFX now sound RIGHT (the remap changed bump/nogo etc. — previously wrong-sound or silent).
-- Verify the remap's −1 set per-site vs DESKADV twins (0x1f–0x23 armed/saberout/grenade/locator/mapcls,
-  0x2a/0x2b r2d2, 0x31 transprt, 0x34 armforce, and 0xb→7 explode guess) — good sweep fodder.
-- Still-uncertain IACT opcodes (cmd 0x13 rect arg-order vs DrawZoneCellRect; cond specials
-  0/8/9/0xb/0x14–0x16) — audit vs DESKADV jump tables.
-- INI replay persistence; OPTIONAL Indy menus (extend `tools/make_res.py --indy`).
+**▶ GOAL 2 — H4 next (M0-finish → M1), the main thread:**
+- **M0-finish:** make `CWinApp::OnFileNew`/doc-template create the CDeskcppDoc natively, point the
+  harness at YODESK.DTA (copy/symlink from `YodaFull/`), run fixed-seed `Generate()`, and diff the
+  YDBG log vs a same-seed wine run (the headless oracle). Watch for: stubbed GetProfileInt defaults,
+  LoadString stubs, GetModuleFileName empty (data path), and MORE multi-declared-class vtable traps
+  (audit like CDeskcppDoc — docs/phase-h4-sdl.md lesson 1).
+- **M1:** `microfx/src/gdi/` over SDL_Surface — Canvas's CreateDIBSection framebuffer ≈ 8-bit paletted
+  surface (pData writes already work); render a zone to a window / dump PNG.
+- Then M2 pump (SDL events → WM_* → existing message maps; SetTimer 0x1d1d drives OnTimer=game loop),
+  M3 SDL2_mixer (WaveMix + MCI MIDI), M4 resources/dialogs (embedded .res + reslib-in-C++).
 
-**▶ GOAL 2 — H4 SDL:** spec in the H4 section above. Suggested first move: carve the platform HAL header +
-port Canvas (DIBSection blitter) to SDL surfaces behind `YODA_PORTABLE`, keeping WIN32 fall-through
-token-identical.
+**▶ GOAL 1 — Indy stragglers (small, backlog):** ⏳ USER-VERIFY remap SFX + MIDs in-game; IACT cmd 0x13
+rect arg-order + cond specials 0/8/9/0xb/0x14–0x16 vs DESKADV jump tables; INI replay persistence;
+OPTIONAL Indy menus (`make_res.py --indy` extension).
 
-**▶ GOAL 3 — Indy Ghidra sweep:** systematic pass over `program=DESKADV.EXE` (16-bit NE): name functions,
-define structs, diff behavior vs our GAME_INDY code. Good agent fodder (read-only sweeps). Feed found
-deltas back into goal 1 (the music model came from exactly this kind of dig — string cluster → xrefs →
-twins). ⚠ 16-bit offsets ≠ our 32-bit offsets (the +0x90 misread) — match twins by STRUCTURE, not offset.
-- **Scope (measured v72):** 1181 funcs total, 853 unnamed — but segs **1000=MFC / 1008=CRT are LIBRARY**
-  (skip, like YodaDemo's 0x429000+): the app-code target is **~214 unnamed** = seg 1010 (91 FUN_*, doc/
-  parse/worldgen/IACT), 1018 (109, view/UI/sound/dialogs), 1020 (14, doc cmd handlers/StartGame).
-- Method that works: pick a twin-rich area (our named Yoda function list = the map), find the DESKADV twin
-  by string/import xrefs or caller structure, name `Indy*`, plate-comment with the Yoda twin address.
-  Some data xrefs are unresolved in the NE binary — search PUSH of the (negative) DGROUP offset instead.
-  Note: undiscovered functions exist (IndyViewOnUpdate needed create_function) — check gaps.
+**▶ GOAL 3 — Indy Ghidra sweep (agent fodder):** `program=DESKADV.EXE`, ~214 app-code unnamed (seg 1010
+=91 doc/parse/worldgen/IACT, 1018=109 view/UI/sound/dialogs, 1020=14 cmd handlers; segs 1000/1008 =
+MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller structure → name `Indy*`
++ plate-comment the Yoda twin. ⚠ match twins by STRUCTURE not 16-bit offsets; data xrefs may be
+unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
 
-**▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN.
-All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; fall-through = original tokens.
+**▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN —
+re-verified v73 AFTER the H4 guarded edits. All Indy work GAME_INDY-guarded; all H4 work
+YODA_PORTABLE-guarded (fall-through = original tokens); after ANY shared-TU edit rerun the oracle table.
+H4 rule of thumb: fix portability in microfx headers/stubs first; touch a game TU only for __asm /
+pointer-width casts, always guarded, always re-oracled.

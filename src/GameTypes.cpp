@@ -57,6 +57,16 @@ void AppWnd::Enable()
     ::EnableWindow(m_hWnd, TRUE);
 }
 
+#ifdef YODA_PORTABLE
+// The original's map data @0x44b000 (WM_TIMER, WM_PAINT — see the TU header comment). The
+// anchor build never emits AppWnd's vtable (class never instantiated; VC emits vtables lazily),
+// but clang's key-function rule does, so the portable build needs the map defined.
+BEGIN_MESSAGE_MAP(AppWnd, CWnd)
+    ON_WM_TIMER()
+    ON_WM_PAINT()
+END_MESSAGE_MAP()
+#endif
+
 // ============================== MapZone ==============================
 
 // FUNCTION: YODA 0x004010b0

@@ -74,6 +74,14 @@ public:
 class CDeskcppDoc : public CDocument       // sizeof(CDocument) == 0x50 in MFC 4.2
 {
 public:
+#ifdef YODA_PORTABLE
+    // Itanium-ABI key-function anchor: this facade view declares only 3 of the class's 6
+    // virtual overrides, so if ITS first non-inline virtual (IsModified, defined in
+    // Worldgen.cpp) were the key function, clang would emit an INCOMPLETE vtable there.
+    // Declaring the dtor (defined in DeskcppDoc.cpp) first pins vtable emission to the TU
+    // that sees the FULL declaration. Slot layout is unchanged (all are base overrides).
+    virtual ~CDeskcppDoc();
+#endif
     int         unk50;               // +0x0050
     int         nZonesLoaded; // +0x0054  Load: = zones.GetSize() after the .dta parse
     int         totalZones;          // +0x0058  (CalcCompletionScore denominator)

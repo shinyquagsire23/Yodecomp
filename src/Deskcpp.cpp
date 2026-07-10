@@ -96,7 +96,9 @@ BOOL CDeskcppApp::InitInstance()
     }
 
     // CPUID feature probe -> App_bCpuHasMMX (VC4.2 predates the CPUID mnemonic; emit 0F A2).
+    // Portable build: no probe — the flag stays 0 and the C blit paths run (Canvas.cpp).
     App_bCpuHasMMX = 0;
+#ifndef YODA_PORTABLE
     __asm {
         pushad
         pushfd
@@ -124,6 +126,7 @@ BOOL CDeskcppApp::InitInstance()
     cpu_done:
         popad
     }
+#endif // YODA_PORTABLE
 
     // Win3.1 (Win32s major 3, minor < 0x14): slower frame delay + one-time MIDI-disable nag.
     DWORD dwVer = ::GetVersion();
