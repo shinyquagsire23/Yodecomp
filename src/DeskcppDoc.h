@@ -89,7 +89,7 @@ public:
     short       startItem2;          // +0x2e3a
     int         currentPlanet;       // +0x2e3c  1=Nevada/Tatooine 2=Alaska/Hoth 3=Oregon/Endor
     int         bStartingGame;       // +0x2e40
-    int         unk2e44;             // +0x2e44
+    int         bWeaponHitPending;   // +0x2e44  a weapon hit at (nWeaponHitX,nWeaponHitY) is queued to blit
     int         nWeaponHitX;         // +0x2e48
     int         nWeaponHitY;         // +0x2e4c
     int         goalItemTileId;      // +0x2e50
@@ -97,38 +97,27 @@ public:
     int         bSkipNewWorldConfirm;             // +0x2e58  ctor: 0
     int         bPaletteAnimEnabled; // +0x2e5c  OnNewDocument: 1 — gates GameView::CyclePalette
     int         unk2e60;             // +0x2e60  ctor: 0
-    int         unk2e64;             // +0x2e64
+    int         genSkipTeleCheck;    // +0x2e64  worldgen: skip the teleporter-pairing accept path
     WORD        palVersion;          // +0x2e68  ctor: 0x300   } inline LOGPALETTE
     WORD        palNumEntries;       // +0x2e6a  ctor: 0x100   }
     PALETTEENTRY sysPalette[256];    // +0x2e6c  } entries (GetSystemPaletteEntries target)
     BYTE       *pSysColorTable;      // +0x326c  ctor: &DAT_00456230
     Canvas     *pCanvas;             // +0x3270
-    RECT        rectViewport;        // +0x3274  ctor: (8,7)-(0x128,0x127) play area
-    RECT        rectInventory;       // +0x3284  ctor: (0x133,6)-(0x1e9,0xe6)
-    RECT        rectRightPane;       // +0x3294  ctor: (0x1f0,6)-(0x200,0xe6)
-    int         nWeaponBoxLeft;      // +0x32a4  ctor: 400
-    int         nWeaponBoxTop;       // +0x32a8  ctor: 0xfc
-    int         nWeaponBoxRight;     // +0x32ac  ctor: 0x1b0
-    int         nWeaponBoxBottom;    // +0x32b0  ctor: 0x11c
-    int         unk32b4;             // +0x32b4  ctor: 0x180
-    int         unk32b8;             // +0x32b8  ctor: 0xfc
-    int         unk32bc;             // +0x32bc  ctor: 0x189
-    int         unk32c0;             // +0x32c0  ctor: 0x11c
-    int         unk32c4;             // +0x32c4  ctor: 0x1c9
-    int         unk32c8;             // +0x32c8  ctor: 0xfb
-    int         unk32cc;             // +0x32cc  ctor: 0x1ea
-    int         unk32d0;             // +0x32d0  ctor: 0x11c
-    int         nViewLeft;           // +0x32d4  ctor: 0    (288x288 view window rect —
-    int         nViewTop;            // +0x32d8  ctor: 0     UpdateCamera-proven; was
-    int         nViewRight;          // +0x32dc  ctor: 0x120 misnamed nHealthDial*)
+    // --- HUD element rects (screen coords; init by the ctor, read by the paint helpers) ---
+    RECT        rectViewport;        // +0x3274  (8,7)-(0x128,0x127)   play area
+    RECT        rectInventory;       // +0x3284  (0x133,6)-(0x1e9,0xe6) inventory panel
+    RECT        rectInvScroll;       // +0x3294  (0x1f0,6)-(0x200,0xe6) inventory scrollbar column
+    RECT        rectWeaponBox;       // +0x32a4  (0x190,0xfc)-(0x1b0,0x11c) equipped-weapon icon box (DrawWeaponBox 0x428b60)
+    RECT        rectAmmoBar;         // +0x32b4  (0x180,0xfc)-(0x189,0x11c) weapon charge/ammo column (DrawWeaponIcon 0x428c40)
+    RECT        rectHealthDial;      // +0x32c4  (0x1c9,0xfb)-(0x1ea,0x11c) health dial (DrawHealthDial 0x42754d / DrawHealthNeedle 0x4279a4)
+    int         nViewLeft;           // +0x32d4  ctor: 0     (288x288 offscreen view window; kept
+    int         nViewTop;            // +0x32d8  ctor: 0      as 4 ints per Ghidra — UpdateCamera-
+    int         nViewRight;          // +0x32dc  ctor: 0x120  proven; was misnamed nHealthDial*)
     int         nViewBottom;         // +0x32e0  ctor: 0x120
-    int         nArrowBoxLeft;       // +0x32e4  ctor: 0x141
-    int         nArrowBoxTop;        // +0x32e8  ctor: 0xf6
-    int         nArrowBoxRight;      // +0x32ec  ctor: 0x169
-    int         nArrowBoxBottom;     // +0x32f0  ctor: 0x11e
+    RECT        rectArrowBox;        // +0x32e4  (0x141,0xf6)-(0x169,0x11e) direction-arrows box (DrawDirectionArrows)
     int         bWorldReady;         // +0x32f4
-    int         unk32f8;             // +0x32f8  ctor: 0
-    int         unk32fc;             // +0x32fc  ctor: 0
+    int         bDtaLoaded;          // +0x32f8  ctor: 0 — the .dta/.daw asset set finished loading
+    int         bStateFileLoaded;    // +0x32fc  ctor: 0 — a save-state (.wld) was loaded
     int         nextCameraX;         // +0x3300
     int         nextCameraY;         // +0x3304
     Zone       *pendingZone;         // +0x3308
@@ -143,26 +132,34 @@ public:
     int         completionCount;     // +0x332c
     int         cameraX;             // +0x3330  ctor: 0x100
     int         cameraY;             // +0x3334  ctor: 0xc0
-    int         unk3338;             // +0x3338  ctor: 0
-    int         unk333c;             // +0x333c  ctor: 0
-    int         unk3340;             // +0x3340
-    int         unk3344;             // +0x3344
-    short       unk3348;             // +0x3348  ctor: 0
-    short       unk334a;             // +0x334a  ctor: 0
+    int         nQueuedMoveDX;       // +0x3338  ctor: 0 — pending player move delta X (input → walk)
+    int         nQueuedMoveDY;       // +0x333c  ctor: 0 — pending player move delta Y
+    int         nWalkTargetX;        // +0x3340  target cell X the player is walking toward
+    int         nWalkTargetY;        // +0x3344  target cell Y
+    short       ammoTheForce;        // +0x3348  ctor: 0 — per-weapon ammo: The Force
+    short       ammoLightsaber;      // +0x334a  ctor: 0 — per-weapon ammo: lightsaber
     short       weaponState[4];      // +0x334c  ctor: 0,0,0,0
     short       nCurrentAmmo;        // +0x3354  ctor: 0
     char        _pad3356[2];         // +0x3356
     Tile       *pPlayerFrameTile;    // +0x3358  ctor: 0
     Character  *pPlayerChar;         // +0x335c  ctor: 0
-    int         unk3360;             // +0x3360  ctor: 0
-    int         unk3364;             // +0x3364  ctor: 0
+    int         scrollDirX;          // +0x3360  ctor: 0 — inventory/camera scroll direction X
+    int         scrollDirY;          // +0x3364  ctor: 0 — inventory/camera scroll direction Y
     int         unk3368;             // +0x3368  ctor: 0
     int         unk336c;             // +0x336c  ctor: 0
     int         unk3370;             // +0x3370
     Tile       *pEquippedItem;       // +0x3374  ctor: 0
     int         unk3378;             // +0x3378
     int         bWorldInvalid;       // +0x337c  ctor: 0
-    int         genScratch[8];       // +0x3380  worldgen cell scratch (0x3380..0x33a0)
+    // --- worldgen per-cell scratch slots (0x3380..0x33a0; named from the DESKADV worldgen readers) ---
+    int         genCellItemCScratch;       // +0x3380
+    int         genCellQuestSlot5Scratch;  // +0x3384
+    int         genCellItemAScratch;        // +0x3388
+    int         genCellItemBScratch;        // +0x338c
+    int         genCellQuestSlot6Scratch;   // +0x3390
+    int         genCellQuestSlot0Scratch;   // +0x3394
+    int         genCellQuestSlot1Scratch;   // +0x3398
+    int         genZoneTypeScratch;         // +0x339c
     int         nCurrentGoalItem;    // +0x33a0
     int         unk33a4;             // +0x33a4  ctor: -1
     int         lastCount;           // +0x33a8

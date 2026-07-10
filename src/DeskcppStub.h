@@ -90,7 +90,7 @@ public:
     short       startItem2;              // +0x2e3a
     int         currentPlanet;           // +0x2e3c
     int         bStartingGame;           // +0x2e40
-    int         unk2e44;                 // +0x2e44
+    int         bWeaponHitPending;       // +0x2e44
     int         nWeaponHitX;        // +0x2e48  last weapon-hit cell (written by
     int         nWeaponHitY;        // +0x2e4c  GameView::FireWeaponStep; blinked by IactRun)
     int         goalItemTileId;          // +0x2e50
@@ -99,22 +99,20 @@ public:
     int         unk2e60;                 // +0x2e60
     char        _pad2e64[0x40c];         // +0x2e64
     Canvas     *pCanvas;                 // +0x3270
-    char        _pad3274[0x30];          // +0x3274  3 RECTs
-    int         nWeaponBoxLeft;          // +0x32a4
-    int         nWeaponBoxTop;           // +0x32a8
-    int         nWeaponBoxRight;         // +0x32ac
-    int         nWeaponBoxBottom;        // +0x32b0
-    char        _pad32b4[0x20];          // +0x32b4
-    int         nHealthDialLeft;         // +0x32d4
-    int         nHealthDialTop;          // +0x32d8
-    int         nHealthDialRight;        // +0x32dc
-    int         nHealthDialBottom;       // +0x32e0
-    int         nArrowBoxLeft;           // +0x32e4
-    int         nArrowBoxTop;            // +0x32e8
-    int         nArrowBoxRight;          // +0x32ec
-    int         nArrowBoxBottom;         // +0x32f0
+    RECT        rectViewport;            // +0x3274  play area
+    RECT        rectInventory;           // +0x3284  inventory panel
+    RECT        rectInvScroll;           // +0x3294  inventory scrollbar column
+    RECT        rectWeaponBox;           // +0x32a4  equipped-weapon icon box
+    RECT        rectAmmoBar;             // +0x32b4  weapon charge/ammo column
+    RECT        rectHealthDial;          // +0x32c4  health dial
+    int         nViewLeft;               // +0x32d4  (288x288 offscreen view window; 4 ints per
+    int         nViewTop;                // +0x32d8   Ghidra — was misnamed nHealthDial* here)
+    int         nViewRight;              // +0x32dc
+    int         nViewBottom;             // +0x32e0
+    RECT        rectArrowBox;            // +0x32e4  direction-arrows box
     int         bWorldReady;             // +0x32f4
-    char        _pad32f8[8];             // +0x32f8
+    int         bDtaLoaded;              // +0x32f8
+    int         bStateFileLoaded;        // +0x32fc
     int         nextCameraX;             // +0x3300
     int         nextCameraY;             // +0x3304
     Zone   *pendingZone;             // +0x3308

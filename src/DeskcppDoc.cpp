@@ -435,7 +435,7 @@ CDeskcppDoc::CDeskcppDoc()
     lastScore = 0;
     lastCount = 0;
     nRequestedGoalItem = -1;
-    unk2e44 = 0;
+    bWeaponHitPending = 0;
     unk33a4 = -1;
     bStartingGame = 0;
     gameSpeed = 0x8c;
@@ -523,52 +523,52 @@ CDeskcppDoc::CDeskcppDoc()
     rectViewport.bottom = 0x127;
     rectInventory.left = 0x133;
     rectInventory.bottom = 0xe6;
-    rectRightPane.top = 6;
+    rectInvScroll.top = 6;
     rectInventory.right = 0x1e9;
-    rectRightPane.left = 0x1f0;
-    rectRightPane.bottom = 0xe6;
-    nWeaponBoxTop = 252;
-    rectRightPane.right = 0x200;
-    nWeaponBoxLeft = 400;
-    nWeaponBoxBottom = 284;
-    unk32b8 = 0xfc;
-    nWeaponBoxRight = 400+32;
+    rectInvScroll.left = 0x1f0;
+    rectInvScroll.bottom = 0xe6;
+    rectWeaponBox.top = 252;
+    rectInvScroll.right = 0x200;
+    rectWeaponBox.left = 400;
+    rectWeaponBox.bottom = 284;
+    rectAmmoBar.top = 0xfc;
+    rectWeaponBox.right = 400+32;
 #ifdef GAME_INDY
     // Indy has no ammo bar (see DrawWeaponIcon), so it centers the weapon box over the whole
     // box+ammo region — 16px left of Yoda's box (onto where Yoda's ammo bar sat) and 4px down.
     // Exact coords from DESKADV UI-rect init FUN_1010_4666: left=0x180 top=0x100 right=0x1a0
     // bottom=0x120 (vs Yoda 0x190/0xfc/0x1b0/0x11c). GAME_INDY-guarded — Yoda anchor unaffected.
-    nWeaponBoxLeft = 384+8;
-    nWeaponBoxTop = 252; // actually 256
-    nWeaponBoxRight = 384+32+8;
-    nWeaponBoxBottom = 252+32; // actually 256+32
+    rectWeaponBox.left = 384+8;
+    rectWeaponBox.top = 252; // actually 256
+    rectWeaponBox.right = 384+32+8;
+    rectWeaponBox.bottom = 252+32; // actually 256+32
 #endif
-    unk32b4 = 0x180;
-    unk32bc = 0x189;
-    unk32c0 = 0x11c;
-    unk32d0 = 0x11c;
-    unk32c4 = 0x1c9;
-    unk32cc = 0x1ea;
-    unk32c8 = 0xfb;
-    nArrowBoxLeft = 0x141;
+    rectAmmoBar.left = 0x180;
+    rectAmmoBar.right = 0x189;
+    rectAmmoBar.bottom = 0x11c;
+    rectHealthDial.bottom = 0x11c;
+    rectHealthDial.left = 0x1c9;
+    rectHealthDial.right = 0x1ea;
+    rectHealthDial.top = 0xfb;
+    rectArrowBox.left = 0x141;
     nViewTop = 0;
     nViewLeft = 0;
     nViewBottom = 0x120;
     nViewRight = 0x120;
     healthLo = 1;
     healthHi = 1;
-    nArrowBoxTop = 0xf6;
-    nArrowBoxRight = 0x169;
-    unk333c = 0;
-    unk3338 = 0;
+    rectArrowBox.top = 0xf6;
+    rectArrowBox.right = 0x169;
+    nQueuedMoveDY = 0;
+    nQueuedMoveDX = 0;
     pPlayerFrameTile = NULL;
     currentWeapon = NULL;
     bWorldReady = 0;
-    unk32f8 = 0;
-    nArrowBoxBottom = 0x11e;
-    unk32fc = 0;
-    unk3360 = 0;
-    unk3364 = 0;
+    bDtaLoaded = 0;
+    rectArrowBox.bottom = 0x11e;
+    bStateFileLoaded = 0;
+    scrollDirX = 0;
+    scrollDirY = 0;
     unk3368 = 0;
     unk336c = 0;
     bHidePlayer = 0;
@@ -589,11 +589,11 @@ CDeskcppDoc::CDeskcppDoc()
     unk50 = 0;
     unk54 = 0;
     pPlayerChar = NULL;
-    unk3348 = 0;
+    ammoTheForce = 0;
     bPaletteAnimEnabled = 0;
     palVersion = 0x300;
     palNumEntries = 0x100;
-    unk334a = 0;
+    ammoLightsaber = 0;
     weaponState[0] = 0;
     weaponState[1] = 0;
     weaponState[2] = 0;
@@ -903,6 +903,6 @@ BOOL CDeskcppDoc::OnNewDocument()
         *p++ = NULL;                // sic: only 16 of the 20 cached ptrs are cleared
 
     ::ReleaseDC(NULL, hdc);
-    unk32fc = 0;
+    bStateFileLoaded = 0;
     return TRUE;
 }

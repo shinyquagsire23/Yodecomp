@@ -808,8 +808,24 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v70 — PHASE H3 milestone 4: Indy PLAYABLE; door + weapon-UI fixed; OPEN: Indy resources, minor tails; anchor 211)
-**▶ v70 — this session (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v69"+"v70"; memory
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v71 — Indy PLAYABLE (user playtesting, few issues); CDeskcppDoc RECT/unk cleanup done; OPEN: Indy resources, minor tails; anchor 211)
+**▶ v71 — this session (CDeskcppDoc struct documentation, codegen-neutral, anchor 211 held):** USER reported
+playtesting build-indy finds few remaining Indy issues (good), and asked to document CDeskcppDoc RECT fields +
+resolve unks (spurred by the v70 weapon-box work). Done — Ghidra's CDeskcppDoc was ahead of our header; synced
+both ways (all pure renames / int-quad→RECT retypes = codegen-neutral, verified: progress 211, bugscan 0/0/0,
+link 0/0, GAME_INDY compiles):
+- **2 mystery RECTs identified + reader-verified:** +0x32b4 `rectAmmoBar` (DrawWeaponIcon 0x428c40), +0x32c4
+  `rectHealthDial` (DrawHealthDial 0x42754d / DrawHealthNeedle 0x4279a4). Converted 3 more int-quads → RECT
+  (`rectWeaponBox` +0x32a4, `rectArrowBox` +0x32e4), and renamed +0x3294 `rectRightPane`→`rectInvScroll`. nView*
+  (+0x32d4) stays 4 ints per Ghidra (288x288 offscreen view; was the corrected-once nHealthDial misnomer).
+- **~14 unks resolved (from Ghidra readers):** bWeaponHitPending +0x2e44, genSkipTeleCheck +0x2e64, bDtaLoaded
+  +0x32f8, bStateFileLoaded +0x32fc, nQueuedMoveDX/DY +0x3338/333c, nWalkTargetX/Y +0x3340/3344, ammoTheForce/
+  ammoLightsaber +0x3348/334a, scrollDirX/Y +0x3360/3364; genScratch[8] +0x3380 → 8 named genCell*Scratch slots.
+- Files: `src/DeskcppDoc.h` (+ ctor `src/DeskcppDoc.cpp`), `src/DeskcppStub.h` (the GameData facade — kept offsets
+  identical, fixed its stale nHealthDial→nView misnomer), + Ghidra struct (rectUnk3274/84→rectViewport/Inventory,
+  save_program). Remaining unks (unk2c8/2e28/2e30/2e60/3368/336c/3370/3378/33a4/33b4) are undefined in Ghidra too
+  — left as unk (no confidently-correct name).
+**▶ v70 — prior session (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v69"+"v70"; memory
 [[h3-indy-load]]):** three user-facing fixes, each verified against DESKADV.EXE:
 1. **⭐ DOOR FIXED at the root — USER-CONFIRMED working (single walk-through).** The v67/v68 "SetPlayerPos plants the
    player on the door" was the SYMPTOM. RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
