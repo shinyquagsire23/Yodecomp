@@ -808,21 +808,25 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v68 — PHASE H3 milestone 4: Indy PLAYABLE — whip damage/sound/title/Replay-crash all fixed; OPEN: door warp (s26/SetPlayerPos), Indy resources; anchor 211)
-**▶ v68 — user re-test: whip DAMAGES ✅, title ✅, audio mostly ✅. Fixed the mid-textbox Replay crash (GAME_INDY,
-anchor 211; detail docs/phase-h3-indy.md "v68"):** `OnUpdateReplayStory`/`OnUpdateLoadWorld` only called DemoDisable
-(enables them for Indy) with NO frame-mode guard (unlike OnUpdateNewWorld) → Replay/Load stayed enabled during a
-text dialog (mode 5) → re-entrant world regen mid-textbox → text over STUP → crash on dialog exit. Fixed: gray them
-during New World's busy modes (1/4/5/6/9/0xb) for GAME_INDY/YODA_FULL. (Prior v67 fixes user-confirmed: whip damage =
-UseWeapon nType=3 for non-blaster; sound = drop `sfx\` prefix; title = temp SetWindowText.)
-**▶ START HERE (v68): the DOOR (main open gameplay item).** House door = script s26: `BumpTile(7,14,828) →
-ClearTile(open) + SetPlayerPos(7,14)[lands player ON the door cell] + SayText('...home away from home...') +
-FlagOnce`. HYPOTHESIS: SetPlayerPos puts the player on the DOOR_IN cell via the camera but our CMD_SetPlayerPos
-doesn't run the walk-onto-DOOR_IN warp check → must step off+on ("back then forward"). NEXT: RE the Indy SetPlayerPos
-handler (cmd 0x11; FUN_1010_e934 looked like a draw-tiles helper — find the true one + whether it triggers the warp)
-OR add a GAME_INDY DOOR_IN-warp-after-SetPlayerPos in CMD_SetPlayerPos (src/Iact.cpp). Needs live iteration. Also:
-proper Indy resources (.res title/icon/menus, retires temp title + [[indy-app-icon]]); startup-wav name (minor);
-hero-HP tail; INI replay persistence.
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v69 — PHASE H3 milestone 4: door FIXED at the root (IACT command opcode off-by-one); OPEN: user visual re-test, Indy resources; anchor 211)
+**▶ v69 — THE DOOR FIXED (root cause, not the symptom). Awaiting user visual re-test (GAME_INDY, anchor 211;
+detail docs/phase-h3-indy.md "v69").** RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
+case-for-case: the v64 `kIndyCmdToYoda` table had a shifted cluster 0x0b–0x14. ⭐ **Indy cmd 0x11 is RedrawTile,
+NOT SetPlayerPos** — so s26's `RedrawTile(7,14)` (repaint the opened door) ran as SetPlayerPos and TELEPORTED the
+player onto the door cell, bypassing the walk-in path so the DOOR_IN warp (fires only on a player WALK onto an empty
+t==-1 cell holding a DOOR_IN obj → `FindObjectAt`→`TransitionZoneDoor`) never triggered → the "step off + back on"
+quirk. Fixed 8 entries in `src/IactScript.cpp` (each verified vs the decompiled switch): 0x0b→0x0a PlaySound,
+0x0c→0x08 RenderChanges, 0x0e→0x10 / 0x0f→0x11 (hide/show player were swapped), **0x11→0x06 RedrawTile ⭐**,
+0x12→0x12 SetPlayerPos, 0x13→0x07 RedrawTiles, 0x14→0x08 (full-zone redraw ≈ RenderChanges). NO warp-hack needed
+(RE conclusion (c): the original warps ONLY on a player walk into the DOOR_IN cell; the command dispatcher never
+reaches the door-transition fn `FUN_1018_2e48`, sole caller = walk handler `FUN_1018_733e`). Side effects also fixed:
+script sounds were doing redraws (0x0b), some redraws incomplete (0x0c/0x14), scripted hide/show inverted (0x0e/0x0f).
+**▶ START HERE (v69): USER VISUAL RE-TEST `./run_indy.sh`.** Walk into the house door — it should warp on a SINGLE
+walk-through now (no back-and-forth). If a residual door quirk remains it's the small-interior center-shift (DA map.c
+center_shift for zones < screen), NOT the opcode map. Then: proper Indy resources (.res title/icon/menus, retires temp
+title + [[indy-app-icon]]); startup-wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); verify the
+two still-uncertain opcodes (0x13 rect arg-order vs DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); INI
+replay persistence. build-indy links clean; anchor 211 held (all edits GAME_INDY-guarded).
 **▶ v67 — whip user-CONFIRMED fixed; sound + window-title fixed; door narrowed (all GAME_INDY, anchor 211; detail
 docs/phase-h3-indy.md "v67"):** (1) **Sound FIXED** — `SoundInit` loaded waves from `"sfx\<name>"` (Yoda's
 subfolder) but Indy's WAVs are in the game root → all failed silently. Load by bare name for Indy. (2) **Window

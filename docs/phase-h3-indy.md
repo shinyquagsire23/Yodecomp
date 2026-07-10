@@ -456,17 +456,44 @@ User: whip damages ✅, title ✅, audio mostly ✅ (startup wav maybe a differe
   a name Indy doesn't ship / a hardcoded id — low priority; check the SNDS id→name for the intro chime vs the WAVs
   in the run folder if it matters.
 
+### ⭐ v69 — THE DOOR FIXED at the root: Indy IACT COMMAND opcodes were off-by-one 0x0b–0x14 (anchor 211)
+The v67/v68 "s26/SetPlayerPos" hypothesis was the SYMPTOM, not the cause. RE'd the Indy command dispatcher
+`FUN_1010_2eb6` (jump table 1010:2f85) case-for-case and found the `kIndyCmdToYoda` table (built in v64) had a
+shifted cluster. ⭐ **Indy raw command 0x11 is `RedrawTile` (DrawZoneCell(x,y)+DrawPlayer), NOT SetPlayerPos** — so
+s26's `RedrawTile(7,14)` (repaint the just-opened door cell) was executing as SetPlayerPos and TELEPORTING the player
+ONTO the door cell. That bypassed the movement path, so the DOOR_IN warp (which fires in `OnBumpTile` only when the
+player WALKS onto an empty t==-1 cell holding a DOOR_IN object → `FindObjectAt`→`TransitionZoneDoor`) never triggered
+— hence "walk back then forward to enter". With 0x11 = RedrawTile, the player stays outside the now-open (ClearTile'd,
+empty) door cell and walks forward into it naturally → warp fires. **No DOOR_IN-warp-after-SetPlayerPos hack needed**
+(RE conclusion: the original engine warps ONLY on a player-initiated walk into the DOOR_IN cell; nothing in the
+command dispatcher reaches the door-transition fn `FUN_1018_2e48`, whose sole caller is the walk/bump handler
+`FUN_1018_733e`). Corrected 8 entries in `src/IactScript.cpp` (all verified vs the decompiled switch):
+
+| Indy raw | DESKADV behavior (verified) | was→now (Yoda op) |
+|---|---|---|
+| 0x0b | PlaySound (`FUN_1010_e43c` WaveMix/MCI + result bit 0x1) | 0x08→**0x0a** |
+| 0x0c | RenderChanges (`FUN_1018_0670` full redraw + bit 0x80) | 0x06→**0x08** |
+| 0x0e | hide player (`doc+0xc38=1`) | 0x11→**0x10** (ReleaseCamera, bHidePlayer=1) |
+| 0x0f | show player (`doc+0xc38=0`) | 0x10→**0x11** (LockCamera, bHidePlayer=0) |
+| 0x11 | RedrawTile (DrawZoneCell+DrawPlayer) ⭐ | 0x12→**0x06** |
+| 0x12 | SetPlayerPos (playerX/Y<<5 + camera clamp + bit 0x4) | 0x13→**0x12** |
+| 0x13 | RedrawTiles rect (`FUN_1010_eade`+DrawPlayer) | 0x13→**0x07** |
+| 0x14 | full-zone redraw (`FUN_1010_eb1c`) — no exact Yoda twin | 0xff→**0x08** (≈RenderChanges) |
+
+Side effects the shift also caused (now fixed): script-triggered sounds were doing a redraw instead (0x0b), some
+redraws were incomplete (0x0c/0x14), and scripted player hide/show during camera pans was inverted (0x0e/0x0f). The
+0x00–0x0a, 0x0d, 0x10, 0x15–0x23 entries were re-verified CORRECT. ⚠ `0x13` rect arg-order vs `DrawZoneCellRect`
+unverified (cosmetic). anchor 211 (GAME_INDY-guarded), build-indy links clean. ⏳ USER: visual re-test — the house
+door should now warp on a single walk-through (no back-and-forth).
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. **Door (main open item)** — s26/SetPlayerPos hypothesis: RE the Indy SetPlayerPos handler + door-warp trigger, or
-   a targeted GAME_INDY DOOR_IN-warp-after-SetPlayerPos. Live iteration.
+1. **Door** — confirm the single-walk-through warp works now (v69 root fix). If a residual quirk remains, it's the
+   small-interior center-shift (DA map.c center_shift for zones < screen), not the opcode map.
 2. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
-3. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); any mis-mapped rare IACT opcode;
-   INI replay persistence.
-2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
-   auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
-3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).
+3. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); the two rare/uncertain opcodes
+   (0x13 rect arg-order, condition specials 0/8/9/0xb/0x14..0x16); INI replay persistence.
 Method: headless `-DYODA_DEBUG` YDBG oracle (guard GAME_INDY+YODA_DEBUG, revert before anchor check). The door
-crash is GUI-only — a headless repro that injects TransitionZoneDoor does NOT reproduce it.
+warp is GUI-only — a headless repro that injects TransitionZoneDoor does NOT reproduce the walk sequence.
 Key DESKADV addrs this session: IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / char reader FUN_1010_069c /
 GetFrameTile FUN_1010_076e, IndyGenerate tail 1010:8524 (hero HP entity+0x90=0x78), IndyStartNewGameMaybe 1020:0ed0.
 

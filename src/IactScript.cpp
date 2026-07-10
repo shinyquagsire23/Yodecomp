@@ -23,6 +23,11 @@ char Iact_szCmdTextBuf[2048];
 // (Indy 0/8/9/0xb/0x14..0x16) and the arg-order of DrawOverlay (Indy 0x10). The high-impact,
 // jump-table-confirmed ones (entry gates, walk/bump/drag, randvar, the 1<->2 tile-cmd swap, the
 // SayText/ShowText moves) are exact — those fix the crash + silent NPCs + un-gated building entry.
+// ⭐ v69: re-derived the COMMAND table case-for-case from the FUN_1010_2eb6 jump table (1010:2f85).
+// Found an off-by-one cluster 0x0b–0x14 that was shifted vs the true behavior (see per-entry notes
+// below). The load-bearing fix: Indy cmd 0x11 is RedrawTile, not SetPlayerPos — the mis-map made
+// the house-door script teleport the player onto the door cell instead of repainting it, which is
+// what caused the "walk back then forward to actually enter" door bug.
 static const unsigned char kIndyCondToYoda[0x17] = {
     /*0x00*/ 0x15,  // special start/global+tile check — TODO(indy): map precisely (rare); pass for now
     /*0x01*/ 0x04,  // Walk
@@ -60,16 +65,20 @@ static const unsigned char kIndyCmdToYoda[0x24] = {
     /*0x08*/ 0xff,  // no-op
     /*0x09*/ 0x0d,  // SetTempVar (zone counter)
     /*0x0a*/ 0x0e,  // AddTempVar
-    /*0x0b*/ 0x08,  // RenderChanges/redraw
-    /*0x0c*/ 0x06,  // RedrawTile
+    /*0x0b*/ 0x0a,  // PlaySound   (v69: DESKADV case 0xb = FUN_1010_e43c WaveMix/MCI + result bit 0x1)
+    /*0x0c*/ 0x08,  // RenderChanges (v69: case 0xc = FUN_1018_0670 full redraw + result bit 0x80)
     /*0x0d*/ 0x0c,  // Random (-> RandVar)
-    /*0x0e*/ 0x11,  // LockCamera
-    /*0x0f*/ 0x10,  // ReleaseCamera
+    /*0x0e*/ 0x10,  // ReleaseCamera/hide player (v69: case 0xe sets doc+0xc38=1 = bHidePlayer=1)
+    /*0x0f*/ 0x11,  // LockCamera/show player     (v69: case 0xf sets doc+0xc38=0 = bHidePlayer=0)
     /*0x10*/ 0x03,  // DrawOverlayTile (⚠ Indy swaps a0/a1 vs Yoda — TODO position)
-    /*0x11*/ 0x12,  // SetPlayerPos
-    /*0x12*/ 0x13,  // MoveCamera/teleport (guess)
-    /*0x13*/ 0x13,  // MoveCamera (4-coord)
-    /*0x14*/ 0xff,  // view-update (uncertain) -> no-op
+    /*0x11*/ 0x06,  // RedrawTile  (v69 ⭐ THE DOOR FIX: case 0x11 = DrawZoneCell(x,y)+DrawPlayer, NOT
+                    //             SetPlayerPos. Mis-mapping teleported the player onto the door cell,
+                    //             bypassing the walk-into-DOOR_IN warp -> "step off + back on" quirk.)
+    /*0x12*/ 0x12,  // SetPlayerPos (v69: case 0x12 writes playerX/Y<<5 + camera clamp + result bit 0x4)
+    /*0x13*/ 0x07,  // RedrawTiles rect (v69: case 0x13 = FUN_1010_eade rect redraw + DrawPlayer;
+                    //             ⚠ eade arg order unverified vs DrawZoneCellRect — cosmetic redraw)
+    /*0x14*/ 0x08,  // full-zone redraw (v69: case 0x14 = FUN_1010_eb1c whole-zone repaint; no exact
+                    //             Yoda twin, RenderChanges is the closest no-arg full redraw)
     /*0x15*/ 0x14,  // FlagOnce
     /*0x16*/ 0x17,  // ShowEntity
     /*0x17*/ 0x18,  // HideEntity
