@@ -182,6 +182,9 @@ public:
     // ---- Operations / view helpers (GameView TU, in .text order) ----
     static UINT MusicThreadProcMaybe(void *pParam);       // 0x00408590 (AfxBeginThread proc)
     void PlaySound(int nSoundId);                          // 0x00409060
+#ifdef GAME_INDY
+    void PlaySoundData(int nSoundId);  // Indy-native (data-driven) id — bypasses the Yoda-id remap
+#endif
     // (0x00409340 is InvScrollBar::OnHScroll, not a GameView method — see that class above)
     void DrawZoneCell(short x, short y);                   // 0x00409460 (bare-return guards ⇒ void)
     void DrawZoneCellRect(int x1, int y1, int x2, int y2); // 0x004095d0
@@ -334,5 +337,26 @@ public:
     void ScrollTextLine2();                               // 0x00417d30  (up one line)
     void UpdateDialogButtons(int nUnused);                // 0x00417dc0 (ret 4; arg unused, always 1)
 };
+
+#ifdef GAME_INDY
+// ---- Indy MIDI music (GAME_INDY; implemented in DeskcppView.cpp) --------------------------
+// RE'd from DESKADV.EXE: sound ids >= SND_INDY_FLOURISH are MIDI sequences played through MCI
+// command strings, one "opened" flag + alias per id (SoundInit twin FUN_1018_4c54, PlaySound
+// twin FUN_1010_e43c, StopAllMusic FUN_1018_6e34, view-dtor close loop FUN_1010_dff0).
+enum IndySoundId
+{
+    SND_INDY_FLOURISH = 0x0e,   // FLOURISH.MID (SNDS 0x0e)
+    SND_INDY_THEME    = 0x0f,   // THEME.MID    (SNDS 0x0f; startup theme)
+    SND_INDY_DEFEAT   = 0x10,   // DEFEAT.MID   (SNDS 0x10)
+    SND_INDY_VICTORY  = 0x11,   // VICTORY.MID  (SNDS 0x11)
+    SND_INDY_EERIE    = 0x12,   // eerie.mid    (hardcoded, not in SNDS)
+    SND_INDY_EEP      = 0x13,   // eep.wav      (hardcoded 15th wave, not in SNDS)
+};
+void Indy_MidiStopAll();        // "stop <alias>" every opened sequencer (DESKADV FUN_1018_6e34)
+#else
+// Yoda: sound ids in shared code are already native — PlaySoundData call sites (the
+// data-driven ids: IACT args, weapon sounds) collapse to plain PlaySound.
+#define PlaySoundData PlaySound
+#endif
 
 #endif

@@ -5232,6 +5232,11 @@ void CDeskcppDoc::OnToggleMusic()
     CDeskcppView *pView = (CDeskcppView *)GetNextView(pos);
     if (pView != NULL && nMusicEnabled != 0 && pView->soundSession == 0)
         pView->SoundInit();
+#ifdef GAME_INDY
+    // DESKADV FUN_1010_c092: toggling music OFF stops every playing sequencer.
+    if (pView != NULL && nMusicEnabled == 0)
+        Indy_MidiStopAll();
+#endif
 }
 
 // FUNCTION: YODA 0x00424360

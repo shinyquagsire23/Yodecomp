@@ -584,3 +584,41 @@ the `-DYODA_DEBUG` headless trace (YDBG in DebugLog.h) is the proven fast oracle
 ## Anchor discipline
 Every `GAME_INDY` guard's fall-through (no macro) must be the exact Yoda code, so `progress.py` stays 211
 and all byte-match oracles pass. Same rule as H2. Only the extended `build-indy` config exercises Indy.
+
+## v72 (2026-07-10) — MIDI music DONE (user-confirmed audible) + sound-id remap + intro zone 0x78
+
+**Indy's music is MIDI played through MCI command strings** (user lead: "Indy uses MIDs"; RE'd from
+DESKADV.EXE, all functions named in Ghidra: `IndySoundInit` 1018:4c54, `IndyPlaySound` 1010:e43c,
+`IndyPlayThemeMusic` 1018:6dd0, `IndyStopAllMusic` 1018:6e34, `IndyViewOnUpdate` 1010:e1aa,
+`IndyViewTeardownMaybe` 1010:dff0, `IndyOnToggleMusic` 1010:c092 — plate comments carry the detail).
+
+The 16-bit model (mirrored in our port, all `GAME_INDY`-guarded):
+- SNDS ids **0x00–0x0d = WAVs** (WaveMix, as before), **0x0e–0x11 = MIDs** (FLOURISH/THEME/DEFEAT/
+  VICTORY), plus two hardcoded extras outside SNDS: **eerie.mid = id 0x12** and **eep.wav = id 0x13**
+  (the 15th wave — twin of Yoda's id-0x25→handles[5] eep quirk). Enum `IndySoundId` in DeskcppView.h.
+- MIDs: `mciSendString("open sequencer!<file> alias <NAME>")` at SoundInit (independent of the WaveMix
+  session — DESKADV opens them even when WaveMix fails), `"play <NAME> from 1"` in PlaySound's music arm
+  (gated by nMusicEnabled + per-id opened flag; 16-bit flag table = DGROUP word @0x53c+id*2),
+  `"stop <NAME>"` on ToggleMusic-off + new game, `"close <NAME>"` in the view teardown.
+- Startup: OnUpdate(399) opens+plays THEME (our port: SoundInit opens all, then the existing
+  `PlaySound(0x3d)` remaps to THEME). DESKADV has a `themw3.mid` fallback when doc+0x56==0x1e
+  (legacy VERS-0x1e-era data) — not reproduced, DESKTOP.DAW is VERS 0x200.
+- New game (`IndyStartNewGameMaybe`): StopAllMusic then PlaySound(0x0e FLOURISH) — our StartGame's
+  existing `SoundFlush(); PlaySound(0x3a)` gains the StopAllMusic and the remap does the rest.
+
+**⭐ Sound-id remap (`Indy_MapSoundId`, DeskcppView.cpp):** the two games' SNDS tables DIFFER (Yoda
+5=eep/6=nogo vs Indy 5=ROAR/6=DOOR/8=NOGO...), so every hardcoded Yoda id in shared code played the
+WRONG Indy sound. Under GAME_INDY, `PlaySound` translates hardcoded Yoda ids (5→0x13 eep, 6→8 nogo,
+0xb→7 explode, 0x3a/0x3d/0x3e/0x3f→FLOURISH/THEME/DEFEAT/VICTORY MIDs; Yoda-only concepts
+0x1f–0x23/0x2a/0x2b/0x31/0x34/0x37 → −1 silent, TODO verify per-site in the RE sweep), while the
+data-driven (Indy-native) ids — IACT `pCmd->args[0]`, `pWeapon->weaponCharId` — bypass via
+**`PlaySoundData`** (demo: `#define PlaySoundData PlaySound`, token-neutral).
+
+**Intro zone:** the v71 "hero-HP tail (entity+0x90=120)" was a misread — 16-bit view+0x90 is our
+`nTargetZoneId`, and 0x78=120 is **Indy's intro zone id** (Yoda 0x5d=93); IndyStartNewGameMaybe pushes
+0x78 both to the 5-step ZoneTransitionStep intro loop and view+0x90. Both StartGame literals now
+GAME_INDY→0x78.
+
+**Gotcha:** `mmsystem.h` defines `PlaySound`→`PlaySoundA` — `#undef PlaySound` after including it.
+CMake links `winmm.lib` (all extended configs; unreferenced elsewhere). Anchor: 211 exact, link
+0/0/exit0, bugscan 0/0/0 after all edits. USER-CONFIRMED: theme MIDI audibly plays on launch.

@@ -784,7 +784,12 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
     CDeskcppView *v = (CDeskcppView *)GetNextView(pos);
     if (v != 0) {
         for (int i = 0; i < 5; i++) {
+#ifdef GAME_INDY
+            v->ZoneTransitionStep(0x78, (short)i);   // Indy intro zone 120 (DESKADV
+                                                     // IndyStartNewGameMaybe pushes 0x78)
+#else
             v->ZoneTransitionStep(0x5d, (short)i);
+#endif
             long c = clock();
             while (clock() < c + 100)
                 ;
@@ -792,6 +797,10 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
         nFrameMode = 0;
         v->nTransitionStep = 0;
         v->SoundFlush();
+#ifdef GAME_INDY
+        Indy_MidiStopAll();   // DESKADV stops the MCI sequencers here; PlaySound(0x3a)
+                              // remaps to FLOURISH.MID (the twin pushes 0x0e)
+#endif
         v->PlaySound(0x3a);
     }
     SetCurrentToIntroZone();
@@ -803,7 +812,11 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
     nMapChangeReason = 1;
     v->DrawGameArea(0);
     if (bSkipGenerate == 0)
+#ifdef GAME_INDY
+        v->nTargetZoneId = 0x78;   // Indy intro zone 120 (16-bit view+0x90 = 0x78)
+#else
         v->nTargetZoneId = 0x5d;
+#endif
     int n = inventory.GetSize();
     for (int j = 0; j < n; j++) {
         CObject *p = inventory[j];

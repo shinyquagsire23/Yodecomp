@@ -211,31 +211,41 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v72 — CLAUDE.md consolidated; goals reset to Indy tails / H4 SDL / Indy RE sweep; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v72 — CLAUDE.md consolidated; ⭐ Indy MIDI MUSIC DONE (user-confirmed) + sound-id remap + intro zone; anchor 211)
 
-**▶ v72 so far:** consolidated CLAUDE.md (history → PLAN_COMPLETED.md "ARCHIVED FROM CLAUDE.md" section;
-lessons #1–#33 cite as PLAN_COMPLETED.md lesson #N). No code changes yet.
+**▶ v72 this session:** (1) consolidated CLAUDE.md (history → PLAN_COMPLETED.md "ARCHIVED FROM CLAUDE.md";
+cite lessons as PLAN_COMPLETED.md lesson #N). (2) ⭐ **Indy MIDI music implemented end-to-end and
+USER-CONFIRMED audible** ("ok that definitely played a midi"). Full model + DESKADV function map in
+docs/phase-h3-indy.md "v72"; the RE'd functions are NAMED in Ghidra (IndySoundInit 1018:4c54, IndyPlaySound
+1010:e43c, IndyStopAllMusic 1018:6e34, IndyPlayThemeMusic 1018:6dd0, IndyViewOnUpdate 1010:e1aa,
+IndyViewTeardownMaybe 1010:dff0, IndyOnToggleMusic 1010:c092; program saved). Key facts: SNDS ids 0x0e–0x11
+are MIDs via MCI command strings; hardcoded extras eerie.mid=0x12 / eep.wav=0x13; per-id opened flags;
+stop-all on ToggleMusic-off + new game; close-all in the view dtor. (3) ⭐ **Yoda→Indy sound-id remap**
+(`Indy_MapSoundId` in DeskcppView.cpp): the games' SNDS tables differ (Yoda 6=nogo vs Indy 6=DOOR…), so every
+hardcoded Yoda id in shared code played the WRONG Indy sound; data-driven ids (IACT args, weaponCharId)
+bypass via `PlaySoundData` (demo: `#define PlaySoundData PlaySound`, token-neutral). (4) v71's "hero-HP
+entity+0x90=120" was a MISREAD: 16-bit view+0x90 = our nTargetZoneId; 0x78=120 = **Indy's intro zone**
+(Yoda 0x5d=93) — StartGame's two literals now GAME_INDY→0x78. Gotcha: mmsystem.h #defines PlaySound→
+PlaySoundA (#undef after include); winmm.lib added to the CMake link. Anchor verified after: 211 exact,
+link 0/0/exit0, bugscan 0/0/0.
 
-**▶ GOAL 1 — Indy stragglers. START: the startup-theme MID.**
-- **User finding:** Indy's theme/startup music is a **MID** (MIDI), not a WAV — and the Yoda engine already
-  supports MIDI despite Yoda not using it (`MIDILoad` registry flag; docs/sound.md: persisted by
-  `GameView::ConfirmExitMaybe` 0x416030, read by `GameView::ProcessWalkMaybe` 0x411180;
-  `CDeskcppView.pMusicThread@0x2fc`). The v71 "startup-wav name" open item is therefore likely wrong-headed:
-  Indy shouldn't remap the WAV name, it should play its MID theme through the (dormant) MIDI path.
-- Plan: (a) inventory Indy's shipped music files (`YodaIndy/`/INDYDESK — *.MID) + how DESKADV.EXE triggers
-  them (RE the NE binary's MCI/midiOut/mciSendCommand usage — 16-bit MCI most likely); (b) trace YodaDemo's
-  MIDI path (MIDILoad flag consumers, pMusicThread lifecycle) to see how complete it is; (c) wire Indy's
-  theme to it under GAME_INDY (anchor-neutral).
-- Then the rest of goal 1 in order: hero-HP tail (entity+0x90=120), uncertain IACT opcodes (cmd 0x13 rect
-  arg-order; cond specials 0/8/9/0xb/0x14–0x16), INI replay persistence, optional Indy menus.
+**▶ GOAL 1 — remaining Indy stragglers (priority order):**
+- ⏳ USER-VERIFY: new-game flourish MID, victory/defeat MIDs, Music-toggle stop, intro-zone anim (0x78),
+  and that SFX now sound RIGHT (the remap changed bump/nogo etc. — previously wrong-sound or silent).
+- Verify the remap's −1 set per-site vs DESKADV twins (0x1f–0x23 armed/saberout/grenade/locator/mapcls,
+  0x2a/0x2b r2d2, 0x31 transprt, 0x34 armforce, and 0xb→7 explode guess) — good sweep fodder.
+- Still-uncertain IACT opcodes (cmd 0x13 rect arg-order vs DrawZoneCellRect; cond specials
+  0/8/9/0xb/0x14–0x16) — audit vs DESKADV jump tables.
+- INI replay persistence; OPTIONAL Indy menus (extend `tools/make_res.py --indy`).
 
 **▶ GOAL 2 — H4 SDL:** spec in the H4 section above. Suggested first move: carve the platform HAL header +
 port Canvas (DIBSection blitter) to SDL surfaces behind `YODA_PORTABLE`, keeping WIN32 fall-through
 token-identical.
 
 **▶ GOAL 3 — Indy Ghidra sweep:** systematic pass over `program=DESKADV.EXE` (16-bit NE): name functions,
-define structs, diff behavior vs our GAME_INDY code. Good agent fodder (read-only sweeps). Feed any found
-deltas back into goal 1.
+define structs, diff behavior vs our GAME_INDY code. Good agent fodder (read-only sweeps). Feed found
+deltas back into goal 1 (the music model came from exactly this kind of dig — string cluster → xrefs →
+twins). ⚠ 16-bit offsets ≠ our 32-bit offsets (the +0x90 misread) — match twins by STRUCTURE, not offset.
 
 **▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN.
 All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; fall-through = original tokens.

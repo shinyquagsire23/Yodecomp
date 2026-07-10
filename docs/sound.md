@@ -24,3 +24,10 @@ Sound effects go through **WAVMIX32.DLL** — LucasArts' software wave mixer (im
 ## Fields modeled
 - `GameView.soundSession` @0xc4 (WaveMix session HANDLE)
 - `World.soundNames` @0xe4 (CString[] of `.wav` paths)
+
+## Indy (GAME_INDY) — MIDI music
+Indiana Jones' Desktop Adventures plays music as **MIDI via MCI command strings** (not WaveMix):
+SNDS ids 0x0e–0x11 are MIDs, plus hardcoded eerie.mid (id 0x12) and eep.wav (id 0x13). Full model,
+DESKADV.EXE function map, and the Yoda→Indy hardcoded-sound-id remap: docs/phase-h3-indy.md (v72).
+Implementation: the GAME_INDY blocks in src/DeskcppView.{h,cpp} (Indy_Midi* helpers, Indy_MapSoundId,
+PlaySoundData bypass).

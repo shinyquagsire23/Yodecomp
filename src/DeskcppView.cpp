@@ -48,6 +48,115 @@ HANDLE g_hWaveMixEvent;      // 0x00459454  pump-tick event
 int    g_dat459450;          // 0x00459450  cleared by the GameView ctor (music/sound related)
 int    g_waveHandles[64];    // 0x00459458..0x00459558  loaded-wave handle table (SoundInit fills)
 
+#ifdef GAME_INDY
+// =============================================================================
+// Indy MIDI music (GAME_INDY) — RE'd from DESKADV.EXE (see IndySoundId in DeskcppView.h).
+// Music is MCI sequencer command strings: "open sequencer!<file> alias <NAME>" /
+// "play <NAME> from 1" / "stop <NAME>" / "close <NAME>", with a per-id opened flag
+// (the 16-bit DGROUP word table @0x53c indexed by sound id). Independent of the
+// WaveMix SFX session. The 16-bit engine also has a themw3.mid fallback branch for
+// VERS-0x1e-era data (doc+0x56 == 0x1e) — DESKTOP.DAW is VERS 0x200, not reproduced.
+// =============================================================================
+#include <mmsystem.h>
+#undef PlaySound   // mmsystem.h's PlaySound->PlaySoundA macro would clobber our method name
+#include "DebugLog.h"   // YDBG compiles to nothing unless -D YODA_DEBUG
+
+static int  g_abIndyMidiOpen[64];        // per-sound-id "sequencer open" flag
+static char g_aszIndyMidiAlias[64][16];  // per-sound-id MCI alias ("THEME", "EERIE", ...)
+
+// "open sequencer!<file> alias <NAME>"; alias = basename sans extension (names arrive
+// already basenamed + uppercased from ParseSnds/_splitpath).
+static void Indy_MidiOpen(int nSoundId, const char *pszFile)
+{
+    char szCmd[100];
+    char *pszAlias = g_aszIndyMidiAlias[nSoundId];
+    strcpy(pszAlias, pszFile);
+    char *pDot = strchr(pszAlias, '.');
+    if (pDot != NULL)
+        *pDot = 0;
+    wsprintf(szCmd, "open sequencer!%s alias %s", pszFile, pszAlias);
+    DWORD nErr = mciSendString(szCmd, NULL, 0, NULL);
+    if (nErr == 0)
+        g_abIndyMidiOpen[nSoundId] = 1;
+    YDBG(("MidiOpen id=0x%x cmd=\"%s\" err=%lu\n", nSoundId, szCmd, nErr));
+}
+
+// Open every .MID named in SNDS plus the hardcoded eerie.mid (DESKADV FUN_1018_4c54 tail;
+// eerie is sound id SND_INDY_EERIE, outside the SNDS list). Idempotent per id.
+static void Indy_MidiOpenAll(CDeskcppDoc *pWorld)
+{
+    for (int i = 0; i < 64; i++)
+    {
+        if (g_abIndyMidiOpen[i] == 0 && pWorld->soundNames[i].GetLength() > 0
+            && strstr(pWorld->soundNames[i], ".MID") != NULL)
+            Indy_MidiOpen(i, pWorld->soundNames[i]);
+    }
+    if (g_abIndyMidiOpen[SND_INDY_EERIE] == 0)
+        Indy_MidiOpen(SND_INDY_EERIE, "eerie.mid");
+}
+
+// DESKADV FUN_1010_e43c music arm / FUN_1018_6dd0: play if opened (caller gates nMusicEnabled).
+static void Indy_MidiPlay(int nSoundId)
+{
+    char szCmd[100];
+    if (nSoundId < 0 || nSoundId >= 64 || g_abIndyMidiOpen[nSoundId] == 0)
+        return;
+    wsprintf(szCmd, "play %s from 1", g_aszIndyMidiAlias[nSoundId]);
+    DWORD nErr = mciSendString(szCmd, NULL, 0, NULL);
+    YDBG(("MidiPlay id=0x%x cmd=\"%s\" err=%lu\n", nSoundId, szCmd, nErr));
+}
+
+// DESKADV FUN_1018_6e34 — stop every opened sequencer (ToggleMusic off, new game).
+void Indy_MidiStopAll()
+{
+    char szCmd[100];
+    for (int i = 0; i < 64; i++)
+    {
+        if (g_abIndyMidiOpen[i] == 0)
+            continue;
+        wsprintf(szCmd, "stop %s", g_aszIndyMidiAlias[i]);
+        mciSendString(szCmd, NULL, 0, NULL);
+    }
+}
+
+// DESKADV FUN_1010_dff0 head — close every opened sequencer (view teardown).
+static void Indy_MidiCloseAll()
+{
+    char szCmd[100];
+    for (int i = 0; i < 64; i++)
+    {
+        if (g_abIndyMidiOpen[i] == 0)
+            continue;
+        wsprintf(szCmd, "close %s", g_aszIndyMidiAlias[i]);
+        mciSendString(szCmd, NULL, 0, NULL);
+        g_abIndyMidiOpen[i] = 0;
+    }
+}
+
+// Shared engine code hardcodes YODA sound ids, but the two games' SNDS tables differ
+// (Yoda 5=eep/6=nogo vs Indy 5=ROAR/6=DOOR/8=NOGO...). Translate at the PlaySound
+// boundary; data-driven ids (IACT args, weapon sounds) bypass via PlaySoundData.
+// -1 = no Indy equivalent (silent). TODO: verify the -1 set + 0xb per-site against the
+// DESKADV twins during the Indy RE sweep.
+static int Indy_MapSoundId(int nYodaSoundId)
+{
+    switch (nYodaSoundId)
+    {
+    case 5:    return SND_INDY_EEP;       // eep.wav -> the hardcoded 15th wave
+    case 6:    return 8;                  // nogo.wav -> NOGO.WAV
+    case 0xb:  return 7;                  // banglrg.wav -> EXPLODE.WAV
+    case 0x3a: return SND_INDY_FLOURISH;  // flourish.wav -> FLOURISH.MID (new game)
+    case 0x3d: return SND_INDY_THEME;     // opening.wav -> THEME.MID (startup)
+    case 0x3e: return SND_INDY_DEFEAT;    // tryagain.wav -> DEFEAT.MID
+    case 0x3f: return SND_INDY_VICTORY;   // youwin.wav -> VICTORY.MID
+    case 0x1f: case 0x20: case 0x21: case 0x22: case 0x23:
+    case 0x2a: case 0x2b: case 0x31: case 0x34: case 0x37:
+        return -1;                        // Yoda-only concept; Indy has no equivalent sound
+    default:   return nYodaSoundId;       // 0-4 etc. line up 1:1
+    }
+}
+#endif // GAME_INDY
+
 // =============================================================================
 // GameView-TU-private option dialogs (0x416810-0x4186e0). Declared here (not in the
 // shared GameView.h) so the doc TU that includes that header does not see them and its
@@ -264,6 +373,9 @@ CDeskcppView::CDeskcppView()
 CDeskcppView::~CDeskcppView()
 {
     g_bStopMusicThread = 1;
+#ifdef GAME_INDY
+    Indy_MidiCloseAll();   // DESKADV FUN_1010_dff0 closes the MCI sequencers first
+#endif
     if (soundSession != 0)
     {
         WaveMixActivate(soundSession, FALSE);
@@ -409,7 +521,20 @@ void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
 //   else-branch sound gate) and pWorld in EDX; our compile assigns them the opposite registers,
 //   a consistent bijection that propagates (identity_miss=9). Not source-steerable (goto/epilogue
 //   variants gave the identical score); a TU-phase reg-alloc residual, G1 fodder.
+#ifdef GAME_INDY
+// GAME_INDY: shared engine code passes Yoda sound ids — translate them (silently dropping
+// Yoda-only concepts); data-driven (Indy-native) ids enter below via PlaySoundData.
 void CDeskcppView::PlaySound(int nSoundId)
+{
+    nSoundId = Indy_MapSoundId(nSoundId);
+    if (nSoundId >= 0)
+        PlaySoundData(nSoundId);
+}
+
+void CDeskcppView::PlaySoundData(int nSoundId)
+#else
+void CDeskcppView::PlaySound(int nSoundId)
+#endif
 {
     MIXPLAYPARAMS mix;
     CDeskcppDoc *pW = pWorld;
@@ -417,6 +542,18 @@ void CDeskcppView::PlaySound(int nSoundId)
         return;
     if (nSoundId == 3 && bSuppressWalkSound != 0)
         return;
+#ifdef GAME_INDY
+    // Indy music ids are MIDI sequences via MCI, not WaveMix (DESKADV FUN_1010_e43c:
+    // id > 0xd && id != the hardcoded eep wave).
+    if (nSoundId >= SND_INDY_FLOURISH && nSoundId <= SND_INDY_EERIE)
+    {
+        if (pW->nMusicEnabled != 0)
+            Indy_MidiPlay(nSoundId);
+        return;
+    }
+    if (pW->nSoundEnabled == 0)
+        return;
+#else
     if (nSoundId == 0x37 || (nSoundId >= 0x3a && nSoundId <= 0x3f))
     {
         if (pW->nMusicEnabled == 0)
@@ -424,6 +561,7 @@ void CDeskcppView::PlaySound(int nSoundId)
     }
     else if (pW->nSoundEnabled == 0)
         return;
+#endif
     int session = soundSession;
     if (session == 0)
         return;
@@ -1313,12 +1451,12 @@ void CDeskcppView::FireWeaponStep(int nStep)
     if (nStep == 0 && (pWeapon->frames[7] == 0x1fe || pWeapon->frames[7] == 0x12))
 #endif
     {
-        PlaySound(pWeapon->weaponCharId);
+        PlaySoundData(pWeapon->weaponCharId);
         DrawWeaponIcon(0);
     }
     else if (nStep == 0 && pWeapon->unk48 > 0)
     {
-        PlaySound(pWeapon->weaponCharId);
+        PlaySoundData(pWeapon->weaponCharId);
         pWeapon->unk48--;
         DrawWeaponIcon(0);
         pWorld->bWeaponHitPending = 0;
@@ -1954,7 +2092,7 @@ void CDeskcppView::Tick()
                                     *pBX = sbx + sdx;
                                     *pBY = *pBY + *pBDY;
                                     if (*pBulletStep == 1 && bAimed)
-                                        PlaySound(pWeapon->weaponCharId);
+                                        PlaySoundData(pWeapon->weaponCharId);
                                 }
                             }
                             if (bMoved && *pBulletStep < 4)
@@ -5172,6 +5310,11 @@ void CDeskcppView::SoundInit()
 {
     if (soundSession != 0)
         return;
+#ifdef GAME_INDY
+    // MIDI music (MCI) is independent of the WaveMix SFX session — DESKADV opens the
+    // sequencers even when WaveMix fails (FUN_1018_4c54 tail runs on the failure paths).
+    Indy_MidiOpenAll(pWorld);
+#endif
     soundSession = WaveMixInit();
     if (soundSession == 0)
     {
@@ -5187,6 +5330,12 @@ void CDeskcppView::SoundInit()
         if (pWorld->soundNames[i].GetLength() > 0)
         {
 #ifdef GAME_INDY
+            // .MIDs were opened as MCI sequencers above (Indy_MidiOpenAll); WaveMix only WAVs.
+            if (strstr(pWorld->soundNames[i], ".MID") != NULL)
+            {
+                i++;
+                continue;
+            }
             // Indy ships its WAVs in the game directory, not Yoda's `sfx\` subfolder — so load by
             // bare name (WaveMixOpenWave resolves relative to cwd). Prefixing `sfx\` silently fails
             // to open every wave -> no sound. Yoda #else = exact original.
@@ -5200,6 +5349,15 @@ void CDeskcppView::SoundInit()
         }
         i++;
     } while (i < 64);
+#ifdef GAME_INDY
+    {
+        // eep.wav: Indy's hardcoded 15th wave outside SNDS (DESKADV FUN_1018_4c54, the
+        // string @1018:9718), played as sound id SND_INDY_EEP. Twin of Yoda's id-0x25 quirk.
+        char szEep[12];
+        strcpy(szEep, "eep.wav");
+        g_waveHandles[SND_INDY_EEP] = WaveMixOpenWave(soundSession, szEep, 0, 1);
+    }
+#endif
     if (WaveMixOpenChannel(soundSession, 8, 1) != 0)
     {
         int *p = g_waveHandles;

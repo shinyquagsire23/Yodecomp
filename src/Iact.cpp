@@ -918,7 +918,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             break; }
         case CMD_PlaySound:
             if (pView != NULL) {
-                pView->PlaySound(pCmd->args[0]);
+                pView->PlaySoundData(pCmd->args[0]);
                 result |= 1;
             }
             break;
