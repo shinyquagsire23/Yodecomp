@@ -244,14 +244,14 @@ pickup) — silence while walking is faithful.
 THEME.MID audibly plays (fluidsynth; SoundFont resolution = YODA_SOUNDFONT env > Mix defaults >
 probe > brew fluid-synth demo font). ⚠ The demo font is NOT GM-faithful — user heard percussion
 as an intermittent "wip-wip" laser (absent under wine, which uses the Windows GM synth) = the
-classic non-GM-bank drum-channel symptom. FIXED on this machine: GeneralUser GS installed at
+classic non-GM-bank drum-channel symptom. FIXED + USER-CONFIRMED: GeneralUser GS installed at
 `/opt/homebrew/share/soundfonts/default.sf2` (the shim's first probe path — no env var needed);
 document this for other machines. Needed 3 shared-TU fixes in Worldgen.cpp (the ONLY v78 src/ edit): VC4.2
 old-for-scope leaks that clang hard-errors on → `#ifdef YODA_PORTABLE` decls at function top
 (NEVER `int` in the later `for` — C2374 under VC4.2). All 3 inside the GAME_INDY region that
 runs to EOF ⇒ anchor tokens + line provenance untouched; full oracle table re-run GREEN
-(docs/phase-h4-sdl.md lesson 8 + footprint list). ⏳ USER-PLAYTEST Indy SDL in-game (only boot
-+ theme verified; use `YodaIndy/yoda_sdl`).
+(docs/phase-h4-sdl.md lesson 8 + footprint list). Boot + theme + GM-corrected MIDI all
+user-confirmed; ⏳ full Indy SDL gameplay playtest still pending (use `YodaIndy/yoda_sdl`).
 
 **▶ GOAL 2 — H4 next = M4 resources/dialogs/HUD chrome (the main thread):**
 - embedded .res + reslib-in-C++ (cursors, LoadString, About/save-load dialogs, TextDialog real
