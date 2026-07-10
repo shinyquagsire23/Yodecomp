@@ -1300,7 +1300,18 @@ void CDeskcppView::FireWeaponStep(int nStep)
         return;
     bBusy = 1;
     int nWeaponTile = pWeapon->frames[7];
+#ifdef GAME_INDY
+    // Indy's whip is a reusable melee weapon flagged TILE_LIGHTSABER (bit 18) in tile metadata
+    // (DA: tile_metadata & TILE_LIGHTSABER — same "extend" weapon class as Luke's saber), but its
+    // icon tile id is NOT one of Yoda's hardcoded reusable ids (0x12 lightsaber / 0x1fe Force). So
+    // key the "reusable, never deplete/remove" test off the flag; else the whip depletes to unk48<=0
+    // after one swing and RemoveItem drops it. Yoda #else path = exact original (anchor 211).
+    if (nStep == 0 && (nWeaponTile == 0x1fe ||
+                       (pWorld->GetTileData(nWeaponTile) != NULL &&
+                        (pWorld->GetTileData(nWeaponTile)->flags & TILE_LIGHTSABER))))
+#else
     if (nStep == 0 && (pWeapon->frames[7] == 0x1fe || pWeapon->frames[7] == 0x12))
+#endif
     {
         PlaySound(pWeapon->weaponCharId);
         DrawWeaponIcon(0);
@@ -1549,7 +1560,13 @@ cleanup:
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
     UseWeapon(x, y, nFireDirX, nFireDirY, nStep);
+#ifdef GAME_INDY
+    if (pWeapon->unk48 <= 0 && pWeapon->frames[7] != 0x1fe &&
+        !(pWorld->GetTileData(pWeapon->frames[7]) != NULL &&
+          (pWorld->GetTileData(pWeapon->frames[7])->flags & TILE_LIGHTSABER)))
+#else
     if (pWeapon->unk48 <= 0 && pWeapon->frames[7] != 0x1fe && pWeapon->frames[7] != 0x12)
+#endif
     {
         pWorld->currentWeapon = 0;
         DrawWeaponBox(0);

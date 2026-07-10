@@ -733,7 +733,14 @@ void CDeskcppDoc::OnReplayStory()
             nFrameMode = 0xc;
             return;
         }
+#ifndef GAME_INDY
+        // Indy has no mode-advancing zone-entry script, so world entry must use the self-climbing
+        // ZoneTransitionStep path (bWorldInvalid stays 1, as IndyGenerate's tail set it) — clearing
+        // it to 0 here routes OnTimer case-0xb through WorldEntryStepMaybe, which loops 0->5 forever
+        // and hangs at the STUP graphic (the Replay/New Story bug). OnTimer clears it when the
+        // transition completes. Yoda keeps this store (its intro zone HAS a scripted entry).
         bWorldInvalid = 0;
+#endif
         return;
     }
     nRequestedGoalItem = -1;
