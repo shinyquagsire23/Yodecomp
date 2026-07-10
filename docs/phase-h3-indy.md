@@ -497,6 +497,11 @@ in game code (72,288-instruction scan); the HUD-refresh twin `FUN_1010_e542` dra
 BOX (`FUN_1018_adf2`, which DOES exist = bevel + 30×30 equipped-weapon icon, no ammo geometry). No charge-column
 function exists — consistent with the melee whip having no ammo. FIX: `#ifdef GAME_INDY return;` at the top of
 `DrawWeaponIcon` (skip the bar); `DrawWeaponBox` stays (Indy has it). `src/Worldgen.cpp`; anchor 211 (guarded).
+- **Weapon box CENTERING (v70 follow-up, user-noted):** without the ammo bar, Indy centers the weapon box over the
+  whole box+ammo region — 16px left of Yoda's box (onto where Yoda's ammo bar sat) + 4px down. Exact coords from the
+  DESKADV UI-rect init `FUN_1010_4666`: box `[left=0x180, top=0x100, right=0x1a0, bottom=0x120]` (vs Yoda
+  `0x190/0xfc/0x1b0/0x11c`). Applied as a `#ifdef GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc
+  ctor (`src/DeskcppDoc.cpp`); anchor 211 (guarded).
 
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
 1. **Door + ammo bar** — v69 door + v70 ammo-bar fixes; confirm the black bar is gone (whip box still shows). If a
