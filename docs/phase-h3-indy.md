@@ -379,12 +379,30 @@ the earlier tile-write bounds guard in Iact.cpp stays as defense-in-depth.
 ⭐ LESSON: "shared engine, shared enum" was WRONG — DA's iact.h uses one enum for both games but the actual
 BINARIES renumber the opcodes. Always confirm opcode semantics against DESKADV.EXE, not DA.
 
-### ⏭ NEXT (user visual re-test `./run_indy.sh`, then remaining)
-1. **USER VISUAL RE-TEST (big one):** talk to NPCs (dialog appears now?), enter buildings (no crash? interior +
-   scripted events work?), New World (no infloop). Report anything still broken — likely a mis-mapped rare opcode.
-2. If a specific interaction misbehaves, the culprit is a best-guess opcode in `kIndyCondToYoda`/`kIndyCmdToYoda`
-   (src/IactScript.cpp) — RE that exact case in DESKADV runner FUN_1010_2910 / executor FUN_1010_2eb6 and correct
-   the table entry.
+### ⭐ v65 — post-remap gameplay working (user: NPCs talk, whip found); fixed whip-vanish + Replay/New Story STUP
+User confirmed the opcode remap works: NPCs talk, dialog shows, whip is findable. Two more fixes + one open quirk:
+- **Whip vanished after one use — FIXED.** `FireWeaponStep` treats a weapon as reusable (never deplete `unk48` /
+  never `RemoveItem`) only if `frames[7]==0x1fe` (Force) or `0x12` (Yoda lightsaber icon id). Indy's whip is a
+  reusable melee ("extend") weapon flagged **TILE_LIGHTSABER (bit 18)** in tile metadata (DA checks that same flag
+  for both games) but its icon tile id isn't 0x12 → it fell into the depletable path. Fixed: for Indy, key the
+  reusable test off `GetTileData(frames[7])->flags & TILE_LIGHTSABER` (both the nStep==0 no-deplete branch and the
+  removal guard). `DeskcppView.cpp` FireWeaponStep.
+- **Replay Story / New Story hung at STUP — FIXED.** `OnReplayStory` (WorldgenHelpers.cpp) sets `bWorldInvalid=1`
+  around StartGame then clears it to 0 after — which routes OnTimer case-0xb through `WorldEntryStepMaybe` (loops
+  0→5 forever for Indy: no mode-advancing entry script) → stuck on the STUP graphic. The initial world + New World
+  keep `bWorldInvalid=1` (IndyGenerate tail) → `ZoneTransitionStep` self-climb → play mode. Fixed: `#ifndef
+  GAME_INDY` around the `bWorldInvalid=0` so Indy keeps it 1 (OnTimer clears it when the transition completes).
+- ⏳ **OPEN: house-entry quirk.** Entering a building, a textbox shows one tile early, and the actual DOOR warp only
+  triggers after backing out + re-entering onto the door tile. Likely a coordinate/trigger-cell offset — candidates:
+  Indy interior zones are smaller than 18×18 and DA applies a center-shift (map.c center_shift_x/y) our engine may
+  not, shifting the door/trigger cell; OR the FirstEnter/Enter vs BumpTile door-warp ordering. Needs RE of DESKADV's
+  door-warp + the small-zone camera/centering. Not a blocker (playable with the workaround).
+
+### ⏭ NEXT (user visual re-test `./run_indy.sh`)
+1. Verify: whip persists after use; Replay Story + New Story now enter the world (no STUP hang).
+2. House-entry quirk (above) — the small-interior-zone centering/trigger-offset RE.
+3. Remaining polish: hero-HP tail (entity+0x90=120 in IndyGenerate tail), any mis-mapped rare IACT opcode surfaced
+   by play, Indy resources/icon [[indy-app-icon]], INI replay persistence.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
    auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
 3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).

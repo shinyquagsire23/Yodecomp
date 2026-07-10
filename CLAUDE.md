@@ -808,7 +808,26 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v64 — PHASE H3 milestone 4: ⭐ Indy IACT OPCODES ARE RENUMBERED — remapped (fixes NPC dialog + door crash + entry gates); NEXT = user visual re-test; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v65 — PHASE H3 milestone 4: Indy largely PLAYABLE — IACT opcode remap + whip + Replay/New Story fixed; OPEN: house-entry warp quirk; anchor 211)
+**▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
+GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
+only treats `frames[7]==0x1fe/0x12` as reusable; Indy's whip is a melee weapon flagged **TILE_LIGHTSABER (bit 18)**
+with a different icon id → depleted+removed. Fixed: for Indy key the reusable test off
+`GetTileData(frames[7])->flags & TILE_LIGHTSABER` (both the no-deplete branch + the removal guard). (2) **Replay/New
+Story hung at STUP** — OnReplayStory clears `bWorldInvalid=0` after StartGame → OnTimer routes through
+WorldEntryStepMaybe (loops for Indy) → stuck. Fixed: `#ifndef GAME_INDY` the `bWorldInvalid=0` so Indy keeps the
+self-climbing ZoneTransitionStep entry (like initial world + New World). (3) ⏳ **OPEN: house-entry quirk** — a
+textbox shows one tile early and the DOOR warp only fires after backing out + re-entering onto the door tile.
+Likely a small-interior-zone CENTER-SHIFT offset (DA map.c center_shift_x/y for zones < screen size, which our
+engine may not apply → door/trigger cell shifted) or FirstEnter/BumpTile warp ordering. Needs RE of DESKADV door-warp
++ small-zone centering. Not a blocker.
+**▶ START HERE (v65): USER VISUAL RE-TEST `./run_indy.sh`** — whip persists after use? Replay Story + New Story enter
+the world (no STUP)? Then: the house-entry warp quirk (small-zone center-shift RE); hero-HP tail (entity+0x90=120 in
+IndyGenerate tail); any mis-mapped rare IACT opcode surfaced by play (fix the entry in kIndyCond/CmdToYoda,
+src/IactScript.cpp, via DESKADV runner FUN_1010_2910 / executor FUN_1010_2eb6); Indy icon [[indy-app-icon]]; INI
+replay persistence.
+**▶ v64 — THE FUNDAMENTAL IACT FIX. RE'd the DESKADV IACT runtime (runner FUN_1010_2910, executor FUN_1010_2eb6):
+the condition AND command OPCODES are RENUMBERED between Yoda and Indy**, while record sizes / arg offsets / tile
 **▶ v64 — THE FUNDAMENTAL IACT FIX. RE'd the DESKADV IACT runtime (runner FUN_1010_2910, executor FUN_1010_2eb6):
 the condition AND command OPCODES are RENUMBERED between Yoda and Indy**, while record sizes / arg offsets / tile
 formula / event numbers / field offsets are IDENTICAL. Running Indy scripts through Yoda's opcode switches
@@ -822,11 +841,6 @@ all decode sane). ⚠ Rare cond specials (Indy 0/8/9/0xb/0x14–0x16) + DrawOver
 TODOs in-source. ⭐ LESSON: DA's shared iact.h enum is MISLEADING — the actual binaries renumber opcodes; confirm
 against DESKADV.EXE. anchor 211 (guarded); Iact.cpp tile bounds-guard kept as defense-in-depth. Detail:
 docs/phase-h3-indy.md "v64".
-**▶ START HERE (v64): USER VISUAL RE-TEST `./run_indy.sh`** — talk to NPCs (dialog now?), enter buildings (no crash?
-scripted events work?), New World (no infloop). If a specific interaction misbehaves it's a best-guess opcode in
-kIndyCond/CmdToYoda — RE that case in DESKADV runner FUN_1010_2910 / executor FUN_1010_2eb6 and fix the table entry.
-Then remaining: whip (OBJ_WEAPON pickup vs an IACT CMD_AddItemToInv — may work now with correct opcodes!),
-hero-HP tail (entity+0x90=120 in IndyGenerate tail), Indy resources/icon [[indy-app-icon]], INI replay persistence.
 **▶ v62 SUMMARY: fixed 5 more Indy bugs (all GAME_INDY-guarded, anchor 211; verified via 3 parallel DESKADV.EXE RE
 agents + headless YDBG). Full detail: docs/phase-h3-indy.md "v62".** (1) **New World infloop** — `StartGame`'s
 Generate loop wasn't GAME_INDY-guarded → ran Yoda Generate (never converges) → infinite reseed / progress bar
