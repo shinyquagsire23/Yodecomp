@@ -808,9 +808,9 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v71 — milestone 5 Indy RESOURCES done (icon+title) + CDeskcppDoc RECT/unk docs; OPEN: minor Indy tails; anchor 211)
-**▶ v71 — this session (two items; anchor 211 held throughout). USER: playtesting build-indy finds few remaining
-Indy issues; fixed the weapon-box centering by eye.**
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v71 — milestone 5 RESOURCES done (Indy icon+title+About, full-Yoda About no-Demo) + CDeskcppDoc RECT/unk docs; full-Yoda hang investigated (works); OPEN: minor Indy tails; anchor 211)
+**▶ v71 — this session (three items; anchor 211 held throughout). USER: playtesting build-indy finds few remaining
+Indy issues; fixed the weapon-box centering by eye; Indy About works; full-Yoda "working now".**
 
 **(1) ⭐ Milestone 5 — extended-config RESOURCES: Indy app icon + title + About credits, and full-Yoda About
 (no "Demo"). Retires the temp SetWindowText hack + [[indy-app-icon]].** `tools/make_res.py` (+ shared
@@ -850,38 +850,38 @@ header, synced both ways; verified progress 211, bugscan 0/0/0, link 0/0, GAME_I
   identical, fixed its stale nHealthDial→nView misnomer), + Ghidra struct (rectUnk3274/84→rectViewport/Inventory,
   save_program). Remaining unks (unk2c8/2e28/2e30/2e60/3368/336c/3370/3378/33a4/33b4) are undefined in Ghidra too
   — left as unk (no confidently-correct name).
-**▶ v70 — prior session (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v69"+"v70"; memory
-[[h3-indy-load]]):** three user-facing fixes, each verified against DESKADV.EXE:
-1. **⭐ DOOR FIXED at the root — USER-CONFIRMED working (single walk-through).** The v67/v68 "SetPlayerPos plants the
-   player on the door" was the SYMPTOM. RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
-   case-for-case: the v64 `kIndyCmdToYoda` table had a shifted cluster 0x0b–0x14. **Indy cmd 0x11 = RedrawTile, NOT
-   SetPlayerPos** → s26's `RedrawTile(7,14)` (repaint the opened door) ran as SetPlayerPos and TELEPORTED the player
-   onto the door cell, bypassing the walk-in path so the DOOR_IN warp (fires ONLY on a player WALK onto an empty
-   t==-1 cell holding a DOOR_IN obj → `FindObjectAt`→`TransitionZoneDoor`) never triggered. Fixed 8 entries in
-   `src/IactScript.cpp` (each verified vs the decompiled switch): 0x0b→0x0a PlaySound, 0x0c→0x08 RenderChanges,
-   0x0e→0x10 / 0x0f→0x11 (hide/show player were swapped), **0x11→0x06 RedrawTile ⭐**, 0x12→0x12 SetPlayerPos,
-   0x13→0x07 RedrawTiles, 0x14→0x08. No warp-hack needed (the original warps only on a player walk; the dispatcher
-   never reaches door-transition fn `FUN_1018_2e48`, sole caller = walk handler `FUN_1018_733e`).
-2. **Ammo bar REMOVED — USER-CONFIRMED gone.** The whip's `DrawWeaponIcon` (0x428c40) bar rendered all-black
-   (whip's frames[7] matches no ammo weapon → nMult=0 → black "spent" column fills the whole bar). RE-confirmed
-   EXHAUSTIVELY that Indy renders NO ammo bar (green 0x91 fill appears NOWHERE; HUD twin `FUN_1010_e542` = bevels +
-   health PIE `FUN_1018_a242` + icon strip + inventory + weapon BOX `FUN_1018_adf2`, no charge column). FIX =
-   `#ifdef GAME_INDY return;` at top of `DrawWeaponIcon` (`src/Worldgen.cpp`); `DrawWeaponBox` kept.
-3. **Weapon box re-CENTERED (pending user visual confirm).** Without the ammo bar Indy centers the box over the whole
-   box+ammo region. Exact coords from DESKADV UI-rect init `FUN_1010_4666`: `[left=0x180 top=0x100 right=0x1a0
-   bottom=0x120]` (vs Yoda 0x190/0xfc/0x1b0/0x11c — 16px left onto the old ammo-bar spot + 4px down). `#ifdef
-   GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc ctor (`src/DeskcppDoc.cpp`).
-**▶ START HERE (v71): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the v71 Indy resources — titlebar reads
-**"Desktop Adventures"**, the app/taskbar icon is Indy's (not Yoda's), and Help>About shows Indy's credits
-("Indiana Jones and his Desktop Adventures" / "The Desktop Adventures Team"). For the full-Yoda build, the About
-box should read "Yoda(tm) Stories" (no "Demo"). Weapon-box centering already user-fixed (v70). Then remaining OPEN (non-blocking, priority order): (1) startup-wav name (minor); (2) hero-HP tail
-(entity+0x90=120 in IndyGenerate tail); (3) verify still-uncertain IACT opcodes (0x13 rect arg-order vs
-DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); (4) INI replay persistence; (5) OPTIONAL: Indy menus
-(menu id 2 — swap only if the menu text should read Indy's; risks command-dispatch mismatch, deferred). All
-anchor-safe / GAME_INDY-guarded. ⭐ STANDING LESSONS: a Yoda HUD/UI element may simply NOT exist in Indy (RE the
-DESKADV HUD-refresh draw list before "fixing" a broken-looking one — often it should be removed); audit the IACT
-remap TABLE case-for-case vs the real jump table; and for resources, KEEP Yoda's `.rsrc` base + override only the
-identity (icon/title) — our code depends on YodaDemo's integer resource IDs.
+
+**(3) full-Yoda (YODA_VARIANT=FULL) "hangs at the loading bar" — INVESTIGATED, could NOT reproduce; user: "working
+now".** User reported the full build stuck at the loading bar (startup wav plays, window unresponsive). Instrumented
+the FULL worldgen path with YODA_DEBUG YDBG probes (temp; reverted — anchor 211) + headless CrossOver run: worldgen
+**converges on try #1** every run (`GEN SUCCESS`, planet=1 goal=85/201 — both valid full-game WORLD_MISSION ids in
+the planet-1 whitelist), and the whole `Load → Populate → play` handoff completes (`nFrameMode=11`). So NO
+deterministic worldgen bug. Most likely the user ran a STALE `build-full` binary — adding the FULL resource path this
+session forced a full rebuild from current source; rebuilt clean (YODA_DEBUG=OFF). ⚠ WATCH: if it recurs it's likely
+an intermittent seed/planet-dependent **transition stall** (OnTimer case-0xb → `WorldEntryStepMaybe` needs the
+generated start zone to have a mode-advancing entry script — same family as the Indy STUP stall). NEXT if it recurs:
+ask WHICH planet (Tatooine/Hoth/Endor), trace that seed's OnTimer transition, add a timeout guard. build-full is at
+`YodaFull/` (YODESK.DTA); `run_full.sh` runs it; the YDBG-in-Worldgen recipe (Generate entry/goal/fail-gate probes +
+retry-loop counter) is the tool.
+
+**▶ v70 (prior; all USER-CONFIRMED, GAME_INDY-guarded, anchor 211 — FULL detail docs/phase-h3-indy.md "v69"+"v70",
+memory [[h3-indy-load]]):** (1) DOOR fixed at root — the `kIndyCmdToYoda` table (src/IactScript.cpp) had a shifted
+0x0b–0x14 cluster; Indy cmd 0x11=RedrawTile not SetPlayerPos (was teleporting the player onto the door, bypassing the
+walk-in DOOR_IN warp); 8 entries corrected vs the decompiled dispatcher `FUN_1010_2eb6`. (2) Ammo bar removed
+(`#ifdef GAME_INDY return;` in DrawWeaponIcon — Indy has no charge column, RE-confirmed). (3) Weapon box re-centered
+(rectWeaponBox override in the doc ctor; user then fine-tuned by eye).
+**▶ START HERE (v71): Indy is broadly PLAYABLE + resources done; pick from the OPEN tails.** USER-CONFIRMED this
+session: Indy door works, ammo bar gone, weapon box centered, Indy About shows Indy credits; full-Yoda "working now"
+(v71 item 3 — no repro; watch for an intermittent transition stall). Remaining OPEN (non-blocking, priority order):
+(1) startup-wav name (minor); (2) hero-HP tail (entity+0x90=120 in IndyGenerate tail — we set only doc fields);
+(3) verify still-uncertain IACT opcodes (0x13 rect arg-order vs DrawZoneCellRect; condition specials
+0/8/9/0xb/0x14..0x16); (4) INI replay persistence; (5) OPTIONAL: Indy menus (menu id 2 — swap only if the menu text
+should read Indy's; risks command-dispatch mismatch, deferred; if done, extend `tools/make_res.py --indy` since it
+already keeps Yoda's `.rsrc` base + overrides identity resources). If full-Yoda hangs again, see v71 item (3): ask
+WHICH planet, trace OnTimer via the YDBG recipe. All anchor-safe / GAME_INDY-guarded. ⭐ STANDING LESSONS: a Yoda
+HUD/UI element may simply NOT exist in Indy (RE the DESKADV HUD-refresh draw list before "fixing" a broken-looking
+one); audit the IACT remap TABLE case-for-case vs the real jump table; and for resources, KEEP Yoda's `.rsrc` base +
+override only game/variant resources (icon/title/About) — our code depends on YodaDemo's integer resource IDs.
 <!-- Prior H3 pickups v61–v69 condensed below — FULL detail in docs/phase-h3-indy.md (per-version sections) + memory
      [[h3-indy-load]]. CLAUDE.md carries only the current pickup (v71).
   v69 = the door root-fix (item 1 above; USER-CONFIRMED).
