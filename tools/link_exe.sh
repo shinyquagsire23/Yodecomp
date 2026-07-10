@@ -13,7 +13,7 @@
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-BD="${CLAUDE_JOB_DIR:-$ROOT}/tmp/build-link"
+BD="${CLAUDE_JOB_DIR:-$ROOT}/tmp/build-demo"
 mkdir -p "$BD"; rm -f "$BD"/*.obj "$BD"/link.log 2>/dev/null
 FLAGS="/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS"
 

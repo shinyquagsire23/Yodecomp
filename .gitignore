@@ -25,6 +25,7 @@ build-link/
 build-cmake/
 build-full/
 build-indy/
+build-demo/
 tmp/
 *.exe
 

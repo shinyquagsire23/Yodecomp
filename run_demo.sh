@@ -1,5 +1,5 @@
 #!/bin/zsh
-cp $(pwd)/tmp/build-link/yoda.exe $(pwd)/YodaDemo
+cp $(pwd)/tmp/build-demo/yoda.exe $(pwd)/YodaDemo
 pushd YodaDemo
 # NOTE: do NOT pre-warm a persistent wineserver here — a `wineserver -p` started in a headless
 # context leaves the bottle with a windowless server that later GUI runs inherit (no window).
