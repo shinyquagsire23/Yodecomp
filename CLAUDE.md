@@ -808,12 +808,28 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v71 — Indy PLAYABLE (user playtesting, few issues); CDeskcppDoc RECT/unk cleanup done; OPEN: Indy resources, minor tails; anchor 211)
-**▶ v71 — this session (CDeskcppDoc struct documentation, codegen-neutral, anchor 211 held):** USER reported
-playtesting build-indy finds few remaining Indy issues (good), and asked to document CDeskcppDoc RECT fields +
-resolve unks (spurred by the v70 weapon-box work). Done — Ghidra's CDeskcppDoc was ahead of our header; synced
-both ways (all pure renames / int-quad→RECT retypes = codegen-neutral, verified: progress 211, bugscan 0/0/0,
-link 0/0, GAME_INDY compiles):
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v71 — milestone 5 Indy RESOURCES done (icon+title) + CDeskcppDoc RECT/unk docs; OPEN: minor Indy tails; anchor 211)
+**▶ v71 — this session (two items; anchor 211 held throughout). USER: playtesting build-indy finds few remaining
+Indy issues; fixed the weapon-box centering by eye.**
+
+**(1) ⭐ Milestone 5 — proper Indy RESOURCES (app icon + title; retires the temp SetWindowText hack +
+[[indy-app-icon]]).** `tools/make_indy_res.py` builds the GAME_INDY `.res` = Yoda's `.rsrc` base (our code
+references YodaDemo's dialog/menu/bitmap/control IDs — a wholesale swap breaks the UI) with only the app IDENTITY
+swapped for Indy's, sourced from `INDYDESK/DESKADV.EXE` (16-bit NE → the tool has its own NE resource-table reader,
+since extract_res.py only walks a PE `.rsrc`):
+- App icon: `IDR_MAINFRAME==2` for this app (`new CSingleDocTemplate(2,…)`; menu/icon/string all id 2, NOT 128).
+  Copies Indy's GROUP_ICON id 2 + member ICON verbatim (DIB + dir formats identical NE↔PE), remaps its RT_ICON
+  ordinal to a free 901 (Yoda uses 1..11), drops Yoda's GROUP_ICON 2 / ICON 11.
+- Title = **"Desktop Adventures"** (the AUTHENTIC DESKADV.EXE title — string id 2 doc-template AND AFX_IDS_APP_TITLE
+  0xE000/57344, both; NOT "Indiana Jones' Desktop Adventures"). Removed the runtime SetWindowText override from
+  `src/Deskcpp.cpp` (title now flows from the resource via the doc template).
+- Wired `CMakeLists.txt`: `YODA_GAME==INDY` → make_indy_res.py (needs both binaries) else extract_res.py. VERIFIED:
+  build-indy links (438KB), PE re-parse shows GROUP_ICON 2→ICON 901 + str 2/57344="Desktop Adventures". Anchor
+  unaffected (Yoda uses extract_res.py; Deskcpp.cpp edit is in a `#ifdef GAME_INDY` block empty for Yoda). ⏳ USER:
+  visual confirm the Indy icon + "Desktop Adventures" titlebar via `./run_indy.sh`. Menus left Yoda's (optional swap).
+
+**(2) CDeskcppDoc struct documentation** (user-requested cleanup; codegen-neutral — Ghidra's struct was ahead of our
+header, synced both ways; verified progress 211, bugscan 0/0/0, link 0/0, GAME_INDY compiles):
 - **2 mystery RECTs identified + reader-verified:** +0x32b4 `rectAmmoBar` (DrawWeaponIcon 0x428c40), +0x32c4
   `rectHealthDial` (DrawHealthDial 0x42754d / DrawHealthNeedle 0x4279a4). Converted 3 more int-quads → RECT
   (`rectWeaponBox` +0x32a4, `rectArrowBox` +0x32e4), and renamed +0x3294 `rectRightPane`→`rectInvScroll`. nView*
@@ -846,16 +862,18 @@ link 0/0, GAME_INDY compiles):
    box+ammo region. Exact coords from DESKADV UI-rect init `FUN_1010_4666`: `[left=0x180 top=0x100 right=0x1a0
    bottom=0x120]` (vs Yoda 0x190/0xfc/0x1b0/0x11c — 16px left onto the old ammo-bar spot + 4px down). `#ifdef
    GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc ctor (`src/DeskcppDoc.cpp`).
-**▶ START HERE (v70): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the weapon box now sits in the right place
-(item #3, not yet visually confirmed). Then remaining OPEN (non-blocking, priority order): (1) proper Indy resources
-(.res title/icon/menus → retires the temp title override + [[indy-app-icon]]); (2) startup-wav name (minor); (3)
-hero-HP tail (entity+0x90=120 in IndyGenerate tail); (4) verify still-uncertain IACT opcodes (0x13 rect arg-order vs
-DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); (5) INI replay persistence. All anchor-safe / GAME_INDY-
-guarded. ⭐ STANDING LESSON reinforced this session: a Yoda HUD/UI element may simply NOT exist in Indy (RE the
-DESKADV HUD-refresh draw list before "fixing" a broken-looking one — often it should be removed); and audit the IACT
-remap TABLE case-for-case vs the real jump table, not just "opcodes differ".
+**▶ START HERE (v71): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the v71 Indy resources — the titlebar should
+read **"Desktop Adventures"** and the app/taskbar icon should be Indy's (not Yoda's). Weapon-box centering already
+user-fixed (v70). Then remaining OPEN (non-blocking, priority order): (1) startup-wav name (minor); (2) hero-HP tail
+(entity+0x90=120 in IndyGenerate tail); (3) verify still-uncertain IACT opcodes (0x13 rect arg-order vs
+DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); (4) INI replay persistence; (5) OPTIONAL: Indy menus
+(menu id 2 — swap only if the menu text should read Indy's; risks command-dispatch mismatch, deferred). All
+anchor-safe / GAME_INDY-guarded. ⭐ STANDING LESSONS: a Yoda HUD/UI element may simply NOT exist in Indy (RE the
+DESKADV HUD-refresh draw list before "fixing" a broken-looking one — often it should be removed); audit the IACT
+remap TABLE case-for-case vs the real jump table; and for resources, KEEP Yoda's `.rsrc` base + override only the
+identity (icon/title) — our code depends on YodaDemo's integer resource IDs.
 <!-- Prior H3 pickups v61–v69 condensed below — FULL detail in docs/phase-h3-indy.md (per-version sections) + memory
-     [[h3-indy-load]]. CLAUDE.md carries only the current pickup (v70).
+     [[h3-indy-load]]. CLAUDE.md carries only the current pickup (v71).
   v69 = the door root-fix (item 1 above; USER-CONFIRMED).
   v67/v68 = whip DAMAGE (UseWeapon nType=3 for non-blaster) + sound (drop `sfx\` prefix, Indy WAVs in game root) +
     temp window title (SetWindowText in InitInstance — retire via Indy .res) + mid-textbox Replay crash (frame-mode-

@@ -503,12 +503,36 @@ function exists — consistent with the melee whip having no ammo. FIX: `#ifdef 
   `0x190/0xfc/0x1b0/0x11c`). Applied as a `#ifdef GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc
   ctor (`src/DeskcppDoc.cpp`); anchor 211 (guarded).
 
+### ⭐ v71 — milestone 5: proper Indy RESOURCES (app icon + title); CDeskcppDoc RECT/unk docs (anchor 211)
+User: playtesting build-indy finds few remaining Indy issues; centering fixed by eye. Two items done:
+- **Indy app icon + title (retires the temp `SetWindowText` hack + [[indy-app-icon]]).** `tools/make_indy_res.py`
+  builds the GAME_INDY `.res` = Yoda's `.rsrc` base (our code references YodaDemo's dialog/menu/bitmap/control IDs,
+  so a wholesale swap would break the UI) with only the app IDENTITY swapped for Indy's:
+  - `IDR_MAINFRAME == 2` for this MFC app (menu/icon/doc-template string all id 2; confirmed by
+    `new CSingleDocTemplate(2, …)` in InitInstance — NOT the usual 128). App icon = GROUP_ICON id 2 → member ICON
+    (Yoda→ICON 11, Indy→ICON 1). The tool parses `INDYDESK/DESKADV.EXE` (a **16-bit NE** — its own NE resource-table
+    reader, since `extract_res.py` only walks a PE `.rsrc`), copies Indy's GROUP_ICON 2 + member icon verbatim (icon
+    DIB + GROUP_ICON dir formats are identical NE↔PE), remaps its RT_ICON ordinal to a free id (901; Yoda uses 1..11),
+    and drops Yoda's GROUP_ICON 2 / ICON 11.
+  - **Title = "Desktop Adventures"** — the AUTHENTIC DESKADV.EXE title (string id 2 = doc-template title AND
+    AFX_IDS_APP_TITLE 0xE000/57344; both = "Desktop Adventures", NOT "Indiana Jones' Desktop Adventures" — the temp
+    override's guess). The tool patches both MFC string-table blocks. The runtime `SetWindowText` override is removed
+    from `src/Deskcpp.cpp` (title now flows from the resource via the doc template).
+  - Wired in `CMakeLists.txt`: `YODA_GAME==INDY` → `make_indy_res.py` (needs both binaries), else `extract_res.py`.
+    Anchor unaffected (Yoda build still uses extract_res.py; the Deskcpp.cpp edit is inside a `#ifdef GAME_INDY`
+    block that was empty for Yoda → token-identical, 211 held). ⏳ USER: visual confirm the Indy icon + titlebar.
+  - Menus left as Yoda's (Indy menu id 2 may differ in text but our command IDs match Yoda's; a swap risks
+    command-dispatch mismatch — deferred as optional).
+- **CDeskcppDoc struct documentation** (separate cleanup, user-requested; codegen-neutral, anchor 211): 2 mystery
+  RECTs identified + reader-verified (`rectAmmoBar` +0x32b4, `rectHealthDial` +0x32c4), 3 more int-quads → RECT,
+  ~14 unks resolved from Ghidra readers. Details in CLAUDE.md v71 pickup.
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. **Door + ammo bar** — v69 door + v70 ammo-bar fixes; confirm the black bar is gone (whip box still shows). If a
-   residual door quirk remains, it's the small-interior center-shift (DA map.c center_shift for zones < screen).
-2. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
-3. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); the two rare/uncertain opcodes
+1. **Indy icon + title** — v71 resources; confirm the titlebar shows "Desktop Adventures" + the Indy icon (taskbar
+   + title bar). If the icon looks wrong, check GROUP_ICON id 2's member in DESKADV vs what the frame loads.
+2. Startup wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); the two rare/uncertain opcodes
    (0x13 rect arg-order, condition specials 0/8/9/0xb/0x14..0x16); INI replay persistence.
+3. (optional) Indy menus (id 2) if the menu text should read Indy's.
 Method: headless `-DYODA_DEBUG` YDBG oracle (guard GAME_INDY+YODA_DEBUG, revert before anchor check). The door
 warp is GUI-only — a headless repro that injects TransitionZoneDoor does NOT reproduce the walk sequence.
 Key DESKADV addrs this session: IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / char reader FUN_1010_069c /

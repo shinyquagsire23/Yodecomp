@@ -142,12 +142,29 @@ if(NOT EXISTS "${_orig_exe}")
     "The WIN32 build copies its .rsrc for a runnable image. Place YodaDemo.exe there "
     "(it is copyrighted and gitignored — acquire it separately).")
 endif()
-add_custom_command(
-  OUTPUT  "${_res}"
-  COMMAND python3 "${_tools}/extract_res.py" "${_orig_exe}" "${_res}"
-  DEPENDS "${_tools}/extract_res.py" "${_orig_exe}"
-  COMMENT "extract resources (.rsrc -> yoda.res)"
-  VERBATIM)
+if(YODA_GAME STREQUAL "INDY")
+  # GAME_INDY: keep Yoda's .rsrc as the base (our code references its dialog/control IDs) but swap
+  # the app IDENTITY — icon + title string — for Indy's, from DESKADV.EXE. See make_indy_res.py.
+  set(_indy_exe "${CMAKE_CURRENT_SOURCE_DIR}/INDYDESK/DESKADV.EXE")
+  if(NOT EXISTS "${_indy_exe}")
+    message(FATAL_ERROR
+      "The GAME_INDY build sources its app icon + title from Indy's binary at ${_indy_exe}\n"
+      "(copyrighted and gitignored — acquire it separately).")
+  endif()
+  add_custom_command(
+    OUTPUT  "${_res}"
+    COMMAND python3 "${_tools}/make_indy_res.py" "${_orig_exe}" "${_indy_exe}" "${_res}"
+    DEPENDS "${_tools}/make_indy_res.py" "${_orig_exe}" "${_indy_exe}"
+    COMMENT "build Indy resources (Yoda base + Indy icon/title -> yoda.res)"
+    VERBATIM)
+else()
+  add_custom_command(
+    OUTPUT  "${_res}"
+    COMMAND python3 "${_tools}/extract_res.py" "${_orig_exe}" "${_res}"
+    DEPENDS "${_tools}/extract_res.py" "${_orig_exe}"
+    COMMENT "extract resources (.rsrc -> yoda.res)"
+    VERBATIM)
+endif()
 
 # ── link: static MFC (NAFXCW) + static CRT (LIBCMT) + Win32 imports + wavmix32 + resources ─────
 # Bare lib names resolve from the wrapper's LIB path (VC + MFC lib dirs). afx.h's #pragma comment
