@@ -1119,4 +1119,14 @@ extern "C" void mfx_srand(unsigned int nSeed);
 #define rand  mfx_rand
 #define srand mfx_srand
 
+// ── Win32-CRT-compatible clock() ─────────────────────────────────────────────────────────────
+// MSVC's clock() is WALL time with CLOCKS_PER_SEC==1000; the game busy-waits on it for pacing
+// (ScrollZoneTransition `clock()+50` = 50ms/step, Iact WaitTicks, palette flashes). Host
+// clock() is CPU time at 1e6/sec — those waits would spin ~1000x too fast. Remap to monotonic
+// milliseconds. <time.h> is pulled first so the host declaration predates the macro (a later
+// re-include is guarded away and can't be rewritten into a conflicting mfx_clock declaration).
+#include <time.h>
+extern "C" clock_t mfx_clock(void);
+#define clock mfx_clock
+
 #endif // MICROFX_AFXWIN_H

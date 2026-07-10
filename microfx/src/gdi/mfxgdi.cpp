@@ -95,6 +95,43 @@ HBITMAP CreateDIBSection(HDC, const BITMAPINFO *pbmi, UINT /*DIB_RGB_COLORS*/,
     return hDib;
 }
 
+// The drag save-under (CDeskcppView::UpdateDragCursor) is the one CreateBitmap caller:
+// a 32x32 "device-dependent" bitmap it round-trips with Set/GetBitmapBits and BitBlts
+// against the screen DC. Our device is the 8bpp DIB world, so a DDB is just a DIB with
+// no color table of its own — same HBITMAP__ object, same SelectObject/BitBlt/DeleteObject
+// paths. At 8bpp a DDB scanline is bytes==width (32 is WORD-aligned), matching our pitch.
+HBITMAP CreateBitmap(int nWidth, int nHeight, UINT nPlanes, UINT nBitCount, const void *lpBits)
+{
+    if (nWidth <= 0 || nHeight <= 0 || nPlanes != 1 || nBitCount != 8) return 0;
+    HBITMAP hBmp = (HBITMAP)calloc(1, sizeof(HBITMAP__));
+    if (!hBmp) return 0;
+    hBmp->nTag    = MFX_TAG_DIB;
+    hBmp->nWidth  = nWidth;
+    hBmp->nHeight = nHeight;
+    hBmp->pBits   = (unsigned char *)calloc((size_t)nWidth * (size_t)nHeight, 1);
+    if (!hBmp->pBits) { free(hBmp); return 0; }
+    if (lpBits) memcpy(hBmp->pBits, lpBits, (size_t)nWidth * (size_t)nHeight);
+    return hBmp;
+}
+
+LONG SetBitmapBits(HBITMAP hbm, DWORD cb, const void *pvBits)
+{
+    if (!MfxIsDib(hbm) || !pvBits) return 0;
+    size_t nMax = (size_t)hbm->nWidth * (size_t)hbm->nHeight;
+    if (cb > nMax) cb = (DWORD)nMax;
+    memcpy(hbm->pBits, pvBits, cb);
+    return (LONG)cb;
+}
+
+LONG GetBitmapBits(HBITMAP hbm, LONG cb, LPVOID pvBits)
+{
+    if (!MfxIsDib(hbm) || !pvBits || cb < 0) return 0;
+    size_t nMax = (size_t)hbm->nWidth * (size_t)hbm->nHeight;
+    if ((size_t)cb > nMax) cb = (LONG)nMax;
+    memcpy(pvBits, hbm->pBits, (size_t)cb);
+    return cb;
+}
+
 BOOL DeleteObject(HGDIOBJ h)
 {
     if (MfxIsDib(h)) {
@@ -139,6 +176,22 @@ UINT GetDIBColorTable(HDC hdc, UINT iStart, UINT cEntries, RGBQUAD *prgbq)
 
 // ── blitting ─────────────────────────────────────────────────────────────────────────────────
 
+// Present-on-screen-write hook (M2 tail). Win32 makes a BitBlt to the screen DC visible
+// IMMEDIATELY; our pump presents only between handler returns. The game animates by blitting
+// to the screen inside one handler with clock() busy-waits (ScrollZoneTransition 0x411180,
+// StartGame's X-Wing STUP flight) — without this, every intermediate frame lands in the
+// screen DIB unseen and the animation collapses to its final state. The pump registers its
+// present function; BitBlt fires it after any write to the registered screen DC. Kept as a
+// raw function pointer so gdi/ stays SDL-free (headless harnesses never register one).
+static HDC   g_hdcScreenWrite = 0;
+static void (*g_pfnScreenWrite)(void) = 0;
+
+void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void))
+{
+    g_hdcScreenWrite = hdcScreen;
+    g_pfnScreenWrite = pfn;
+}
+
 BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy, DWORD /*rop*/)
 {
     if (!MfxIsDc(hdcDst) || !hdcDst->hDib) return FALSE;
@@ -157,10 +210,22 @@ BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy
     if (cy > pSrc->nHeight - sy) cy = pSrc->nHeight - sy;
     if (cx <= 0 || cy <= 0) return TRUE;
 
-    for (int row = 0; row < cy; row++)
-        memmove(pDst->pBits + (size_t)(y + row) * pDst->nWidth + x,
-                pSrc->pBits + (size_t)(sy + row) * pSrc->nWidth + sx,
-                (size_t)cx);
+    // Overlap-aware row order: ScrollZoneTransition (0x411180) scrolls by blitting the screen
+    // OVER ITSELF (same DIB, overlapping src/dst). memmove covers horizontal overlap within a
+    // row, but a downward self-blit (dst below src) must copy bottom-up or later source rows
+    // are clobbered before they're read.
+    if (pDst->pBits == pSrc->pBits && y > sy)
+        for (int row = cy - 1; row >= 0; row--)
+            memmove(pDst->pBits + (size_t)(y + row) * pDst->nWidth + x,
+                    pSrc->pBits + (size_t)(sy + row) * pSrc->nWidth + sx,
+                    (size_t)cx);
+    else
+        for (int row = 0; row < cy; row++)
+            memmove(pDst->pBits + (size_t)(y + row) * pDst->nWidth + x,
+                    pSrc->pBits + (size_t)(sy + row) * pSrc->nWidth + sx,
+                    (size_t)cx);
+    if (hdcDst == g_hdcScreenWrite && g_pfnScreenWrite)
+        g_pfnScreenWrite();
     return TRUE;
 }
 

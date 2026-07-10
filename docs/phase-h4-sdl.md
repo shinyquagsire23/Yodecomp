@@ -260,6 +260,33 @@ microfx/
   DIB presented per frame. **Oracle GREEN both ways:** `game_walk` (headless, deterministic —
   hero cameraX/Y moves under synthesized arrow keys) + live-window YODA_SHOT screenshots
   (title → intro → zone → hero walked/camera scrolled).
+- **M2 tail — transitions + drag (v77).** ✅ USER-CONFIRMED in-game: zone-edge scroll pans (all 4
+  directions), the X-Wing STUP flight, the X-Wing fly-in IACT, drag save-under; doors/buildings
+  no regressions. Three mechanisms, all microfx-only:
+  - **Overlap-aware BitBlt** (gdi/mfxgdi.cpp): ScrollZoneTransition (0x411180) scrolls by blitting
+    the screen OVER ITSELF (same DIB as src+dst). Per-row memmove covers horizontal overlap; a
+    DOWNWARD self-blit (dst y > src y, same pBits) must iterate rows bottom-up or later source
+    rows are clobbered before they're read.
+  - **Present-on-screen-write hook** (`MfxSetScreenWriteHook`, microfx.h): Win32 makes a BitBlt to
+    the screen DC visible IMMEDIATELY; our pump presents only between handler returns. Game code
+    animates INSIDE one handler with clock() busy-waits (ScrollZoneTransition; StartGame's 5-frame
+    X-Wing STUP flight, WorldgenHelpers.cpp:795) — those frames were drawn then overwritten
+    unseen ("transition looks instant" = frames drawn but never presented). gdi BitBlt now fires
+    a registered callback on every screen-DC write; the pump registers its SDL presenter. gdi
+    stays SDL-free (raw fn ptr; headless harnesses never register one → worldgen_smoke/game_walk
+    untouched). Diagnostic key: mode-6 door transitions always worked because they step once per
+    TIMER TICK (pump presents between ticks) — per-tick animations work, in-handler ones don't.
+  - **Win32-CRT clock() shim** (afxwin.h tail, same pattern as the rand/srand LCG remap): MSVC
+    clock() is WALL ms (CLOCKS_PER_SEC=1000); host clock() is CPU-time µs → every busy-wait ran
+    ~1000x fast (transitions instant even when painted, IACT waits skipped). `#define clock
+    mfx_clock` → monotonic ms (mfxcore.cpp). <time.h> is included before the define so the host
+    declaration can't be rewritten into a conflicting one.
+  - Also real now: CreateBitmap/Set/GetBitmapBits (an 8bpp DDB = a DIB in our device; the 32x32
+    drag save-under in UpdateDragCursor). YODA_SHOT extended: `YODA_SHOT=<prefix>[:count]`
+    (default 8 shots).
+  - Known rough edge: item drag redraws at game-tick rate (low-refresh feel vs Win32's hardware
+    cursor). A hardware-cursor path (SDL_Cursor) is a possible M4+ option — but KEEP the software
+    path as a build option (user plans to try a DS port; no hardware cursors there).
 - **M3 — audio.** snd/ over SDL2_mixer (WAV channels ≈ WaveMix, Mix_Music ≈ MCI MIDI for Indy).
 - **M4 — resources + UI chrome.** res/ embedded-blob loader (cursors, icons, strings); TextDialog +
   save/load dialogs; menus (SDL UI or keyboard shortcuts first).

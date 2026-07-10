@@ -483,9 +483,8 @@ HPEN     CreatePen(int, int, COLORREF) { return 0; }
 HFONT    CreateFontA(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, LPCSTR)
     { return 0; }
 HGDIOBJ  GetStockObject(int) { return 0; }
-LONG     SetBitmapBits(HBITMAP, DWORD, const void*) { return 0; }
-LONG     GetBitmapBits(HBITMAP, LONG, LPVOID) { return 0; }
-HBITMAP  CreateBitmap(int, int, UINT, UINT, const void*) { return 0; }
+// CreateBitmap/SetBitmapBits/GetBitmapBits are REAL as of M2 tail — gdi/mfxgdi.cpp
+// (drag save-under: an 8bpp DDB is just a DIB in our device).
 BOOL     RoundRect(HDC, int, int, int, int, int, int) { return TRUE; }
 // PostQuitMessage is REAL as of M2 (mfxwnd.cpp — sets the pump's quit flag).
 COLORREF SetPixel(HDC, int, int, COLORREF c) { return c; }

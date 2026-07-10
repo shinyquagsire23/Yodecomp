@@ -23,9 +23,9 @@ Phase H (extension — functional correctness, not byte-matching) status:
 - **H2 full Yoda Stories** ✅ (docs/phase-h2-full-game.md) — all 3 planets generate + play; Save/Load/Replay work.
 - **H3 Indy 32-bit port** ⏳ broadly PLAYABLE (docs/phase-h3-indy.md) — DAW load, worldgen, ACTN scripts,
   doors, HUD, palette, resources (Indy icon/title/About) all done + user-confirmed; minor tails remain.
-- **H4 SDL portable target** — ⏳ M0–M2 COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS NATIVELY
-  on macOS (`build-sdl/yoda`) — title, intro, game loop, keyboard/mouse input, hero walks with
-  camera scroll; worldgen byte-identical to Win32. Next: M3 audio, M4 resources/dialogs/HUD.
+- **H4 SDL portable target** — ⏳ M0–M2+tail COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS
+  NATIVELY on macOS (`build-sdl/yoda`) — title, intro, game loop, input, walking, zone/door
+  transitions, item drag, weapons; worldgen byte-identical to Win32. Next: M3 audio, M4 UI chrome.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -222,41 +222,33 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v76 — ⭐ H4 M2 COMPLETE: THE GAME RUNS NATIVELY ON macOS, hero walks; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v77 — H4 M2 TAIL COMPLETE: transitions + drag + timing all USER-CONFIRMED; next M3 audio; anchor 211)
 
-**▶ v76 this session (H4 M2):** ⭐ **M2 done, oracle GREEN two ways** — `build-sdl/yoda` boots
-title → intro → Dagobah start zone, real game loop, input, walking + camera scroll. Delivered:
-(1) `microfx/src/app/mfxwnd.cpp` (pure C++): HWND objects, THE message-map dispatch engine
-(map-chain walk + all 17 AfxSig decodes via member-ptr union; WM_COMMAND routes view→frame→app),
-real SetTimer/KillTimer + posted-msg queue, real MFC SDI bootstrap (LoadFrame → WM_CREATE →
-CFrameWnd::OnCreate → OnCreateClient → view with real HWND; OnFileNew NEVER paints — first
-WM_PAINT comes from the pump, so headless harnesses keep the M0 flow; digest A/B verified
-IDENTICAL pre/post restructure). (2) `mfxpump.cpp` (only SDL-touching file): CWinThread::Run =
-SDL events → VK translate → WM_* to focus/capture; screen-DIB present per frame (INDEX8 wrap +
-SDL_SetPaletteColors + BlitScaled, YODA_SCALE default 2); SDL_QUIT→SC_CLOSE (game's ConfirmExit
-runs, auto-IDYES headless; ⚠ SDL maps SIGTERM→SDL_QUIT). Debug oracles: `YODA_SHOT=<pfx>` (BMP
-every 2s), `YODA_AUTOKEY=<start>:<vk>:<dur>`. (3) gdi palettes: CreatePalette/Select/Realize→
-DIB color table; AnimatePalette writes through to last-realized DC (cycling works). (4)
-`game_walk` = THE M2 oracle (headless, deterministic): pump timers → play mode (mode 11→6→3,
-~2s) → synth arrow keys → assert cameraX/Y moved; exit 0 = GREEN. (5) MainFrm.h portable stub
-views fixed (lesson-5 pattern; 12-field offsetof probe IDENTICAL; anchor re-ran GREEN — header
-line-shift did NOT rotate the Frame TU dial). ⚠ TRAPS: `playerX/Y` = 10x10 WORLD-MAP cell;
-in-zone hero anchor = `cameraX/Y` (pixels, /32 = cell — F8 dialog truth). Keyboard walk needs
-key-state (GetAsyncKeyState VK_SHIFT) AND WM_KEYDOWN repeats — the pump feeds both. Repro +
-mechanisms: **docs/phase-h4-sdl.md** (READ IT before touching microfx).
+**▶ v77 this session (H4 M2 tail — all microfx-only, zero src/ edits):** the v76 transition gap
+had THREE stacked root causes, all fixed + USER-CONFIRMED in-game (zone-edge pans all 4
+directions, X-Wing STUP flight, X-Wing fly-in IACT, drag save-under; doors/buildings no
+regressions): (1) **overlap-aware BitBlt** (mfxgdi.cpp) — ScrollZoneTransition blits the screen
+over itself; downward same-surface blit must copy rows bottom-up. (2) ⭐ **present-on-screen-write
+hook** (`MfxSetScreenWriteHook`, microfx.h) — Win32 shows screen-DC BitBlts IMMEDIATELY; our pump
+presents only between handlers, so in-handler clock()-busy-wait animations (ScrollZoneTransition,
+StartGame's X-Wing STUP loop at WorldgenHelpers.cpp:795) drew frames that were never presented.
+gdi BitBlt fires a registered callback on screen-DC writes; pump registers its SDL presenter;
+gdi stays SDL-free (headless harnesses register nothing). ⭐ DIAGNOSTIC KEY: per-TIMER-TICK
+animations (mode-6 doors) always worked; in-ONE-HANDLER animations silently collapse to their
+final frame — check this FIRST for any "animation missing" report. (3) **clock() shim** (afxwin.h
+tail, rand/srand pattern) — MSVC clock()=WALL ms; host=CPU µs ⇒ busy-waits ran ~1000x fast.
+`#define clock mfx_clock` → monotonic ms. Also real now: CreateBitmap/Set/GetBitmapBits (8bpp
+DDB≡DIB; drag save-under works). `YODA_SHOT=<prefix>[:count]` (default 8). Full mechanisms:
+**docs/phase-h4-sdl.md** (READ IT before touching microfx).
 
-**▶ v76 USER PLAYTEST (qualitative, post-M2):** WORKS: mouse walking, crate dragging, most IACT,
-item pickup, weapon equip + ammo render. EXPECTED-BROKEN (M4): text bubbles auto-dismiss
-(GetMessage stub — also blocks item-drag testing), F8/Ctrl+F8 debug box (CDialog DoModal stub).
-⚠ **NEW GAP — zone/level transitions missing.** Diagnosed root-cause candidate: gdi BitBlt
-copies rows TOP-TO-BOTTOM always; `ScrollZoneTransition` (0x411180) scrolls by blitting the
-screen OVER ITSELF (overlapping src/dst, same surface) → vertical self-blits corrupt/no-op.
-FIX FIRST next session: overlap-aware row order in mfxgdi.cpp BitBlt (dst below src ⇒ iterate
-bottom-up; memmove already covers horizontal). Same family: door/level transitions
-(TransitionZoneDoor 0x40e9d0), and the drag save-under uses `CreateBitmap(32,32,1,bpp)` —
-still a 0-stub (device-dependent bitmap; give it a real DIB-backed object or the DIB path).
+**▶ v77 USER PLAYTEST:** WORKS: everything above + weapons (spacebar attack, blasters deplete
+ammo bar). ROUGH: item drag redraws at game-tick rate (low-refresh vs Win32 hardware cursor) —
+possible SDL_Cursor path later, but KEEP software cursors as a build option (user wants to try
+a DS port). STILL EXPECTED-BROKEN (M4): text bubbles auto-dismiss (GetMessage stub), F8/Ctrl+F8
+debug box (CDialog DoModal stub). ⚠ When making PatBlt/FillRect/SetPixel real for the M4 HUD,
+fire the screen-write hook there too (only BitBlt fires it today).
 
-**▶ GOAL 2 — H4 next = M2 tail (transitions fix above), then M3 audio (the main thread):**
+**▶ GOAL 2 — H4 next = M3 audio (the main thread):**
 - **M3:** `snd/` over SDL2_mixer — WaveMix* set ≈ Mix_Chunk channels (SoundInit's WaveMixInit
   must return a nonzero session; PlaySound path); MCI sendstring ≈ Mix_Music (Yoda has no MIDs —
   MCI matters for GAME_INDY). Music thread: AfxBeginThread stays a no-thread object; run the
@@ -283,8 +275,8 @@ MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller
 unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
 
 **▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN —
-v76's only shared-source edit is MainFrm.h (portable stub views, anchor branch verbatim in
-#else); full oracle table re-run GREEN after it. All Indy work GAME_INDY-guarded; all H4 work
+v77 touched ONLY microfx/ files (never on the anchor's include path) + run_sdl.sh; progress.py
+re-confirmed 211 at session start and end. All Indy work GAME_INDY-guarded; all H4 work
 YODA_PORTABLE-guarded; debug rig YODA_DEBUG-guarded (committed builds OFF); after ANY shared-TU
 edit rerun the oracle table. H4 rule of thumb: fix portability in microfx headers/stubs first;
 touch a game TU only for __asm / pointer-width casts, always guarded, always re-oracled — and

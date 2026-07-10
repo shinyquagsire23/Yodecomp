@@ -562,6 +562,15 @@ DWORD GetTickCount(void)
     return (DWORD)(ts.tv_sec * 1000u + ts.tv_nsec / 1000000u);
 }
 
+// game TUs' clock() remaps here (afxwin.h tail #define) — Win32 CRT semantics:
+// WALL time, CLOCKS_PER_SEC==1000. The game busy-waits on differences only.
+clock_t mfx_clock(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (clock_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
 void Sleep(DWORD ms)
 {
     struct timespec ts;

@@ -23,6 +23,12 @@ int MfxGetDCDib(HDC hdc, MFXDIB *pOut);
 // Write hdc's selected DIB as an 8-bit indexed .bmp (palette included). 1 on success.
 int MfxWriteDibBMP(HDC hdc, const char *pszPath);
 
+// Present-on-screen-write hook: after any BitBlt whose destination is hdcScreen, gdi calls
+// pfn. The pump registers its presenter here so game code that animates the screen inside a
+// single handler (clock() busy-wait loops) is shown per frame, matching Win32's immediate
+// screen-DC visibility. Pass (0, 0) to unregister.
+void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
+
 } // extern "C"
 
 #endif

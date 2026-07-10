@@ -86,6 +86,15 @@ static void MfxPresent(SDL_Window *pWin)
     SDL_FreeSurface(pSrc);
 }
 
+// present-on-screen-write hook target (MfxSetScreenWriteHook): fired by gdi BitBlt for every
+// write to the screen DC, so single-handler animations (scroll transitions, the X-Wing STUP
+// flight) reach the window mid-handler — the pump loop's own MfxPresent never runs there.
+static SDL_Window *g_pMfxPresentWin = 0;
+static void MfxPresentOnScreenWrite(void)
+{
+    if (g_pMfxPresentWin) MfxPresent(g_pMfxPresentWin);
+}
+
 int CWinThread::Run()
 {
     HWND hRoot = MfxRootWnd();
@@ -116,6 +125,8 @@ int CWinThread::Run()
         return 1;
     }
     SDL_StartTextInput();                      // WM_CHAR synthesis (the cheat-code buffer)
+    g_pMfxPresentWin = pWin;
+    MfxSetScreenWriteHook(MfxScreenDC(), MfxPresentOnScreenWrite);
 
     int nQuitRequests = 0;
     while (!g_mfxQuit) {
@@ -215,15 +226,20 @@ int CWinThread::Run()
             }
         }
 
-        // debug oracle: YODA_SHOT=<prefix> dumps the screen DIB as <prefix>NN.bmp every 2s
-        // (up to 8) — lets a headless-ish driver verify boot/render/animation without eyes.
+        // debug oracle: YODA_SHOT=<prefix>[:count] dumps the screen DIB as <prefix>NN.bmp
+        // every 2s (default 8 shots) — lets a headless-ish driver verify boot/render/
+        // animation without eyes.
         static int nShots = 0;
         static Uint32 nNextShot = 0;
         if (const char *pszShot = getenv("YODA_SHOT")) {
+            char szPfx[256];
+            int nMaxShots = 8;
+            if (SDL_sscanf(pszShot, "%255[^:]:%d", szPfx, &nMaxShots) < 2)
+                nMaxShots = 8;
             Uint32 now = SDL_GetTicks();
-            if (nShots < 8 && now >= nNextShot) {
+            if (nShots < nMaxShots && now >= nNextShot) {
                 char szPath[512];
-                SDL_snprintf(szPath, sizeof szPath, "%s%02d.bmp", pszShot, nShots++);
+                SDL_snprintf(szPath, sizeof szPath, "%s%02d.bmp", szPfx, nShots++);
                 MfxWriteDibBMP(MfxScreenDC(), szPath);
                 nNextShot = now + 2000;
             }
@@ -231,6 +247,8 @@ int CWinThread::Run()
         SDL_Delay(5);
     }
 
+    MfxSetScreenWriteHook(0, 0);
+    g_pMfxPresentWin = 0;
     SDL_DestroyWindow(pWin);
     SDL_Quit();
     return g_mfxQuitCode;

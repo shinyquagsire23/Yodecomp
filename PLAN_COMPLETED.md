@@ -2523,3 +2523,20 @@ line-neutral YODA_SIC_FIX/YODA_SIC_RETURN/BUGLOG macros (3 synced header-tail co
 bugs kept; digest A/B identical ON/OFF; sic#11 fires on seed 0x2a. Open items carried: M2 pump
 (DONE in v76 — game runs natively, hero walks), MainFrm.h stub views (DONE in v76), Indy
 stragglers, DESKADV sweep.
+
+### ⏮ v76 pickup (condensed; superseded by v77)
+
+H4 M2 COMPLETE — THE GAME RUNS NATIVELY ON macOS (build-sdl/yoda: title → intro → Dagobah,
+game loop, input, walking + camera scroll). mfxwnd.cpp = HWND objects + THE message-map
+dispatch engine (map-chain walk, 17 AfxSig decodes, WM_COMMAND view→frame→app routing), real
+SetTimer/posted-msg queue, real SDI bootstrap (OnFileNew never paints — first WM_PAINT from
+the pump keeps headless M0 flow; digest A/B identical). mfxpump.cpp = the one SDL file: events
+→ VK → WM_*, screen-DIB present per frame (YODA_SCALE=2), SDL_QUIT→SC_CLOSE (ConfirmExit,
+auto-IDYES headless; SDL maps SIGTERM→SDL_QUIT). gdi palettes real (Create/Select/Realize/
+Animate → DIB color table; cycling works). game_walk = deterministic M2 oracle (synth arrows
+⇒ cameraX/Y moved). MainFrm.h portable stub views (lesson-5; offsetof probe identical; anchor
+GREEN after header line-shift). TRAPS distilled: playerX/Y = world-map cell, cameraX/Y =
+in-zone anchor; keyboard walk needs key-state AND WM_KEYDOWN repeats. User playtest v76:
+walking/dragging/IACT/pickup/weapons work; text bubbles + F8 = M4 stubs; zone transitions
+missing → v77 root causes: BitBlt self-overlap row order + in-handler animations never
+presented (present-on-screen-write hook) + clock() CPU-µs vs Win32 wall-ms.
