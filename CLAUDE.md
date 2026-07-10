@@ -245,7 +245,18 @@ in-zone hero anchor = `cameraX/Y` (pixels, /32 = cell — F8 dialog truth). Keyb
 key-state (GetAsyncKeyState VK_SHIFT) AND WM_KEYDOWN repeats — the pump feeds both. Repro +
 mechanisms: **docs/phase-h4-sdl.md** (READ IT before touching microfx).
 
-**▶ GOAL 2 — H4 next = M3 audio (the main thread):**
+**▶ v76 USER PLAYTEST (qualitative, post-M2):** WORKS: mouse walking, crate dragging, most IACT,
+item pickup, weapon equip + ammo render. EXPECTED-BROKEN (M4): text bubbles auto-dismiss
+(GetMessage stub — also blocks item-drag testing), F8/Ctrl+F8 debug box (CDialog DoModal stub).
+⚠ **NEW GAP — zone/level transitions missing.** Diagnosed root-cause candidate: gdi BitBlt
+copies rows TOP-TO-BOTTOM always; `ScrollZoneTransition` (0x411180) scrolls by blitting the
+screen OVER ITSELF (overlapping src/dst, same surface) → vertical self-blits corrupt/no-op.
+FIX FIRST next session: overlap-aware row order in mfxgdi.cpp BitBlt (dst below src ⇒ iterate
+bottom-up; memmove already covers horizontal). Same family: door/level transitions
+(TransitionZoneDoor 0x40e9d0), and the drag save-under uses `CreateBitmap(32,32,1,bpp)` —
+still a 0-stub (device-dependent bitmap; give it a real DIB-backed object or the DIB path).
+
+**▶ GOAL 2 — H4 next = M2 tail (transitions fix above), then M3 audio (the main thread):**
 - **M3:** `snd/` over SDL2_mixer — WaveMix* set ≈ Mix_Chunk channels (SoundInit's WaveMixInit
   must return a nonzero session; PlaySound path); MCI sendstring ≈ Mix_Music (Yoda has no MIDs —
   MCI matters for GAME_INDY). Music thread: AfxBeginThread stays a no-thread object; run the
