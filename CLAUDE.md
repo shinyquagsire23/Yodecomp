@@ -23,9 +23,10 @@ Phase H (extension — functional correctness, not byte-matching) status:
 - **H2 full Yoda Stories** ✅ (docs/phase-h2-full-game.md) — all 3 planets generate + play; Save/Load/Replay work.
 - **H3 Indy 32-bit port** ⏳ broadly PLAYABLE (docs/phase-h3-indy.md) — DAW load, worldgen, ACTN scripts,
   doors, HUD, palette, resources (Indy icon/title/About) all done + user-confirmed; minor tails remain.
-- **H4 SDL portable target** — ⏳ M0–M2+tail COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS
+- **H4 SDL portable target** — ⏳ M0–M3 COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS
   NATIVELY on macOS (`build-sdl/yoda`) — title, intro, game loop, input, walking, zone/door
-  transitions, item drag, weapons; worldgen byte-identical to Win32. Next: M3 audio, M4 UI chrome.
+  transitions, item drag, weapons, and (v78) FULL AUDIO (WaveMix+MCI over SDL2_mixer;
+  theme/SFX/mixing user-confirmed; INDY×SDL builds & runs w/ native MIDI). Next: M4 UI chrome.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -222,51 +223,52 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v77 — H4 M2 TAIL COMPLETE: transitions + drag + timing all USER-CONFIRMED; next M3 audio; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v78 — H4 M3 AUDIO COMPLETE, USER-CONFIRMED; INDY×SDL runs natively; next M4 UI chrome; anchor 211)
 
-**▶ v77 this session (H4 M2 tail — all microfx-only, zero src/ edits):** the v76 transition gap
-had THREE stacked root causes, all fixed + USER-CONFIRMED in-game (zone-edge pans all 4
-directions, X-Wing STUP flight, X-Wing fly-in IACT, drag save-under; doors/buildings no
-regressions): (1) **overlap-aware BitBlt** (mfxgdi.cpp) — ScrollZoneTransition blits the screen
-over itself; downward same-surface blit must copy rows bottom-up. (2) ⭐ **present-on-screen-write
-hook** (`MfxSetScreenWriteHook`, microfx.h) — Win32 shows screen-DC BitBlts IMMEDIATELY; our pump
-presents only between handlers, so in-handler clock()-busy-wait animations (ScrollZoneTransition,
-StartGame's X-Wing STUP loop at WorldgenHelpers.cpp:795) drew frames that were never presented.
-gdi BitBlt fires a registered callback on screen-DC writes; pump registers its SDL presenter;
-gdi stays SDL-free (headless harnesses register nothing). ⭐ DIAGNOSTIC KEY: per-TIMER-TICK
-animations (mode-6 doors) always worked; in-ONE-HANDLER animations silently collapse to their
-final frame — check this FIRST for any "animation missing" report. (3) **clock() shim** (afxwin.h
-tail, rand/srand pattern) — MSVC clock()=WALL ms; host=CPU µs ⇒ busy-waits ran ~1000x fast.
-`#define clock mfx_clock` → monotonic ms. Also real now: CreateBitmap/Set/GetBitmapBits (8bpp
-DDB≡DIB; drag save-under works). `YODA_SHOT=<prefix>[:count]` (default 8). Full mechanisms:
-**docs/phase-h4-sdl.md** (READ IT before touching microfx).
+**▶ v78 this session (H4 M3):** `microfx/src/snd/mfxsnd.cpp` — full WaveMix* set + mciSendString
+over SDL2_mixer (CMake: find_package(SDL2_mixer) → MICROFX_HAS_MIXER; without it the TU compiles
+silent stubs). USER-CONFIRMED: Yoda startup theme, intro X-Wing STUP + fly-in, SFX — all audible
+and MIXING correctly. ⭐ KEY LESSON (docs/phase-h4-sdl.md lesson 7): MIXPLAYPARAMS **dwFlags=2 =
+WMIX_USELRUCHANNEL not CLEARQUEUE** (MS WaveMix sample flags: QUEUE=0 CLEAR=1 LRU=2 HIPRI=4) —
+iChannel is IGNORED, sounds mix on free channels (LRU steal when 16 busy). First coded as
+halt-then-play → user heard "STUP cut off prematurely"; sounds cutting each other = flag misread.
+Mechanisms: handles = 1-based indices into a Mix_Chunk table (g_waveHandles is int[64] — LP64!);
+OpenChannel/Activate return 0=SUCCESS; packed params read by memcpy (@6 ch, @0xa wave, @0x12
+flags); '\\'→'/' + lowercase path retry; AfxBeginThread stays a deliberate no-thread object
+(SDL_mixer self-mixes; the proc would spin forever). Debug: `YODA_SNDLOG=1` traces opens/plays.
+`YODA_NOSOUND=1` forces the no-session path. Yoda has NO walk sound (PlaySound(3) = item
+pickup) — silence while walking is faithful.
 
-**▶ v77 USER PLAYTEST:** WORKS: everything above + weapons (spacebar attack, blasters deplete
-ammo bar). ROUGH: item drag redraws at game-tick rate (low-refresh vs Win32 hardware cursor) —
-possible SDL_Cursor path later, but KEEP software cursors as a build option (user wants to try
-a DS port). STILL EXPECTED-BROKEN (M4): text bubbles auto-dismiss (GetMessage stub), F8/Ctrl+F8
-debug box (CDialog DoModal stub). ⚠ When making PatBlt/FillRect/SetPixel real for the M4 HUD,
-fire the screen-write hook there too (only BitBlt fires it today).
+**▶ v78 bonus — INDY×SDL BUILDS & RUNS natively** (`cmake -B build-sdl-indy -DYODA_PLATFORM=SDL
+-DYODA_GAME=INDY`): DESKTOP.DAW loads, 15 WAVs open, all 5 MCI sequencers open, startup
+THEME.MID audibly plays (fluidsynth; SoundFont resolution = YODA_SOUNDFONT env > Mix defaults >
+probe > brew fluid-synth demo font — demo font is not GM-faithful, suggest a real GM .sf2 for
+fidelity). Needed 3 shared-TU fixes in Worldgen.cpp (the ONLY v78 src/ edit): VC4.2
+old-for-scope leaks that clang hard-errors on → `#ifdef YODA_PORTABLE` decls at function top
+(NEVER `int` in the later `for` — C2374 under VC4.2). All 3 inside the GAME_INDY region that
+runs to EOF ⇒ anchor tokens + line provenance untouched; full oracle table re-run GREEN
+(docs/phase-h4-sdl.md lesson 8 + footprint list). ⏳ USER-PLAYTEST Indy SDL in-game (only boot
++ theme verified; use `YodaIndy/yoda_sdl`).
 
-**▶ GOAL 2 — H4 next = M3 audio (the main thread):**
-- **M3:** `snd/` over SDL2_mixer — WaveMix* set ≈ Mix_Chunk channels (SoundInit's WaveMixInit
-  must return a nonzero session; PlaySound path); MCI sendstring ≈ Mix_Music (Yoda has no MIDs —
-  MCI matters for GAME_INDY). Music thread: AfxBeginThread stays a no-thread object; run the
-  WaveMix pump off the SDL pump loop. Sounds live in the DTA (soundNames[64] → .WAV paths).
-  Oracle: walk sound + door chime audible in-game; worldgen_smoke digest unchanged.
-- Then M4: resources/dialogs/HUD chrome — embedded .res + reslib-in-C++ (cursors, LoadString,
-  About/save-load dialogs, TextDialog real modal loop via GetMessage), pens/brushes/Pie/FillRect
-  (HUD right panel currently black), child-control HWNDs (inventory scrollbar).
+**▶ GOAL 2 — H4 next = M4 resources/dialogs/HUD chrome (the main thread):**
+- embedded .res + reslib-in-C++ (cursors, LoadString, About/save-load dialogs, TextDialog real
+  modal loop via GetMessage), pens/brushes/Pie/FillRect (HUD right panel currently black),
+  child-control HWNDs (inventory scrollbar). ⚠ When making PatBlt/FillRect/SetPixel real,
+  fire the screen-write hook there too (only BitBlt fires it today, v77 mechanism).
+- M4 tail from M3: the polite-exit path never runs the view dtor (pump exit doesn't destroy
+  the frame) → WaveMixCloseSession unreached; OS reclaims — wire real window teardown in M4.
+- Known-rough (user-accepted): drag redraws at tick rate — SDL_Cursor option later, KEEP
+  software cursors a build option (DS port interest). Text bubbles auto-dismiss (GetMessage
+  stub) + F8 debug box (DoModal stub) = M4 items.
 - ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry, 100% CPU).
-  Harness INIs: `<exebase>.INI` next to the binary (yoda.INI / game_walk.INI / …); doc ctor
-  re-picks the planet EVERY run and writes it back — reset the INI before A/B runs.
-  `worldgen_smoke <seed>` · `zone_view <seed> [--zone id] [--dump x.bmp] [--show]` ·
-  `game_walk [seed]` · `YODA_SHOT=shot YODA_AUTOKEY=11000:39:2500 ./yoda`.
+  Harness INIs: `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and
+  writes it back — reset the INI before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed>
+  [--zone id] [--dump x.bmp] [--show]` · `game_walk [seed]` ·
+  `YODA_SHOT=shot YODA_AUTOKEY=11000:39:2500 ./yoda` · sound: run in YodaFull/ (has sfx/).
 
-**▶ GOAL 1 — Indy stragglers (small, backlog):** ⏳ USER-VERIFY remap SFX + MIDs in-game; IACT cmd 0x13
-rect arg-order + cond specials 0/8/9/0xb/0x14–0x16 vs DESKADV jump tables; INI replay persistence;
-OPTIONAL Indy menus (`make_res.py --indy` extension). (Also: INDY×SDL config exists untested —
-after M3, `cmake -B build-sdl-indy -DYODA_PLATFORM=SDL -DYODA_GAME=INDY` should Just Work.)
+**▶ GOAL 1 — Indy stragglers (small, backlog):** ⏳ USER-VERIFY remap SFX + MIDs in-game (wine
+AND now SDL); IACT cmd 0x13 rect arg-order + cond specials 0/8/9/0xb/0x14–0x16 vs DESKADV jump
+tables; INI replay persistence; OPTIONAL Indy menus (`make_res.py --indy` extension).
 
 **▶ GOAL 3 — Indy Ghidra sweep (agent fodder):** `program=DESKADV.EXE`, ~214 app-code unnamed (seg 1010
 =91 doc/parse/worldgen/IACT, 1018=109 view/UI/sound/dialogs, 1020=14 cmd handlers; segs 1000/1008 =
@@ -275,9 +277,9 @@ MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller
 unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
 
 **▶ Anchor:** 211 exact / 99.17 %, link 0/0/exit0, bugscan 0/0/0, vtcheck 10 CLEAN, msgcheck 11 CLEAN —
-v77 touched ONLY microfx/ files (never on the anchor's include path) + run_sdl.sh; progress.py
-re-confirmed 211 at session start and end. All Indy work GAME_INDY-guarded; all H4 work
-YODA_PORTABLE-guarded; debug rig YODA_DEBUG-guarded (committed builds OFF); after ANY shared-TU
-edit rerun the oracle table. H4 rule of thumb: fix portability in microfx headers/stubs first;
-touch a game TU only for __asm / pointer-width casts, always guarded, always re-oracled — and
-NEVER add an unguarded include to a byte-matched TU (lesson 6).
+re-run in FULL after v78's Worldgen.cpp edit (VC4.2 recompile of build/Worldgen.obj + all 5 oracles).
+All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug rig YODA_DEBUG-guarded
+(committed builds OFF); after ANY shared-TU edit rerun the oracle table. H4 rule of thumb: fix
+portability in microfx headers/stubs first; touch a game TU only for __asm / pointer-width casts /
+old-for-scope, always guarded, always re-oracled — and NEVER add an unguarded include to a
+byte-matched TU (lesson 6).

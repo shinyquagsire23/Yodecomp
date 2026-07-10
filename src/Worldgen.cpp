@@ -8660,6 +8660,9 @@ int CDeskcppDoc::IndyPopulateSimpleZone(short nQueueTag, int nZoneId)
 // NOTE: a4 is an INDEX into worldgenPendingZones here (the queued item), not an item id.
 int CDeskcppDoc::IndyPopulateUsefulObjectZone(short nQueueTag, short a4, int nZoneId)
 {
+#ifdef YODA_PORTABLE
+    int i;   // VC4.2 old-for-scope leaks this from the nReq loop; modern compilers need a decl
+#endif
     if (nZoneId < 0 || IndyCheckZoneItemsAvailable(nZoneId) == 0)
         return 0;
     Zone *pZone = (Zone *)zones.GetAt(nZoneId);
@@ -9337,6 +9340,9 @@ void CDeskcppDoc::IndyPlaceIslandStrips(short *paPlan, int nIslands)
 //   TAIL cell idx±1/±2/±10/±20, not the head); phase-5 direction clarified (goal pushed outward).
 int CDeskcppDoc::IndyAssignQuestStepCells(short *paOrder, short *paPlan)
 {
+#ifdef YODA_PORTABLE
+    int row, base;   // VC4.2 old-for-scope leaks these from the phase-1/2 loops (see Phase 3)
+#endif
     int nBodies = 0, nGoals = 0, nForks = 0;
     for (int i = 0; i < 100; i++)
     {
@@ -9738,6 +9744,9 @@ void CDeskcppDoc::IndyMaterializePlacedItemTiles(int nZoneId)
 // 0x16 = MapZone) are expressed directly through mapGrid[]/apZoneGrid[] here.
 int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
 {
+#ifdef YODA_PORTABLE
+    int y;               // VC4.2 old-for-scope leaks this from the pass-2 loop (see pass 3)
+#endif
     short aPlan[100];    // DESKADV stack &local_108 — the plan grid (tokens)
     short aOrder[100];   // DESKADV local_1d0     — the order grid
 

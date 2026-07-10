@@ -249,7 +249,9 @@ BOOL CWinThread::OnIdle(LONG) { return FALSE; }
 
 CWinThread* AfxBeginThread(AFX_THREADPROC, LPVOID, int, UINT, DWORD, void*)
 {
-    MFX_STUB();                      // M3: SDL thread wrapping the music pump
+    // Deliberately a no-thread object (M3 decision): the only caller is SoundInit's music
+    // pump (MusicThreadProcMaybe = WaveMixPump loop) and SDL2_mixer mixes in its own
+    // callback thread — the proc must NOT run or it would spin forever on the stub event.
     return new CWinThread;
 }
 
@@ -532,21 +534,8 @@ DWORD    ResumeThread(HANDLE) { return 0; }
 DWORD    SuspendThread(HANDLE) { return 0; }
 BOOL     CloseHandle(HANDLE) { return TRUE; }
 
-// WAVMIX32 imports (declared extern "C" in DeskcppView.cpp) — real SDL2_mixer backend at M3
-UINT     WaveMixPump(void) { return 0; }
-int      WaveMixInit(void) { return 0; }        // 0 = no session; SoundInit handles failure
-int      WaveMixActivate(int, BOOL) { return 0; }
-int      WaveMixOpenWave(int, char*, int, DWORD) { return 0; }
-int      WaveMixOpenChannel(int, int, DWORD) { return 0; }
-int      WaveMixPlay(void* /*MIXPLAYPARAMS*/) { return 0; }
-int      WaveMixFlushChannel(int, int, DWORD) { return 0; }
-int      WaveMixCloseChannel(int, int, DWORD) { return 0; }
-int      WaveMixFreeWave(int, int) { return 0; }
-int      WaveMixCloseSession(int) { return 0; }
-
-// mmsystem (M3)
-BOOL     PlaySoundA(LPCSTR, HMODULE, DWORD) { return TRUE; }
-DWORD    mciSendStringA(LPCSTR, LPSTR, UINT, HWND) { return 0; }
+// WAVMIX32 + PlaySound/mciSendString live in snd/mfxsnd.cpp as of M3 (SDL2_mixer backend,
+// with built-in silent stubs when SDL2_mixer is absent).
 DWORD    timeGetTime(void) { return GetTickCount(); }
 
 LONG     RegOpenKeyExA(HKEY, LPCSTR, DWORD, DWORD, HKEY* phk) { if (phk) *phk = 0; return 2; }

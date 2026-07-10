@@ -58,6 +58,13 @@ if(SDL2_FOUND)
   target_link_libraries(microfx PUBLIC SDL2::SDL2)
   target_compile_definitions(microfx PUBLIC MICROFX_HAS_SDL)
 endif()
+# M3 audio: snd/mfxsnd.cpp implements WaveMix*/MCI over SDL2_mixer; without it the TU
+# compiles its built-in silent stubs (SoundInit sees session 0 and disables sound).
+find_package(SDL2_mixer QUIET)
+if(SDL2_mixer_FOUND AND SDL2_FOUND)
+  target_link_libraries(microfx PUBLIC SDL2_mixer::SDL2_mixer)
+  target_compile_definitions(microfx PUBLIC MICROFX_HAS_MIXER)
+endif()
 
 # ── game TUs (UNMODIFIED src/*.cpp), ported incrementally ────────────────────────────────────
 # Grow this list TU-by-TU toward the full 13 (canonical order: GameTypes Score WorldgenHelpers

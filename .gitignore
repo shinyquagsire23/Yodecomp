@@ -27,6 +27,7 @@ build-full/
 build-indy/
 build-demo/
 build-sdl/
+build-sdl-indy/
 mfx_smoke.tmp
 tmp/
 *.exe

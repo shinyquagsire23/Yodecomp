@@ -1,6 +1,15 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M2 COMPLETE, ⭐ ORACLE GREEN (2026-07-10, v76). THE GAME RUNS NATIVELY ON macOS:
+*Status: M3 COMPLETE, ⭐ USER-CONFIRMED AUDIBLE (2026-07-10, v78). SOUND + MUSIC WORK NATIVELY:
+`snd/mfxsnd.cpp` implements the full WaveMix* set + mciSendString over SDL2_mixer — the Yoda
+startup theme, the intro X-Wing STUP flight and SFX all play and MIX correctly (user-confirmed
+live), and the previously-untested INDY×SDL config now BUILDS AND RUNS natively (DESKTOP.DAW
+load, all 15 WAVs open, MCI sequencers open, startup THEME.MID plays through the fluidsynth
+SoundFont path). Mechanisms + the ⭐ WaveMix dwFlags=2 lesson below. Headless oracles re-green
+(worldgen_smoke exit 0, game_walk WALKED), anchor table FULL GREEN after the one shared-TU edit
+(Worldgen.cpp GAME_INDY-region old-for-scope decls — see the footprint list).*
+
+*M2-era status (v76): THE GAME RUNS NATIVELY ON macOS:
 `build-sdl/yoda` boots to the Yoda Stories title screen, auto-plays the intro into the starting
 Dagobah zone, ticks the real game loop (SetTimer 0x1d1d → WM_TIMER → CDeskcppView::OnTimer →
 Tick), takes keyboard/mouse input through the game's OWN message maps, and the hero WALKS
@@ -78,6 +87,15 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
   `*(int*)((char*)pApp + 0xc4)` MFC-4.2-offset read (ctor path; microfx CWinApp is smaller).
 - `DeskcppStub.h` + `GameObjects.h` — full parallel `class CDeskcppDoc` under `YODA_PORTABLE`
   (lesson 5 below); anchor branch untouched in the `#else`.
+- `Worldgen.cpp` — v78: three `#ifdef YODA_PORTABLE` loop-variable declarations (`int i;` in
+  IndyPopulateUsefulObjectZone, `int row, base;` in IndyAssignQuestStepCells, `int y;` in
+  IndyGenerate) for VC4.2 old-for-scope leaks that clang hard-errors on. All three sit INSIDE
+  the `#ifdef GAME_INDY` region that runs from line ~7917 to EOF, so the anchor sees neither
+  the tokens nor any line-number shift (no anchor function exists below the region start);
+  the VC4.2 Indy build skips them via the YODA_PORTABLE guard (adding `int` to the `for`
+  would be C2374 there — old scope already leaked the variable). Anchor table re-run FULL
+  GREEN. Pattern for future INDY×SDL old-for-scope errors: guarded decl at function top,
+  NEVER `int` in the later `for`.
 - `Worldgen.cpp` — v74 debug-oracle instrumentation, ALL under `YODA_DEBUG`: guarded
   `#include "DebugLog.h"` (⚠ must stay guarded — lesson 6), `YODA_SEED` env override in
   `Randomize()`, WORLD/CELL digest at `Load()`'s success tail. Added top-of-file lines were
@@ -125,6 +143,20 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
    definition, yet VC4.2's dial still moved (same family as the afxcmn-header lesson,
    PLAN_COMPLETED). Keep debug includes inside `#ifdef YODA_DEBUG`, and reclaim any added
    top-of-file lines from comments so function line numbers stay identical (lesson #23).
+7. **⭐ WaveMix MIXPLAYPARAMS dwFlags=2 is WMIX_USELRUCHANNEL, not CLEARQUEUE (v78).** The MS
+   WaveMix sample's flag values (WAVMIX32.DLL is its 32-bit port) are QUEUEWAVE=0 CLEARQUEUE=1
+   USELRUCHANNEL=2 HIPRIORITY=4 WAIT=8. The game's only play shape — iChannel=0, dwFlags=2 —
+   therefore means "IGNORE iChannel, pick the least-recently-used free channel": concurrent
+   sounds MIX (the startup theme keeps playing under SFX). First coded as CLEARQUEUE
+   (halt-then-play on channel 0) every new sound cut the previous one — user-detected as "the
+   intro STUP sound gets cut off prematurely". Symptom key: sounds cutting each other = flag
+   misread, not an SDL_mixer channel shortage.
+8. **Old-for-scope is an INDY×SDL class of clang hard-error (v78).** The GAME_INDY worldgen
+   transcriptions rely on VC4.2 leaking `for (int i...)` variables to function scope (later
+   loops are deliberately written `for (i = ...` because a second `for (int i` is C2374 under
+   old scope). clang errors "undeclared identifier". Fix pattern: `#ifdef YODA_PORTABLE` real
+   declaration at function top (behavior-identical — every leaked use re-initializes in its
+   for-init; verify that before applying). Worldgen.cpp was the only affected TU (3 sites).
 
 ## What runs vs what's stubbed (v74)
 
@@ -165,18 +197,32 @@ SDL_QUIT → SC_CLOSE (2nd = hard quit); FOCUS_GAINED/LOST → WM_ACTIVATE (the 
 pause-on-deactivate runs); per-frame present = screen DIB wrapped as INDEX8 SDL_Surface +
 SDL_SetPaletteColors + BlitScaled at integer YODA_SCALE (default 2); YODA_SHOT / YODA_AUTOKEY
 debug oracles), and the **`yoda` executable** (harness/yoda_main.cpp = AfxWinMain equivalent).
-STUBBED (M3/M4): pens/brushes/Pie/FillRect HUD drawing (right panel renders black),
+REAL as of M3 (snd/mfxsnd.cpp — SDL2_mixer; silent-stub fallback when built without it):
+**the full WaveMix* set** (Init opens SDL audio 44.1k/stereo → nonzero session or 0 on
+failure/YODA_NOSOUND; OpenWave = Mix_LoadWAV with '\\'→'/' + lowercase retry, handles =
+1-based indices into an internal Mix_Chunk table since `g_waveHandles` is int[64];
+OpenChannel/Activate return 0=SUCCESS; Play parses the packed MIXPLAYPARAMS by memcpy and
+honors dwFlags=2 = USELRUCHANNEL — lesson 7 — with LRU steal when all 16 channels busy;
+Flush/Close/Free halt-safe; Pump = no-op, SDL_mixer self-mixes, so AfxBeginThread stays a
+deliberate no-thread object), and **mciSendString** covering exactly the game's four
+sequencer shapes ("open sequencer!<file> alias <NAME>" / "play <NAME> from 1" / "stop" /
+"close") over Mix_Music, with SoundFont resolution for fluidsynth MIDI (YODA_SOUNDFONT env >
+Mix defaults > probe list > brew fluid-synth demo font). YODA_SNDLOG=1 traces to stderr.
+Yoda: theme + intro + SFX user-confirmed audible and mixing. Indy: MCI sequencers open +
+THEME.MID plays natively (build-sdl-indy — config now builds and runs; in-game playtest
+pending). Known M4 tail: the polite-exit path never runs the view dtor (pump exit doesn't
+destroy the frame), so WaveMixCloseSession isn't reached — the OS reclaims audio at process
+death; harmless but wire it when real window teardown lands.
+STUBBED (M4): pens/brushes/Pie/FillRect HUD drawing (right panel renders black),
 child controls (CEdit/CButton/CScrollBar Create → no HWND; inventory scrollbar invisible),
-WaveMix/MCI sound, dialogs (DoModal→IDCANCEL; TextDialog::Run's modal loop exits immediately —
+dialogs (DoModal→IDCANCEL; TextDialog::Run's modal loop exits immediately —
 GetMessage stub — so text bubbles auto-dismiss), LoadString, cursors.
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
 BOTH wine and native. Set Terrain to 1/2/3 before oracle runs. The doc ctor re-picks the planet
 with one `rand()%2` — deterministic and equal on both sides (first rand() call of the process).
-Next milestone M3: audio — snd/ over SDL2_mixer (WaveMix channel set ≈ Mix_Chunk channels,
-MCI MIDI ≈ Mix_Music; AfxBeginThread's music thread can stay a no-thread object — the WaveMix
-pump can run off the SDL pump loop instead).
+Next milestone M4: resources + UI chrome (see the milestone list).
 
 ## The core idea
 
@@ -287,7 +333,13 @@ microfx/
   - Known rough edge: item drag redraws at game-tick rate (low-refresh feel vs Win32's hardware
     cursor). A hardware-cursor path (SDL_Cursor) is a possible M4+ option — but KEEP the software
     path as a build option (user plans to try a DS port; no hardware cursors there).
-- **M3 — audio.** snd/ over SDL2_mixer (WAV channels ≈ WaveMix, Mix_Music ≈ MCI MIDI for Indy).
+- **M3 — audio.** ✅ v78, USER-CONFIRMED. snd/mfxsnd.cpp over SDL2_mixer (WAV channels ≈
+  WaveMix with the dwFlags=2=USELRUCHANNEL mixing semantics — lesson 7; Mix_Music ≈ MCI MIDI).
+  Oracle: Yoda startup theme + intro STUP + SFX audible and mixing (user); Indy THEME.MID
+  plays natively; worldgen_smoke/game_walk still green; anchor table FULL GREEN.
+  CMake: find_package(SDL2_mixer) → MICROFX_HAS_MIXER; absent = silent-stub fallback.
+  Bonus: the INDY×SDL config (`cmake -B build-sdl-indy -DYODA_PLATFORM=SDL -DYODA_GAME=INDY`)
+  builds and runs natively after 3 old-for-scope fixes (lesson 8).
 - **M4 — resources + UI chrome.** res/ embedded-blob loader (cursors, icons, strings); TextDialog +
   save/load dialogs; menus (SDL UI or keyboard shortcuts first).
 - **Done when:** native SDL Yoda Stories runs on macOS AND `tools/progress.py` still reports 211 exact

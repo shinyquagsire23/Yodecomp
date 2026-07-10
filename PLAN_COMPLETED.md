@@ -2540,3 +2540,22 @@ in-zone anchor; keyboard walk needs key-state AND WM_KEYDOWN repeats. User playt
 walking/dragging/IACT/pickup/weapons work; text bubbles + F8 = M4 stubs; zone transitions
 missing → v77 root causes: BitBlt self-overlap row order + in-handler animations never
 presented (present-on-screen-write hook) + clock() CPU-µs vs Win32 wall-ms.
+
+### ⏮ v77 pickup (condensed; superseded by v78)
+
+H4 M2 TAIL — zone transitions + X-Wing flight + drag save-under, all USER-CONFIRMED. Three
+stacked root causes fixed, all microfx-only: (1) overlap-aware BitBlt (same-surface downward
+blit must copy rows bottom-up — ScrollZoneTransition blits the screen over itself);
+(2) ⭐ present-on-screen-write hook (MfxSetScreenWriteHook): Win32 shows screen-DC writes
+IMMEDIATELY, our pump presents between handlers — in-ONE-HANDLER clock()-busy-wait animations
+(ScrollZoneTransition, StartGame's STUP flight) collapsed silently to their final frame while
+per-TIMER-TICK animations (mode-6 doors) worked — check this FIRST for "animation missing";
+gdi fires a raw callback, pump registers the SDL presenter, gdi stays SDL-free;
+(3) clock() shim (MSVC clock()=wall ms, host=CPU µs ⇒ busy-waits ~1000x fast; #define clock
+mfx_clock → monotonic ms, rand/srand pattern). Also real: CreateBitmap/Set/GetBitmapBits (8bpp
+DDB≡DIB, drag save-under). YODA_SHOT=<prefix>[:count]. User playtest: weapons/ammo work; drag
+redraws at tick rate (keep software cursor as build option — DS port interest); bubbles +
+F8 = M4. ⚠ When PatBlt/FillRect/SetPixel become real (M4 HUD), fire the screen-write hook
+there too. Open items carried: M3 audio (DONE in v78 — WaveMix+MCI over SDL2_mixer,
+user-confirmed, dwFlags=2=USELRUCHANNEL lesson), INDY×SDL untested (DONE in v78 — builds+runs,
+native MIDI), Indy stragglers, DESKADV sweep.

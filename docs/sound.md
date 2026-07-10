@@ -31,3 +31,7 @@ SNDS ids 0x0e–0x11 are MIDs, plus hardcoded eerie.mid (id 0x12) and eep.wav (i
 DESKADV.EXE function map, and the Yoda→Indy hardcoded-sound-id remap: docs/phase-h3-indy.md (v72).
 Implementation: the GAME_INDY blocks in src/DeskcppView.{h,cpp} (Indy_Midi* helpers, Indy_MapSoundId,
 PlaySoundData bypass).
+
+## Portable (SDL) backend
+H4 M3 implements this whole surface over SDL2_mixer in `microfx/src/snd/mfxsnd.cpp` —
+see docs/phase-h4-sdl.md (incl. the ⭐ dwFlags=2 = WMIX_USELRUCHANNEL mixing lesson).
