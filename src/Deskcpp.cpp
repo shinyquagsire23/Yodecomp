@@ -176,6 +176,15 @@ BOOL CDeskcppApp::InitInstance()
         2, RUNTIME_CLASS(CDeskcppDoc), RUNTIME_CLASS(CMainFrame), RUNTIME_CLASS(CDeskcppView));
     AddDocTemplate(pDocTemplate);
     OnFileNew();
+#ifdef GAME_INDY
+    // TEMPORARY runtime title override. The window title + app ICON currently come from Yoda's
+    // .rsrc (copied verbatim by the H1 build). The proper long-term fix is to build the Indy config
+    // against Indy's OWN resources (title/icon/menus) — a .res sourced from the Indy assets — after
+    // which this SetWindowText and the [[indy-app-icon]] TODO both go away. Until then, patch the
+    // visible title at runtime.
+    if (m_pMainWnd != NULL)
+        m_pMainWnd->SetWindowText("Indiana Jones' Desktop Adventures");
+#endif
 
     // command line: "[OPEN ]<path>[.WLD]" — a .WLD path switches on replay mode
     if (m_lpCmdLine[0] != '\0') {

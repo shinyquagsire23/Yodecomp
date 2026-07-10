@@ -5186,7 +5186,14 @@ void CDeskcppView::SoundInit()
     {
         if (pWorld->soundNames[i].GetLength() > 0)
         {
+#ifdef GAME_INDY
+            // Indy ships its WAVs in the game directory, not Yoda's `sfx\` subfolder — so load by
+            // bare name (WaveMixOpenWave resolves relative to cwd). Prefixing `sfx\` silently fails
+            // to open every wave -> no sound. Yoda #else = exact original.
+            szPath[0] = 0;
+#else
             strcpy(szPath, "sfx\\");
+#endif
             strcpy(szName, pWorld->soundNames[i]);
             strcat(szPath, szName);
             g_waveHandles[i] = WaveMixOpenWave(soundSession, szPath, 0, 1);
