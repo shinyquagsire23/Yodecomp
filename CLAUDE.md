@@ -808,7 +808,23 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v66 — PHASE H3 milestone 4: Indy PLAYABLE — IACT opcode remap + door-ordering + whip + Replay/New Story all fixed; NEXT = user re-test (verify whip); anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v67 — PHASE H3 milestone 4: Indy PLAYABLE — whip/sound FIXED, title temp-patched; OPEN: door warp (s26/SetPlayerPos), Indy resources; anchor 211)
+**▶ v67 — whip user-CONFIRMED fixed; sound + window-title fixed; door narrowed (all GAME_INDY, anchor 211; detail
+docs/phase-h3-indy.md "v67"):** (1) **Sound FIXED** — `SoundInit` loaded waves from `"sfx\<name>"` (Yoda's
+subfolder) but Indy's WAVs are in the game root → all failed silently. Load by bare name for Indy. (2) **Window
+title** — TEMP runtime `SetWindowText("Indiana Jones' Desktop Adventures")` in InitInstance (title/icon come from
+Yoda's copied .rsrc). ⚠ USER-DIRECTED proper fix = build Indy config against Indy's OWN resources (.res:
+title/icon/menus) → retires this + [[indy-app-icon]]. (3) **Door — NARROWED, NOT fixed.** Dumped the start zone's 45
+scripts; the house door = **s26**: `BumpTile(7,14,tile828) → ClearTile(open) + SetPlayerPos(7,14)[moves player onto
+the door cell] + SayText("Ahh, my home away from home...") + FlagOnce` — one bump script (open+move+text all
+synchronous, matching the user's description). ⭐ HYPOTHESIS for the "walk back+forward to warp": SetPlayerPos lands
+the player on the DOOR_IN cell via the camera but our `CMD_SetPlayerPos` does NOT run the move-onto-DOOR_IN warp
+check → must step off+on. v66 lock-removal was correct but orthogonal. NEXT: RE Indy SetPlayerPos handler (cmd 0x11;
+FUN_1010_e934 looked like a draw-tiles helper — find the real one + whether it triggers the warp) OR add a
+GAME_INDY DOOR_IN-warp-after-SetPlayerPos. Needs live iteration.
+**▶ START HERE (v67): USER VISUAL RE-TEST `./run_indy.sh`** — sound works? title right? whip persists? Then the door
+(s26/SetPlayerPos hypothesis) + proper Indy resources. Remaining polish: hero-HP tail (entity+0x90=120 in
+IndyGenerate tail); any mis-mapped rare IACT opcode (kIndyCond/CmdToYoda in src/IactScript.cpp); INI replay persistence.
 **▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
 (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v66"). RE agent: DESKADV bump handler
 FUN_1018_733e / runner FUN_1010_2910 / cmd-exec FUN_1010_2eb6.** (1) **Door ordering** — our OnBumpTile has a
@@ -820,13 +836,6 @@ the move). The lock ate the next user press → "home sweet home" one step late 
 fired); the real weapon-class flag is **bit 16 = TILE_LIGHT_BLASTER**. So Indy now treats any non-blaster weapon
 tile as reusable. ⚠ BEST-EFFORT (the exact fire routine FUN_1018_9c32 ← FUN_1018_0000 wasn't fully traced) — verify
 in play; if still vanishing, trace that fire state or instrument the equip site for the whip tile's flags.
-**▶ START HERE (v66): USER VISUAL RE-TEST `./run_indy.sh`** — door: bump → opens+text same step → forward → warp
-(no back-and-forth)? whip: persists after swinging? If whip still vanishes → RE DESKADV FUN_1018_9c32 fire state
-(reusable predicate keys off bit 16 not 18) or instrument the equip site. Then polish: hero-HP tail (entity+0x90=120
-in IndyGenerate tail), any mis-mapped rare IACT opcode surfaced by play (kIndyCond/CmdToYoda in src/IactScript.cpp),
-Indy icon [[indy-app-icon]], INI replay persistence.
-**▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
-GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
 **▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
 GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
 only treats `frames[7]==0x1fe/0x12` as reusable; Indy's whip is a melee weapon flagged **TILE_LIGHTSABER (bit 18)**

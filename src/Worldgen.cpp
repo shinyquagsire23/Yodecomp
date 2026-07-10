@@ -7142,6 +7142,16 @@ void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         nType = 1;
     else if (bSaber)
         nType = 2;
+#ifdef GAME_INDY
+    // Indy's whip is a melee weapon (non-blaster) that cracks straight ahead -> forward-hit damage
+    // type (3, DamageEntityAt on the cell in the fire direction). The Yoda fallback below degrades
+    // to a garbage POINTER value for a weapon that is neither rifle/saber nor has a projectile tile,
+    // which sends the whip to the switch default (goto done) -> it never damages anything. Force
+    // type 3 for a non-blaster Indy weapon. (Yoda #else = exact original.)
+    else if (pWorld->GetTileData(nTileId) != NULL &&
+             !(pWorld->GetTileData(nTileId)->flags & TILE_LIGHT_BLASTER))
+        nType = 3;
+#endif
     else
         nType = nType != 0 ? 3 : (int)pSavedItem;  // sic: degrades to the saved equipped-item POINTER value
     short nTile = pWorld->currentZone->GetTile(x + dx, y + dy, 1);

@@ -419,13 +419,39 @@ RE of DESKADV (agent, runner FUN_1010_2910 / cmd exec FUN_1010_2eb6 / bump handl
 - ⭐ LESSON (reinforced): DesktopAdventures flag/enum assumptions (TILE_LIGHTSABER bit 18) do NOT match the real
   binary — confirm against DESKADV.EXE.
 
+### ⭐ v67 — whip FIXED (user-confirmed) + sound path FIXED + window title (temp); door NARROWED to s26/SetPlayerPos
+User after v66: whip persists ✅; door STILL broken. New items: no sound, Yoda title/icon.
+- **Whip did no damage — FIXED.** `UseWeapon` (0x427d20) classifies the weapon into `nType` rifle(1)/saber(2)/
+  melee(3); the whip is none of Yoda's ids (0x1ff/0x1fe/0x12) so it hit the `else nType = nType!=0 ? 3 : (int)
+  pSavedItem` fallback — a garbage POINTER value when the weapon has no projectile tile → `switch(nType)` default →
+  `goto done` (never calls DamageEntityAt). Fixed: for Indy, a non-blaster weapon (the whip) → `nType=3` (forward
+  DamageEntityAt on the cell it cracks into). `src/Worldgen.cpp`.
+- **Sound — FIXED.** `SoundInit` loads each wave from `"sfx\<name>"` (Yoda's subfolder), but Indy ships its WAVs in
+  the game root → every `WaveMixOpenWave` failed silently. For Indy load by bare name (`szPath[0]=0`). DeskcppView.cpp.
+- **Window title — TEMP runtime override.** Title/icon come from Yoda's copied `.rsrc`. Added a GAME_INDY
+  `m_pMainWnd->SetWindowText("Indiana Jones' Desktop Adventures")` in InitInstance. ⚠ TEMPORARY — the proper fix
+  (USER-directed) is to build the Indy config against Indy's OWN resources (title + icon + menus, a `.res` from the
+  Indy assets); then this + [[indy-app-icon]] both go away. Deskcpp.cpp.
+- **Door — root cause NARROWED (not yet fixed).** Dumped the start zone's 45 scripts (remapped opcodes + text) via a
+  headless play-tick dump. The house door is **s26**: `C2(7,14,828)` [BumpTile the closed-door tile] →
+  `ClearTile(7,14)` [open] + **`SetPlayerPos(7,14)`** [move the player ONTO the door cell] + RedrawTile +
+  RenderChanges + `SayText("Ahh, my home away from home...")` + `FlagOnce`. So the whole open+move+text IS one bump
+  script (fires synchronously on the bump — matching the user's "bump, door opens, indy moves forward, says home").
+  ⭐ HYPOTHESIS for the remaining "walk back then forward to warp": `SetPlayerPos` moves the player onto the (now
+  open) DOOR_IN cell via the camera, but our `CMD_SetPlayerPos` does NOT run the move-onto-object / DOOR_IN warp
+  check (only a fresh user walk-onto triggers `TransitionZoneDoor`) — so the player stands on the door without
+  warping and must step off + back on. The v66 input-lock removal was correct (RE-confirmed) but orthogonal to this.
+  NEXT: RE Indy's SetPlayerPos command handler (Indy cmd 0x11; the agent tagged FUN_1010_e934 but that looked like a
+  draw-player-tiles helper — find the true handler that sets the camera + note whether it triggers the door warp),
+  or add a GAME_INDY DOOR_IN-warp check after SetPlayerPos lands the player on a DOOR_IN cell. Needs live iteration.
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. Verify: door now opens + shows text + warps in the right order (bump → open+text → forward → warp); whip persists
-   after use.
-2. If whip still vanishes: trace DESKADV FUN_1018_9c32 fire state (or instrument the equip site for the whip tile's
-   flags) — the reusable predicate keys off bit 16, not 18.
-3. Remaining polish: hero-HP tail (entity+0x90=120 in IndyGenerate tail), any mis-mapped rare IACT opcode surfaced
-   by play, Indy resources/icon [[indy-app-icon]], INI replay persistence.
+1. Verify: sound works now; window title says "Indiana Jones' Desktop Adventures"; whip persists.
+2. Door (s26/SetPlayerPos hypothesis above) — RE the Indy SetPlayerPos handler + door-warp trigger, or a targeted
+   GAME_INDY warp-after-SetPlayerPos. Live iteration.
+3. Proper Indy resources (.res: title/icon/menus) — retires the temp title override + [[indy-app-icon]].
+4. Remaining polish: hero-HP tail (entity+0x90=120 in IndyGenerate tail); any mis-mapped rare IACT opcode; INI
+   replay persistence.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON
    auto-pickup vs an entry/first-move IACT `CMD_AddItemToInv`).
 3. **Hero HP tail:** set the player Character HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does).
