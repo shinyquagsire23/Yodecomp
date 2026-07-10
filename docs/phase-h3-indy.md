@@ -398,9 +398,32 @@ User confirmed the opcode remap works: NPCs talk, dialog shows, whip is findable
   not, shifting the door/trigger cell; OR the FirstEnter/Enter vs BumpTile door-warp ordering. Needs RE of DESKADV's
   door-warp + the small-zone camera/centering. Not a blocker (playable with the workaround).
 
+### ⭐ v66 — door bump/text/warp ordering FIXED (user hypothesis confirmed) + whip reusable check re-attempted
+RE of DESKADV (agent, runner FUN_1010_2910 / cmd exec FUN_1010_2eb6 / bump handler **FUN_1018_733e**):
+- **Door bump ordering — FIXED (user was right: Indy's IACT state machine differs).** After the BumpTile
+  `IactRun(event 2)`, our `OnBumpTile` has a Yoda-only branch: `(nMask & 2) && !(nMask & 0x808)` → park in
+  `nFrameMode=3 + bTextDialogShown=1 + bInputLocked=1` and return. DESKADV's `FUN_1018_733e` has NO such branch —
+  a bump script's text command shows its dialog SYNCHRONOUSLY inside IactRun (frame-mode transiently 5), so the
+  handler just aborts the move (`if(nFrameMode==2) nFrameMode=3; break`). That persistent lock ate the next user
+  press for Indy → "home sweet home" appeared one step late + the warp needed a back-and-forth. Fixed: `#ifndef
+  GAME_INDY` around the lock branch → Indy falls through to the plain move-abort. (Indy IACT bits differ too:
+  suppress-restore = 0x8 not Yoda's 0x808; script-warp escalation = `mask & 0x800` → frameMode 6.)
+- **Whip reusable check — re-attempted (bit 16, not bit 18).** ⭐ The agent proved DESKADV tests NO bit-18
+  (TILE_LIGHTSABER) flag anywhere — that was a DesktopAdventures-reimpl assumption (my v65 fix never fired). The
+  weapon-class flag DESKADV actually tests is **bit 16 = TILE_LIGHT_BLASTER** (`tile+0x406 & 1`). So for Indy,
+  `FireWeaponStep` now treats any NON-blaster weapon tile as reusable (never deplete/remove). ⚠ BEST-EFFORT: the
+  exact DESKADV weapon-fire routine wasn't fully traced (it's in the frame-mode dispatcher `FUN_1018_9c32` ←
+  `FUN_1018_0000`); verify in play. If the whip still vanishes, trace FUN_1018_9c32's fire/attack state for the
+  precise reusable-vs-deplete condition + any inventory-remove call, OR instrument (log currentWeapon->frames[7] +
+  GetTileData(frames[7])->flags at the equip site) to get the whip tile's exact flags.
+- ⭐ LESSON (reinforced): DesktopAdventures flag/enum assumptions (TILE_LIGHTSABER bit 18) do NOT match the real
+  binary — confirm against DESKADV.EXE.
+
 ### ⏭ NEXT (user visual re-test `./run_indy.sh`)
-1. Verify: whip persists after use; Replay Story + New Story now enter the world (no STUP hang).
-2. House-entry quirk (above) — the small-interior-zone centering/trigger-offset RE.
+1. Verify: door now opens + shows text + warps in the right order (bump → open+text → forward → warp); whip persists
+   after use.
+2. If whip still vanishes: trace DESKADV FUN_1018_9c32 fire state (or instrument the equip site for the whip tile's
+   flags) — the reusable predicate keys off bit 16, not 18.
 3. Remaining polish: hero-HP tail (entity+0x90=120 in IndyGenerate tail), any mis-mapped rare IACT opcode surfaced
    by play, Indy resources/icon [[indy-app-icon]], INI replay persistence.
 2. **Whip:** confirm whether it now appears via pickup; if not, RE how Indy grants the starting whip (OBJ_WEAPON

@@ -808,7 +808,25 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v65 — PHASE H3 milestone 4: Indy largely PLAYABLE — IACT opcode remap + whip + Replay/New Story fixed; OPEN: house-entry warp quirk; anchor 211)
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v66 — PHASE H3 milestone 4: Indy PLAYABLE — IACT opcode remap + door-ordering + whip + Replay/New Story all fixed; NEXT = user re-test (verify whip); anchor 211)
+**▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
+(all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v66"). RE agent: DESKADV bump handler
+FUN_1018_733e / runner FUN_1010_2910 / cmd-exec FUN_1010_2eb6.** (1) **Door ordering** — our OnBumpTile has a
+Yoda-only branch after `IactRun(2)`: `(nMask&2)&&!(nMask&0x808)` → persistent `nFrameMode=3 + bTextDialogShown=1 +
+bInputLocked=1` + return. DESKADV has NO such branch (text shows synchronously INSIDE IactRun; handler just aborts
+the move). The lock ate the next user press → "home sweet home" one step late + warp needed back-and-forth. Fixed:
+`#ifndef GAME_INDY` around the lock branch. (Indy IACT bits differ: suppress=0x8 not 0x808; warp-escalation=0x800.)
+(2) **Whip** — ⭐ agent proved DESKADV tests NO bit-18 (TILE_LIGHTSABER — a DA reimpl assumption; my v65 fix never
+fired); the real weapon-class flag is **bit 16 = TILE_LIGHT_BLASTER**. So Indy now treats any non-blaster weapon
+tile as reusable. ⚠ BEST-EFFORT (the exact fire routine FUN_1018_9c32 ← FUN_1018_0000 wasn't fully traced) — verify
+in play; if still vanishing, trace that fire state or instrument the equip site for the whip tile's flags.
+**▶ START HERE (v66): USER VISUAL RE-TEST `./run_indy.sh`** — door: bump → opens+text same step → forward → warp
+(no back-and-forth)? whip: persists after swinging? If whip still vanishes → RE DESKADV FUN_1018_9c32 fire state
+(reusable predicate keys off bit 16 not 18) or instrument the equip site. Then polish: hero-HP tail (entity+0x90=120
+in IndyGenerate tail), any mis-mapped rare IACT opcode surfaced by play (kIndyCond/CmdToYoda in src/IactScript.cpp),
+Indy icon [[indy-app-icon]], INI replay persistence.
+**▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
+GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
 **▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
 GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
 only treats `frames[7]==0x1fe/0x12` as reusable; Indy's whip is a melee weapon flagged **TILE_LIGHTSABER (bit 18)**
@@ -821,13 +839,6 @@ textbox shows one tile early and the DOOR warp only fires after backing out + re
 Likely a small-interior-zone CENTER-SHIFT offset (DA map.c center_shift_x/y for zones < screen size, which our
 engine may not apply → door/trigger cell shifted) or FirstEnter/BumpTile warp ordering. Needs RE of DESKADV door-warp
 + small-zone centering. Not a blocker.
-**▶ START HERE (v65): USER VISUAL RE-TEST `./run_indy.sh`** — whip persists after use? Replay Story + New Story enter
-the world (no STUP)? Then: the house-entry warp quirk (small-zone center-shift RE); hero-HP tail (entity+0x90=120 in
-IndyGenerate tail); any mis-mapped rare IACT opcode surfaced by play (fix the entry in kIndyCond/CmdToYoda,
-src/IactScript.cpp, via DESKADV runner FUN_1010_2910 / executor FUN_1010_2eb6); Indy icon [[indy-app-icon]]; INI
-replay persistence.
-**▶ v64 — THE FUNDAMENTAL IACT FIX. RE'd the DESKADV IACT runtime (runner FUN_1010_2910, executor FUN_1010_2eb6):
-the condition AND command OPCODES are RENUMBERED between Yoda and Indy**, while record sizes / arg offsets / tile
 **▶ v64 — THE FUNDAMENTAL IACT FIX. RE'd the DESKADV IACT runtime (runner FUN_1010_2910, executor FUN_1010_2eb6):
 the condition AND command OPCODES are RENUMBERED between Yoda and Indy**, while record sizes / arg offsets / tile
 formula / event numbers / field offsets are IDENTICAL. Running Indy scripts through Yoda's opcode switches
