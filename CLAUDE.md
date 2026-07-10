@@ -808,127 +808,55 @@ byte-exact anchor — re-run progress.py/oracles after any shared-code edit to p
    the relevant lesson numbers rather than burning compiles guessing. The lessons lists (KEY
    codegen 1–14, the per-version crack lists) are the shared vocabulary — cite them by number.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-09 v70 — PHASE H3 milestone 4: door CONFIRMED working + Indy ammo bar removed; OPEN: Indy resources, minor tails; anchor 211)
-**▶ v70 — USER CONFIRMED the door works (single walk-through). Fixed the whip's all-black ammo bar (GAME_INDY,
-anchor 211; detail docs/phase-h3-indy.md "v70").** `DrawWeaponIcon` (0x428c40) draws Yoda's green/black weapon-charge
-column; the whip's `frames[7]` matches no ammo weapon → `nMult=0` → the black "spent" column fills the whole bar.
-RE-confirmed exhaustively (DESKADV.EXE): **Indy renders NO ammo bar** — color 0x91 appears nowhere; the HUD twin
-`FUN_1010_e542` draws bevels + a health PIE (`FUN_1018_a242`) + a state-icon strip + inventory + the weapon BOX
-(`FUN_1018_adf2`, exists), NO charge column. FIX = `#ifdef GAME_INDY return;` at the top of `DrawWeaponIcon`
-(src/Worldgen.cpp); `DrawWeaponBox` kept (Indy has it). build-indy links clean; anchor 211 (guarded).
-**▶ START HERE (v70): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the black ammo bar is gone (whip box still shows).
-Remaining OPEN (non-blocking, in priority order): (1) proper Indy resources (.res title/icon/menus → retires the temp
-title override + [[indy-app-icon]]); (2) startup-wav name (minor); (3) hero-HP tail (entity+0x90=120 in IndyGenerate
-tail); (4) verify still-uncertain IACT opcodes (0x13 rect arg-order vs DrawZoneCellRect; condition specials
-0/8/9/0xb/0x14..0x16); (5) INI replay persistence. All anchor-safe / GAME_INDY-guarded.
-<!-- prior pickup (v69, kept for context) -->
-**▶ v69 — THE DOOR FIXED (root cause, not the symptom). USER-CONFIRMED working v70 (GAME_INDY, anchor 211;
-detail docs/phase-h3-indy.md "v69").** RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
-case-for-case: the v64 `kIndyCmdToYoda` table had a shifted cluster 0x0b–0x14. ⭐ **Indy cmd 0x11 is RedrawTile,
-NOT SetPlayerPos** — so s26's `RedrawTile(7,14)` (repaint the opened door) ran as SetPlayerPos and TELEPORTED the
-player onto the door cell, bypassing the walk-in path so the DOOR_IN warp (fires only on a player WALK onto an empty
-t==-1 cell holding a DOOR_IN obj → `FindObjectAt`→`TransitionZoneDoor`) never triggered → the "step off + back on"
-quirk. Fixed 8 entries in `src/IactScript.cpp` (each verified vs the decompiled switch): 0x0b→0x0a PlaySound,
-0x0c→0x08 RenderChanges, 0x0e→0x10 / 0x0f→0x11 (hide/show player were swapped), **0x11→0x06 RedrawTile ⭐**,
-0x12→0x12 SetPlayerPos, 0x13→0x07 RedrawTiles, 0x14→0x08 (full-zone redraw ≈ RenderChanges). NO warp-hack needed
-(RE conclusion (c): the original warps ONLY on a player walk into the DOOR_IN cell; the command dispatcher never
-reaches the door-transition fn `FUN_1018_2e48`, sole caller = walk handler `FUN_1018_733e`). Side effects also fixed:
-script sounds were doing redraws (0x0b), some redraws incomplete (0x0c/0x14), scripted hide/show inverted (0x0e/0x0f).
-**▶ START HERE (v69): USER VISUAL RE-TEST `./run_indy.sh`.** Walk into the house door — it should warp on a SINGLE
-walk-through now (no back-and-forth). If a residual door quirk remains it's the small-interior center-shift (DA map.c
-center_shift for zones < screen), NOT the opcode map. Then: proper Indy resources (.res title/icon/menus, retires temp
-title + [[indy-app-icon]]); startup-wav name (minor); hero-HP tail (entity+0x90=120 in IndyGenerate tail); verify the
-two still-uncertain opcodes (0x13 rect arg-order vs DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); INI
-replay persistence. build-indy links clean; anchor 211 held (all edits GAME_INDY-guarded).
-**▶ v67 — whip user-CONFIRMED fixed; sound + window-title fixed; door narrowed (all GAME_INDY, anchor 211; detail
-docs/phase-h3-indy.md "v67"):** (1) **Sound FIXED** — `SoundInit` loaded waves from `"sfx\<name>"` (Yoda's
-subfolder) but Indy's WAVs are in the game root → all failed silently. Load by bare name for Indy. (2) **Window
-title** — TEMP runtime `SetWindowText("Indiana Jones' Desktop Adventures")` in InitInstance (title/icon come from
-Yoda's copied .rsrc). ⚠ USER-DIRECTED proper fix = build Indy config against Indy's OWN resources (.res:
-title/icon/menus) → retires this + [[indy-app-icon]]. (3) **Door — NARROWED, NOT fixed.** Dumped the start zone's 45
-scripts; the house door = **s26**: `BumpTile(7,14,tile828) → ClearTile(open) + SetPlayerPos(7,14)[moves player onto
-the door cell] + SayText("Ahh, my home away from home...") + FlagOnce` — one bump script (open+move+text all
-synchronous, matching the user's description). ⭐ HYPOTHESIS for the "walk back+forward to warp": SetPlayerPos lands
-the player on the DOOR_IN cell via the camera but our `CMD_SetPlayerPos` does NOT run the move-onto-DOOR_IN warp
-check → must step off+on. v66 lock-removal was correct but orthogonal. NEXT: RE Indy SetPlayerPos handler (cmd 0x11;
-FUN_1010_e934 looked like a draw-tiles helper — find the real one + whether it triggers the warp) OR add a
-GAME_INDY DOOR_IN-warp-after-SetPlayerPos. Needs live iteration.
-**▶ v66 — door bump/text/warp ordering FIXED (user's state-machine hypothesis confirmed) + whip reusable re-attempted
-(all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v66"). RE agent: DESKADV bump handler
-FUN_1018_733e / runner FUN_1010_2910 / cmd-exec FUN_1010_2eb6.** (1) **Door ordering** — our OnBumpTile has a
-Yoda-only branch after `IactRun(2)`: `(nMask&2)&&!(nMask&0x808)` → persistent `nFrameMode=3 + bTextDialogShown=1 +
-bInputLocked=1` + return. DESKADV has NO such branch (text shows synchronously INSIDE IactRun; handler just aborts
-the move). The lock ate the next user press → "home sweet home" one step late + warp needed back-and-forth. Fixed:
-`#ifndef GAME_INDY` around the lock branch. (Indy IACT bits differ: suppress=0x8 not 0x808; warp-escalation=0x800.)
-(2) **Whip** — ⭐ agent proved DESKADV tests NO bit-18 (TILE_LIGHTSABER — a DA reimpl assumption; my v65 fix never
-fired); the real weapon-class flag is **bit 16 = TILE_LIGHT_BLASTER**. So Indy now treats any non-blaster weapon
-tile as reusable. ⚠ BEST-EFFORT (the exact fire routine FUN_1018_9c32 ← FUN_1018_0000 wasn't fully traced) — verify
-in play; if still vanishing, trace that fire state or instrument the equip site for the whip tile's flags.
-**▶ v65 — post-remap: user confirms NPCs talk, whip findable, dialog works. Two more fixes + 1 open quirk (all
-GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v65"):** (1) **Whip vanished after use** — FireWeaponStep
-only treats `frames[7]==0x1fe/0x12` as reusable; Indy's whip is a melee weapon flagged **TILE_LIGHTSABER (bit 18)**
-with a different icon id → depleted+removed. Fixed: for Indy key the reusable test off
-`GetTileData(frames[7])->flags & TILE_LIGHTSABER` (both the no-deplete branch + the removal guard). (2) **Replay/New
-Story hung at STUP** — OnReplayStory clears `bWorldInvalid=0` after StartGame → OnTimer routes through
-WorldEntryStepMaybe (loops for Indy) → stuck. Fixed: `#ifndef GAME_INDY` the `bWorldInvalid=0` so Indy keeps the
-self-climbing ZoneTransitionStep entry (like initial world + New World). (3) ⏳ **OPEN: house-entry quirk** — a
-textbox shows one tile early and the DOOR warp only fires after backing out + re-entering onto the door tile.
-Likely a small-interior-zone CENTER-SHIFT offset (DA map.c center_shift_x/y for zones < screen size, which our
-engine may not apply → door/trigger cell shifted) or FirstEnter/BumpTile warp ordering. Needs RE of DESKADV door-warp
-+ small-zone centering. Not a blocker.
-**▶ v64 — THE FUNDAMENTAL IACT FIX. RE'd the DESKADV IACT runtime (runner FUN_1010_2910, executor FUN_1010_2eb6):
-the condition AND command OPCODES are RENUMBERED between Yoda and Indy**, while record sizes / arg offsets / tile
-formula / event numbers / field offsets are IDENTICAL. Running Indy scripts through Yoda's opcode switches
-mis-dispatched everything → (a) Indy ClearTile(2) ran as Yoda MoveMapTile(2) → uninitialized arg3/arg4 as dest
-coord → wild tiles[] write == the DOOR-ENTRY CRASH; (b) Indy SayText(5)/ShowText(0x1c) → wrong handlers == SILENT
-NPCs; (c) Indy FirstEnter(4)/Enter(5) → Yoda Walk(4)/TempVarEq(5) + Yoda's pass-by-default == building entry never
-gated. FIX (`src/IactScript.cpp`, GAME_INDY): 2 lookup tables `kIndyCondToYoda[0x17]`/`kIndyCmdToYoda[0x24]`
-translate Indy opcode → Yoda equiv in IactCondition::Read / IactCommand::Read → the byte-matched Yoda interpreter
-runs unchanged. Verified by dumping the remapped scripts (FirstEnter/Enter/CheckMapTile/BumpTile/SetMapTile/Random
-all decode sane). ⚠ Rare cond specials (Indy 0/8/9/0xb/0x14–0x16) + DrawOverlay arg-order (cmd 0x10) are best-guess
-TODOs in-source. ⭐ LESSON: DA's shared iact.h enum is MISLEADING — the actual binaries renumber opcodes; confirm
-against DESKADV.EXE. anchor 211 (guarded); Iact.cpp tile bounds-guard kept as defense-in-depth. Detail:
-docs/phase-h3-indy.md "v64".
-**▶ v62 SUMMARY: fixed 5 more Indy bugs (all GAME_INDY-guarded, anchor 211; verified via 3 parallel DESKADV.EXE RE
-agents + headless YDBG). Full detail: docs/phase-h3-indy.md "v62".** (1) **New World infloop** — `StartGame`'s
-Generate loop wasn't GAME_INDY-guarded → ran Yoda Generate (never converges) → infinite reseed / progress bar
-**▶ v62 SUMMARY: fixed 5 more Indy bugs (all GAME_INDY-guarded, anchor 211; verified via 3 parallel DESKADV.EXE RE
-agents + headless YDBG). Full detail: docs/phase-h3-indy.md "v62".** (1) **New World infloop** — `StartGame`'s
-Generate loop wasn't GAME_INDY-guarded → ran Yoda Generate (never converges) → infinite reseed / progress bar
-jumping; routed to `IndyGenerate` (needed an `IndyGenerate` decl in DeskcppStub.h). (2) **Palette browns** — Indy
-animates DIFFERENT ranges (v60 "same ranges" was WRONG): DESKADV IndyCyclePalette 1018:8e40 = every-tick rings
-[160..167]/[224..228]/[229..237] UP, odd-tick ring [238..243] DOWN + swap 244↔245, band [160..245]; added a Indy
-branch in CyclePalette. (3) **Character animation** — Indy ICHR (0x4E) has only 2 short fields after the name then a
-FULL 0x30 frame block (drops Yoda's 3rd short+dword); our shared Character::Read ate 6 frame bytes → every frame
-shifted 3 shorts. Frame layout is otherwise IDENTICAL to Yoda (stride 8, same GetFrameTile — the "21 frames"
-premise was WRONG). Fixed the Indy read. (4) **Door crash** — headless door entry COMPLETES (start zone 120 has 3
-DOOR_IN, interior 107 type 8 runs 0→10); found `ZoneTransitionStep` writes `mapGrid[-11]` (OOB) for grid-less
-interiors (cell=-1,-1) — guarded it for Indy (WorldEntryStepMaybe already guards the twin). ⚠ crash is GUI-only
-(headless-invisible) — NEEDS user re-test to confirm. (5) **Whip** — DESKADV RE proved Indy does NOT seed a
-starting weapon at worldgen (inventory doc+0x78 is emptied, never filled); the whip comes from GAMEPLAY (OBJ_WEAPON
-pickup or an IACT CMD_AddItemToInv) — pending.
-**▶ v63 (palette + animations CONFIRMED fixed by user; New World FIXED; door root-caused+guarded):**
-- **New World infloop FIXED:** `OnNewWorld→StartGame→LoadWorld()` is a SECOND DAW loader (0x421fd0) that only had
-  the Yoda chunk dispatch → misparsed the Indy DAW (Yoda ParseZaux on global ZAUX; loop never hits ENDF). Ported
-  Load()'s Indy branch into LoadWorld. ⚠ LESSON: TWO DAW loaders (Load 0x4158 / LoadWorld 0x421fd0) — apply every
-  load-format delta to BOTH. Verified headlessly (OnNewWorld returns + IndyGenerate converges).
-- **Door crash root-caused + guarded (BAND-AID):** GUI backtrace (YodaIndy/backtrace.txt) mapped via OUR /MAP
-  (relink build-indy objs with /MAP — NOT YodaDemo layout!) → `Zone::IactRunCommands` CMD_SetMapTile
-  `tiles[(args[1]*18+args[0])*3+args[2]]` with args[1]=21087 (OOB). Script format byte-identical to Yoda (verified
-  vs DESKADV cmd reader FUN_1010_047e: PUSH 0xc + PUSH 0x2 + text), so coords are GENUINE data. Guarded the tile
-  index for Indy in SetMapTile/ClearTile/MoveMapTile. ⚠ TRUE root cause UNRESOLVED — needs RE of the DESKADV
-  IactRunCommands twin (is opcode 0 = SetMapTile for Indy? does it bounds-check / use the zone's real width vs 18?).
-**▶ START HERE (v63): USER VISUAL RE-TEST `./run_indy.sh`** — New World (infloop gone?), enter a building (crash
-gone? interior tiles look right?). Then: (a) door deeper RE if interiors are visually broken (the huge-coords
-mystery — RE the DESKADV IactRunCommands twin); (b) whip — does it appear via pickup with the correct start zone?
-if not, RE how Indy grants it (OBJ_WEAPON pickup vs IACT CMD_AddItemToInv); (c) hero-HP tail — set player Character
-HP=120 (entity+0x90) in the IndyGenerate tail (DESKADV does; we only set doc fields). Key DESKADV addrs:
-IndyCyclePalette 1018:8e40, IndyParseChar 1010:a3fe / FUN_1010_069c / GetFrameTile FUN_1010_076e / cmd reader
-FUN_1010_047e, IndyGenerate 1010:8524, IndyStartNewGameMaybe 1020:0ed0.
-**▶ v61 (prior): START-ZONE TARGET bug FIXED.** IndyGenerate tail hardcoded nTargetZoneId=0 (Yoda demo layout);
-Indy's start zone is dynamic → set `nTargetZoneId = GetZoneCell(nStartX,nStartY)`. The bWorldInvalid=1 self-climb
-is CORRECT for Indy (no scripted intro entry — start zone has zero cond-0/1 scripts), not a workaround. Detail in
-docs/phase-h3-indy.md "v61".
+### ⏭ NEXT SESSION PICKUP (2026-07-09 v70 — PHASE H3 milestone 4: Indy PLAYABLE; door + weapon-UI fixed; OPEN: Indy resources, minor tails; anchor 211)
+**▶ v70 — this session (all GAME_INDY-guarded, anchor 211; detail docs/phase-h3-indy.md "v69"+"v70"; memory
+[[h3-indy-load]]):** three user-facing fixes, each verified against DESKADV.EXE:
+1. **⭐ DOOR FIXED at the root — USER-CONFIRMED working (single walk-through).** The v67/v68 "SetPlayerPos plants the
+   player on the door" was the SYMPTOM. RE'd the Indy command dispatcher `FUN_1010_2eb6` (jump table 1010:2f85)
+   case-for-case: the v64 `kIndyCmdToYoda` table had a shifted cluster 0x0b–0x14. **Indy cmd 0x11 = RedrawTile, NOT
+   SetPlayerPos** → s26's `RedrawTile(7,14)` (repaint the opened door) ran as SetPlayerPos and TELEPORTED the player
+   onto the door cell, bypassing the walk-in path so the DOOR_IN warp (fires ONLY on a player WALK onto an empty
+   t==-1 cell holding a DOOR_IN obj → `FindObjectAt`→`TransitionZoneDoor`) never triggered. Fixed 8 entries in
+   `src/IactScript.cpp` (each verified vs the decompiled switch): 0x0b→0x0a PlaySound, 0x0c→0x08 RenderChanges,
+   0x0e→0x10 / 0x0f→0x11 (hide/show player were swapped), **0x11→0x06 RedrawTile ⭐**, 0x12→0x12 SetPlayerPos,
+   0x13→0x07 RedrawTiles, 0x14→0x08. No warp-hack needed (the original warps only on a player walk; the dispatcher
+   never reaches door-transition fn `FUN_1018_2e48`, sole caller = walk handler `FUN_1018_733e`).
+2. **Ammo bar REMOVED — USER-CONFIRMED gone.** The whip's `DrawWeaponIcon` (0x428c40) bar rendered all-black
+   (whip's frames[7] matches no ammo weapon → nMult=0 → black "spent" column fills the whole bar). RE-confirmed
+   EXHAUSTIVELY that Indy renders NO ammo bar (green 0x91 fill appears NOWHERE; HUD twin `FUN_1010_e542` = bevels +
+   health PIE `FUN_1018_a242` + icon strip + inventory + weapon BOX `FUN_1018_adf2`, no charge column). FIX =
+   `#ifdef GAME_INDY return;` at top of `DrawWeaponIcon` (`src/Worldgen.cpp`); `DrawWeaponBox` kept.
+3. **Weapon box re-CENTERED (pending user visual confirm).** Without the ammo bar Indy centers the box over the whole
+   box+ammo region. Exact coords from DESKADV UI-rect init `FUN_1010_4666`: `[left=0x180 top=0x100 right=0x1a0
+   bottom=0x120]` (vs Yoda 0x190/0xfc/0x1b0/0x11c — 16px left onto the old ammo-bar spot + 4px down). `#ifdef
+   GAME_INDY` override of nWeaponBox{Left,Top,Right,Bottom} in the doc ctor (`src/DeskcppDoc.cpp`).
+**▶ START HERE (v70): USER VISUAL RE-TEST `./run_indy.sh`.** Confirm the weapon box now sits in the right place
+(item #3, not yet visually confirmed). Then remaining OPEN (non-blocking, priority order): (1) proper Indy resources
+(.res title/icon/menus → retires the temp title override + [[indy-app-icon]]); (2) startup-wav name (minor); (3)
+hero-HP tail (entity+0x90=120 in IndyGenerate tail); (4) verify still-uncertain IACT opcodes (0x13 rect arg-order vs
+DrawZoneCellRect; condition specials 0/8/9/0xb/0x14..0x16); (5) INI replay persistence. All anchor-safe / GAME_INDY-
+guarded. ⭐ STANDING LESSON reinforced this session: a Yoda HUD/UI element may simply NOT exist in Indy (RE the
+DESKADV HUD-refresh draw list before "fixing" a broken-looking one — often it should be removed); and audit the IACT
+remap TABLE case-for-case vs the real jump table, not just "opcodes differ".
+<!-- Prior H3 pickups v61–v69 condensed below — FULL detail in docs/phase-h3-indy.md (per-version sections) + memory
+     [[h3-indy-load]]. CLAUDE.md carries only the current pickup (v70).
+  v69 = the door root-fix (item 1 above; USER-CONFIRMED).
+  v67/v68 = whip DAMAGE (UseWeapon nType=3 for non-blaster) + sound (drop `sfx\` prefix, Indy WAVs in game root) +
+    temp window title (SetWindowText in InitInstance — retire via Indy .res) + mid-textbox Replay crash (frame-mode-
+    gate OnUpdateReplayStory/OnUpdateLoadWorld like OnUpdateNewWorld). All user-confirmed.
+  v66 = removed the Yoda-only persistent text/input lock after IactRun(2) for Indy (#ifndef GAME_INDY). v65 = whip
+    reusable attempt + Replay-STUP (#ifndef GAME_INDY bWorldInvalid=0 so Indy keeps the self-climb entry).
+  v64 = ⭐⭐ THE FUNDAMENTAL FIX: Indy IACT condition AND command OPCODES are RENUMBERED vs Yoda (record sizes/arg
+    offsets/tile formula/events/field offsets IDENTICAL) → kIndyCondToYoda[0x17]/kIndyCmdToYoda[0x24] remap tables in
+    IactScript.cpp translate at Read time; the byte-matched Yoda interpreter runs unchanged. (v69 corrected the cmd
+    table's shifted cluster.)
+  v62/v63 = New World infloop (route StartGame's Generate loop to IndyGenerate; ⚠ LoadWorld 0x421fd0 is a SECOND DAW
+    loader — apply EVERY load-format delta to BOTH Load 0x4158 AND LoadWorld) + palette animate ranges (Indy differs)
+    + ICHR char-read (Indy record 0x4E: 2 shorts after name then a full 0x30 frame block) + door-crash tile-index
+    guard (band-aid, superseded by v64/v69 opcode remap). v61 = start-zone target = GetZoneCell(nStartX,nStartY).
+  ⭐ RECURRING LESSON: DesktopAdventures (~/workspace/DesktopAdventures) is a REIMPLEMENTATION — its is_yoda gates +
+    flag/enum assumptions do NOT match the real binary; confirm every "Indy differs" claim vs DESKADV.EXE.
+-->
 
 **▶ BUILD / RUN / DEBUG (all proven this session):**
 - Build: `cmake -B build-indy -DCMAKE_TOOLCHAIN_FILE=toolchain/vc42.cmake -DYODA_GAME=INDY && cmake --build build-indy`
