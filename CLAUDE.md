@@ -32,7 +32,10 @@ Phase H (extension — functional correctness, not byte-matching) status:
   plus menu commands via the game's real accelerator table (Ctrl-chords → WM_COMMAND), and
   (v80 tail) a real save/load CFileDialog (SDL has no native picker — lists *.wld files as
   clickable rows; unit-tested via new `dlg_smoke` harness, not yet live-screenshot-verified).
-  Next: a visible menu bar (accelerators substitute for now), INDY×SDL in-game playtest.
+  v81: deferred-present perf fix (user: "MUCH snappier"). v82: platform-BACKEND split
+  (mfxplat.h contract; neutral pump/snd + swappable backend TUs — sdl3 (new default,
+  user-confirmed), sdl2, null; a DS port = two new files). Next: a visible menu bar
+  (accelerators substitute for now), INDY×SDL in-game playtest (verify SDL3 MIDI).
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -229,7 +232,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v81 — GOAL-0 batching fix DONE structurally (deferred presents + clock-hook flush, lesson 18); FIRST: user playtest it + re-eval YODA_ACCEL; then visible menu bar + Indy playtest; anchor untouched)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v82 — v81 batching fix USER-CONFIRMED ("much snappier", transitions/intro fine); v82 platform-backend split (mfxplat.h, lesson 19) + SDL3 backends USER-CONFIRMED (visuals+audio) and now the desktop default; NEXT: visible menu bar + INDY×SDL playtest (verify SDL3 MIDI there); anchor untouched)
 
 **▶ v80 this session (H4 M5, ZERO src/ edits — all microfx/): CDialog::DoModal is REAL.**
 New `microfx/src/app/mfxdlg.cpp`: parses an RT_DIALOG template (MfxFindResourceData(5) serves
@@ -255,21 +258,31 @@ by the delta); a new microfx/src file needs a `cmake -B build-sdl` reconfigure (
 SetScrollRange (user-confirmed vs original): Difficulty 1-100 continuous, WorldSize 1-3 snaps to
 Small/Med/Large — the integer thumb math reflects both, no special-casing.
 
-**▶ GOAL 0 — ✅ RESOLVED STRUCTURALLY v81 (2026-07-10): deferred presents + clock-hook flush.**
-Root cause confirmed: EVERY GDI primitive fires MfxTouch → the present hook → a full window
-present (~vsync each on macOS) — per-call-site Hold/Release audits could never cover it. Fix
-(microfx-only, ZERO src/ edits — docs/phase-h4-sdl.md lesson 18): `MfxPresentOnScreenWrite`
-now just sets a dirty flag; the pending present flushes (a) once per pump iteration, (b) per
-MfxIdle in modal GetMessage loops, (c) inside `mfx_clock()` via new `MfxSetClockHook`
-(mfxcore.cpp), throttled to `YODA_PRESENT_MS` (default 8ms; 0 = legacy per-write). The
-MfxPresentOnScreenWrite tension resolves itself: ALL mid-handler animations pace with clock()
-busy-waits, so they flush per completed frame through the clock hook while ordinary handler
-draw storms collapse to ONE present per tick. Bonus: MfxPalToDib now fires MfxTouch, so
-busy-waited palette flashes present mid-handler (Win95-faithful). Verified: build-sdl clean,
-worldgen_smoke/game_walk/dlg_smoke green, live boot through intro (X-Wing flight = clock-flush
-path) to Dagobah bubble, screenshot faithful. NEEDS USER PLAYTEST: overall snappiness, scroll
-transitions / intro flight still animate (not frozen to final frame), then RE-EVAL
-`YODA_ACCEL=1` for promotion to default now that presents are per-tick.
+**▶ v81 — ✅ GOAL-0 batching fix, USER-CONFIRMED ("drawing is MUCH snappier, no issues with
+scroll transitions and intro flight").** Root cause: EVERY GDI primitive fires MfxTouch → the
+present hook → a full window present (~vsync each on macOS) — per-call-site Hold/Release
+audits could never cover it. Fix (docs/phase-h4-sdl.md lesson 18): `MfxPresentOnScreenWrite`
+just sets a dirty flag; the pending present flushes (a) once per pump tick, (b) per MfxIdle in
+modal loops, (c) inside `mfx_clock()` via `MfxSetClockHook` (mfxcore.cpp), throttled to
+`YODA_PRESENT_MS` (default 8ms; 0 = legacy per-write). Works because ALL mid-handler
+animations pace with clock() busy-waits → they flush per completed frame; draw storms collapse
+to one present/tick. MfxPalToDib now fires MfxTouch (palette flashes present mid-handler).
+YODA_ACCEL verdict (user): no big speed difference post-fix, no detriments — stays opt-in.
+
+**▶ v82 — ✅ PLATFORM-BACKEND SPLIT + SDL3, USER-CONFIRMED (looks + sounds correct).**
+User-requested for the DS-port direction; SDL3 used as the modularity proof-of-concept. New
+contract `microfx/include/mfxplat.h` (lesson 19): video/input = `MfxPlat*` (Init/Shutdown/
+PollEvent/Present/SetCursor/Delay), audio = `MfxSndPlat*` (Open/Close/Load/Free/Play/Halt +
+music quartet); EXACTLY ONE backend TU per surface links from `microfx/src/platform/`
+(mfxplat_{sdl3,sdl2,null}.cpp, mfxsnd_{sdl3mixer,sdl2mixer,null}.cpp — CMake auto-selects
+sdl3 > sdl2 > null, override -DYODA_MFX_VIDEO_BACKEND/-DYODA_MFX_AUDIO_BACKEND; SDL2+SDL3
+runtimes must never link together, CMake rejects mixed pairs). mfxpump.cpp/mfxsnd.cpp are now
+platform-NEUTRAL and hold ALL policy (deferred presents, WM synthesis, accel translation,
+WaveMix contract/LRU, MCI parse) — a DS port implements the two backend TUs and NOTHING else.
+Null-backend build passes game_walk with ZERO undefined SDL symbols in libmicrofx.a. SDL3 is
+the desktop default (build-sdl now links only libSDL3/libSDL3_mixer; 63 waves load, mixing
+live). ⚠ SDL3 MIDI (fluidsynth soundfont_path property) coded but NOT yet audibility-verified
+— do it during the INDY×SDL playtest. zone_view --show is SDL2-API (absent under sdl3).
 
 **▶ GOAL 2 — H4 next (the main thread):**
 - **save/load CFileDialog** — DONE this session (mfxdlg.cpp, zero src/ edits): SDL has no native

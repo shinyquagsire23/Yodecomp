@@ -265,6 +265,30 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
     CWinThread::Run registers the hooks, so harness digests can't move. The existing
     Hold/Release sites stay (they also batch the overlay-recomposite cost, which still fires
     per write).
+19. **The platform-backend contract (v82 — mfxplat.h; user-requested for the DS-port
+    direction).** Everything platform-specific funnels through two small C surfaces — video/
+    input/present (`MfxPlat*`: Init/Shutdown/PollEvent/Present/SetCursor/Delay, events carry
+    Win32 VKs + game-pixel coords) and audio (`MfxSndPlat*`: Open/Close/LoadWave/FreeWave/
+    Play/Halt + a music quartet) — and a build links EXACTLY ONE backend TU per surface from
+    `microfx/src/platform/` (CMake auto-selects sdl3 > sdl2 > null; override with
+    `-DYODA_MFX_VIDEO_BACKEND` / `-DYODA_MFX_AUDIO_BACKEND`). All hard-won policy stays
+    NEUTRAL (mfxpump.cpp: deferred presents/clock flush, WM synthesis, accel translation,
+    modal loops, teardown order, debug oracles; mfxsnd.cpp: the whole WaveMix/MCI contract,
+    handle tables, LRU stealing, packed-params parse) so a new backend can't get it wrong —
+    a port implements two files and nothing else. Proof points: (a) the null backends build
+    and pass game_walk with `nm libmicrofx.a | grep -c 'U SDL_'` == 0 (headless harnesses run
+    the null path: MfxPlatInit==0 → Run no-ops, GetMessageA bails); (b) SDL3 backends
+    (mfxplat_sdl3.cpp + mfxsnd_sdl3mixer.cpp) were added WITHOUT touching neutral code and are
+    now the desktop default — USER-CONFIRMED correct visuals + audio. SDL3 port notes: no
+    SDL_SetMainReady (SDL3 only wraps main if SDL3/SDL_main.h is included); events are flat
+    types (SDL_EVENT_WINDOW_EXPOSED, not a WINDOWEVENT subtype) with float mouse coords;
+    SDL_mixer 3 is the REDESIGNED MIX_Mixer/MIX_Track/MIX_Audio API (no channels — the backend
+    maps the contract's channels onto a track array) and has NO SDL_SOUNDFONTS env fallback —
+    pass "SDL_mixer.decoder.fluidsynth.soundfont_path" via MIX_LoadAudioWithProperties (MIDI
+    load path coded but not yet audibility-verified — check during the INDY×SDL playtest).
+    ⚠ SDL2 and SDL3 export the SAME symbols: never link both runtimes into one binary (CMake
+    rejects mixed pairings; MICROFX_HAS_SDL now only gates zone_view's --show, which is
+    SDL2-API and thus absent under the sdl3 backend — port it to MfxPlat if missed).
 
 ## What runs vs what's stubbed (v74)
 

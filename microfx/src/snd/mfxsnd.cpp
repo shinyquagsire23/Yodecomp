@@ -1,14 +1,19 @@
-// microfx — snd/: WAVMIX32 + mmsystem (PlaySound / MCI command strings) over SDL2_mixer.
+// microfx — snd/: WAVMIX32 + mmsystem (PlaySound / MCI command strings), platform-NEUTRAL.
 // H4 M3 (docs/phase-h4-sdl.md). Game-side surface: src/DeskcppView.cpp — SoundInit (0x411520),
 // GameView::PlaySound (0x409060), the view dtor teardown (0x408c60), the walk-sound flush
 // (0x413bf0 → WaveMixFlushChannel(session, 0, 1)), and the GAME_INDY Indy_Midi* MCI strings.
 //
-// Contract distilled from the game code (do not "improve" it):
+// This TU owns the WaveMix/MCI CONTRACT — handle tables, flag semantics, LRU channel policy,
+// packed-params parsing, MCI command parsing — and plays audio only through the MfxSndPlat*
+// backend ops (mfxplat.h; microfx/src/platform/mfxsnd_sdlmixer.cpp on desktop, mfxsnd_null.cpp
+// without a device, a port's own TU elsewhere). The contract was distilled from the game code
+// and hard-won in playtests — do NOT re-derive it per backend:
+//
 //  - WaveMixInit() returns a nonzero int session, 0 = audio unavailable — the game then sets
-//    nSoundEnabled=nMusicEnabled=0 and never retries (the pre-M3 stub state, kept as the
-//    graceful fallback whenever SDL audio can't open, and forced by YODA_NOSOUND=1).
+//    nSoundEnabled=nMusicEnabled=0 and never retries (the graceful fallback whenever the
+//    backend can't open, and forced by YODA_NOSOUND=1).
 //  - Wave handles are stored in `int g_waveHandles[64]` (32-bit) — so handles are 1-based
-//    indices into an internal Mix_Chunk table, never pointers (LP64).
+//    indices into an internal wave table, never pointers (LP64).
 //  - WaveMixOpenChannel / WaveMixActivate return 0 on SUCCESS; nonzero makes SoundInit tear
 //    the whole session down and disable sound.
 //  - WaveMixPlay(void*) receives the PACKED 0x18-byte MIXPLAYPARAMS (WORD wSize then 4-byte
@@ -20,31 +25,25 @@
 //    STUP flight isn't cut by the next effect — user-reported when this was first coded as
 //    CLEARQUEUE). lpMixWave may be an UNINITIALIZED stack int for ids >= 0x40 (sic engine
 //    quirk, see PlaySound) — validate handles strictly.
-//  - Wave paths arrive Windows-shaped ("sfx\\ARMED.WAV"), relative to cwd.
+//  - Wave paths arrive Windows-shaped ("sfx\\ARMED.WAV"), relative to cwd; case-insensitive-FS
+//    insurance = a lowercase retry (DTA names are uppercase, files often lower).
 //  - The music pump thread never runs (AfxBeginThread is a no-thread object) and WaveMixPump
-//    is a no-op: SDL2_mixer mixes in its own callback thread.
+//    is a no-op: backends self-mix.
 //
 // MCI (GAME_INDY MIDI music; Yoda ships no MIDs): exactly the four command shapes the game
 // emits — "open sequencer!<file> alias <NAME>" / "play <NAME> [from 1]" / "stop <NAME>" /
-// "close <NAME>" — mapped onto Mix_Music (one sequencer audible at a time, which matches how
-// the game uses it: Indy_MidiPlay starts one theme, Indy_MidiStopAll stops all).
+// "close <NAME>" — one sequencer audible at a time, which matches how the game uses it
+// (Indy_MidiPlay starts one theme, Indy_MidiStopAll stops all).
 //
 // Debug: YODA_SNDLOG=1 traces opens/plays/MCI to stderr (audibility itself needs a human).
-// Built without SDL2_mixer (MICROFX_HAS_MIXER undefined) this TU degrades to the pre-M3
-// stubs so M0-style builds still link.
 
 #include <windows.h>
 #include <mmsystem.h>
+#include <mfxplat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-
-#if defined(MICROFX_HAS_SDL) && defined(MICROFX_HAS_MIXER)
-#include <SDL.h>
-#include <SDL_mixer.h>
-
-#define MFX_SND_MIXER 1
 
 static bool s_bSndLog;
 #define SNDLOG(args) do { if (s_bSndLog) { fprintf args; fflush(stderr); } } while (0)
@@ -53,9 +52,7 @@ static bool s_bSndLog;
 static bool s_bSessionOpen;
 
 enum { kMaxWaves = 256 };            // 64 SNDS slots + hardcoded extras; handle = index+1
-static Mix_Chunk* s_apChunks[kMaxWaves];
-
-enum { kMixChannels = 16 };          // the game only ever plays channel 0; headroom is free
+static void* s_apWaves[kMaxWaves];   // backend wave objects, owned via MfxSndPlat*
 
 // "sfx\\ARMED.WAV" → "sfx/ARMED.WAV" (same normalization CFile::Open applies to game paths)
 static void SndNormalizePath(char* pszDst, size_t nDst, const char* pszSrc)
@@ -66,34 +63,36 @@ static void SndNormalizePath(char* pszDst, size_t nDst, const char* pszSrc)
     pszDst[i] = 0;
 }
 
+// open the backend device once (WaveMixInit, and MCI opens sequencers independently of the
+// SFX session — DESKADV FUN_1018_4c54 tail)
+static bool SndEnsureSession(void)
+{
+    if (s_bSessionOpen)
+        return true;
+    s_bSndLog = s_bSndLog || (getenv("YODA_SNDLOG") != NULL);
+    if (getenv("YODA_NOSOUND") != NULL)
+    {
+        SNDLOG((stderr, "[snd] YODA_NOSOUND set — reporting no session\n"));
+        return false;
+    }
+    if (!MfxSndPlatOpen())
+    {
+        SNDLOG((stderr, "[snd] backend open failed — sound disabled\n"));
+        return false;
+    }
+    s_bSessionOpen = true;
+    SNDLOG((stderr, "[snd] session open\n"));
+    return true;
+}
+
 extern "C" {
 
-UINT WaveMixPump(void) { return 0; }   // SDL2_mixer self-mixes; nothing to feed
+UINT WaveMixPump(void) { return 0; }   // backends self-mix; nothing to feed
 
 int WaveMixInit(void)
 {
     s_bSndLog = (getenv("YODA_SNDLOG") != NULL);
-    if (s_bSessionOpen)
-        return 1;
-    if (getenv("YODA_NOSOUND") != NULL)
-    {
-        SNDLOG((stderr, "[snd] YODA_NOSOUND set — reporting no session\n"));
-        return 0;
-    }
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
-    {
-        SNDLOG((stderr, "[snd] SDL audio init failed: %s\n", SDL_GetError()));
-        return 0;
-    }
-    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 1024) != 0)
-    {
-        SNDLOG((stderr, "[snd] Mix_OpenAudio failed: %s\n", Mix_GetError()));
-        return 0;
-    }
-    Mix_AllocateChannels(kMixChannels);
-    s_bSessionOpen = true;
-    SNDLOG((stderr, "[snd] session open\n"));
-    return 1;                          // any nonzero int = the session handle
+    return SndEnsureSession() ? 1 : 0;   // any nonzero int = the session handle
 }
 
 int WaveMixOpenWave(int hMixSession, char* szWaveFilename, int /*hInst*/, DWORD /*dwFlags*/)
@@ -102,35 +101,34 @@ int WaveMixOpenWave(int hMixSession, char* szWaveFilename, int /*hInst*/, DWORD 
         return 0;
     char szPath[512];
     SndNormalizePath(szPath, sizeof szPath, szWaveFilename);
-    Mix_Chunk* pChunk = Mix_LoadWAV(szPath);
-    if (pChunk == NULL)
+    void* pWave = MfxSndPlatLoadWave(szPath);
+    if (pWave == NULL)
     {
-        // case-insensitive-FS insurance for Linux (DTA names are uppercase, files often lower)
         for (char* p = szPath; *p; p++)
             *p = (char)tolower((unsigned char)*p);
-        pChunk = Mix_LoadWAV(szPath);
+        pWave = MfxSndPlatLoadWave(szPath);
     }
-    if (pChunk == NULL)
+    if (pWave == NULL)
     {
-        SNDLOG((stderr, "[snd] open FAILED \"%s\": %s\n", szWaveFilename, Mix_GetError()));
+        SNDLOG((stderr, "[snd] open FAILED \"%s\"\n", szWaveFilename));
         return 0;
     }
     for (int i = 0; i < kMaxWaves; i++)
     {
-        if (s_apChunks[i] == NULL)
+        if (s_apWaves[i] == NULL)
         {
-            s_apChunks[i] = pChunk;
+            s_apWaves[i] = pWave;
             SNDLOG((stderr, "[snd] open \"%s\" -> handle %d\n", szWaveFilename, i + 1));
             return i + 1;
         }
     }
-    Mix_FreeChunk(pChunk);
+    MfxSndPlatFreeWave(pWave);
     return 0;
 }
 
 int WaveMixOpenChannel(int /*hMixSession*/, int /*iChannel*/, DWORD /*dwFlags*/)
 {
-    return s_bSessionOpen ? 0 : 1;     // 0 = success (channels pre-allocated in Init)
+    return s_bSessionOpen ? 0 : 1;     // 0 = success (channels pre-allocated by the backend)
 }
 
 int WaveMixActivate(int /*hMixSession*/, BOOL fActivate)
@@ -138,11 +136,11 @@ int WaveMixActivate(int /*hMixSession*/, BOOL fActivate)
     if (!s_bSessionOpen)
         return 1;
     if (!fActivate)
-        Mix_HaltChannel(-1);           // deactivation (view dtor) silences everything
+        MfxSndPlatHalt(-1);            // deactivation (view dtor) silences everything
     return 0;                          // 0 = success
 }
 
-static Uint32 s_anChannelStart[kMixChannels];   // last play-start tick, for LRU stealing
+static DWORD s_anChannelStart[MFXSND_CHANNELS];   // last play-start tick, for LRU stealing
 
 int WaveMixPlay(void* lpMixPlayParams)
 {
@@ -155,31 +153,31 @@ int WaveMixPlay(void* lpMixPlayParams)
     memcpy(&nChannel, p + 0x06, 4);
     memcpy(&nWave,    p + 0x0a, 4);
     memcpy(&nFlags,   p + 0x12, 4);
-    if (nWave < 1 || nWave > kMaxWaves || s_apChunks[nWave - 1] == NULL)
+    if (nWave < 1 || nWave > kMaxWaves || s_apWaves[nWave - 1] == NULL)
         return 1;                      // 0 = failed open; anything else = the sic garbage int
     if (nFlags & 2)                    // WMIX_USELRUCHANNEL — iChannel ignored, sounds mix
     {
-        nChannel = Mix_PlayChannel(-1, s_apChunks[nWave - 1], 0);
+        nChannel = MfxSndPlatPlay(s_apWaves[nWave - 1], -1);
         if (nChannel < 0)              // all channels busy: steal the longest-playing one
         {
             int nOldest = 0;
-            for (int ch = 1; ch < kMixChannels; ch++)
+            for (int ch = 1; ch < MFXSND_CHANNELS; ch++)
                 if (s_anChannelStart[ch] < s_anChannelStart[nOldest])
                     nOldest = ch;
-            Mix_HaltChannel(nOldest);
-            nChannel = Mix_PlayChannel(nOldest, s_apChunks[nWave - 1], 0);
+            MfxSndPlatHalt(nOldest);
+            nChannel = MfxSndPlatPlay(s_apWaves[nWave - 1], nOldest);
         }
     }
     else                               // explicit channel (CLEARQUEUE halts what's playing)
     {
-        if (nChannel < 0 || nChannel >= kMixChannels)
+        if (nChannel < 0 || nChannel >= MFXSND_CHANNELS)
             nChannel = 0;
         if (nFlags & 1)
-            Mix_HaltChannel(nChannel);
-        nChannel = Mix_PlayChannel(nChannel, s_apChunks[nWave - 1], 0);
+            MfxSndPlatHalt(nChannel);
+        nChannel = MfxSndPlatPlay(s_apWaves[nWave - 1], nChannel);
     }
-    if (nChannel >= 0 && nChannel < kMixChannels)
-        s_anChannelStart[nChannel] = SDL_GetTicks();
+    if (nChannel >= 0 && nChannel < MFXSND_CHANNELS)
+        s_anChannelStart[nChannel] = GetTickCount();
     SNDLOG((stderr, "[snd] play handle %d ch %d flags 0x%x\n", nWave, nChannel, nFlags));
     return 0;
 }
@@ -189,27 +187,23 @@ int WaveMixFlushChannel(int /*hMixSession*/, int iChannel, DWORD dwFlags)
     if (!s_bSessionOpen)
         return 1;
     // WMIX_ALL (flags&1) flushes every channel; the game calls (session, 0, 1)
-    Mix_HaltChannel((dwFlags & 1) ? -1 : iChannel);
+    MfxSndPlatHalt((dwFlags & 1) ? -1 : iChannel);
     return 0;
 }
 
 int WaveMixFreeWave(int /*hMixSession*/, int lpMixWave)
 {
-    if (lpMixWave < 1 || lpMixWave > kMaxWaves || s_apChunks[lpMixWave - 1] == NULL)
+    if (lpMixWave < 1 || lpMixWave > kMaxWaves || s_apWaves[lpMixWave - 1] == NULL)
         return 1;
-    Mix_Chunk* pChunk = s_apChunks[lpMixWave - 1];
-    for (int ch = 0; ch < kMixChannels; ch++)     // never free a chunk mid-playback
-        if (Mix_Playing(ch) && Mix_GetChunk(ch) == pChunk)
-            Mix_HaltChannel(ch);
-    Mix_FreeChunk(pChunk);
-    s_apChunks[lpMixWave - 1] = NULL;
+    MfxSndPlatFreeWave(s_apWaves[lpMixWave - 1]);   // backend halts it first if playing
+    s_apWaves[lpMixWave - 1] = NULL;
     return 0;
 }
 
 int WaveMixCloseChannel(int /*hMixSession*/, int /*iChannel*/, DWORD /*dwFlags*/)
 {
     if (s_bSessionOpen)
-        Mix_HaltChannel(-1);
+        MfxSndPlatHalt(-1);
     return 0;
 }
 
@@ -217,16 +211,16 @@ int WaveMixCloseSession(int /*hMixSession*/)
 {
     if (!s_bSessionOpen)
         return 0;
-    Mix_HaltChannel(-1);
+    MfxSndPlatHalt(-1);
     for (int i = 0; i < kMaxWaves; i++)
     {
-        if (s_apChunks[i] != NULL)
+        if (s_apWaves[i] != NULL)
         {
-            Mix_FreeChunk(s_apChunks[i]);
-            s_apChunks[i] = NULL;
+            MfxSndPlatFreeWave(s_apWaves[i]);
+            s_apWaves[i] = NULL;
         }
     }
-    Mix_CloseAudio();
+    MfxSndPlatClose();
     s_bSessionOpen = false;
     SNDLOG((stderr, "[snd] session closed\n"));
     return 0;
@@ -236,10 +230,12 @@ int WaveMixCloseSession(int /*hMixSession*/)
 
 BOOL PlaySoundA(LPCSTR, HMODULE, DWORD) { return TRUE; }   // no direct callers found; parity stub
 
+} // extern "C"
+
 struct MciSequencer
 {
-    char       szAlias[32];
-    Mix_Music* pMusic;
+    char  szAlias[32];
+    void* pMusic;                      // backend music object
 };
 enum { kMaxSequencers = 64 };          // one per possible sound id
 static MciSequencer s_aSeq[kMaxSequencers];
@@ -250,58 +246,6 @@ static MciSequencer* MciFindAlias(const char* pszAlias)
         if (s_aSeq[i].pMusic != NULL && strcasecmp(s_aSeq[i].szAlias, pszAlias) == 0)
             return &s_aSeq[i];
     return NULL;
-}
-
-// SDL2_mixer's fluidsynth MIDI backend is silent without a GM SoundFont. Resolution order:
-// YODA_SOUNDFONT env > whatever Mix already has (SDL_SOUNDFONTS / built-in default) > a
-// probe list ending in brew fluid-synth's bundled demo font (audible but not GM-faithful —
-// point YODA_SOUNDFONT at a real GM .sf2 for proper Indy music).
-static void SndEnsureSoundFont(void)
-{
-    const char* pszEnv = getenv("YODA_SOUNDFONT");
-    if (pszEnv != NULL)
-    {
-        Mix_SetSoundFonts(pszEnv);
-        return;
-    }
-    if (Mix_GetSoundFonts() != NULL)
-        return;
-    static const char* aszProbe[] = {
-        "/opt/homebrew/share/soundfonts/default.sf2",
-        "/usr/local/share/soundfonts/default.sf2",
-        "/usr/share/sounds/sf2/FluidR3_GM.sf2",
-        "/usr/share/sounds/sf2/default-GM.sf2",
-    };
-    for (size_t i = 0; i < sizeof aszProbe / sizeof aszProbe[0]; i++)
-    {
-        FILE* f = fopen(aszProbe[i], "rb");
-        if (f != NULL)
-        {
-            fclose(f);
-            Mix_SetSoundFonts(aszProbe[i]);
-            SNDLOG((stderr, "[snd] soundfont: %s\n", aszProbe[i]));
-            return;
-        }
-    }
-    // brew fluid-synth cellar (versioned dir — resolve via the stable opt/ symlink)
-    static const char* aszCellar[] = {
-        "/opt/homebrew/opt/fluid-synth/share/fluid-synth/sf2/VintageDreamsWaves-v2.sf2",
-        "/usr/local/opt/fluid-synth/share/fluid-synth/sf2/VintageDreamsWaves-v2.sf2",
-    };
-    for (size_t i = 0; i < sizeof aszCellar / sizeof aszCellar[0]; i++)
-    {
-        FILE* f = fopen(aszCellar[i], "rb");
-        if (f != NULL)
-        {
-            fclose(f);
-            Mix_SetSoundFonts(aszCellar[i]);
-            SNDLOG((stderr, "[snd] soundfont (demo, set YODA_SOUNDFONT for GM): %s\n",
-                    aszCellar[i]));
-            return;
-        }
-    }
-    SNDLOG((stderr, "[snd] no soundfont found — MIDI will fail to open "
-                    "(set YODA_SOUNDFONT=<path to a GM .sf2>)\n"));
 }
 
 // read one space-delimited token; returns the char after it
@@ -317,7 +261,7 @@ static const char* MciToken(const char* p, char* pszOut, size_t nOut)
 
 // The game's exact command shapes (DESKADV via src/DeskcppView.cpp Indy_Midi*):
 //   "open sequencer!<file> alias <NAME>"  "play <NAME> from 1"  "stop <NAME>"  "close <NAME>"
-MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndCallback*/)
+extern "C" MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndCallback*/)
 {
     if (cmd == NULL)
         return 1;
@@ -337,23 +281,12 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
         pszFile = (pszFile != NULL) ? pszFile + 1 : szArg;
         char szPath[512];
         SndNormalizePath(szPath, sizeof szPath, pszFile);
-        // MIDI needs SDL audio open even when WaveMix failed/was skipped (the game opens
-        // the sequencers independently of the SFX session — DESKADV FUN_1018_4c54 tail)
-        if (!s_bSessionOpen)
-        {
-            if (getenv("YODA_NOSOUND") != NULL)
-                return 1;
-            if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0
-                || Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 1024) != 0)
-                return 1;
-            Mix_AllocateChannels(kMixChannels);
-            s_bSessionOpen = true;
-        }
-        SndEnsureSoundFont();
-        Mix_Music* pMusic = Mix_LoadMUS(szPath);
+        if (!SndEnsureSession())                           // MIDI opens the device even when
+            return 1;                                      // WaveMix failed/was skipped
+        void* pMusic = MfxSndPlatMusicLoad(szPath);
         if (pMusic == NULL)
         {
-            SNDLOG((stderr, "[snd] mci open FAILED \"%s\": %s\n", szPath, Mix_GetError()));
+            SNDLOG((stderr, "[snd] mci open FAILED \"%s\"\n", szPath));
             return 1;
         }
         for (int i = 0; i < kMaxSequencers; i++)
@@ -367,7 +300,7 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
                 return 0;
             }
         }
-        Mix_FreeMusic(pMusic);
+        MfxSndPlatMusicFree(pMusic);
         return 1;
     }
 
@@ -377,8 +310,7 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
         MciSequencer* pSeq = MciFindAlias(szAlias);
         if (pSeq == NULL)
             return 1;
-        Mix_HaltMusic();
-        Mix_PlayMusic(pSeq->pMusic, 1);
+        MfxSndPlatMusicPlay(pSeq->pMusic);                 // halts the current stream first
         SNDLOG((stderr, "[snd] mci play %s\n", szAlias));
         return 0;
     }
@@ -388,7 +320,7 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
         MciToken(p, szAlias, sizeof szAlias);
         if (MciFindAlias(szAlias) == NULL)
             return 1;
-        Mix_HaltMusic();                                   // one music stream — stop is global
+        MfxSndPlatMusicHalt();                             // one music stream — stop is global
         return 0;
     }
 
@@ -398,8 +330,8 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
         MciSequencer* pSeq = MciFindAlias(szAlias);
         if (pSeq == NULL)
             return 1;
-        Mix_HaltMusic();
-        Mix_FreeMusic(pSeq->pMusic);
+        MfxSndPlatMusicHalt();
+        MfxSndPlatMusicFree(pSeq->pMusic);
         pSeq->pMusic = NULL;
         pSeq->szAlias[0] = 0;
         return 0;
@@ -408,24 +340,3 @@ MCIERROR mciSendStringA(LPCSTR cmd, LPSTR /*ret*/, UINT /*cchRet*/, HWND /*hwndC
     SNDLOG((stderr, "[snd] mci UNHANDLED \"%s\"\n", cmd));
     return 1;
 }
-
-} // extern "C"
-
-#else // !MICROFX_HAS_MIXER — the pre-M3 silent stubs, so mixer-less builds still link
-
-extern "C" {
-UINT     WaveMixPump(void) { return 0; }
-int      WaveMixInit(void) { return 0; }        // 0 = no session; SoundInit handles failure
-int      WaveMixActivate(int, BOOL) { return 0; }
-int      WaveMixOpenWave(int, char*, int, DWORD) { return 0; }
-int      WaveMixOpenChannel(int, int, DWORD) { return 0; }
-int      WaveMixPlay(void* /*MIXPLAYPARAMS*/) { return 0; }
-int      WaveMixFlushChannel(int, int, DWORD) { return 0; }
-int      WaveMixCloseChannel(int, int, DWORD) { return 0; }
-int      WaveMixFreeWave(int, int) { return 0; }
-int      WaveMixCloseSession(int) { return 0; }
-BOOL     PlaySoundA(LPCSTR, HMODULE, DWORD) { return TRUE; }
-MCIERROR mciSendStringA(LPCSTR, LPSTR, UINT, HWND) { return 0; }
-} // extern "C"
-
-#endif // MICROFX_HAS_MIXER

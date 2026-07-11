@@ -85,21 +85,72 @@ add_custom_command(
   COMMENT "embed yoda.res -> mfxres_blob.c" VERBATIM)
 
 # ── microfx: the MFC/Win32 subset library ────────────────────────────────────────────────────
+# Platform backends (microfx/src/platform/, contract in microfx/include/mfxplat.h): the GLOB
+# skips that directory and EXACTLY ONE video/input TU + ONE audio TU are appended below.
+# Defaults auto-select from what find_package sees (SDL3 preferred, then SDL2, else null);
+# a port overrides with -DYODA_MFX_VIDEO_BACKEND=<name> / -DYODA_MFX_AUDIO_BACKEND=<name>
+# (compiling microfx/src/platform/mfxplat_<name>.cpp / mfxsnd_<name>.cpp).
+# ⚠ SDL2 and SDL3 export the SAME symbol names — one binary must never link both runtimes,
+# so the audio default follows the video choice and mixed pairings are rejected below.
+set(YODA_MFX_VIDEO_BACKEND "" CACHE STRING "microfx video/input backend (default: sdl3 > sdl2 > null)")
+set(YODA_MFX_AUDIO_BACKEND "" CACHE STRING "microfx audio backend (default: pairs with the video backend)")
+
 file(GLOB_RECURSE _mfx_srcs "${_mfx}/src/*.cpp" "${_mfx}/src/*.c")
+list(FILTER _mfx_srcs EXCLUDE REGEX "/src/platform/")
+
+find_package(SDL3 QUIET CONFIG)
+find_package(SDL3_mixer QUIET CONFIG)
+find_package(SDL2 QUIET)
+find_package(SDL2_mixer QUIET)
+
+set(_mfx_video "${YODA_MFX_VIDEO_BACKEND}")
+if(_mfx_video STREQUAL "")
+  if(SDL3_FOUND)
+    set(_mfx_video "sdl3")
+  elseif(SDL2_FOUND)
+    set(_mfx_video "sdl2")
+  else()
+    set(_mfx_video "null")
+  endif()
+endif()
+set(_mfx_audio "${YODA_MFX_AUDIO_BACKEND}")
+if(_mfx_audio STREQUAL "")
+  if(_mfx_video STREQUAL "sdl3" AND SDL3_mixer_FOUND)
+    set(_mfx_audio "sdl3mixer")
+  elseif(_mfx_video STREQUAL "sdl2" AND SDL2_mixer_FOUND)
+    set(_mfx_audio "sdl2mixer")
+  else()
+    set(_mfx_audio "null")
+  endif()
+endif()
+if((_mfx_video STREQUAL "sdl3" AND _mfx_audio STREQUAL "sdl2mixer") OR
+   (_mfx_video STREQUAL "sdl2" AND _mfx_audio STREQUAL "sdl3mixer"))
+  message(FATAL_ERROR "microfx: cannot mix SDL2 and SDL3 runtimes in one binary "
+                      "(video=${_mfx_video} audio=${_mfx_audio})")
+endif()
+foreach(_backend "mfxplat_${_mfx_video}" "mfxsnd_${_mfx_audio}")
+  if(NOT EXISTS "${_mfx}/src/platform/${_backend}.cpp")
+    message(FATAL_ERROR "microfx backend TU not found: ${_mfx}/src/platform/${_backend}.cpp")
+  endif()
+  list(APPEND _mfx_srcs "${_mfx}/src/platform/${_backend}.cpp")
+endforeach()
+
 add_library(microfx STATIC ${_mfx_srcs} "${_res_c}")
 target_include_directories(microfx PUBLIC "${_mfx}/include")
-# SDL2 becomes REQUIRED at M1 (gdi/) — keep M0 (core/) buildable without it.
-find_package(SDL2 QUIET)
-if(SDL2_FOUND)
+if(_mfx_video STREQUAL "sdl3" OR _mfx_audio STREQUAL "sdl3mixer")
+  target_link_libraries(microfx PUBLIC SDL3::SDL3)
+endif()
+if(_mfx_video STREQUAL "sdl2")
   target_link_libraries(microfx PUBLIC SDL2::SDL2)
+  # MICROFX_HAS_SDL now only gates harness extras (zone_view --show, SDL2 API) — microfx
+  # sources themselves are SDL-free outside the platform/ backend TUs.
   target_compile_definitions(microfx PUBLIC MICROFX_HAS_SDL)
 endif()
-# M3 audio: snd/mfxsnd.cpp implements WaveMix*/MCI over SDL2_mixer; without it the TU
-# compiles its built-in silent stubs (SoundInit sees session 0 and disables sound).
-find_package(SDL2_mixer QUIET)
-if(SDL2_mixer_FOUND AND SDL2_FOUND)
+if(_mfx_audio STREQUAL "sdl2mixer")
   target_link_libraries(microfx PUBLIC SDL2_mixer::SDL2_mixer)
-  target_compile_definitions(microfx PUBLIC MICROFX_HAS_MIXER)
+endif()
+if(_mfx_audio STREQUAL "sdl3mixer")
+  target_link_libraries(microfx PUBLIC SDL3_mixer::SDL3_mixer)
 endif()
 
 # ── game TUs (UNMODIFIED src/*.cpp), ported incrementally ────────────────────────────────────
@@ -157,8 +208,8 @@ else()
     "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
 endif()
 
-# ── M2: the game itself — real entry point + SDL event pump (needs SDL2) ────────────────────
-if(SDL2_FOUND)
+# ── M2: the game itself — real entry point + the platform pump (needs a video backend) ──────
+if(NOT _mfx_video STREQUAL "null")
   add_executable(yoda "${_mfx}/harness/yoda_main.cpp")
   target_include_directories(yoda PRIVATE "${_src}")
   target_link_libraries(yoda PRIVATE yoda_game)
@@ -171,4 +222,4 @@ if(SDL2_FOUND)
 endif()
 
 message(STATUS "yoda: portable SDL build — microfx + TUs: ${YODA_PORTABLE_TUS} "
-               "(SDL2 ${SDL2_FOUND})")
+               "(SDL2 ${SDL2_FOUND}; backends: video=${_mfx_video} audio=${_mfx_audio})")

@@ -430,11 +430,9 @@ int      GetSystemMetrics(int) { return 0; }
 int      ShowCursor(BOOL) { return 0; }
 // GetCursorPos / GetAsyncKeyState / SetTimer / KillTimer / SendMessageA / PostMessageA are
 // REAL as of M2 (mfxwnd.cpp — pump-fed state, timer table, message-map dispatch).
-// GetMessageA/TranslateMessage/DispatchMessageA are REAL as of M4 (mfxpump.cpp, SDL builds) —
-// these weak fallbacks keep a no-SDL build linking (modal loops bail → dialogs auto-dismiss).
-__attribute__((weak)) BOOL    GetMessageA(LPMSG, HWND, UINT, UINT) { return FALSE; }
-__attribute__((weak)) BOOL    TranslateMessage(const MSG*) { return FALSE; }
-__attribute__((weak)) LRESULT DispatchMessageA(const MSG*) { return 0; }
+// GetMessageA/TranslateMessage/DispatchMessageA are REAL as of M4 (mfxpump.cpp — now
+// platform-neutral, so they exist in EVERY build; with the null backend GetMessageA bails
+// immediately → modal loops auto-dismiss, the headless contract).
 int      MessageBoxA(HWND, LPCSTR text, LPCSTR, UINT type)
 {
     fprintf(stderr, "microfx: MessageBox: %s\n", text ? text : "(null)");
