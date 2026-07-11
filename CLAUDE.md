@@ -291,8 +291,13 @@ blocking-modal-loop structure is THE WASM porting lift (GOAL 4).
 the mfxplat.h contract; the SDL3 backend drives the async `SDL_ShowOpen/SaveFileDialog` to
 completion (pump events until the callback lands). SDL2/null/(future DS/WASM) return -1 →
 `CFileDialog::DoModal` falls back to microfx's in-window row-list picker (unchanged; dlg_smoke
-still green). Signatures verified against /opt/homebrew/include/SDL3/SDL_dialog.h. Not
-headless-verifiable (needs a live panel) — flagged for user playtest.
+still green). Signatures verified against /opt/homebrew/include/SDL3/SDL_dialog.h. ⭐ Focus nit
+(user-found, FIXED): the panel steals keyboard focus → queues FOCUS_LOST that the spin loop
+never polls → the pump later drains a LONE stale FOCUS_LOST → `CMainFrame::OnActivate` pauses
+the game (nFrameMode=0/bBusy=1 = stuck on STUP) with no matching wake (SDL doesn't reliably
+re-emit FOCUS_GAINED on panel close). Fix: after the panel closes, `SDL_FlushEvent` both focus
+events + `SDL_RaiseWindow` so the game stays in its pre-dialog active state. Whether the SAVE
+path (native panel returns a path) writes correctly is still user-playtest-pending.
 
 **▶ v86 — ✅ Ctrl+D opens the F8 debug dialog (USER-CONFIRMED working live).** macOS reserves
 the **Ctrl+F8 chord** as a system shortcut ("move focus to status menus") and eats it before SDL
