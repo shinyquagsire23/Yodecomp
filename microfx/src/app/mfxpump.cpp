@@ -203,6 +203,16 @@ static void MfxPumpPlatEvents(void)
             if (ev.nVk == VK_ESCAPE && MfxMenuActive()) { MfxMenuEscape(); break; }
             g_mfxKeyState[ev.nVk & 0xff] |= 0x80;
             MfxQueueInput(hFocus, WM_KEYDOWN, (WPARAM)ev.nVk, 1);
+            // Ctrl+D → the F8 debug-info dialog. The game opens it on Ctrl+F8
+            // (CDeskcppView::OnKeyDown's VK_F8 case, gated on GetAsyncKeyState(VK_CONTROL)),
+            // but macOS reserves the Ctrl+F8 CHORD as a system shortcut ("move focus to status
+            // menus") and eats it before SDL sees it (user-confirmed 2026-07-11: plain F8 DOES
+            // reach the app — only the Ctrl+F8 combo is grabbed). Ctrl+D ('D' for debug —
+            // unused by the game, not a macOS shortcut) is a Mac-safe alias: real Ctrl is held,
+            // so injecting a synthetic VK_F8 WM_KEYDOWN makes the game's own handler run
+            // unchanged with no key-state faking. Harmless on Windows (Ctrl+F8 still native).
+            if ((ev.nVk == 'D') && (g_mfxKeyState[VK_CONTROL] & 0x80))
+                MfxQueueInput(hFocus, WM_KEYDOWN, (WPARAM)VK_F8, 1);
             break;
         case MFXPLAT_EV_KEYUP:
             g_mfxKeyState[ev.nVk & 0xff] &= (BYTE)~0x80;
