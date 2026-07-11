@@ -286,16 +286,27 @@ void MfxSetScreenOverlayHook(HDC hdcScreen, void (*pfn)(void))
 //     windows a screen blit can't erase; in our one-surface model a canvas blit (DrawGameArea)
 //     would wipe the bubble edit/buttons, so they re-lay after every screen write.
 //  2. present — the pump shows the frame (M4 chrome must present mid-handler like BitBlt).
+static int g_nTouchHold = 0;
+
 void MfxTouch(HDC hdc)
 {
     static int bInTouch = 0;
-    if (bInTouch) return;
+    if (bInTouch || g_nTouchHold) return;
     bInTouch = 1;
     if (hdc == g_hdcOverlay && g_pfnOverlay)
         g_pfnOverlay();
     if (hdc == g_hdcScreenWrite && g_pfnScreenWrite)
         g_pfnScreenWrite();
     bInTouch = 0;
+}
+
+// Batch many primitives into ONE hook fire (control painting: a scrollbar is hundreds of
+// SetPixels — presenting per primitive would be pathological). Hold/Release nest.
+void MfxTouchHold(void) { g_nTouchHold++; }
+void MfxTouchRelease(HDC hdc)
+{
+    if (--g_nTouchHold < 0) g_nTouchHold = 0;
+    if (g_nTouchHold == 0) MfxTouch(hdc);
 }
 
 BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy, DWORD /*rop*/)

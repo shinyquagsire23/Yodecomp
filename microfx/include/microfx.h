@@ -33,6 +33,11 @@ void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
 // re-composites visible child controls over the view (they're not separate surfaces here).
 void MfxSetScreenOverlayHook(HDC hdcScreen, void (*pfn)(void));
 
+// Batch many primitives into one hook fire (control painting). Hold/Release nest;
+// Release at depth 0 fires the hooks for hdc.
+void MfxTouchHold(void);
+void MfxTouchRelease(HDC hdc);
+
 // ── M4 resources: decoded image view of an HICON/HCURSOR/resource-bitmap handle ─────────────
 // (res/mfxres.cpp decodes the .res blob into MfxImg objects; gdi/mfxgdi.cpp draws them.)
 typedef struct MFXIMG {

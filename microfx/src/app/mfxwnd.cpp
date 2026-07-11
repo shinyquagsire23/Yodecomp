@@ -58,11 +58,13 @@ HWND MfxWndFromPoint(POINT pt)
 
 void MfxPaintChildren()
 {
+    MfxTouchHold();                    // one present for the whole child pass
     for (int i = 0; i < g_nWnds; i++) {
         HWND h = g_aWnds[i];
         if (MfxIsWnd(h) && h->bVisible && h->hParent && h->nId != AFX_IDW_PANE_FIRST && h->pWnd)
             h->pWnd->MfxCtlPaint();
     }
+    MfxTouchRelease(MfxScreenDC());
 }
 
 HDC MfxScreenDC()
@@ -398,6 +400,46 @@ BOOL SetWindowTextA(HWND hWnd, LPCSTR psz)
     if (!MfxIsWnd(hWnd)) return FALSE;
     MfxSendMsg(hWnd, WM_SETTEXT, 0, (LPARAM)psz);
     return TRUE;
+}
+
+// SB_CTL scroll state (M4e — the inventory scrollbar; nBar is always SB_CTL in this app)
+int SetScrollPos(HWND hWnd, int, int nPos, BOOL bRedraw)
+{
+    if (!MfxIsWnd(hWnd)) return 0;
+    int nOld = hWnd->nScrollPos;
+    hWnd->nScrollPos = nPos;
+    if (bRedraw && hWnd->bVisible && hWnd->pWnd)
+        hWnd->pWnd->MfxCtlPaint();
+    return nOld;
+}
+
+int GetScrollPos(HWND hWnd, int)
+{
+    return MfxIsWnd(hWnd) ? hWnd->nScrollPos : 0;
+}
+
+BOOL SetScrollRange(HWND hWnd, int, int nMin, int nMax, BOOL bRedraw)
+{
+    if (!MfxIsWnd(hWnd)) return FALSE;
+    hWnd->nScrollMin = nMin;
+    hWnd->nScrollMax = nMax;
+    if (hWnd->nScrollPos < nMin) hWnd->nScrollPos = nMin;
+    if (hWnd->nScrollPos > nMax) hWnd->nScrollPos = nMax;
+    if (bRedraw && hWnd->bVisible && hWnd->pWnd)
+        hWnd->pWnd->MfxCtlPaint();
+    return TRUE;
+}
+
+BOOL GetScrollRange(HWND hWnd, int, LPINT lpMin, LPINT lpMax)
+{
+    if (lpMin) *lpMin = MfxIsWnd(hWnd) ? hWnd->nScrollMin : 0;
+    if (lpMax) *lpMax = MfxIsWnd(hWnd) ? hWnd->nScrollMax : 0;
+    return TRUE;
+}
+
+BOOL ShowScrollBar(HWND hWnd, int, BOOL bShow)
+{
+    return ShowWindow(hWnd, bShow ? SW_SHOW : SW_HIDE);
 }
 
 BOOL InvalidateRect(HWND, const RECT *, BOOL) { MfxSetDirty(); return TRUE; }

@@ -415,6 +415,24 @@ int CWinThread::Run()
 
     MfxSetScreenWriteHook(0, 0);
     g_pMfxPresentWin = 0;
+
+    // real window teardown (M4e): the polite-exit path previously never ran the view dtor,
+    // so ~CDeskcppView's WaveMixCloseSession was unreached (audio reclaimed by the OS).
+    // MFC shape: destroy the view window (WM_DESTROY kills the game timer + scrollbar),
+    // delete the view (dtor closes the sound session), then the frame.
+    if (MfxRootWnd()) {
+        CFrameWnd *pFrame = (CFrameWnd *)MfxRootWnd()->pWnd;
+        CView *pView = pFrame ? pFrame->GetActiveView() : 0;
+        if (pView) {
+            pView->DestroyWindow();
+            delete pView;
+        }
+        if (pFrame) {
+            pFrame->DestroyWindow();
+            delete pFrame;
+        }
+    }
+
     SDL_DestroyWindow(pWin);
     SDL_Quit();
     return g_mfxQuitCode;

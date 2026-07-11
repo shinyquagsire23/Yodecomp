@@ -853,11 +853,16 @@ public:
 class CScrollBar : public CWnd
 {
 public:
+    CScrollBar() : m_mfxDragging(0), m_mfxDragOffset(0) {}
     BOOL Create(DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID);
     int  GetScrollPos() const { return ::GetScrollPos(m_hWnd, SB_CTL); }
     int  SetScrollPos(int nPos, BOOL bRedraw = TRUE) { return ::SetScrollPos(m_hWnd, SB_CTL, nPos, bRedraw); }
     void GetScrollRange(LPINT lpMinPos, LPINT lpMaxPos) const { ::GetScrollRange(m_hWnd, SB_CTL, lpMinPos, lpMaxPos); }
     void SetScrollRange(int nMinPos, int nMaxPos, BOOL bRedraw = TRUE) { ::SetScrollRange(m_hWnd, SB_CTL, nMinPos, nMaxPos, bRedraw); }
+    virtual LRESULT MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam);
+    virtual void MfxCtlPaint();
+    int m_mfxDragging;             // thumb drag in progress
+    int m_mfxDragOffset;           // grab offset within the thumb
 };
 
 class CButton : public CWnd

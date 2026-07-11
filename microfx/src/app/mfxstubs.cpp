@@ -73,8 +73,7 @@ BOOL CWnd::OnQueryEndSession() { return TRUE; }
 BEGIN_MESSAGE_MAP(CWnd, CCmdTarget)
 END_MESSAGE_MAP()
 
-// ── controls — REAL as of M4 in app/mfxctl.cpp (CEdit/CButton/CBitmapButton) ─────────────────
-BOOL CScrollBar::Create(DWORD, const RECT&, CWnd*, UINT) { MFX_STUB(); return TRUE; }   // M4e
+// ── controls — REAL as of M4 in app/mfxctl.cpp (CEdit/CButton/CBitmapButton/CScrollBar) ─────
 void CButton::SetCheck(int) {}
 int  CButton::GetCheck() const { return 0; }
 BOOL CBitmapButton::AutoLoad(UINT, CWnd*) { MFX_STUB(); return TRUE; }
@@ -451,12 +450,7 @@ HWND     GetLastActivePopup(HWND h) { return h; }
 // EnableWindow / MoveWindow / SetWindowPos / SetWindowTextA are REAL as of M4 (mfxwnd.cpp).
 BOOL     ScreenToClient(HWND, LPPOINT) { return TRUE; }   // window client == screen (one window)
 BOOL     ClientToScreen(HWND, LPPOINT) { return TRUE; }
-int      GetScrollPos(HWND, int) { return 0; }
-int      SetScrollPos(HWND, int, int nPos, BOOL) { return nPos; }
-BOOL     GetScrollRange(HWND, int, LPINT lpMin, LPINT lpMax)
-    { if (lpMin) *lpMin = 0; if (lpMax) *lpMax = 0; return TRUE; }
-BOOL     SetScrollRange(HWND, int, int, int, BOOL) { return TRUE; }
-BOOL     ShowScrollBar(HWND, int, BOOL) { return TRUE; }
+// Get/SetScrollPos/Range + ShowScrollBar are REAL as of M4e (mfxwnd.cpp, SB_CTL state).
 // DrawIcon is REAL as of M4 — gdi/mfxgdi.cpp (res/ image draw w/ palette mapping).
 // InvalidateRect / UpdateWindow / RedrawWindow are REAL as of M2 (mfxwnd.cpp dirty flag).
 HWND     GetParent(HWND) { return 0; }

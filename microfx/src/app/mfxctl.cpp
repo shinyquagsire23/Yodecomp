@@ -85,6 +85,7 @@ void CEdit::MfxCtlPaint()
 {
     if (!MfxIsWnd(m_hWnd) || !m_hWnd->bVisible) return;
     HDC hdc = MfxScreenDC();
+    MfxTouchHold();                    // one present for the fill + all visible lines
     HGDIOBJ hOldFont = m_mfxFont ? ::SelectObject(hdc, (HGDIOBJ)m_mfxFont) : 0;
     TEXTMETRIC tm;
     GetTextMetricsA(hdc, &tm);
@@ -103,6 +104,7 @@ void CEdit::MfxCtlPaint()
     ::SetTextColor(hdc, crOld);
     ::SetBkMode(hdc, nOldMode);
     if (hOldFont) ::SelectObject(hdc, hOldFont);
+    MfxTouchRelease(hdc);
 }
 
 LRESULT CEdit::MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam)
@@ -133,6 +135,135 @@ LRESULT CEdit::MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam)
         MfxCtlPaint();
         return TRUE;
     }
+    case WM_PAINT:
+        MfxCtlPaint();
+        return 0;
+    }
+    return 0;
+}
+
+// ── CScrollBar (M4e — the inventory scrollbar, SB_CTL) ──────────────────────────────────────
+// Win95 chrome drawn with the public GDI surface: two bevelled arrow buttons, a checkered
+// track, a bevelled thumb. Interaction sends WM_VSCROLL(SB_*) to the PARENT (Win32 SB_CTL
+// behavior) — CDeskcppView::OnVScroll forwards to InvScrollBar's reflected handler, which
+// SetScrollPos()es back into us and repaints the item list.
+
+static const int MFX_SB_BTN = 16;      // arrow button height (Win95 metric)
+
+BOOL CScrollBar::Create(DWORD dwStyle, const RECT &rect, CWnd *pParentWnd, UINT nID)
+{
+    return CWnd::Create(0, 0, dwStyle, rect, pParentWnd, nID);
+}
+
+static void MfxSbBevelRect(HDC hdc, RECT rc)
+{
+    CBrush brFace(GetSysColor(15));    // COLOR_3DFACE
+    ::FillRect(hdc, &rc, (HBRUSH)brFace.m_hObject);
+    HPEN hPenHi = ::CreatePen(PS_SOLID, 1, GetSysColor(20));   // 3DHILIGHT top/left
+    HPEN hPenLo = ::CreatePen(PS_SOLID, 1, GetSysColor(16));   // 3DSHADOW bottom/right
+    HGDIOBJ hOld = ::SelectObject(hdc, (HGDIOBJ)hPenHi);
+    ::MoveToEx(hdc, rc.left, rc.bottom - 1, 0);
+    ::LineTo(hdc, rc.left, rc.top);
+    ::LineTo(hdc, rc.right - 1, rc.top);
+    ::SelectObject(hdc, (HGDIOBJ)hPenLo);
+    ::LineTo(hdc, rc.right - 1, rc.bottom - 1);
+    ::LineTo(hdc, rc.left - 1, rc.bottom - 1);
+    ::SelectObject(hdc, hOld);
+    ::DeleteObject((HGDIOBJ)hPenHi);
+    ::DeleteObject((HGDIOBJ)hPenLo);
+}
+
+static void MfxSbArrow(HDC hdc, RECT rc, int bDown)
+{
+    int cx = (rc.left + rc.right) / 2;
+    int cy = (rc.top + rc.bottom) / 2 + (bDown ? 2 : -2);
+    for (int i = 0; i < 4; i++) {
+        int y = bDown ? cy - i : cy + i;
+        for (int x = cx - i; x <= cx + i; x++)
+            ::SetPixel(hdc, x, y, RGB(0, 0, 0));
+    }
+}
+
+// thumb geometry: the thumb top y (control-relative) or -1 when there is no range
+static int MfxSbThumbTop(HWND h)
+{
+    int nH = h->rc.bottom - h->rc.top;
+    int nTravel = nH - 3 * MFX_SB_BTN;               // track minus the 16px thumb
+    int nRange = h->nScrollMax - h->nScrollMin;
+    if (nRange <= 0 || nTravel <= 0) return -1;
+    return MFX_SB_BTN + (h->nScrollPos - h->nScrollMin) * nTravel / nRange;
+}
+
+void CScrollBar::MfxCtlPaint()
+{
+    if (!MfxIsWnd(m_hWnd) || !m_hWnd->bVisible) return;
+    HDC hdc = MfxScreenDC();
+    MfxTouchHold();
+    RECT rc = m_hWnd->rc;
+    // track: the Win95 50% checker of white / 3D-face
+    COLORREF crFace = GetSysColor(15);
+    for (int y = rc.top; y < rc.bottom; y++)
+        for (int x = rc.left; x < rc.right; x++)
+            ::SetPixel(hdc, x, y, ((x ^ y) & 1) ? RGB(255, 255, 255) : crFace);
+    RECT rcUp = { rc.left, rc.top, rc.right, rc.top + MFX_SB_BTN };
+    RECT rcDn = { rc.left, rc.bottom - MFX_SB_BTN, rc.right, rc.bottom };
+    MfxSbBevelRect(hdc, rcUp);
+    MfxSbArrow(hdc, rcUp, 0);
+    MfxSbBevelRect(hdc, rcDn);
+    MfxSbArrow(hdc, rcDn, 1);
+    int nThumbTop = MfxSbThumbTop(m_hWnd);
+    if (nThumbTop >= 0) {
+        RECT rcThumb = { rc.left, rc.top + nThumbTop, rc.right, rc.top + nThumbTop + MFX_SB_BTN };
+        MfxSbBevelRect(hdc, rcThumb);
+    }
+    MfxTouchRelease(hdc);
+}
+
+LRESULT CScrollBar::MfxCtlProc(UINT message, WPARAM, LPARAM lParam)
+{
+    if (!MfxIsWnd(m_hWnd)) return 0;
+    HWND hParent = m_hWnd->hParent;
+    RECT rc = m_hWnd->rc;
+    switch (message) {
+    case WM_LBUTTONDOWN: {
+        int y = (int)(short)HIWORD(lParam) - rc.top;   // client → control-relative
+        int nH = rc.bottom - rc.top;
+        int nThumbTop = MfxSbThumbTop(m_hWnd);
+        UINT nCode = (UINT)-1;
+        if (y < MFX_SB_BTN) nCode = SB_LINEUP;
+        else if (y >= nH - MFX_SB_BTN) nCode = SB_LINEDOWN;
+        else if (nThumbTop >= 0 && y >= nThumbTop && y < nThumbTop + MFX_SB_BTN) {
+            m_mfxDragging = 1;
+            m_mfxDragOffset = y - nThumbTop;
+            ::SetCapture(m_hWnd);
+            return 0;
+        }
+        else if (nThumbTop >= 0) nCode = (y < nThumbTop) ? SB_PAGEUP : SB_PAGEDOWN;
+        if (nCode != (UINT)-1)
+            MfxSendMsg(hParent, WM_VSCROLL, MAKELONG(nCode, 0), (LPARAM)m_hWnd);
+        return 0;
+    }
+    case WM_MOUSEMOVE:
+        if (m_mfxDragging) {
+            int y = (int)(short)HIWORD(lParam) - rc.top - m_mfxDragOffset - MFX_SB_BTN;
+            int nTravel = (rc.bottom - rc.top) - 3 * MFX_SB_BTN;
+            int nRange = m_hWnd->nScrollMax - m_hWnd->nScrollMin;
+            if (nTravel > 0 && nRange > 0) {
+                int nPos = m_hWnd->nScrollMin + (y * nRange + nTravel / 2) / nTravel;
+                if (nPos < m_hWnd->nScrollMin) nPos = m_hWnd->nScrollMin;
+                if (nPos > m_hWnd->nScrollMax) nPos = m_hWnd->nScrollMax;
+                MfxSendMsg(hParent, WM_VSCROLL, MAKELONG(SB_THUMBTRACK, nPos), (LPARAM)m_hWnd);
+            }
+        }
+        return 0;
+    case WM_LBUTTONUP:
+        if (m_mfxDragging) {
+            m_mfxDragging = 0;
+            ::ReleaseCapture();
+            MfxSendMsg(hParent, WM_VSCROLL,
+                       MAKELONG(SB_THUMBPOSITION, m_hWnd->nScrollPos), (LPARAM)m_hWnd);
+        }
+        return 0;
     case WM_PAINT:
         MfxCtlPaint();
         return 0;

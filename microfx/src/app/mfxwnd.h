@@ -15,6 +15,9 @@ struct HWND__ {                  // a window: an MFC object + a rect in root-cli
     RECT     rc;                 // client rect; root: {0,0,cx,cy}
     int      bVisible;
     int      bEnabled;           // EnableWindow state (M4 controls)
+    int      nScrollMin;         // SB_CTL scroll state (the inventory scrollbar)
+    int      nScrollMax;
+    int      nScrollPos;
 };
 
 int  MfxIsWnd(HWND h);
