@@ -379,9 +379,12 @@ typedef struct tagOPENFILENAME {
 // system colors
 #define COLOR_WINDOW       5
 #define COLOR_WINDOWTEXT   8
+#define COLOR_HIGHLIGHT    13
+#define COLOR_HIGHLIGHTTEXT 14
 #define COLOR_BTNFACE      15
 #define COLOR_3DFACE       15
 #define COLOR_BTNSHADOW    16
+#define COLOR_GRAYTEXT     17
 #define COLOR_BTNTEXT      18
 #define COLOR_BTNHIGHLIGHT 20
 // GDI: raster ops / DIB / pens / stock objects / device caps

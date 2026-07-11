@@ -1835,7 +1835,7 @@ void CDeskcppView::DrawEntities()
                 MapEntity *pEnt = (MapEntity *)pZone->entities.GetAt(i);
                 if (pEnt->charId >= 0 && pEnt->active == 1)
                 {
-                    Character *pChar = (Character *)pWorld->characters.GetAt(pEnt->charId);
+                    YODA_SIC_FIX(if (pEnt->charId >= pWorld->characters.GetSize()) { BUGLOG(("sic#15 DrawEntities: charId=%d n=%d, OOB read avoided\n", (int)pEnt->charId, (int)pWorld->characters.GetSize())); i++; n--; continue; }) Character *pChar = (Character *)pWorld->characters.GetAt(pEnt->charId);
                     pChar->GetWalkFrameTile(0, 0, &pWorld->tiles);
                     int nFrame = pChar->currentFrame;
                     pZone->SetTile(pEnt->x, pEnt->y, 1, (short)nFrame);
@@ -1948,7 +1948,7 @@ void CDeskcppView::Tick()
                 MapEntity *pEnt = (MapEntity *)pZone->entities.GetAt(i);
                 short nCharId = pEnt->charId;
                 int *pActive;
-                if (nCharId < 0)
+                YODA_SIC_FIX(if (nCharId >= pWorld->characters.GetSize()) { BUGLOG(("sic#15 Tick: charId=%d n=%d, OOB entity skipped\n", (int)nCharId, (int)pWorld->characters.GetSize())); goto NEXT_ENT; }) if (nCharId < 0)
                     goto NEXT_ENT;
                 pActive = &pEnt->active;
                 if (*pActive != 0)
@@ -1960,7 +1960,7 @@ void CDeskcppView::Tick()
                 {
                     short *pBDY = &pEnt->bulletDY;
                     short *pBDX = &pEnt->bulletDX;
-                    Tile *pProj = (Tile *)((Character *)pWorld->characters.GetAt(pC->weaponCharId))->GetProjectileTile(0, *pBDX, *pBDY, 0, &pWorld->tiles);
+                    YODA_SIC_FIX(if (pC->weaponCharId >= pWorld->characters.GetSize()) { BUGLOG(("sic#15 Tick: weaponCharId=%d n=%d, OOB entity skipped\n", (int)pC->weaponCharId, (int)pWorld->characters.GetSize())); goto NEXT_ENT; }) Tile *pProj = (Tile *)((Character *)pWorld->characters.GetAt(pC->weaponCharId))->GetProjectileTile(0, *pBDX, *pBDY, 0, &pWorld->tiles);
                     int t = pWorld->FindTile(pProj);
                     short *pBY = &pEnt->bulletY;
                     short *pBX = &pEnt->bulletX;
@@ -4328,7 +4328,7 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
     int tx = dx + x;
     int ty = dy + y;
 
-    if ((Tile *)pWorld->tiles.GetAt(780) == pWorld->equippedItem)
+    if (YODA_SIC_FIX((pWorld->tiles.GetSize() > 780 || (BUGLOG(("sic#16 ShowWinMessage: tile 780 idx OOB n=%d\n", (int)pWorld->tiles.GetSize())), 0)) &&) (Tile *)pWorld->tiles.GetAt(780) == pWorld->equippedItem)
     {
         int n = pWorld->playerY * 10 + pWorld->playerX;
         if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)
@@ -4389,7 +4389,7 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
             }
         }
     }
-    else if ((Tile *)pWorld->tiles.GetAt(2034) == pWorld->equippedItem && pWorld->goalItemTileId == 0xbd)
+    else if (YODA_SIC_FIX((pWorld->tiles.GetSize() > 2034 || (BUGLOG(("sic#16 ShowWinMessage: tile 2034 idx OOB n=%d\n", (int)pWorld->tiles.GetSize())), 0)) &&) (Tile *)pWorld->tiles.GetAt(2034) == pWorld->equippedItem && pWorld->goalItemTileId == 0xbd)
     {
         int n = pWorld->playerY * 10 + pWorld->playerX;
         if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)

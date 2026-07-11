@@ -13,5 +13,6 @@ int  MfxPlatPollEvent(MFXPLATEVENT *pEv) { pEv->nType = MFXPLAT_EV_NONE; return 
 void MfxPlatPresent(const MFXDIB *, int, int) {}
 void MfxPlatSetCursor(int, const MFXIMG *, const void *, int, int) {}
 void MfxPlatDelay(unsigned) {}
+void MfxPlatMinimize(void) {}
 
 } // extern "C"

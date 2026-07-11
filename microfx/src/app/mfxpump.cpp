@@ -49,12 +49,52 @@ static int   g_nPresentMs      = 8;
 static int   g_bPresentPending = 0;
 static DWORD g_tLastPresent    = 0;
 
+// Menu-bar compositing: the chrome strip (mfxmenu.cpp) is a SEPARATE small DIB, never part of
+// the game's screen DC (so no game coordinate assumption in src/ ever moves). Stitched into one
+// buffer here, right before presenting, by copying whole scanlines — cheap (a few KB) and only
+// runs once per present (already throttled). Falls back to the bare game DIB if the menu bar
+// hasn't initialized yet (defensive; MfxMenuInit always runs before the first present in Run()).
+static unsigned char *g_pComposedBuf = 0;
+static int g_nComposedCap = 0;
+
+// Fills *pOut with the menu-bar-plus-game-view buffer when the menu bar is ready; returns 0 (and
+// leaves *pOut untouched) if the caller should just present/dump the bare game DIB instead.
+static int MfxComposeWindowDib(MFXDIB *pOut)
+{
+    MFXDIB dib;
+    if (!MfxGetDCDib(MfxScreenDC(), &dib) || dib.nWidth <= 0) return 0;
+    MFXDIB dibChrome;
+    if (!MfxMenuGetChromeDib(&dibChrome) || dibChrome.nWidth != dib.nWidth) return 0;
+    int nNeed = dib.nWidth * (dibChrome.nHeight + dib.nHeight);
+    if (nNeed > g_nComposedCap) {
+        free(g_pComposedBuf);
+        g_pComposedBuf = (unsigned char *)malloc((size_t)nNeed);
+        g_nComposedCap = g_pComposedBuf ? nNeed : 0;
+    }
+    if (!g_pComposedBuf) return 0;
+    memcpy(g_pComposedBuf, dibChrome.pBits, (size_t)(dib.nWidth * dibChrome.nHeight));
+    memcpy(g_pComposedBuf + dib.nWidth * dibChrome.nHeight, dib.pBits,
+          (size_t)(dib.nWidth * dib.nHeight));
+    pOut->nWidth = dib.nWidth;
+    pOut->nHeight = dibChrome.nHeight + dib.nHeight;
+    pOut->pBits = g_pComposedBuf;
+    pOut->pPal = dib.pPal;
+    return 1;
+}
+
 static void MfxPresentFrame(void)
 {
     MFXDIB dib;
     if (!g_bMfxPlatUp || !MfxGetDCDib(MfxScreenDC(), &dib)) return;
     g_bPresentPending = 0;                     // every present clears the deferred-flush state
     g_tLastPresent = GetTickCount();
+
+    MFXDIB dibComposed;
+    if (MfxComposeWindowDib(&dibComposed)) {
+        int nChromeH = dibComposed.nHeight - dib.nHeight;
+        MfxPlatPresent(&dibComposed, g_mfxCursorPos.x, g_mfxCursorPos.y + nChromeH);
+        return;
+    }
     MfxPlatPresent(&dib, g_mfxCursorPos.x, g_mfxCursorPos.y);
 }
 
@@ -129,6 +169,20 @@ static void MfxPumpPlatEvents(void)
 
     MFXPLATEVENT ev;
     while (MfxPlatPollEvent(&ev) && !g_mfxQuit) {
+        // menu bar (mfxmenu.cpp): its chrome strip is composited ABOVE the game's screen DC
+        // (MfxPresentFrame), so backend mouse coords arrive in WHOLE-WINDOW space here — events
+        // landing in the top MFX_MENUBAR_H rows belong to the bar/popup subsystem, never the
+        // game (real Win32 doesn't deliver client WM_MOUSEMOVE for menu-bar hits either); every
+        // other mouse event gets ev.y shifted back into game-DC space, unmodified from here on.
+        if (ev.nType == MFXPLAT_EV_MOUSEMOVE || ev.nType == MFXPLAT_EV_LDOWN ||
+            ev.nType == MFXPLAT_EV_LUP || ev.nType == MFXPLAT_EV_RDOWN || ev.nType == MFXPLAT_EV_RUP) {
+            if (ev.y < MFX_MENUBAR_H) {
+                if (ev.nType == MFXPLAT_EV_MOUSEMOVE) MfxMenuHandleMouse(WM_MOUSEMOVE, ev.x, ev.y);
+                else if (ev.nType == MFXPLAT_EV_LDOWN) MfxMenuHandleMouse(WM_LBUTTONDOWN, ev.x, ev.y);
+                continue;
+            }
+            ev.y -= MFX_MENUBAR_H;
+        }
         switch (ev.nType) {
         case MFXPLAT_EV_QUIT:
             // window close → WM_SYSCOMMAND SC_CLOSE: the game intercepts and runs its
@@ -146,6 +200,7 @@ static void MfxPumpPlatEvents(void)
             MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_INACTIVE, 0), 0);
             break;
         case MFXPLAT_EV_KEYDOWN:
+            if (ev.nVk == VK_ESCAPE && MfxMenuActive()) { MfxMenuEscape(); break; }
             g_mfxKeyState[ev.nVk & 0xff] |= 0x80;
             MfxQueueInput(hFocus, WM_KEYDOWN, (WPARAM)ev.nVk, 1);
             break;
@@ -251,7 +306,8 @@ static int MfxTranslateAccel(const MSG *pMsg, HWND hFrame)
         memcpy(&fFlags, pAccel + off, 2);
         memcpy(&key,    pAccel + off + 2, 2);
         memcpy(&cmd,    pAccel + off + 4, 2);
-        if ((fFlags & 0x01) && (fFlags & 0x08) && bCtrl && key == vk) {  // FVIRTKEY+FCONTROL chord
+        int bWantCtrl = (fFlags & 0x08) != 0;                   // FCONTROL
+        if ((fFlags & 0x01) && key == vk && bWantCtrl == bCtrl) {  // FVIRTKEY, chord or plain
             PostMessageA(hFrame, WM_COMMAND, MAKELONG(cmd, 0), 0);
             return 1;
         }
@@ -280,13 +336,16 @@ int CWinThread::Run()
 
     CWinApp *pApp = AfxGetApp();
     const char *pszTitle = (pApp && pApp->m_pszAppName) ? pApp->m_pszAppName : "microfx";
-    int nUp = MfxPlatInit(pszTitle, nW, nH, nScale);
+    // the window is MFX_MENUBAR_H rows taller than the game's screen DC — the menu bar chrome
+    // is composited above it at present time (MfxPresentFrame), never inside it (mfxmenu.cpp).
+    int nUp = MfxPlatInit(pszTitle, nW, nH + MFX_MENUBAR_H, nScale);
     if (nUp < 0) return 1;                     // backend error (it logged the cause)
     if (nUp == 0) return 0;                    // null backend: headless no-op, the M0 contract
     g_bMfxPlatUp = 1;
     g_tMfxRunStart = GetTickCount();
     MfxSetScreenWriteHook(MfxScreenDC(), MfxPresentOnScreenWrite);
     MfxSetClockHook(MfxFlushPendingPresent);
+    MfxMenuInit();
 
     while (!g_mfxQuit) {
         CView *pViewNow = MfxRootWnd() ? ((CFrameWnd *)MfxRootWnd()->pWnd)->GetActiveView() : 0;
@@ -307,6 +366,19 @@ int CWinThread::Run()
         MfxPaintIfDirty();                     // WM_PAINT → CView::OnPaint → OnDraw
         MfxApplyCursor();                      // SetCursor state → backend cursor
         MfxPresentFrame();                     // screen DIB → the platform window
+
+        // debug oracle: YODA_AUTOMOD=<startms>:<vk>:<durms> holds a MODIFIER key's state (no
+        // WM_KEYDOWN dispatch — just GetAsyncKeyState) so YODA_AUTOKEY can test a chord
+        // (e.g. Ctrl+F8 debug dialog) headlessly.
+        if (const char *pszMod = getenv("YODA_AUTOMOD")) {
+            static int nModPhase = 0;
+            int nStart = 0, nVk = 0, nDur = 0;
+            if (sscanf(pszMod, "%d:%d:%d", &nStart, &nVk, &nDur) == 3 && nVk > 0 && nVk < 256) {
+                DWORD now = MfxRunMs();
+                if (nModPhase == 0 && now >= (DWORD)nStart) { nModPhase = 1; g_mfxKeyState[nVk] |= 0x80; }
+                if (nModPhase == 1 && now >= (DWORD)(nStart + nDur)) { nModPhase = 2; g_mfxKeyState[nVk] &= (BYTE)~0x80; }
+            }
+        }
 
         // debug oracle: YODA_AUTOKEY=<startms>:<vk>:<durms> holds a virtual key over the
         // real WM_KEYDOWN/WM_KEYUP dispatch path — the input half of the walk oracle.
@@ -343,6 +415,43 @@ int CWinThread::Run()
             }
         }
 
+        // debug oracle: YODA_AUTOCLICK=<ms>:<x>:<y>[,<ms>:<x>:<y>...] (up to 4) synthesizes a
+        // click at a WINDOW coordinate — the mouse half of the menu-bar oracle (headless
+        // click-testing without a live pointer). y < MFX_MENUBAR_H hits the bar itself;
+        // y >= MFX_MENUBAR_H rides the normal capture-aware routing (popup rows, game controls).
+        if (const char *pszClick = getenv("YODA_AUTOCLICK")) {
+            static int nPhase = 0, nCount = -1;
+            static int nStarts[4], nXs[4], nYs[4];
+            if (nCount < 0) {
+                nCount = 0;
+                const char *p = pszClick;
+                while (*p && nCount < 4) {
+                    int nAdv = 0;
+                    if (sscanf(p, "%d:%d:%d%n", &nStarts[nCount], &nXs[nCount], &nYs[nCount], &nAdv) != 3)
+                        break;
+                    nCount++;
+                    p += nAdv;
+                    if (*p == ',') p++;
+                }
+            }
+            if (nPhase < nCount && MfxRunMs() >= (DWORD)nStarts[nPhase]) {
+                int nX = nXs[nPhase], nY = nYs[nPhase];
+                if (nY < MFX_MENUBAR_H) {
+                    MfxMenuHandleMouse(WM_MOUSEMOVE, nX, nY);
+                    MfxMenuHandleMouse(WM_LBUTTONDOWN, nX, nY);
+                } else {
+                    POINT pt = { nX, nY - MFX_MENUBAR_H };
+                    g_mfxCursorPos = pt;
+                    HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(pt);
+                    MfxQueueInput(hTarget ? hTarget : hView, WM_MOUSEMOVE, MfxMouseFlags(),
+                                  MAKELPARAM(pt.x, pt.y));
+                    MfxQueueInput(hTarget ? hTarget : hView, WM_LBUTTONDOWN,
+                                  MfxMouseFlags() | MK_LBUTTON, MAKELPARAM(pt.x, pt.y));
+                }
+                nPhase++;
+            }
+        }
+
         // debug oracle: YODA_SHOT=<prefix>[:count] dumps the screen DIB as <prefix>NN.bmp
         // every 2s (default 8 shots) — lets a headless-ish driver verify boot/render/
         // animation without eyes.
@@ -357,7 +466,11 @@ int CWinThread::Run()
             if (nShots < nMaxShots && now >= nNextShot) {
                 char szPath[512];
                 snprintf(szPath, sizeof szPath, "%s%02d.bmp", szPfx, nShots++);
-                MfxWriteDibBMP(MfxScreenDC(), szPath);
+                MFXDIB dibComposed;
+                if (MfxComposeWindowDib(&dibComposed))
+                    MfxWriteMFXDIBToBMP(&dibComposed, szPath);
+                else
+                    MfxWriteDibBMP(MfxScreenDC(), szPath);
                 nNextShot = now + 2000;
             }
         }

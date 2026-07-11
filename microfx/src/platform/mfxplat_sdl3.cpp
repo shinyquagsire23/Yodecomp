@@ -71,6 +71,11 @@ extern "C" void MfxPlatShutdown(void)
     SDL_Quit();
 }
 
+extern "C" void MfxPlatMinimize(void)
+{
+    if (s_pWin) SDL_MinimizeWindow(s_pWin);
+}
+
 // ── events ───────────────────────────────────────────────────────────────────────────────────
 
 // SDL keycode → Win32 VK (only what the game's OnKeyDown/OnKeyUp/GetAsyncKeyState read)

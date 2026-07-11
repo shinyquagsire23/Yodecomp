@@ -162,16 +162,34 @@ static LRESULT MfxCallEntry(CWnd *pWnd, const AFX_MSGMAP_ENTRY *pE, WPARAM wPara
     return 0;
 }
 
-// MFC WM_COMMAND routing order: active view → frame → app.
+// MFC WM_COMMAND routing order: active view → document → frame → app (CView::OnCmdMsg tries
+// GetDocument() before falling through to its parent frame). CDocument is a CCmdTarget but NOT
+// a CWnd, so it can't ride the CWnd-typed aTargets/MfxCallEntry path the other targets use below
+// — it gets its own small dispatch, same shape as the app fallback already had.
 static LRESULT MfxDispatchCommand(CWnd *pWnd, WPARAM wParam, LPARAM lParam)
 {
     UINT nID = LOWORD(wParam), nCode = HIWORD(wParam);
     CWnd *pFrame = MfxRootWnd() ? MfxRootWnd()->pWnd : 0;
     CView *pView = pFrame ? ((CFrameWnd *)pFrame)->GetActiveView() : 0;
-    CWnd *aTargets[3] = { pView, pFrame, 0 };
+
+    if (pView) {
+        const AFX_MSGMAP_ENTRY *pE = MfxFindEntry(pView, WM_COMMAND, nCode, nID);
+        if (pE) return MfxCallEntry(pView, pE, wParam, lParam);
+    }
+    CDocument *pDoc = pView ? pView->GetDocument() : 0;
+    if (pDoc) {
+        const AFX_MSGMAP_ENTRY *pE = MfxFindEntry(pDoc, WM_COMMAND, nCode, nID);
+        if (pE && pE->nSig == AfxSig_vv) {
+            union { AFX_PMSG pfn; void (CCmdTarget::*vv)(); } m;
+            m.pfn = pE->pfn;
+            (pDoc->*m.vv)();
+            return 0;
+        }
+    }
+    CWnd *aTargets[2] = { pFrame, 0 };
     if (pWnd != pView && pWnd != pFrame)
-        aTargets[2] = pWnd;                       // a directly-addressed control parent
-    for (int i = 0; i < 3; i++) {
+        aTargets[1] = pWnd;                       // a directly-addressed control parent
+    for (int i = 0; i < 2; i++) {
         if (!aTargets[i]) continue;
         const AFX_MSGMAP_ENTRY *pE = MfxFindEntry(aTargets[i], WM_COMMAND, nCode, nID);
         if (pE) return MfxCallEntry(aTargets[i], pE, wParam, lParam);
@@ -187,6 +205,38 @@ static LRESULT MfxDispatchCommand(CWnd *pWnd, WPARAM wParam, LPARAM lParam)
         }
     }
     return 0;
+}
+
+// CN_UPDATE_COMMAND_UI query (menu bar, mfxmenu.cpp): the same view→document→frame→app chain as
+// MfxDispatchCommand, but calling an ON_UPDATE_COMMAND_UI handler (AfxSig_cmdui) synchronously —
+// real MFC's CFrameWnd::OnInitMenuPopup shape, minus the popup-tracking part (that's mfxmenu.cpp).
+// Every target here is addressed as CCmdTarget* (not CWnd*) specifically so CDocument — a
+// CCmdTarget but not a CWnd — rides the exact same lookup as the others.
+BOOL MfxQueryCmdUI(CCmdUI *pCmdUI)
+{
+    CWnd *pFrame = MfxRootWnd() ? MfxRootWnd()->pWnd : 0;
+    CView *pView = pFrame ? ((CFrameWnd *)pFrame)->GetActiveView() : 0;
+    CDocument *pDoc = pView ? pView->GetDocument() : 0;
+    CCmdTarget *aTargets[4] = { (CCmdTarget *)pView, (CCmdTarget *)pDoc,
+                                (CCmdTarget *)pFrame, (CCmdTarget *)AfxGetApp() };
+    UINT nID = pCmdUI->m_nID;
+    int bHaveCommand = 0;
+    for (int i = 0; i < 4; i++) {
+        if (!aTargets[i]) continue;
+        if (!bHaveCommand && MfxFindEntry(aTargets[i], WM_COMMAND, CN_COMMAND, nID))
+            bHaveCommand = 1;
+        const AFX_MSGMAP_ENTRY *pE = MfxFindEntry(aTargets[i], WM_COMMAND, CN_UPDATE_COMMAND_UI, nID);
+        if (pE) {
+            union { AFX_PMSG pfn; void (CCmdTarget::*cmdui)(CCmdUI *); } m;
+            m.pfn = pE->pfn;
+            (aTargets[i]->*m.cmdui)(pCmdUI);
+            return TRUE;
+        }
+    }
+    // no ON_UPDATE_COMMAND_UI anywhere: real MFC leaves CCmdUI's default (enabled) if a plain
+    // ON_COMMAND handler exists; a totally unhandled id is dead — gray it out.
+    if (!bHaveCommand) pCmdUI->m_bEnabled = FALSE;
+    return bHaveCommand;
 }
 
 LRESULT MfxDispatchMsg(CWnd *pWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -372,7 +422,13 @@ BOOL EnableWindow(HWND hWnd, BOOL bEnable)
     if (!MfxIsWnd(hWnd)) return FALSE;
     int bWas = hWnd->bEnabled;
     hWnd->bEnabled = bEnable ? 1 : 0;
-    if (bWas != hWnd->bEnabled && hWnd->bVisible && hWnd->pWnd && hWnd->pWnd->m_mfxRedraw)
+    // NOT gated on m_mfxRedraw (unlike ShowWindow just above, same reasoning: an explicit
+    // state-changing call always repaints). TextDialog::ScrollTextLine's keyboard-scroll path
+    // calls btnDialogClose.EnableWindow(1) with no accompanying ShowWindow — the WM_SETREDRAW(0)
+    // batched at dialog setup (src/DeskcppView.cpp TextDialog::Run) is never explicitly turned
+    // back on for the button, only for wndDialogText; gating here left the Close button visually
+    // stuck grayed after reaching bottom-of-text via keyboard until some other repaint happened.
+    if (bWas != hWnd->bEnabled && hWnd->bVisible && hWnd->pWnd)
         hWnd->pWnd->MfxCtlPaint();                // bitmap buttons swap to the X/U face
     return !bWas;
 }

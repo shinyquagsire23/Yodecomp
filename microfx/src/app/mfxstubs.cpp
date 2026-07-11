@@ -3,6 +3,7 @@
 // A stub that must not be silently hit at runtime logs once via MFX_STUB.
 #include <afxwin.h>
 #include <afxcmn.h>
+#include <mfxplat.h>           // MfxPlatMinimize (SC_MINIMIZE / "Hide Me!")
 #include <ctype.h>             // tolower (INI profile lookup)
 #ifdef __APPLE__
 #include <mach-o/dyld.h>       // _NSGetExecutablePath (GetModuleFileNameA)
@@ -66,7 +67,10 @@ void CWnd::OnGetMinMaxInfo(MINMAXINFO*) {}
 BOOL CWnd::OnQueryNewPalette() { return FALSE; }
 void CWnd::OnPaletteChanged(CWnd*) {}
 void CWnd::OnPaletteIsChanging(CWnd*) {}
-void CWnd::OnSysCommand(UINT, LPARAM) {}
+void CWnd::OnSysCommand(UINT nID, LPARAM)
+{
+    if ((nID & 0xfff0) == SC_MINIMIZE) MfxPlatMinimize();   // "Hide Me!" / real Win32 title-bar minimize
+}
 BOOL CWnd::OnQueryEndSession() { return TRUE; }
 
 BEGIN_MESSAGE_MAP(CWnd, CCmdTarget)

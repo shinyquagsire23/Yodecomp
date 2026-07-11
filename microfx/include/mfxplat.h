@@ -85,6 +85,10 @@ void MfxPlatSetCursor(int nMode, const MFXIMG *pImg, const void *pKey, int xHot,
 // GetTickCount/mfx_clock (mfxcore.cpp), which a port retargets there once.
 void MfxPlatDelay(unsigned nMs);
 
+// Minimize/hide the window (WM_SYSCOMMAND SC_MINIMIZE — the game's "Hide Me!" command). A
+// backend with no such concept (e.g. a handheld) can no-op.
+void MfxPlatMinimize(void);
+
 // ── audio ────────────────────────────────────────────────────────────────────────────────────
 
 // The neutral WaveMix/MCI contract layer (mfxsnd.cpp) owns handles, channel policy (LRU

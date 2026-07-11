@@ -17,6 +17,7 @@
 #include <microfx.h>
 #include "mfxwnd.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <strings.h>
 #include <dirent.h>
@@ -613,7 +614,17 @@ CString MfxFileDialogResolve(UINT nChosenId, UINT idNew, UINT idRow0, const CStr
 
 int CFileDialog::DoModal()
 {
+    // Real Windows' common file dialog silently falls back to the working directory when
+    // lpstrInitialDir names a directory that doesn't exist — which is exactly what it's handed
+    // here: CDeskcppDoc::CDeskcppDoc's registry-Install-Path-else-scan-fixed-drives fallback
+    // computes a real-looking guess on real Windows, but on this port RegOpenKeyExA always
+    // fails and GetDriveTypeA always reports DRIVE_NO_ROOT_DIR (no real registry/drives to
+    // probe), so the scan exhausts and the "directory" ends up literally "YODA". Match Windows'
+    // graceful fallback here instead of silently scanning (and saving into) a directory that
+    // was never going to exist — used for BOTH the row-list scan and the resolved save path
+    // below, so Save and Load always agree on the same real directory.
     const char *pszDir = (m_ofn.lpstrInitialDir && *m_ofn.lpstrInitialDir) ? m_ofn.lpstrInitialDir : ".";
+    if (DIR *pProbe = opendir(pszDir)) closedir(pProbe); else pszDir = ".";
     const char *pszExt = m_ofn.lpstrDefExt ? (const char *)m_ofn.lpstrDefExt : "wld";
 
     enum { MAX_FOUND = 8, ID_NEW = 90, ID_ROW0 = 100 };

@@ -23,6 +23,10 @@ int MfxGetDCDib(HDC hdc, MFXDIB *pOut);
 // Write hdc's selected DIB as an 8-bit indexed .bmp (palette included). 1 on success.
 int MfxWriteDibBMP(HDC hdc, const char *pszPath);
 
+// Write an already-fetched MFXDIB (e.g. a synthetic composed buffer with no owning HDC — the
+// menu-bar-plus-game-view compose in mfxpump.cpp) as an 8-bit indexed .bmp. 1 on success.
+int MfxWriteMFXDIBToBMP(const MFXDIB *pDib, const char *pszPath);
+
 // Present-on-screen-write hook: after any primitive whose destination is hdcScreen, gdi calls
 // pfn. The pump registers a dirty-marker here (presents are deferred and flushed per pump
 // iteration / via the clock hook below) so game code that animates the screen inside a single

@@ -429,6 +429,9 @@ DWORD GetSysColor(int nIndex)
     case 20: return RGB(255, 255, 255);     // COLOR_3DHILIGHT→ sysPalette[3]
     case 8:  return RGB(0, 0, 0);           // COLOR_WINDOWTEXT
     case 5:  return RGB(255, 255, 255);     // COLOR_WINDOW
+    case 13: return RGB(0, 0, 128);         // COLOR_HIGHLIGHT (menu selection bar)
+    case 14: return RGB(255, 255, 255);     // COLOR_HIGHLIGHTTEXT
+    case 17: return RGB(128, 128, 128);     // COLOR_GRAYTEXT (disabled menu items)
     default: return RGB(192, 192, 192);
     }
 }
@@ -1016,29 +1019,35 @@ extern "C" int MfxGetDCDib(HDC hdc, MFXDIB *pOut)
     return 1;
 }
 
-extern "C" int MfxWriteDibBMP(HDC hdc, const char *pszPath)
+extern "C" int MfxWriteMFXDIBToBMP(const MFXDIB *pDib, const char *pszPath)
 {
-    MFXDIB dib;
-    if (!MfxGetDCDib(hdc, &dib)) return 0;
+    if (!pDib || !pDib->pBits) return 0;
     FILE *f = fopen(pszPath, "wb");
     if (!f) return 0;
 
     const unsigned nPalBytes = 256 * 4;
     const unsigned nOffBits  = 14 + 40 + nPalBytes;
-    const unsigned nImage    = (unsigned)dib.nWidth * (unsigned)dib.nHeight; // width is 4-aligned
+    const unsigned nImage    = (unsigned)pDib->nWidth * (unsigned)pDib->nHeight; // width is 4-aligned
     unsigned char hdr[14 + 40] = { 'B', 'M' };
     unsigned nSize = nOffBits + nImage;
     memcpy(hdr + 2,  &nSize,   4);
     memcpy(hdr + 10, &nOffBits, 4);
     unsigned n40 = 40;               memcpy(hdr + 14, &n40, 4);
-    int w = dib.nWidth;              memcpy(hdr + 18, &w, 4);
-    int h = dib.nHeight;             memcpy(hdr + 22, &h, 4);   // positive = bottom-up
+    int w = pDib->nWidth;            memcpy(hdr + 18, &w, 4);
+    int h = pDib->nHeight;           memcpy(hdr + 22, &h, 4);   // positive = bottom-up
     unsigned short one = 1, bpp = 8; memcpy(hdr + 26, &one, 2); memcpy(hdr + 28, &bpp, 2);
     unsigned nClr = 256;             memcpy(hdr + 34, &nImage, 4); memcpy(hdr + 46, &nClr, 4);
     fwrite(hdr, 1, sizeof(hdr), f);
-    fwrite(dib.pPal, 1, nPalBytes, f);              // RGBQUAD is already BMP palette order
-    for (int row = dib.nHeight - 1; row >= 0; row--) // our bits are top-down; BMP wants bottom-up
-        fwrite(dib.pBits + (size_t)row * dib.nWidth, 1, (size_t)dib.nWidth, f);
+    fwrite(pDib->pPal, 1, nPalBytes, f);              // RGBQUAD is already BMP palette order
+    for (int row = pDib->nHeight - 1; row >= 0; row--) // our bits are top-down; BMP wants bottom-up
+        fwrite(pDib->pBits + (size_t)row * pDib->nWidth, 1, (size_t)pDib->nWidth, f);
     fclose(f);
     return 1;
+}
+
+extern "C" int MfxWriteDibBMP(HDC hdc, const char *pszPath)
+{
+    MFXDIB dib;
+    if (!MfxGetDCDib(hdc, &dib)) return 0;
+    return MfxWriteMFXDIBToBMP(&dib, pszPath);
 }

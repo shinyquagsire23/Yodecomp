@@ -1,6 +1,6 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M5 DIALOGS + ACCELERATORS COMPLETE (2026-07-10, v80) — CDialog::DoModal is REAL:
+*Status: M5 DIALOGS + ACCELERATORS + VISIBLE MENU BAR COMPLETE (2026-07-10, v83) — CDialog::DoModal is REAL:
 parses an RT_DIALOG template from the embedded .res, creates a child control per DLGITEMTEMPLATE
 (push/def buttons, static labels w/ word-wrap + alignment, SS_ICON, group boxes, horizontal
 scrollbars), converts dialog-units → px from the dialog font's base units, calls the virtual
@@ -13,8 +13,9 @@ translate to WM_COMMAND in CWinThread::Run (Ctrl+A About, Ctrl+C/G/W the sliders
 etc.) — no OS menu bar needed. CFileDialog::DoModal is now REAL too (v80 tail): SDL has no
 native common-file dialog, so it lists `*.<ext>` files in the save dir as clickable rows (Save
 adds a leading "(new)" row for the default filename) instead of parsing a DLGTEMPLATE — see the
-milestone entry below. Remaining: a VISIBLE menu bar (deferred — accelerators cover the
-commands), INDY×SDL in-game playtest.
+milestone entry below. (v83) A REAL VISIBLE MENU BAR landed too, user-confirmed live — see lesson
+20. Remaining: INDY×SDL in-game playtest (verify SDL3 MIDI), plain-key accelerators (P/F1), a
+pre-existing DEMO-variant CFile::Read crash found but not yet isolated (CLAUDE.md pickup).
 New test hooks: YODA_AUTOCMD=<ms>:<cmdhex> posts a command deterministically; YODA_DLGSHOT=<path>
 dumps the composited dialog (YODA_SHOT stalls inside modal loops). ⭐ NOTE (user-confirmed vs the
 original): slider "snap" is EMERGENT from each dialog's byte-matched SetScrollRange, not special-cased
@@ -289,6 +290,34 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
     ⚠ SDL2 and SDL3 export the SAME symbols: never link both runtimes into one binary (CMake
     rejects mixed pairings; MICROFX_HAS_SDL now only gates zone_view's --show, which is
     SDL2-API and thus absent under the sdl3 backend — port it to MfxPlat if missed).
+20. **A visible menu bar without touching the game's screen DC (v83).** The bar lives in its
+    OWN small chrome HDC/DIBSection, palette-resynced (`::SetDIBColorTable`) to the live game
+    DC on every redraw — the SAME nearest-color-match pipeline dialogs already use for
+    GetSysColor chrome, just applied to a second DC instead of growing the game's own DIB (which
+    would have meant every existing coordinate/client-rect assumption in src/ needing a
+    MFX_MENUBAR_H offset — far riskier). mfxpump.cpp stitches chrome-rows + game-rows into one
+    buffer at present time via plain scanline memcpy; the window is taller than the game DC, the
+    DC itself never changes size. Mouse events below the bar's height are intercepted BEFORE the
+    normal WM_* pipeline (matches real Win32 — menu-bar hits never generate client mouse
+    messages either); a clicked POPUP, by contrast, lives INSIDE the game's normal screen-DC
+    space and rides the EXISTING dialog child-window/SetCapture/overlay-repaint machinery
+    unmodified — reuse, not a new compositing path. Before a popup opens, per-item enable/check
+    state comes from a new `MfxQueryCmdUI` (mfxwnd.cpp) that walks the SAME View→Document→
+    Frame→App chain WM_COMMAND dispatch uses — which is how a real, pre-existing bug got found:
+    **CDocument was missing from that chain entirely** (only View→Frame→App was implemented),
+    so every `CDeskcppDoc`-owned command (New World/Save/Load/Replay/Sound+Music toggle) was
+    unreachable via ANY WM_COMMAND path, not just the menu — this predates v83 and just never
+    had a UI element that could trigger it before. `CDocument` is a `CCmdTarget` but not a
+    `CWnd`, so it needs its own small dispatch (can't ride the CWnd-typed `MfxCallEntry` the
+    other targets use). Two smaller fixes surfaced by the same live-testing pass: `EnableWindow`
+    was gating its repaint on a stale WM_SETREDRAW flag that a caller (TextDialog's keyboard-
+    scroll path) never re-enabled — fixed by making it repaint unconditionally like `ShowWindow`
+    already does in the same file; and `CFileDialog` didn't fall back to the working directory
+    when `lpstrInitialDir` named a nonexistent one (`CDeskcppDoc`'s real registry-else-drive-scan
+    install-path fallback produces a literal `"YODA"` directory on this port, since
+    `RegOpenKeyExA`/`GetDriveTypeA` are correctly-stubbed no-ops here — real Windows' COMDLG32
+    tolerates that gracefully, our custom picker didn't) — fixed with an `opendir` probe +
+    fallback to `"."`, used consistently for both the row-list scan and the resolved save path.
 
 ## What runs vs what's stubbed (v74)
 
@@ -529,8 +558,8 @@ microfx/
   - **menus via accelerators** (mfxpump.cpp): the game's RT_ACCELERATOR id 2 table is loaded and
     Ctrl-chord WM_KEYDOWNs translate to WM_COMMAND in CWinThread::Run only (a modal dialog does NOT
     translate the frame's accelerators). Delivers About/Difficulty/GameSpeed/WorldSize/Stats/New/
-    Save/… without an OS menu bar. Plain-key accels (P pause, F1 help) deferred (avoid cheat-text
-    conflict).
+    Save/… without an OS menu bar. Plain-key accels (P pause, F1 help) still deferred — v83
+    confirmed it's SAFE (neither cheat code contains 'p'), just not yet implemented.
   - VERIFIED: About (0xe140) + Difficulty (0x8005) screenshots faithful; anchor 211 (zero src/
     edits — all microfx/); bugscan 0/0/0, vtcheck 10, msgcheck 11 CLEAN.
   - **CFileDialog::DoModal (v80 tail, ZERO src/ edits — microfx/src/app/mfxdlg.cpp)**: SDL has no
@@ -555,11 +584,14 @@ microfx/
     against a real temp directory; the full modal loop can't be driven headlessly (GetMessageA
     bails instantly with no SDL window, same M4 lesson 12 as everything else here), so this is the
     verification ceiling reachable without a live windowed run.
-  - REMAINING: a VISIBLE menu bar + dropdowns (deferred; accelerators cover the commands); F8
-    status box (CTextDialog 0xbf) + Stats (0xe1, demo template corrupt) exercise DDX but aren't
-    accel- or command-triggerable — spot-check via a live Ctrl+F8 / the FULL build; INDY×SDL
-    in-game playtest; live-window screenshot verification of the save/load picker itself (only
-    unit-tested so far, not screenshot-confirmed like About/Difficulty were).
+  - **M5 tail (v83): a REAL VISIBLE MENU BAR** — see lesson 20 for the mechanism; user-confirmed
+    live via extensive interactive testing (all top-level menus, item enable/gray state, New
+    World/Replay Story, Save/Load's file listing after the CFileDialog fix below). The save/load
+    picker itself is now also live-confirmed working (previously only unit-tested).
+  - REMAINING: F8 status box (CTextDialog 0xbf) + Stats (0xe1, demo template corrupt) exercise
+    DDX but aren't accel- or command-triggerable — spot-check via a live Ctrl+F8 / the FULL
+    build; INDY×SDL in-game playtest; plain-key accelerators (P pause, F1 help — confirmed safe
+    to wire up, see CLAUDE.md pickup).
   - **inventory-scroll present-batching fix (playtest report: ~2s stall clicking the down
     arrow)**: `microfx/src/app/mfxctl.cpp`'s `CScrollBar::MfxCtlProc` sends `WM_VSCROLL`
     synchronously to the game's real `InvScrollBar::OnVScroll` (the v79h fix that made this

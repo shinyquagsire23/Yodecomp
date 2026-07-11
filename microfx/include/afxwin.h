@@ -43,6 +43,31 @@
 #define AFX_DATA
 #define DEBUG_NEW new
 
+// diagnostic-only OOB trap for CObArray/CWordArray GetAt/SetAt (2026-07-11, engine-bugs.md #15
+// hunt): prints the array/index/size and a backtrace to stderr BEFORE the ASSERT aborts, so a
+// live crash pinpoints the exact call site instead of just "GetAt, line 324". Remove once #15's
+// real trigger is confirmed and permanently guarded.
+#if !defined(NDEBUG) && (defined(__APPLE__) || defined(__linux__))
+#include <execinfo.h>
+static inline void MfxArrayOOBTrap(int i, int n, const char *pszWhat)
+{
+    if (i >= 0 && i < n) return;
+    void *frames[32];
+    int nFrames = backtrace(frames, 32);
+    fprintf(stderr, "MfxArrayOOBTrap: %s(i=%d) n=%d — OUT OF BOUNDS\n", pszWhat, i, n);
+    backtrace_symbols_fd(frames, nFrames, 2);
+    FILE *fLog = fopen("yoda_crash.log", "a");
+    if (fLog) {
+        fprintf(fLog, "MfxArrayOOBTrap: %s(i=%d) n=%d — OUT OF BOUNDS\n", pszWhat, i, n);
+        char **ppszSyms = backtrace_symbols(frames, nFrames);
+        if (ppszSyms) { for (int k = 0; k < nFrames; k++) fprintf(fLog, "%s\n", ppszSyms[k]); free(ppszSyms); }
+        fclose(fLog);
+    }
+}
+#else
+static inline void MfxArrayOOBTrap(int, int, const char *) {}
+#endif
+
 class CObject;
 class CArchive;
 class CFile;
@@ -321,8 +346,8 @@ public:
     int  GetSize() const { return m_nSize; }
     int  GetUpperBound() const { return m_nSize - 1; }
     void SetSize(int nNewSize, int nGrowBy = -1);
-    CObject* GetAt(int i) const { ASSERT(i >= 0 && i < m_nSize); return m_pData[i]; }
-    void SetAt(int i, CObject* p) { ASSERT(i >= 0 && i < m_nSize); m_pData[i] = p; }
+    CObject* GetAt(int i) const { MfxArrayOOBTrap(i, m_nSize, "CObArray::GetAt"); ASSERT(i >= 0 && i < m_nSize); return m_pData[i]; }
+    void SetAt(int i, CObject* p) { MfxArrayOOBTrap(i, m_nSize, "CObArray::SetAt"); ASSERT(i >= 0 && i < m_nSize); m_pData[i] = p; }
     CObject*& ElementAt(int i) { return m_pData[i]; }
     CObject* operator[](int i) const { return GetAt(i); }
     CObject*& operator[](int i) { return ElementAt(i); }
@@ -347,8 +372,8 @@ public:
     int  GetSize() const { return m_nSize; }
     int  GetUpperBound() const { return m_nSize - 1; }
     void SetSize(int nNewSize, int nGrowBy = -1);
-    WORD GetAt(int i) const { ASSERT(i >= 0 && i < m_nSize); return m_pData[i]; }
-    void SetAt(int i, WORD w) { ASSERT(i >= 0 && i < m_nSize); m_pData[i] = w; }
+    WORD GetAt(int i) const { MfxArrayOOBTrap(i, m_nSize, "CWordArray::GetAt"); ASSERT(i >= 0 && i < m_nSize); return m_pData[i]; }
+    void SetAt(int i, WORD w) { MfxArrayOOBTrap(i, m_nSize, "CWordArray::SetAt"); ASSERT(i >= 0 && i < m_nSize); m_pData[i] = w; }
     WORD& ElementAt(int i) { return m_pData[i]; }
     WORD operator[](int i) const { return GetAt(i); }
     WORD& operator[](int i) { return ElementAt(i); }

@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-10, v72)
+## Where the project stands (2026-07-11, v84)
 
 Phases A–G (byte-matching YodaDemo.exe's app region) are **COMPLETE & PARKED**: **211 functions byte-exact /
 99.17 % coverage**, every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked
@@ -34,8 +34,21 @@ Phase H (extension — functional correctness, not byte-matching) status:
   clickable rows; unit-tested via new `dlg_smoke` harness, not yet live-screenshot-verified).
   v81: deferred-present perf fix (user: "MUCH snappier"). v82: platform-BACKEND split
   (mfxplat.h contract; neutral pump/snd + swappable backend TUs — sdl3 (new default,
-  user-confirmed), sdl2, null; a DS port = two new files). Next: a visible menu bar
-  (accelerators substitute for now), INDY×SDL in-game playtest (verify SDL3 MIDI).
+  user-confirmed), sdl2, null; a DS port = two new files). v83: a REAL VISIBLE MENU BAR
+  (user-confirmed live) — chrome strip composited above the game's screen DC (own DC/palette,
+  zero game-coordinate changes), dropdown popups riding the existing dialog child/capture
+  machinery, full CN_UPDATE_COMMAND_UI wiring; found + fixed 4 real bugs along the way
+  (CDeskcppDoc was missing from WM_COMMAND routing entirely — see PLAN_COMPLETED.md ⏮ v83).
+  v84: INDY×SDL live playtest — MIDI audible (v82 backend split confirmed working), P pause
+  hotkey wired + user-confirmed, Hide Me! wired (new `MfxPlatMinimize` platform-contract hook)
+  + user-confirmed, and a real GAME_INDY-only crash fixed + user-confirmed
+  (`ShowWinMessage`'s Yoda-hardcoded tile ids 780/2034 read OOB against Indy's smaller tile
+  catalog on nearly every bump/talk interaction — docs/engine-bugs.md #16; a `MfxArrayOOBTrap`
+  diagnostic, kept in `microfx/include/afxwin.h`, pinpointed it via a live backtrace after an
+  initial guess — `charId` bounds in `Tick`/`DrawEntities`, #15 — proved to be a red herring).
+  Still broken (live-confirmed, next session): F8 debug-info dialog (Ctrl+F8), Statistics menu
+  item — see pickup. A pre-existing DEMO-variant `CFile::Read` crash found in v83 is still
+  unisolated.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -76,6 +89,15 @@ config matrix. Every extension is ADDITIVE — ifdefs / a platform HAL — and *
 config's PREPROCESSED TOKENS identical** (guard so the Yoda/demo/Win32 path is the fall-through). When editing
 shared TUs, watch #line provenance: adding/removing source LINES mid-file can rotate a TU's codegen dial even
 when tokens are neutral — prefer end-of-file additions / same-line decls (lesson #23).
+
+⭐ **YODA_SIC_FIX inside a boolean expression (v84):** `YODA_SIC_FIX(x)` expands to EMPTY in anchor
+builds — embedding it mid-expression (e.g. `if (A && YODA_SIC_FIX(B) && C)`) leaves a dangling `&&`
+and fails to COMPILE the anchor. The safe shape is a short-circuit clause PREPENDED as its own
+complete `(bool) &&`/`||` term: `if (YODA_SIC_FIX((cond || (BUGLOG((...)), 0)) &&) A && B)` — in
+anchor mode this collapses to `if ( A && B)` (identical tokens, harmless whitespace); in bugfix mode
+it adds a real short-circuiting guard term before the original condition ever evaluates. Used to fix
+docs/engine-bugs.md #16 (`ShowWinMessage`'s hardcoded tile ids OOB on Indy's smaller catalog) without
+touching a single original token or line count.
 
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
@@ -232,108 +254,116 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v82 — v81 batching fix USER-CONFIRMED ("much snappier", transitions/intro fine); v82 platform-backend split (mfxplat.h, lesson 19) + SDL3 backends USER-CONFIRMED (visuals+audio) and now the desktop default; NEXT: visible menu bar + INDY×SDL playtest (verify SDL3 MIDI there); anchor untouched)
+### ⏭ NEXT SESSION PICKUP (2026-07-11 v84 — INDY×SDL LIVE PLAYTEST: a real GAME_INDY crash found +
+fixed + USER-CONFIRMED, plus Hide Me!/P-pause wired + USER-CONFIRMED; F8 debug dialog and the
+Statistics menu item are LIVE-CONFIRMED STILL BROKEN — top of next session's list, see below)
 
-**▶ v80 this session (H4 M5, ZERO src/ edits — all microfx/): CDialog::DoModal is REAL.**
-New `microfx/src/app/mfxdlg.cpp`: parses an RT_DIALOG template (MfxFindResourceData(5) serves
-the raw blob; parse mirrors tools/reslib.py parse_dlg32), maps dialog-units→px from the dialog
-FONT's base units (52-char extent/26→baseX, tmHeight→baseY, px=MulDiv(dlu,base,4|8)), creates one
-internal `MfxDlgItem:CWnd` per control at an ABSOLUTE root-client rect, calls virtual OnInitDialog
-(→ DoDataExchange → real DDX_Text), runs a Win32 modal loop (Enter→OnOK/Esc→OnCancel, outside-click
-swallowed, headless GetMessageA→auto-IDCANCEL so game_walk never hangs). Control kinds by class atom
-(0x80 button / 0x82 static / 0x84 scrollbar): push/def button (bevel + BN_CLICKED via queue),
-word-wrapping static (L/C/R align), SS_ICON (DrawIcon), group box, HORIZONTAL scrollbar (→ WM_HSCROLL
-to the game's own OnHScroll). Dialog frame = a first KIND_DLGFRAME child (navy caption + bold title +
-raised bevel + black frame), z-ordered under controls by MfxPaintChildren (same shared-DIB compositing
-as the M4 bubble). GetDlgItem + CenterWindow now REAL (mfxwnd.cpp); CDialog map gained
-ON_COMMAND(IDOK/IDCANCEL). Menus delivered via the game's REAL accelerator table (RT_ACCELERATOR id 2):
-Ctrl-chord WM_KEYDOWN → WM_COMMAND in CWinThread::Run ONLY (mfxpump.cpp) — Ctrl+A About, Ctrl+C/G/W the
-sliders, Ctrl+T Stats, Ctrl+N/S/…; no OS menu bar needed. VERIFIED by screenshot: About (0xe140) and
-Difficulty (0x8005) faithful. New test hooks: `YODA_AUTOCMD=<startms>:<cmdhex>` posts one command
-deterministically; `YODA_DLGSHOT=<path>` dumps the composited dialog (YODA_SHOT stalls in modal loops).
-⭐ New lessons 14-16 (docs/phase-h4-sdl.md): DDX_Text overloads CANNOT be extern "C" (mangled-ref link
-fail); dialog controls carry ABSOLUTE rects in the flat coord model (CenterWindow shifts dialog+children
-by the delta); a new microfx/src file needs a `cmake -B build-sdl` reconfigure (GLOB is configure-time →
-"Undefined symbols" despite compiling). ⭐ Slider "snap" is EMERGENT from each dialog's byte-matched
-SetScrollRange (user-confirmed vs original): Difficulty 1-100 continuous, WorldSize 1-3 snaps to
-Small/Med/Large — the integer thumb math reflects both, no special-casing.
+**▶ v84 — ✅ Indy indoor-talk/bump crash FIXED, USER-CONFIRMED** (docs/engine-bugs.md #16). Root
+cause found via a live backtrace, NOT guesswork: `CDeskcppView::ShowWinMessage` (called from
+`OnBumpTile` on every interactive-cell bump — includes bumping/talking to an NPC) has two
+Yoda-hardcoded tile-catalog indices (780, 2034) that are never `GAME_INDY`-ifdef'd; Indy's tile
+catalog is far smaller (1144 entries in the reproducing world) so `pWorld->tiles.GetAt(2034)` reads
+OOB on nearly every bump (the `780` arm almost never matches, so control always reaches the `2034`
+arm's `GetAt`, evaluated BEFORE the `goalItemTileId==0xbd` check due to left-to-right `&&`). Fixed
+with a `YODA_SIC_FIX`-guarded short-circuit (`tiles.GetSize() > 2034 || (BUGLOG(...), 0)) &&`
+prepended to each condition, line-neutral — see the new ⭐ standing lesson in THE ANCHOR section
+above for the exact shape (this is the first v84 edit that touched `src/` directly; anchor
+re-verified 211/99.17% + all 5 oracles green after). ⭐ **Debugging method worth reusing:** my FIRST
+guess (unbounded `MapEntity::charId` in `Tick`/`DrawEntities`, docs/engine-bugs.md #15) was WRONG —
+plausible-looking, but a real bug. What actually found the true cause was adding a temporary
+`MfxArrayOOBTrap(i, n, "what")` call into `CObArray`/`CWordArray`'s `GetAt`/`SetAt`
+(`microfx/include/afxwin.h`, KEPT — cheap, `#ifndef NDEBUG` gated, prints array/index/size + a real
+`backtrace()`/`backtrace_symbols_fd` to stderr AND appends to `yoda_crash.log` in cwd) and just
+reproducing the crash once. Next OOB assert hunt: reach for this FIRST instead of reading code and
+guessing — it named the exact function (`ShowWinMessage`) and exact array in one shot. (#15's guard
+is kept as harmless defense-in-depth but was confirmed NOT the fix.)
 
-**▶ v81 — ✅ GOAL-0 batching fix, USER-CONFIRMED ("drawing is MUCH snappier, no issues with
-scroll transitions and intro flight").** Root cause: EVERY GDI primitive fires MfxTouch → the
-present hook → a full window present (~vsync each on macOS) — per-call-site Hold/Release
-audits could never cover it. Fix (docs/phase-h4-sdl.md lesson 18): `MfxPresentOnScreenWrite`
-just sets a dirty flag; the pending present flushes (a) once per pump tick, (b) per MfxIdle in
-modal loops, (c) inside `mfx_clock()` via `MfxSetClockHook` (mfxcore.cpp), throttled to
-`YODA_PRESENT_MS` (default 8ms; 0 = legacy per-write). Works because ALL mid-handler
-animations pace with clock() busy-waits → they flush per completed frame; draw storms collapse
-to one present/tick. MfxPalToDib now fires MfxTouch (palette flashes present mid-handler).
-YODA_ACCEL verdict (user): no big speed difference post-fix, no detriments — stays opt-in.
+**▶ v84 — ✅ Hide Me! wired, USER-CONFIRMED.** `WM_SYSCOMMAND SC_MINIMIZE` (posted by
+`CDeskcppView::OnCmdMinimize`) reached `CWnd::OnSysCommand`, which was a pure no-op stub
+(`microfx/src/app/mfxstubs.cpp`) — the game-logic pause (`bBusy=1`) worked but the window itself
+never minimized. Fixed by adding `MfxPlatMinimize()` to the platform-backend contract
+(`microfx/include/mfxplat.h`) — implemented in all three backends (sdl3/sdl2 call
+`SDL_MinimizeWindow`, null no-ops) — and calling it from `CWnd::OnSysCommand` on `SC_MINIMIZE`. A
+new port (DS) just gets a no-op here for free via the null-shaped default.
 
-**▶ v82 — ✅ PLATFORM-BACKEND SPLIT + SDL3, USER-CONFIRMED (looks + sounds correct).**
-User-requested for the DS-port direction; SDL3 used as the modularity proof-of-concept. New
-contract `microfx/include/mfxplat.h` (lesson 19): video/input = `MfxPlat*` (Init/Shutdown/
-PollEvent/Present/SetCursor/Delay), audio = `MfxSndPlat*` (Open/Close/Load/Free/Play/Halt +
-music quartet); EXACTLY ONE backend TU per surface links from `microfx/src/platform/`
-(mfxplat_{sdl3,sdl2,null}.cpp, mfxsnd_{sdl3mixer,sdl2mixer,null}.cpp — CMake auto-selects
-sdl3 > sdl2 > null, override -DYODA_MFX_VIDEO_BACKEND/-DYODA_MFX_AUDIO_BACKEND; SDL2+SDL3
-runtimes must never link together, CMake rejects mixed pairs). mfxpump.cpp/mfxsnd.cpp are now
-platform-NEUTRAL and hold ALL policy (deferred presents, WM synthesis, accel translation,
-WaveMix contract/LRU, MCI parse) — a DS port implements the two backend TUs and NOTHING else.
-Null-backend build passes game_walk with ZERO undefined SDL symbols in libmicrofx.a. SDL3 is
-the desktop default (build-sdl now links only libSDL3/libSDL3_mixer; 63 waves load, mixing
-live). ⚠ SDL3 MIDI (fluidsynth soundfont_path property) coded but NOT yet audibility-verified
-— do it during the INDY×SDL playtest. zone_view --show is SDL2-API (absent under sdl3).
+**▶ v84 — ✅ P pause hotkey wired, USER-CONFIRMED** (was already scoped as a v83 deferred item).
+`MfxTranslateAccel` (mfxpump.cpp) only matched FVIRTKEY+FCONTROL chords; broadened to also match
+plain (non-modifier) FVIRTKEY entries by comparing `bWantCtrl == bCtrl` instead of requiring both
+`fFlags&FCONTROL` AND ctrl-held. This ALSO wires F1→`ID_HELP_INDEX` (0xe142, "How to Play") since it
+shares the same code path — **not yet live-verified**, check next session (low priority per user).
 
-**▶ GOAL 2 — H4 next (the main thread):**
-- **save/load CFileDialog** — DONE this session (mfxdlg.cpp, zero src/ edits): SDL has no native
-  picker, so it lists `*.wld` files in the save dir as clickable rows (Save adds a leading "(new)"
-  row) — see docs/phase-h4-sdl.md lesson 17 (the WM_COMMAND/BN_CLICKED-vs-accelerator collision
-  bug found + fixed) and `microfx/harness/dlg_smoke.cpp` (new unit-test harness for the
-  scan/build-rows/resolve logic — the modal loop itself can't be driven headlessly). Anchor
-  re-verified 211/99.17% (microfx-only change). NOT YET live-screenshot-verified (needs a real
-  windowed run — this session had no attached display) — do that before calling M5 fully closed.
-- **VISIBLE menu bar + dropdowns** — DEFERRED (accelerators already reach every command). If wanted:
-  parse MENU id 2 (in the .res), render a bar + popups, hit-test → post WM_COMMAND. Substantial;
-  the accelerator path is the pragmatic substitute.
-- **F8 status box (CTextDialog 0xbf) + Stats (0xe1)** exercise DDX_Text into static value fields but
-  aren't accelerator/command-triggerable (F8 is inline in the view's OnKeyDown w/ Ctrl; the demo Stats
-  template 0xe1 is corrupt — Stats is demo-disabled). Spot-check via a LIVE Ctrl+F8 or the FULL build.
+**▶ ⚠ STILL BROKEN, live-confirmed 2026-07-11 — investigate next session (was previously assumed
+fine-on-code-read or "not a bug"; both assumptions were WRONG, don't repeat them):**
+- **F8 debug-info dialog (Ctrl+F8).** Code read (VK_F8 case in `CDeskcppView::OnKeyDown`,
+  `GetAsyncKeyState(VK_CONTROL)`, `CTextDialog(0).DoModal()` with template 0xbf) shows nothing
+  obviously wrong, and headless synthetic tests (`YODA_AUTOMOD=<start>:<vk>:<dur>` — new this
+  session, mfxpump.cpp, holds a modifier's `g_mfxKeyState` without a WM_KEYDOWN dispatch, for
+  chord-testing) didn't reproduce a crash either — but the user confirms it's still non-functional
+  live. Next step: figure out what "doesn't work" means concretely (dialog never appears? appears
+  garbled? wrong template data?) — ask for a screenshot or use `YODA_SHOT` timed around a live
+  Ctrl+F8, or check whether dialog template 0xbf actually exists/is well-formed in the Indy .res
+  (built via `make_res.py --indy` — the Yoda .rsrc base with only identity resources overridden;
+  0xbf is NOT an identity resource, so it's whatever Yoda's own template contains — may not apply
+  to Indy's dialog geometry/DDX at all).
+- **Statistics menu item.** Previously dismissed as "not a bug — demo limitation" (v80/v83 notes),
+  but that reasoning was for the base YODA_VARIANT=DEMO case; GAME_INDY builds ALSO default to
+  YODA_VARIANT=DEMO (both `build-indy` and `build-sdl-indy`'s CMakeCache — nobody has ever passed
+  `-DYODA_VARIANT=FULL` for an Indy config) which is semantically wrong (DESKADV.EXE has no
+  demo/full split — it's the one retail Indy game), so `OnUpdateStatsUi`'s
+  `#ifdef YODA_FULL ... #else disabled #endif` (src/DeskcppView.cpp ~8128) disables Stats for Indy
+  too. Compare against the established pattern used by `OnUpdateLoadWorld`/`OnUpdateReplayStory`
+  (src/WorldgenHelpers.cpp ~665/680): `#if defined(GAME_INDY) || defined(YODA_FULL)`. Adding the
+  same `GAME_INDY` branch to `OnUpdateStatsUi` would enable it, BUT: v80's own notes flag the Stats
+  dialog TEMPLATE (id 0xe1) as "corrupt in the shipped .res" — enabling the menu item might just
+  swap "grayed out" for "crashes/renders garbage" on click. RE the DESKADV.EXE ground truth first
+  (does Indy even have a working Stats feature?) before touching the ifdef — don't guess.
+- **INDY menu bar** — mfxmenu.cpp only parses Yoda's RT_MENU id=2; Indy's own menu resource (if any)
+  in DESKADV.EXE hasn't been checked against this session's parser (unchanged from v83).
+
+**▶ Research note (from the user, unexplored):** SDL3 has a native file-dialog API
+(`SDL_ShowOpenFileDialog`, https://wiki.libsdl.org/SDL3/SDL_ShowOpenFileDialog) — worth splitting
+`CFileDialog::DoModal`'s current custom row-list picker (mfxdlg.cpp, v80) so a backend can override
+it with the OS-native picker where available, falling back to the current custom implementation on
+platforms without one (e.g. a future DS port). Not started; would touch the `mfxplat.h` contract
+(a new `MfxPlatShowFileDialog`-shaped hook) rather than `mfxdlg.cpp` directly, following the same
+backend-split precedent as v82/this session's `MfxPlatMinimize`.
+
+**▶ Carried over, still open:** a DEMO-variant `CFile::Read` assertion crash (`m_pStream` null,
+mfxcore.cpp:326) reproduces with ZERO user interaction ~10-15s into idling on the title/intro;
+found in v83, not yet isolated to a call site. Reproduce: `cd YodaDemo && ./yoda`, wait ~10s.
+`build-sdl`'s default is `YODA_VARIANT=FULL` (not DEMO) — check `build-sdl/CMakeCache.txt` before
+assuming.
+
+**▶ GOAL 1 — Indy (main thread candidate):** MIDI audibility now CONFIRMED (v82's backend split
+works end-to-end). Remaining stragglers: IACT cmd 0x13 rect arg-order + cond specials
+0/8/9/0xb/0x14–0x16 vs DESKADV jump tables; INI replay persistence; OPTIONAL Indy menus
+(`make_res.py --indy` extension) — candidate for the menu-bar parser once F8/Stats above are done.
+
 - ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry). Harness INIs:
   `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and writes it back — reset
   before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed> [--zone id] [--dump x.bmp] [--show]` ·
-  `game_walk <seed>` · `YODA_SHOT=<pfx>[:n] ./yoda` · `YODA_AUTOKEY=<startms>:<vk>:<durms>` ·
-  `YODA_AUTOCMD=<startms>:<cmdhex>` (v80, opens dialogs; File>Save=0xe103, File>Load=0x800a) ·
-  `YODA_DLGSHOT=<path>` (v80, capture a modal) · `dlg_smoke` (v80 tail, headless CFileDialog
-  logic unit test — no window/game bootstrap needed) · `YODA_ACCEL=1` (v80 tail, OPT-IN
-  SDL_Renderer+texture present path — not yet live-verified, see docs/phase-h4-sdl.md) ·
-  `YODA_VSYNC=1` (re-adds PRESENTVSYNC under YODA_ACCEL, default is uncapped).
-- ⚠ **playtest perf note (user-reported 2026-07-10)**: clicking the inventory scrollbar's down
-  arrow used to stall ~2s before input worked again — the redraw-batching added for level
-  transitions wasn't applied to InvScrollBar's WM_VSCROLL-triggered item-list repaint (many
-  unbatched BitBlts → many full-window presents, each ~vsync-cost on macOS's window-surface
-  path). Fixed this session (mfxctl.cpp Hold/Release around the 3 WM_VSCROLL sends). User then
-  live-tested `YODA_ACCEL=1`: "a smidge faster" but per-primitive draw stepping is still visible
-  elsewhere — this ONE call site wasn't the whole story → **fixed structurally in v81 (GOAL 0
-  above); the old Hold/Release sites stay (they still batch the per-write overlay recomposite).**
-- Perf note: the v81 clock-hook flush also throttles intro-flight presents to 8ms intervals
-  (was: per BitBlt, ~55% CPU); the busy-wait spin itself remains (faithful timing).
-
-**▶ GOAL 1 — Indy (after M5 or user-led):** ⏳ INDY×SDL in-game playtest (`YodaIndy/yoda_sdl`,
-rebuilt v79 — the .res pipeline now feeds it Indy resources incl. Indy cursors/strings); then
-the stragglers: IACT cmd 0x13 rect arg-order + cond specials 0/8/9/0xb/0x14–0x16 vs DESKADV
-jump tables; INI replay persistence; OPTIONAL Indy menus (`make_res.py --indy` extension).
+  `game_walk <seed>` · `YODA_SHOT=<pfx>[:n] ./yoda` (captures the composited window incl. menu bar)
+  · `YODA_AUTOKEY=<startms>:<vk>:<durms>` · `YODA_AUTOMOD=<startms>:<vk>:<durms>` (v84, holds a
+  modifier's key-state only, no dispatch — for chord testing) · `YODA_AUTOCMD=<startms>:<cmdhex>` ·
+  `YODA_AUTOCLICK=<ms>:<x>:<y>[,...]` (up to 4 clicks; y<19 hits the menu bar, y>=19 rides normal
+  capture-aware routing) · `YODA_DLGSHOT=<path>` · `dlg_smoke` (headless CFileDialog logic unit
+  test) · `YODA_ACCEL=1` (OPT-IN SDL_Renderer+texture present path — still not live-verified) ·
+  `YODA_VSYNC=1` · `yoda_crash.log` (v84, cwd — `MfxArrayOOBTrap`'s backtrace dump on any
+  `CObArray`/`CWordArray` OOB `GetAt`/`SetAt`, appends across runs, deleted/absent = no OOB hit).
 
 **▶ GOAL 3 — Indy Ghidra sweep (agent fodder):** `program=DESKADV.EXE`, ~214 app-code unnamed (seg 1010
 =91 doc/parse/worldgen/IACT, 1018=109 view/UI/sound/dialogs, 1020=14 cmd handlers; segs 1000/1008 =
 MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller structure → name `Indy*`
 + plate-comment the Yoda twin. ⚠ match twins by STRUCTURE not 16-bit offsets; data xrefs may be
-unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
+unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions. This sweep
+would also directly help the Stats/F8 investigation above (DESKADV's real special-item tile ids /
+debug-dialog wiring, if any).
 
-**▶ Anchor:** 211 exact / 99.17 % (progress.py re-verified during v80; bugscan 0/0/0, vtcheck 10,
-msgcheck 11 CLEAN). v80 made ZERO src/ or shared-header edits (microfx/ only — the anchor build never
-sees that tree), so the oracles cannot have moved; run the full table around any future shared-TU edit
-as usual. All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug rig
-YODA_DEBUG-guarded (committed builds OFF). H4 rule of thumb: fix portability in microfx
-headers/stubs first; touch a game TU only for __asm / pointer-width casts / old-for-scope,
-always guarded, always re-oracled — and NEVER add an unguarded include to a byte-matched TU
-(lesson 6).
+**▶ Anchor:** 211 exact / 99.17 % (progress.py + bugscan 0 HIGH + vtcheck 10 CLEAN + msgcheck 11
+CLEAN + link_exe.sh 0 unresolved/duplicate, ALL re-verified after v84's `src/DeskcppView.cpp` edit —
+the FIRST v84 edit to touch `src/` this arc; done via the new line-neutral short-circuit macro shape,
+see THE ANCHOR section). All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug
+rig YODA_DEBUG-guarded (committed builds OFF). H4 rule of thumb: fix portability in microfx
+headers/stubs first; touch a game TU only for __asm / pointer-width casts / old-for-scope / a genuine
+crash-class bug, always guarded via `YODA_SIC_FIX`, always re-oracled — and NEVER add an unguarded
+include to a byte-matched TU (lesson 6).

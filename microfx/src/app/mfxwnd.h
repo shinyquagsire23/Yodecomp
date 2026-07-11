@@ -4,8 +4,13 @@
 #ifndef MFXWND_H
 #define MFXWND_H
 #include <afxwin.h>
+#include <microfx.h>
 
 #define MFX_TAG_WND 0x444e5758   // 'XWND'
+
+// Visible menu bar (H4 M5 tail, mfxmenu.cpp): a fixed-height chrome strip presented ABOVE the
+// game's screen DC — never part of it, so no game coordinate math moves (docs/phase-h4-sdl.md).
+#define MFX_MENUBAR_H 19
 
 struct HWND__ {                  // a window: an MFC object + a rect in root-client coords
     unsigned nTag;
@@ -36,6 +41,20 @@ int  MfxNextDueTimer(MSG *pMsg);  // one due timer as a WM_TIMER MSG; 1 = got on
 void MfxPumpTimers();             // fire due timers (WM_TIMER via MfxSendMsg)
 void MfxSetDirty();               // request a WM_PAINT on the next MfxPaintIfDirty
 void MfxPaintIfDirty();           // deliver WM_PAINT to the active view if invalidated
+
+// CN_UPDATE_COMMAND_UI query (mfxwnd.cpp): walk the same view→frame→app chain MfxDispatchCommand
+// uses for WM_COMMAND, but call the ON_UPDATE_COMMAND_UI handler for nID (real MFC's
+// CFrameWnd::OnInitMenuPopup shape). pCmdUI->m_nID must be preset by the caller. Returns TRUE if
+// a handler ran (pCmdUI->m_bEnabled/m_nCheck reflect it); FALSE if nID has no UI handler AND no
+// ON_COMMAND handler either (a truly dead id — caller should gray it out).
+BOOL MfxQueryCmdUI(CCmdUI *pCmdUI);
+
+// Visible menu bar (mfxmenu.cpp), called from mfxpump.cpp only.
+void MfxMenuInit();                                 // parse RT_MENU id 2, create the chrome DC, draw once
+int  MfxMenuGetChromeDib(MFXDIB *pOut);              // sync palette + fill *pOut; 0 if not initialized
+void MfxMenuHandleMouse(UINT message, int x, int y); // message: WM_MOUSEMOVE/WM_LBUTTONDOWN; bar-local
+int  MfxMenuActive();                                // 1 while a popup is tracking (Escape-key gate)
+void MfxMenuEscape();                                // dismiss any open popup, no command fired
 
 // pump → USER state feeds (GetAsyncKeyState / GetCursorPos / capture read these)
 extern int   g_mfxQuit;           // set by PostQuitMessage / pump hard-quit

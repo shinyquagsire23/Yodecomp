@@ -44,6 +44,8 @@ digest is byte-identical to the unfixed build at the same seed/INI.
 | UpdateDragCursor pBitmap leak (unnumbered) | **fixed** (deleted on Attach failure) + log |
 | SaveGame/LoadGame pDlg deref before null check (unnumbered) | **fixed** (store guarded; the existing null check then reports) |
 | GetZoneById off-planet **-1 sentinel** (hardening, not a bug — the game never queries off-planet ids) | **fixed** (returns NULL) + log |
+| #15 `CDeskcppView::Tick`/`DrawEntities` unbounded `charId` (2026-07-11, v84; defensive, not the live crash's cause) | **fixed** (skip entity) + log |
+| #16 `ShowWinMessage` Yoda tile-id 780/2034 OOB on Indy's smaller tile catalog (2026-07-11, v84; the ACTUAL live-crash cause) | **fixed** (short-circuit before `GetAt`) + log |
 
 ## Confirmed bugs
 
@@ -191,6 +193,58 @@ digest is byte-identical to the unfixed build at the same seed/INI.
   Win9x-era common DCs made this mostly invisible.
 - **Reproduced:** `src/GameView/GameView.cpp` OnDragItem (`return; // sic` comments on both
   case arms).
+
+### 15. `CDeskcppView::Tick` / `DrawEntities` — unbounded `MapEntity::charId` read (defensive; not the live crash's cause — see #16)
+
+- **Where:** `Tick` (the `if (nCharId < 0) goto NEXT_ENT;` guard + the two
+  `pWorld->characters.GetAt(nCharId)` sites it protects) and `DrawEntities`
+  (`pWorld->characters.GetAt(pEnt->charId)`), `src/DeskcppView.cpp`.
+- **What:** both functions only reject a NEGATIVE `charId`; nothing checks it against
+  `pWorld->characters.GetSize()`. `MFC`'s real `CObArray::GetAt` has no bounds check in a
+  release (`/NDEBUG`) build either — it silently reads past the array (UB, usually harmless
+  garbage) — but our microfx `CObArray::GetAt` (`microfx/include/afxwin.h:324`) asserts, so an
+  OOB index is a hard crash under the SDL port instead of the original's silent corruption.
+- **Impact:** applied defensively while chasing a live-reported (2026-07-11 playtest) crash
+  ("talking to an indoor NPC" / "holding Up" in GAME_INDY reliably crashes with `Assertion
+  failed: (i >= 0 && i < m_nSize), function GetAt, file afxwin.h, line 324`). A backtrace
+  capture (`MfxArrayOOBTrap`, see #16) proved the ACTUAL culprit is `ShowWinMessage`'s
+  hardcoded tile ids, not `charId` — this guard is harmless hardening, kept for defense in
+  depth, but was NOT the fix. Root cause + fix: #16.
+- **Reproduced:** `src/DeskcppView.cpp` `Tick`/`DrawEntities`, `// sic:`-style `YODA_SIC_FIX`
+  guards (`sic#15`) — skip the entity and `BUGLOG` the `charId`/count instead of reading OOB.
+  Only the two sites flagged by investigation are guarded (the `nCharId`-indexed reads); the
+  `weaponCharId`-indexed `GetAt` calls in the same functions are NOT yet guarded (lower
+  suspicion, and the `ALIVE_ENT` site sits in a dense goto-heavy block where adding a new label
+  needs its own care) — a real "still open" TODO if the crash recurs after this fix.
+
+### 16. `CDeskcppView::ShowWinMessage` — Yoda-hardcoded tile ids 780/2034 exceed Indy's tile catalog
+
+- **Where:** `src/DeskcppView.cpp:4331` (`pWorld->tiles.GetAt(780)`) and `:4392`
+  (`pWorld->tiles.GetAt(2034)`), the two special-item arms at the top of `ShowWinMessage`
+  (called from `OnBumpTile` on every interactive-cell bump — walking into an NPC counts).
+- **What:** these constants are literal indices into Yoda's tile catalog (comparing the
+  currently-equipped item's `Tile*` against a specific hardcoded tile — a Yoda-only special
+  item, per the function's own comment: "tile 780 (the demo's goal item)" / "tile 2034 with
+  goalItemTileId 0xbd"). Neither is `GAME_INDY`-ifdef'd. Indy's tile catalog (from
+  `DESKTOP.DAW`) is much smaller — a live crash capture (`MfxArrayOOBTrap` in
+  `microfx/include/afxwin.h`, temporary diagnostic added while chasing this) showed
+  `CObArray::GetAt(i=2034) n=1144` — `pWorld->tiles` only has 1144 entries, so index 2034 is
+  read OOB **unconditionally**, on essentially every bump (the `780` arm almost never matches
+  since it's Yoda's own item, so control flow reaches the `2034` arm's `GetAt` — evaluated
+  BEFORE the `goalItemTileId == 0xbd` check due to left-to-right `&&` — on nearly every call).
+- **Impact:** live-reported (2026-07-11 playtest) — crashes on bumping/talking to an indoor
+  NPC in GAME_INDY, and reproduces even just holding an arrow key into any interactive cell.
+  Confirmed fixed: live retest after the guard below no longer crashes (same repro steps).
+- **Root-cause note:** the *correct* fix is DESKADV.EXE's own equivalent special-item tile ids
+  (Indy has no Yoda "Force" item, so these arms are presumably dead for Indy — but the real
+  binary must either never reach `GetAt` with an OOB constant, or use Indy-catalog-sized ids).
+  Not yet RE'd against DESKADV.EXE — the guard below is a crash-class fix (policy: intro),
+  not a behavior-accuracy fix; these two arms may still be semantically WRONG for Indy (just
+  no longer crashing).
+- **Reproduced:** `src/DeskcppView.cpp` `ShowWinMessage`, `YODA_SIC_FIX` guards (`sic#16`) —
+  short-circuit `tiles.GetSize() > 780` / `> 2034` before the `GetAt` call (so an undersized
+  catalog just falls through to the next arm, same as "item not equipped"), `BUGLOG` on the
+  OOB case.
 
 ## Compiler quirks that LOOK like bugs (they aren't)
 

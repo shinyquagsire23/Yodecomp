@@ -2586,3 +2586,44 @@ shared-surface children need overlay re-composite + boot-dirty care; modal loops
 headless GetMessage bail; SOFTWARE cursor composited at present (YODA_HWCURSOR=1 hw). v79h fixed
 inventory-scroll: ::GetParent was a stub returning 0 → InvScrollBar repaint never ran (audit hint:
 "X updates but Y doesn't" ⇒ grep mfxstubs.cpp for a silent 0-returning stub the Y-path needs).
+
+### ⏮ v80-v82 pickup (condensed; demoted 2026-07-10 when v83 landed the visible menu bar)
+v80: CDialog::DoModal REAL (mfxdlg.cpp) — parses RT_DIALOG, MfxDlgItem:CWnd per control, modal
+loop, DDX_Text; menus reachable via the game's REAL RT_ACCELERATOR id 2 (Ctrl-chords only, no OS
+menu bar yet); CFileDialog::DoModal REAL (lists *.wld rows, no native picker). Lessons 14-17:
+DDX_Text overloads can't be extern "C"; dialog controls carry ABSOLUTE root-client rects; new
+microfx/src files need a cmake reconfigure (GLOB is configure-time); BN_CLICKED(0)-vs-accelerator
+WM_COMMAND collision in a picker's modal loop needs an `msg.hwnd==m_hWnd` scope check. v81: GOAL-0
+present-batching fix, user-confirmed "much snappier" — MfxPresentOnScreenWrite just marks dirty;
+flush happens per pump tick / per MfxIdle / via MfxSetClockHook, throttled by YODA_PRESENT_MS
+(lesson 18). v82: platform-backend split, user-confirmed — `microfx/include/mfxplat.h` contract
+(MfxPlat*/MfxSndPlat*), exactly one backend TU per surface from microfx/src/platform/, SDL3 now
+the desktop default; mfxpump.cpp/mfxsnd.cpp hold ALL policy so a new port only implements the two
+backend TUs (lesson 19). Indy×SDL playtest + SDL3 MIDI audibility still open at the time.
+
+### ⏮ v83 pickup (condensed; demoted 2026-07-11 when v84 fixed the Indy crash)
+v83: a REAL VISIBLE MENU BAR, user-confirmed live ("the menu items do work as I'd expect, very
+nice") — new `microfx/src/app/mfxmenu.cpp`. Two coordinate worlds kept apart: the bar itself
+(parsed from the game's real RT_MENU id=2) lives in its own chrome HDC/DIBSection, composited
+above the game's screen DC at present time (`MfxComposeWindowDib`) — window grows
+`MFX_MENUBAR_H` (19px) taller, game DC itself untouched; mouse events with window-y <
+MFX_MENUBAR_H are intercepted before the normal WM_* pipeline, everything else gets y -=
+MFX_MENUBAR_H so game logic sees unchanged coordinates. A clicked popup lives INSIDE the game's
+normal screen-DC space and rides the existing dialog child/capture/overlay-repaint machinery
+(`MfxMenuPopup:CWnd`); item enable/check state comes from `MfxQueryCmdUI` (real
+`OnInitMenuPopup` shape) driving the game's own `OnUpdate*` handlers — nothing about menu
+semantics was invented. Debug: `YODA_AUTOCLICK=<ms>:<x>:<y>[,...]` (up to 4).
+4 real bugs found + fixed via live testing (all microfx-only): (1) **`CDeskcppDoc` was missing
+from the WM_COMMAND/CN_UPDATE_COMMAND_UI dispatch chain** — real MFC routes
+View→**Document**→Frame→App, ours only checked View→Frame→App, so New World/Save/Load/
+Replay/Sound-toggle/Music-toggle (all on `CDeskcppDoc`'s message map) were unreachable via ANY
+WM_COMMAND path, predating v83 — ⭐ lesson: any ON_COMMAND/ON_UPDATE_COMMAND_UI audit must check
+ALL FOUR of View/Document/Frame/App. (2) `EnableWindow`'s repaint was gated on stale
+`m_mfxRedraw` state — fixed to repaint unconditionally on a state change, matching `ShowWindow`.
+(3) Menu-popup close left a 1-frame highlight flash — `MfxMenuCloseAll` now calls
+`MfxPaintIfDirty()` synchronously. (4) `CFileDialog` didn't find files that existed — root cause
+was `CDeskcppDoc`'s ctor resolving `installPath` to a literal `"YODA"` on this port (no real
+registry/drives to probe) and our SDL picker not falling back to cwd the way real COMDLG32
+does — fixed via an `opendir` probe + `"."` fallback in `CFileDialog::DoModal`. Found but
+NOT fixed: a DEMO-variant `CFile::Read` assertion crash (`m_pStream` null) reproduces with zero
+user interaction ~10-15s into idling on the title/intro; not isolated to a call site.
