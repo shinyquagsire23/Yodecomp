@@ -270,8 +270,12 @@ docs/phase-h4-sdl.md. Headlines:
   save/load last (CFileDialog needs a picker; consider fixed-slot fallback).
 - Menus: ON_COMMAND ids are ints — keyboard map or minimal menu bar can post them
   (WM_COMMAND routing view→frame→app works). The .res blob still carries menu id 2.
-- ⏳ USER-VERIFY: bubble UP/DOWN scroll buttons on a >5-line text (auto-repeat mechanism in
-  place, untested with eyes); health-dial flash + bevel fixes (v79b); cursor feel (v79f).
+- USER-CONFIRMED post-v79g: bubble UP/DOWN scroll buttons work held AND tapped; inventory
+  scrolling fixed in v79h (::GetParent was still a stub returning 0 → InvScrollBar's
+  FromHandle(GetParent())->DrawText(0) repaint never ran; scrollbar moved, items stale).
+  Audit hint for future symptoms of the shape "X updates but Y doesn't": grep mfxstubs.cpp
+  for the USER/GDI call the Y-path depends on — a silent 0-returning stub is the pattern.
+- ⏳ USER-VERIFY: health-dial flash + bevel fixes (v79b); cursor feel (v79f).
 - ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry).
   Harness INIs: `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run
   and writes it back — reset before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed>
