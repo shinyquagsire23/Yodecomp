@@ -107,13 +107,23 @@ HDC CDC::GetSafeHdc() const { return this ? m_hDC : 0; }
 CDC* CDC::FromHandle(HDC hDC)
     { static CDC wrap; wrap.m_hDC = hDC; return &wrap; }
 BOOL CDC::DeleteDC() { BOOL b = ::DeleteDC(m_hDC); m_hDC = 0; return b; }
+// A small ring of wrap objects (MFC's FromHandle temp-map, poor-man's edition): the game
+// holds pOldPen AND pOldBrush from consecutive calls (DrawHealthNeedle), so one static
+// would alias them and the restores would select the wrong object.
+static CGdiObject* MfxWrapGdiObj(HGDIOBJ h)
+{
+    static CGdiObject aWrap[8];
+    static int nNext = 0;
+    CGdiObject* p = &aWrap[nNext];
+    nNext = (nNext + 1) % 8;
+    p->Detach();
+    p->m_hObject = h;
+    return p;
+}
+
 CGdiObject* CDC::SelectObject(CGdiObject* pObject)
 {
-    static CGdiObject wrapOld;
-    HGDIOBJ hOld = ::SelectObject(m_hDC, pObject ? pObject->m_hObject : 0);
-    wrapOld.Detach();
-    wrapOld.m_hObject = hOld;
-    return &wrapOld;
+    return MfxWrapGdiObj(::SelectObject(m_hDC, pObject ? pObject->m_hObject : 0));
 }
 CPalette* CDC::SelectPalette(CPalette* pPalette, BOOL bForceBackground)
 {
@@ -123,11 +133,7 @@ CPalette* CDC::SelectPalette(CPalette* pPalette, BOOL bForceBackground)
 
 CGdiObject* CDC::SelectStockObject(int nIndex)
 {
-    static CGdiObject wrapOld;
-    HGDIOBJ hOld = ::SelectObject(m_hDC, ::GetStockObject(nIndex));
-    wrapOld.Detach();
-    wrapOld.m_hObject = hOld;
-    return &wrapOld;
+    return MfxWrapGdiObj(::SelectObject(m_hDC, ::GetStockObject(nIndex)));
 }
 
 CPaintDC::CPaintDC(CWnd* pWnd) : m_pWnd(pWnd) { m_hDC = ::GetDC(pWnd ? pWnd->m_hWnd : 0); }
@@ -419,7 +425,7 @@ END_MESSAGE_MAP()
 extern "C" {
 
 int      GetSystemMetrics(int) { return 0; }
-DWORD    GetSysColor(int) { return 0; }
+// GetSysColor is REAL as of M4 — gdi/mfxgdi.cpp (Win95 scheme; feeds sysPalette[1..3]).
 HCURSOR  SetCursor(HCURSOR h) { return h; }
 HCURSOR  LoadCursorA(HINSTANCE, LPCSTR) { return 0; }
 HICON    LoadIconA(HINSTANCE, LPCSTR) { return 0; }
@@ -459,12 +465,13 @@ HWND     GetParent(HWND) { return 0; }
 void     FatalAppExitA(UINT, LPCSTR msg)
     { fprintf(stderr, "microfx: FatalAppExit: %s\n", msg ? msg : ""); abort(); }
 BOOL     CopyRect(LPRECT dst, const RECT* src) { *dst = *src; return TRUE; }
-int      FillRect(HDC, const RECT*, HBRUSH) { return 1; }
+// FillRect/PatBlt/pens/brushes/fonts/stock objects/lines/pixels/Pie/RoundRect/Polygon/
+// Rectangle/SetTextColor/SetBkColor/SetBkMode/GetClipBox/GetSysColor are REAL as of M4 —
+// gdi/mfxgdi.cpp (draw state on the DC + COLORREF→palette-index mapping).
 
 // CreateCompatibleDC/DeleteDC/SelectObject/DeleteObject/CreateDIBSection/BitBlt/
 // SetDIBColorTable are REAL as of M1 — gdi/mfxgdi.cpp (DIB sections + memory DCs).
 int      GetObjectA(HGDIOBJ, int, LPVOID) { return 0; }
-BOOL     PatBlt(HDC, int, int, int, int, DWORD) { return TRUE; }
 int      GetDeviceCaps(HDC, int index)
 {
     // pretend to be the 8-bit palettized display the game requires
@@ -480,29 +487,23 @@ int      GetDeviceCaps(HDC, int index)
 }
 // Palettes (Create/CreateHalftone/Realize/Select/Animate/Get/Set/GetSystemPaletteEntries/
 // GetNearestPaletteIndex) are REAL as of M2 — gdi/mfxgdi.cpp (entries → DIB color table).
-HBRUSH   CreateSolidBrush(COLORREF) { return 0; }
-HPEN     CreatePen(int, int, COLORREF) { return 0; }
-HFONT    CreateFontA(int, int, int, int, int, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, LPCSTR)
-    { return 0; }
-HGDIOBJ  GetStockObject(int) { return 0; }
 // CreateBitmap/SetBitmapBits/GetBitmapBits are REAL as of M2 tail — gdi/mfxgdi.cpp
 // (drag save-under: an 8bpp DDB is just a DIB in our device).
-BOOL     RoundRect(HDC, int, int, int, int, int, int) { return TRUE; }
 // PostQuitMessage is REAL as of M2 (mfxwnd.cpp — sets the pump's quit flag).
-COLORREF SetPixel(HDC, int, int, COLORREF c) { return c; }
-COLORREF GetPixel(HDC, int, int) { return 0; }
-BOOL     Polygon(HDC, const POINT*, int) { return TRUE; }
-BOOL     Pie(HDC, int, int, int, int, int, int, int, int) { return TRUE; }
 BOOL     Chord(HDC, int, int, int, int, int, int, int, int) { return TRUE; }
-BOOL     Rectangle(HDC, int, int, int, int) { return TRUE; }
-BOOL     MoveToEx(HDC, int, int, LPPOINT) { return TRUE; }
-BOOL     LineTo(HDC, int, int) { return TRUE; }
 BOOL     TextOutA(HDC, int, int, LPCSTR, int) { return TRUE; }
-COLORREF SetTextColor(HDC, COLORREF c) { return c; }
-COLORREF SetBkColor(HDC, COLORREF c) { return c; }
-int      SetBkMode(HDC, int m) { return m; }
-BOOL     GetTextMetricsA(HDC, LPTEXTMETRIC tm) { if (tm) memset(tm, 0, sizeof *tm); return TRUE; }
-int      GetClipBox(HDC, LPRECT r) { if (r) SetRect(r, 0, 0, 0, 0); return 1; }
+BOOL     GetTextMetricsA(HDC, LPTEXTMETRIC tm)
+{
+    // placeholder MS-Sans-Serif-8 numbers so bubble layout math stays sane until the real
+    // bitmap-font renderer (M4c) replaces this
+    if (!tm) return FALSE;
+    memset(tm, 0, sizeof *tm);
+    tm->tmHeight = 13;
+    tm->tmAscent = 11;
+    tm->tmAveCharWidth = 5;
+    tm->tmMaxCharWidth = 12;
+    return TRUE;
+}
 
 DWORD    GetVersion(void) { return 0xC3B60004; }   // report Win95 (4.0 build 950)
 HINSTANCE GetModuleHandleA(LPCSTR) { return 0; }

@@ -8,23 +8,29 @@
 // these DIBs too — BitBlt-to-screen lands in it, and the pump presents it per frame.
 //
 // Only what the game exercises: 8bpp, DIB_RGB_COLORS, SRCCOPY (every Canvas::BitBlt / OnDraw
-// blit is SRCCOPY; the rop argument is otherwise ignored). Pens/brushes/fonts stay stub
-// handles in mfxstubs.cpp — SelectObject passes anything that is not one of OUR objects
-// straight through.
+// blit is SRCCOPY; the rop argument is otherwise ignored). M4 makes pens/brushes/fonts REAL
+// objects with a per-DC draw state (pen/brush/font slots, current position, text/bk colors)
+// and implements the HUD/bubble primitives (FillRect/PatBlt/Pie/RoundRect/Polygon/lines/
+// pixels). Colors are COLORREFs mapped to the nearest entry of the target DIB's color table
+// at draw time — Win32-on-8bpp behavior.
 
 #include <windows.h>
 #include <microfx.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 // ── the objects behind the opaque handles (windows.h: HDC__ / HBITMAP__) ────────────────────
-// Both carry a magic tag first: SelectObject/DeleteObject take HGDIOBJ (void*) and must
+// All carry a magic tag first: SelectObject/DeleteObject take HGDIOBJ (void*) and must
 // distinguish our objects from the null/fake handles the remaining stubs hand out.
 
 #define MFX_TAG_DIB 0x42494458   // 'XDIB'
 #define MFX_TAG_DC  0x00434458   // 'XDC'
 #define MFX_TAG_PAL 0x4c415058   // 'XPAL'
+#define MFX_TAG_PEN 0x4e455058   // 'XPEN'
+#define MFX_TAG_BRU 0x55524258   // 'XBRU'
+#define MFX_TAG_FNT 0x544e4658   // 'XFNT'
 
 struct HBITMAP__ {               // an 8bpp DIB section
     unsigned int   nTag;
@@ -41,22 +47,74 @@ struct HPALETTE__ {              // a logical palette (M2: the game's screen pal
     HDC          hdcRealized;    // last DC realized into — AnimatePalette writes through to it
 };
 
-struct HDC__ {                   // a memory DC: one DIB selection slot + one palette slot
+struct MfxPen {                  // CreatePen / stock pens (game: PS_SOLID width 1 only)
+    unsigned int nTag;
+    int          nStyle;         // PS_SOLID or PS_NULL
+    COLORREF     cr;
+    int          bStock;
+};
+
+struct MfxBrush {                // CreateSolidBrush / stock brushes
+    unsigned int nTag;
+    int          bNull;          // NULL_BRUSH: fills are no-ops
+    COLORREF     cr;
+    int          bStock;
+};
+
+struct MfxFont {                 // CreateFont (text drawing itself lands with mfxtext.cpp)
+    unsigned int nTag;
+    int          nHeight;        // as passed (negative = char height request)
+    int          nWeight;        // 400 normal / 700 bold
+    char         szFace[32];
+};
+
+struct HDC__ {                   // a memory DC: one DIB selection slot + full draw state
     unsigned int nTag;
     HBITMAP      hDib;           // currently selected DIB (may be 0)
     HPALETTE     hPal;           // currently selected palette (may be 0)
+    MfxPen      *pPen;           // 0 = default BLACK_PEN
+    MfxBrush    *pBrush;         // 0 = default WHITE_BRUSH
+    MfxFont     *pFont;          // 0 = default system font
+    POINT        ptCur;          // MoveTo/LineTo current position
+    COLORREF     crText;         // default black
+    COLORREF     crBk;           // default white
+    int          nBkMode;        // default OPAQUE
 };
 
-static int MfxIsDib(void *h) { return h && ((HBITMAP__ *)h)->nTag == MFX_TAG_DIB; }
-static int MfxIsDc(HDC h)    { return h && h->nTag == MFX_TAG_DC; }
-static int MfxIsPal(void *h) { return h && ((HPALETTE__ *)h)->nTag == MFX_TAG_PAL; }
+static int MfxIsDib(void *h)   { return h && ((HBITMAP__ *)h)->nTag == MFX_TAG_DIB; }
+static int MfxIsDc(HDC h)      { return h && h->nTag == MFX_TAG_DC; }
+static int MfxIsPal(void *h)   { return h && ((HPALETTE__ *)h)->nTag == MFX_TAG_PAL; }
+static int MfxIsPen(void *h)   { return h && ((MfxPen *)h)->nTag == MFX_TAG_PEN; }
+static int MfxIsBrush(void *h) { return h && ((MfxBrush *)h)->nTag == MFX_TAG_BRU; }
+static int MfxIsFont(void *h)  { return h && ((MfxFont *)h)->nTag == MFX_TAG_FNT; }
+
+// microfx-internal accessors for the text renderer (mfxtext.cpp)
+MfxFont *MfxDcFont(HDC hdc)    { return MfxIsDc(hdc) ? hdc->pFont : 0; }
+
+// ── stock objects (created on first use; never deletable) ───────────────────────────────────
+static MfxPen   g_penBlack = { MFX_TAG_PEN, PS_SOLID, RGB(0,0,0),       1 };
+static MfxPen   g_penWhite = { MFX_TAG_PEN, PS_SOLID, RGB(255,255,255), 1 };
+static MfxPen   g_penNull  = { MFX_TAG_PEN, PS_NULL,  0,                1 };
+static MfxBrush g_brWhite  = { MFX_TAG_BRU, 0, RGB(255,255,255), 1 };
+static MfxBrush g_brLtGray = { MFX_TAG_BRU, 0, RGB(192,192,192), 1 };
+static MfxBrush g_brGray   = { MFX_TAG_BRU, 0, RGB(128,128,128), 1 };
+static MfxBrush g_brDkGray = { MFX_TAG_BRU, 0, RGB(64,64,64),    1 };
+static MfxBrush g_brBlack  = { MFX_TAG_BRU, 0, RGB(0,0,0),       1 };
+static MfxBrush g_brNull   = { MFX_TAG_BRU, 1, 0,                1 };
+
+static MfxPen   *MfxDcPen(HDC hdc)    { return hdc->pPen   ? hdc->pPen   : &g_penBlack; }
+static MfxBrush *MfxDcBrush(HDC hdc)  { return hdc->pBrush ? hdc->pBrush : &g_brWhite;  }
 
 // ── DC lifecycle ─────────────────────────────────────────────────────────────────────────────
 
 HDC CreateCompatibleDC(HDC)
 {
     HDC h = (HDC)calloc(1, sizeof(HDC__));
-    if (h) h->nTag = MFX_TAG_DC;
+    if (!h) return 0;
+    h->nTag    = MFX_TAG_DC;
+    h->crText  = RGB(0, 0, 0);         // Win32 defaults: black text on white, OPAQUE,
+    h->crBk    = RGB(255, 255, 255);   // BLACK_PEN / WHITE_BRUSH (the 0 slots)
+    h->nBkMode = OPAQUE;
     return h;
 }
 
@@ -143,17 +201,39 @@ BOOL DeleteObject(HGDIOBJ h)
         ((HPALETTE__ *)h)->nTag = 0;
         free(h);
     }
-    return TRUE;                 // pens/brushes are still stub handles — nothing to free
+    else if ((MfxIsPen(h) && !((MfxPen *)h)->bStock) ||
+             (MfxIsBrush(h) && !((MfxBrush *)h)->bStock) ||
+             MfxIsFont(h)) {
+        *(unsigned int *)h = 0;
+        free(h);
+    }
+    return TRUE;
 }
 
 HGDIOBJ SelectObject(HDC hdc, HGDIOBJ h)
 {
-    if (MfxIsDc(hdc) && MfxIsDib(h)) {
+    if (!MfxIsDc(hdc)) return h;
+    if (MfxIsDib(h)) {
         HGDIOBJ hOld = (HGDIOBJ)hdc->hDib;
         hdc->hDib = (HBITMAP)h;
         return hOld;             // 0 on the first select — Canvas's dtor handles that arm
     }
-    return h;                    // non-bitmap objects: pass-through (stub behavior)
+    if (MfxIsPen(h)) {
+        MfxPen *pOld = MfxDcPen(hdc);
+        hdc->pPen = (MfxPen *)h;
+        return (HGDIOBJ)pOld;
+    }
+    if (MfxIsBrush(h)) {
+        MfxBrush *pOld = MfxDcBrush(hdc);
+        hdc->pBrush = (MfxBrush *)h;
+        return (HGDIOBJ)pOld;
+    }
+    if (MfxIsFont(h)) {
+        MfxFont *pOld = hdc->pFont;
+        hdc->pFont = (MfxFont *)h;
+        return (HGDIOBJ)pOld;    // 0 on the first select (default font)
+    }
+    return h;                    // foreign/null handles: pass-through
 }
 
 // ── color table ──────────────────────────────────────────────────────────────────────────────
@@ -192,6 +272,14 @@ void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void))
     g_pfnScreenWrite = pfn;
 }
 
+// Every primitive that writes pixels calls this with its target DC — M4 chrome (FillRect/
+// PatBlt/Pie/lines/…) must present mid-handler exactly like BitBlt does (pickup warning).
+void MfxTouch(HDC hdc)
+{
+    if (hdc == g_hdcScreenWrite && g_pfnScreenWrite)
+        g_pfnScreenWrite();
+}
+
 BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy, DWORD /*rop*/)
 {
     if (!MfxIsDc(hdcDst) || !hdcDst->hDib) return FALSE;
@@ -224,10 +312,355 @@ BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy
             memmove(pDst->pBits + (size_t)(y + row) * pDst->nWidth + x,
                     pSrc->pBits + (size_t)(sy + row) * pSrc->nWidth + sx,
                     (size_t)cx);
-    if (hdcDst == g_hdcScreenWrite && g_pfnScreenWrite)
-        g_pfnScreenWrite();
+    MfxTouch(hdcDst);
     return TRUE;
 }
+
+// ── color mapping + drawing primitives (M4) ─────────────────────────────────────────────────
+// A COLORREF is resolved against the target DIB's color table at draw time (exact match fast
+// path, else nearest by squared RGB distance) — Win32-on-8bpp-display behavior. The DIB's
+// table tracks RealizePalette/AnimatePalette, so mapped colors follow the game palette.
+
+static BYTE MfxMapColor(HBITMAP__ *pDib, COLORREF cr)
+{
+    int r = (int)(cr & 0xff), g = (int)((cr >> 8) & 0xff), b = (int)((cr >> 16) & 0xff);
+    long nBestDist = 0x7fffffff;
+    int  nBest = 0;
+    for (int i = 0; i < 256; i++) {
+        long dr = r - pDib->aPal[i].rgbRed;
+        long dg = g - pDib->aPal[i].rgbGreen;
+        long db = b - pDib->aPal[i].rgbBlue;
+        long d = dr * dr + dg * dg + db * db;
+        if (d == 0) return (BYTE)i;
+        if (d < nBestDist) { nBestDist = d; nBest = i; }
+    }
+    return (BYTE)nBest;
+}
+
+static void MfxPutPixel(HBITMAP__ *pDib, int x, int y, BYTE ix)
+{
+    if (x < 0 || y < 0 || x >= pDib->nWidth || y >= pDib->nHeight) return;
+    pDib->pBits[(size_t)y * pDib->nWidth + x] = ix;
+}
+
+static void MfxHLine(HBITMAP__ *pDib, int x0, int x1, int y, BYTE ix)
+{
+    if (y < 0 || y >= pDib->nHeight) return;
+    if (x0 > x1) { int t = x0; x0 = x1; x1 = t; }
+    if (x0 < 0) x0 = 0;
+    if (x1 >= pDib->nWidth) x1 = pDib->nWidth - 1;
+    if (x0 > x1) return;
+    memset(pDib->pBits + (size_t)y * pDib->nWidth + x0, ix, (size_t)(x1 - x0 + 1));
+}
+
+static void MfxFillRectIx(HBITMAP__ *pDib, int l, int t, int r, int b, BYTE ix)
+{
+    for (int y = t; y < b; y++)
+        MfxHLine(pDib, l, r - 1, y, ix);
+}
+
+// Bresenham with the DC pen. Win32 LineTo excludes the final endpoint; for the game's 1px
+// bubble-tail edges the visual difference is nil — we draw inclusive for simplicity.
+static void MfxLineIx(HBITMAP__ *pDib, int x0, int y0, int x1, int y1, BYTE ix)
+{
+    int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+    int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    for (;;) {
+        MfxPutPixel(pDib, x0, y0, ix);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+extern "C" {
+
+DWORD GetSysColor(int nIndex)
+{
+    switch (nIndex) {                       // classic Win95 scheme — the game palette's UI
+    case 15: return RGB(192, 192, 192);     // COLOR_3DFACE   → sysPalette[1] (HUD gray)
+    case 16: return RGB(128, 128, 128);     // COLOR_3DSHADOW → sysPalette[2]
+    case 20: return RGB(255, 255, 255);     // COLOR_3DHILIGHT→ sysPalette[3]
+    case 8:  return RGB(0, 0, 0);           // COLOR_WINDOWTEXT
+    case 5:  return RGB(255, 255, 255);     // COLOR_WINDOW
+    default: return RGB(192, 192, 192);
+    }
+}
+
+HGDIOBJ GetStockObject(int nIndex)
+{
+    switch (nIndex) {
+    case WHITE_PEN:    return (HGDIOBJ)&g_penWhite;
+    case BLACK_PEN:    return (HGDIOBJ)&g_penBlack;
+    case NULL_PEN:     return (HGDIOBJ)&g_penNull;
+    case WHITE_BRUSH:  return (HGDIOBJ)&g_brWhite;
+    case LTGRAY_BRUSH: return (HGDIOBJ)&g_brLtGray;
+    case GRAY_BRUSH:   return (HGDIOBJ)&g_brGray;
+    case DKGRAY_BRUSH: return (HGDIOBJ)&g_brDkGray;
+    case BLACK_BRUSH:  return (HGDIOBJ)&g_brBlack;
+    case NULL_BRUSH:   return (HGDIOBJ)&g_brNull;
+    default:           return 0;
+    }
+}
+
+HPEN CreatePen(int nStyle, int /*nWidth*/, COLORREF cr)
+{
+    MfxPen *p = (MfxPen *)calloc(1, sizeof(MfxPen));
+    if (!p) return 0;
+    p->nTag = MFX_TAG_PEN;
+    p->nStyle = nStyle;
+    p->cr = cr;
+    return (HPEN)p;
+}
+
+HBRUSH CreateSolidBrush(COLORREF cr)
+{
+    MfxBrush *p = (MfxBrush *)calloc(1, sizeof(MfxBrush));
+    if (!p) return 0;
+    p->nTag = MFX_TAG_BRU;
+    p->cr = cr;
+    return (HBRUSH)p;
+}
+
+HFONT CreateFontA(int nHeight, int, int, int, int nWeight, DWORD, DWORD, DWORD, DWORD,
+                  DWORD, DWORD, DWORD, DWORD, LPCSTR pszFace)
+{
+    MfxFont *p = (MfxFont *)calloc(1, sizeof(MfxFont));
+    if (!p) return 0;
+    p->nTag = MFX_TAG_FNT;
+    p->nHeight = nHeight;
+    p->nWeight = nWeight;
+    if (pszFace) { strncpy(p->szFace, pszFace, sizeof(p->szFace) - 1); }
+    return (HFONT)p;
+}
+
+COLORREF SetTextColor(HDC hdc, COLORREF c)
+    { if (!MfxIsDc(hdc)) return c; COLORREF o = hdc->crText; hdc->crText = c; return o; }
+COLORREF SetBkColor(HDC hdc, COLORREF c)
+    { if (!MfxIsDc(hdc)) return c; COLORREF o = hdc->crBk; hdc->crBk = c; return o; }
+int SetBkMode(HDC hdc, int m)
+    { if (!MfxIsDc(hdc)) return m; int o = hdc->nBkMode; hdc->nBkMode = m; return o; }
+
+int GetClipBox(HDC hdc, LPRECT r)
+{
+    if (!r) return 0;
+    if (!MfxIsDc(hdc) || !hdc->hDib) { SetRect(r, 0, 0, 0, 0); return 1; }  // NULLREGION
+    SetRect(r, 0, 0, hdc->hDib->nWidth, hdc->hDib->nHeight);
+    return 2;                                                               // SIMPLEREGION
+}
+
+int FillRect(HDC hdc, const RECT *prc, HBRUSH hbr)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib || !prc) return 0;
+    MfxBrush *pBr = MfxIsBrush(hbr) ? (MfxBrush *)hbr : &g_brWhite;
+    if (pBr->bNull) return 1;
+    MfxFillRectIx(hdc->hDib, prc->left, prc->top, prc->right, prc->bottom,
+                  MfxMapColor(hdc->hDib, pBr->cr));
+    MfxTouch(hdc);
+    return 1;
+}
+
+BOOL PatBlt(HDC hdc, int x, int y, int cx, int cy, DWORD rop)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    if (rop == PATCOPY) {
+        MfxBrush *pBr = MfxDcBrush(hdc);
+        if (!pBr->bNull)
+            MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, pBr->cr));
+    }
+    else if (rop == BLACKNESS)
+        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, RGB(0, 0, 0)));
+    else if (rop == WHITENESS)
+        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, RGB(255, 255, 255)));
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+BOOL MoveToEx(HDC hdc, int x, int y, LPPOINT pOld)
+{
+    if (!MfxIsDc(hdc)) return FALSE;
+    if (pOld) *pOld = hdc->ptCur;
+    hdc->ptCur.x = x; hdc->ptCur.y = y;
+    return TRUE;
+}
+
+BOOL LineTo(HDC hdc, int x, int y)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    MfxPen *pPen = MfxDcPen(hdc);
+    if (pPen->nStyle != PS_NULL)
+        MfxLineIx(hdc->hDib, hdc->ptCur.x, hdc->ptCur.y, x, y, MfxMapColor(hdc->hDib, pPen->cr));
+    hdc->ptCur.x = x; hdc->ptCur.y = y;
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+COLORREF SetPixel(HDC hdc, int x, int y, COLORREF c)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return c;
+    MfxPutPixel(hdc->hDib, x, y, MfxMapColor(hdc->hDib, c));
+    MfxTouch(hdc);
+    return c;
+}
+
+COLORREF GetPixel(HDC hdc, int x, int y)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return (COLORREF)-1;
+    HBITMAP__ *pDib = hdc->hDib;
+    if (x < 0 || y < 0 || x >= pDib->nWidth || y >= pDib->nHeight) return (COLORREF)-1;
+    RGBQUAD *pQ = &pDib->aPal[pDib->pBits[(size_t)y * pDib->nWidth + x]];
+    return RGB(pQ->rgbRed, pQ->rgbGreen, pQ->rgbBlue);
+}
+
+BOOL Rectangle(HDC hdc, int l, int t, int r, int b)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    MfxBrush *pBr = MfxDcBrush(hdc);
+    if (!pBr->bNull)
+        MfxFillRectIx(pDib, l + 1, t + 1, r - 1, b - 1, MfxMapColor(pDib, pBr->cr));
+    MfxPen *pPen = MfxDcPen(hdc);
+    if (pPen->nStyle != PS_NULL) {
+        BYTE ix = MfxMapColor(pDib, pPen->cr);
+        MfxHLine(pDib, l, r - 1, t, ix);
+        MfxHLine(pDib, l, r - 1, b - 1, ix);
+        MfxLineIx(pDib, l, t, l, b - 1, ix);
+        MfxLineIx(pDib, r - 1, t, r - 1, b - 1, ix);
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+// RoundRect via per-scanline inset from the corner ellipses (rw/rh = corner ellipse size).
+// The bubble frame is a white box with a black 1px outline — pen + brush both honored.
+BOOL RoundRect(HDC hdc, int l, int t, int r, int b, int rw, int rh)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    if (r <= l || b <= t) return TRUE;
+    int ra = rw / 2, rb = rh / 2;                    // corner radii
+    if (ra > (r - l) / 2) ra = (r - l) / 2;
+    if (rb > (b - t) / 2) rb = (b - t) / 2;
+    MfxBrush *pBr = MfxDcBrush(hdc);
+    MfxPen  *pPen = MfxDcPen(hdc);
+    BYTE ixBr  = pBr->bNull ? 0 : MfxMapColor(pDib, pBr->cr);
+    BYTE ixPen = MfxMapColor(pDib, pPen->cr);
+    int  bPen  = pPen->nStyle != PS_NULL;
+    int aPrevL = 0, aPrevR = 0, bHavePrev = 0;
+    for (int y = t; y < b; y++) {
+        // horizontal inset of this scanline (elliptical corners)
+        int inset = 0;
+        if (rb > 0) {
+            int dy = -1;
+            if (y < t + rb)           dy = (t + rb - 1) - y + 1;   // top corner rows
+            else if (y >= b - rb)     dy = y - (b - rb);           // bottom corner rows
+            if (dy >= 0) {
+                double fy = (double)dy / rb;
+                double fx = 1.0 - sqrt(1.0 - fy * fy);
+                inset = (int)(fx * ra + 0.5);
+            }
+        }
+        int xl = l + inset, xr = r - 1 - inset;
+        if (!pBr->bNull)
+            MfxHLine(pDib, xl, xr, y, ixBr);
+        if (bPen) {
+            if (y == t || y == b - 1)
+                MfxHLine(pDib, xl, xr, y, ixPen);
+            else {
+                MfxPutPixel(pDib, xl, y, ixPen);
+                MfxPutPixel(pDib, xr, y, ixPen);
+                if (bHavePrev) {                     // connect diagonal corner steps
+                    for (int x = xl; x < aPrevL; x++) MfxPutPixel(pDib, x, y, ixPen);
+                    for (int x = aPrevR + 1; x <= xr; x++) MfxPutPixel(pDib, x, y, ixPen);
+                }
+            }
+        }
+        aPrevL = xl; aPrevR = xr; bHavePrev = 1;
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+// Even-odd scanline polygon fill + pen outline (the bubble tail triangle).
+BOOL Polygon(HDC hdc, const POINT *apt, int n)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib || !apt || n < 2) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    MfxBrush *pBr = MfxDcBrush(hdc);
+    if (!pBr->bNull && n >= 3) {
+        BYTE ix = MfxMapColor(pDib, pBr->cr);
+        int yMin = apt[0].y, yMax = apt[0].y;
+        for (int i = 1; i < n; i++) {
+            if (apt[i].y < yMin) yMin = apt[i].y;
+            if (apt[i].y > yMax) yMax = apt[i].y;
+        }
+        for (int y = yMin; y <= yMax; y++) {
+            int aX[16]; int nX = 0;
+            for (int i = 0; i < n; i++) {
+                const POINT *p0 = &apt[i], *p1 = &apt[(i + 1) % n];
+                if ((p0->y <= y && p1->y > y) || (p1->y <= y && p0->y > y)) {
+                    if (nX < 16)
+                        aX[nX++] = p0->x + (int)((double)(y - p0->y) * (p1->x - p0->x)
+                                                 / (p1->y - p0->y) + 0.5);
+                }
+            }
+            for (int i = 1; i < nX; i++)             // insertion sort the crossings
+                for (int j = i; j > 0 && aX[j - 1] > aX[j]; j--)
+                    { int t2 = aX[j]; aX[j] = aX[j - 1]; aX[j - 1] = t2; }
+            for (int i = 0; i + 1 < nX; i += 2)
+                MfxHLine(pDib, aX[i], aX[i + 1], y, ix);
+        }
+    }
+    MfxPen *pPen = MfxDcPen(hdc);
+    if (pPen->nStyle != PS_NULL) {
+        BYTE ix = MfxMapColor(pDib, pPen->cr);
+        for (int i = 0; i < n; i++)
+            MfxLineIx(pDib, apt[i].x, apt[i].y, apt[(i + 1) % n].x, apt[(i + 1) % n].y, ix);
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+// Pie: fill the elliptical sector swept COUNTERCLOCKWISE (in y-up math terms, GDI default
+// arc direction) from the (x1,y1) radial to the (x2,y2) radial. Coincident radials = the
+// full ellipse (the health dial's "full disc" first call). Pen == brush color in every game
+// call site, so the outline is covered by the fill.
+BOOL Pie(HDC hdc, int l, int t, int r, int b, int x1, int y1, int x2, int y2)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    MfxBrush *pBr = MfxDcBrush(hdc);
+    if (pBr->bNull) return TRUE;
+    BYTE ix = MfxMapColor(pDib, pBr->cr);
+    double cx = (l + r - 1) / 2.0, cy = (t + b - 1) / 2.0;
+    double ra = (r - l) / 2.0, rb2 = (b - t) / 2.0;
+    if (ra <= 0 || rb2 <= 0) return TRUE;
+    double a1 = atan2(cy - y1, x1 - cx);             // y flipped → math angles
+    double a2 = atan2(cy - y2, x2 - cx);
+    double sweep = a2 - a1;
+    const double PI2 = 6.28318530717958647692;
+    while (sweep < 0) sweep += PI2;
+    if (sweep < 1e-9) sweep = PI2;                   // start == end → full ellipse
+    for (int y = t; y < b; y++) {
+        double fy = (y - cy) / rb2;
+        if (fy < -1 || fy > 1) continue;
+        double half = ra * sqrt(1.0 - fy * fy);
+        int xl = (int)ceil(cx - half), xr = (int)floor(cx + half);
+        for (int x = xl; x <= xr; x++) {
+            double ang = atan2(cy - y, x - cx) - a1;
+            while (ang < 0) ang += PI2;
+            if (ang <= sweep)
+                MfxPutPixel(pDib, x, y, ix);
+        }
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+} // extern "C"
 
 // ── palettes (M2) ────────────────────────────────────────────────────────────────────────────
 // The game builds ONE CPalette from CDeskcppDoc::sysPalette and realizes it into the screen DC

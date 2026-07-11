@@ -370,6 +370,9 @@ typedef struct tagOPENFILENAME {
 #define TRANSPARENT 1
 #define OPAQUE      2
 #define WHITE_BRUSH 0
+#define LTGRAY_BRUSH 1
+#define GRAY_BRUSH   2
+#define DKGRAY_BRUSH 3
 #define BLACK_BRUSH 4
 #define NULL_BRUSH  5
 #define WHITE_PEN   6

@@ -208,6 +208,10 @@ void MfxPaintIfDirty()
     CView *pView = pFrame ? pFrame->GetActiveView() : 0;
     if (!pView || !MfxIsWnd(pView->m_hWnd) || !pView->m_hWnd->bVisible) return;
     g_bDirty = 0;
+    // Win32 BeginPaint erases first: CDeskcppView::OnEraseBkgnd PatBlts the clip box with
+    // COLOR_3DFACE — DrawGameArea's GetPixel probe at (0x138,0x11c) DEPENDS on that gray
+    // (a non-gray probe pixel triggers a full RedrawWindow every blit — a redraw storm).
+    MfxDispatchMsg(pView, WM_ERASEBKGND, (WPARAM)MfxScreenDC(), 0);
     MfxDispatchMsg(pView, WM_PAINT, 0, 0);        // → CView::OnPaint → OnDraw(screen DC)
 }
 
