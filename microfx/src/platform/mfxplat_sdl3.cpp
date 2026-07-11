@@ -201,6 +201,20 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
     pEv->nType = MFXPLAT_EV_NONE;
     pEv->nVk = pEv->nChar = pEv->x = pEv->y = 0;
 
+#ifdef __EMSCRIPTEN__
+    // The shell's Win95 titlebar X button (mfx_shell.html) sets a JS flag instead of calling
+    // into wasm — a JS event handler firing while Asyncify has the stack unwound must not
+    // re-enter exports. Polled here (normal wasm execution) and turned into the same QUIT
+    // event a window close produces → the game's own exit-confirmation modal.
+    if (EM_ASM_INT({
+            if (window.__mfxCloseReq) { window.__mfxCloseReq = 0; return 1; }
+            return 0;
+        })) {
+        pEv->nType = MFXPLAT_EV_QUIT;
+        return 1;
+    }
+#endif
+
     if (s_nTextPend > 0 && s_szTextPend[0]) {
         pEv->nType = MFXPLAT_EV_CHAR;
         pEv->nChar = (unsigned char)s_szTextPend[0];

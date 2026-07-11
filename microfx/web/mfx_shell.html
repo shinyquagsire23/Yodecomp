@@ -15,23 +15,85 @@
     /* Win95 default wallpaper color */
     html, body { margin: 0; padding: 0; height: 100%; background: #008080; }
     body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    /* ── the Win95 window frame around the game (web chroming; a C++ compositor version —
+       the v83 menu-bar strip approach — is the path for homebrew ports, e.g. Wii U) ── */
+    #win95 {
+      background: #c0c0c0; padding: 3px;
+      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
+                  inset -2px -2px #808080, inset 2px 2px #fff;
+      max-width: 100vw;
+    }
+    #tbar {
+      background: #000080; color: #fff; height: 32px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 0 4px; margin-bottom: 3px; user-select: none;
+    }
+    #tbar img { width: 26px; height: 26px; image-rendering: pixelated; }
+    #tbar-title {
+      flex: 1; font: bold 19px "MS Sans Serif", Tahoma, system-ui, sans-serif;
+      white-space: nowrap; overflow: hidden;
+    }
+    .tbtn {
+      width: 32px; height: 28px; margin-left: 2px; border: 0; padding: 0;
+      background: #c0c0c0; position: relative;
+      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff,
+                  inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+      font: bold 20px Tahoma, system-ui, sans-serif; color: #000;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .tbtn:active {
+      box-shadow: inset 1px 1px #0a0a0a, inset -1px -1px #fff,
+                  inset 2px 2px #808080, inset -2px -2px #dfdfdf;
+    }
+    .tbtn[disabled] { color: #808080; text-shadow: 1px 1px #fff; }
+    .tbtn[disabled]:active {           /* disabled buttons don't depress */
+      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff,
+                  inset -2px -2px #808080, inset 2px 2px #dfdfdf;
+    }
+    .g-min { width: 12px; height: 4px; background: currentColor;
+             align-self: flex-end; margin: 0 0 6px 0; }
+    .g-max { width: 14px; height: 12px; border: 2px solid currentColor;
+             border-top-width: 4px; box-sizing: border-box; }
     canvas.emscripten {
       border: 0; outline: none; display: block;
       image-rendering: pixelated; image-rendering: crisp-edges;
-      max-width: 100vw; max-height: 100vh;
+      max-width: calc(100vw - 6px); max-height: calc(100vh - 44px);
     }
     #status {
-      color: #404040; font: 14px system-ui, sans-serif; padding: 8px;
+      color: #c0c0c0; font: 14px system-ui, sans-serif; padding: 8px;
       position: fixed; bottom: 6px; left: 0; right: 0; text-align: center;
       pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  <div id="win95">
+    <div id="tbar">
+      <img id="tbar-icon" alt="">
+      <span id="tbar-title">Desktop Adventures</span>
+      <button class="tbtn" id="btn-min" disabled title="Minimize"><span class="g-min"></span></button>
+      <button class="tbtn" id="btn-max" disabled title="Maximize"><span class="g-max"></span></button>
+      <button class="tbtn" id="btn-close" title="Close">×</button>
+    </div>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  </div>
   <div id="status"></div>
   <script>
     var statusElement = document.getElementById('status');
+    // titlebar dressing: icon from the favicon (one embedded copy), title synced from
+    // document.title (SDL sets it to the game's window title once the pump is up)
+    document.getElementById('tbar-icon').src =
+      document.querySelector('link[rel="icon"]').href;
+    setInterval(function () {
+      var t = document.getElementById('tbar-title');
+      if (t.textContent !== document.title) t.textContent = document.title;
+    }, 500);
+    // the X asks the GAME to close (its own exit-confirmation modal appears). A JS handler
+    // must not call into wasm while Asyncify has the stack unwound, so it only sets a flag —
+    // the SDL3 backend polls it (MfxPlatPollEvent) and synthesizes the QUIT event.
+    document.getElementById('btn-close').addEventListener('click', function () {
+      window.__mfxCloseReq = 1;
+    });
     var Module = {
       canvas: (function () {
         var canvas = document.getElementById('canvas');

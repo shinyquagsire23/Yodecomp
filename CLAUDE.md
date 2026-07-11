@@ -372,6 +372,13 @@ identity — pinning would break confirmed-correct sprites). Shell html bg = 3DF
 draws two Chord halves (hilite/shadow) under the green Pie disc. Real Chord now in mfxgdi.cpp
 (Pie's scanline + arc-side-of-chord-line half-plane test); sunken look confirmed. ⭐ grep
 mfxstubs.cpp for remaining silent GDI stubs when a UI element "draws flat/missing".
+(4) Win95 WINDOW CHROME around the web page (user request): mfx_shell.html draws the full
+frame in CSS — teal desktop, navy titlebar (favicon icon + title synced from document.title),
+disabled min/max, and a WORKING X: it sets `window.__mfxCloseReq` (a JS handler must NOT call
+into wasm mid-Asyncify-suspend) which MfxPlatPollEvent polls under __EMSCRIPTEN__ and turns
+into MFXPLAT_EV_QUIT → the game's own "Leave Yoda Stories?" modal. Screenshot-verified. A
+C++-side compositor version (extend the v83 menu-bar strip) is the path for homebrew ports
+(user floated Wii U).
 
 **▶ ⚠ Open watch-items:** (1) the v86 one-off Replay SIGSEGV (exit 139, never reproduced —
 lldb `bt 25` if it recurs). (2) wasm INI/save persistence: MEMFS is lost on reload — IDBFS
