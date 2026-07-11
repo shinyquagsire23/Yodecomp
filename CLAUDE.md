@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v84)
+## Where the project stands (2026-07-11, v87)
 
 Phases A–G (byte-matching YodaDemo.exe's app region) are **COMPLETE & PARKED**: **211 functions byte-exact /
 99.17 % coverage**, every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked
@@ -59,11 +59,12 @@ Phase H (extension — functional correctness, not byte-matching) status:
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
-1. **Indy ifdef stragglers** — the remaining `GAME_INDY` deltas, in rough priority:
-   - ✅ Startup theme MIDI (v72, user-confirmed audible) · ✅ IACT opcodes fully verified (v85) ·
-     ✅ INI replay persistence (v85) · ✅ Indy menu resources (v85, live-rendering).
-   - Hero-HP tail: `IndyGenerate` tail sets entity+0x90=120 in DESKADV; we set only doc fields.
-     (The LAST open GOAL-1 item.)
+1. **✅ Indy ifdef stragglers — GOAL 1 CLOSED (v87).** `GAME_INDY` deltas all done:
+   - ✅ Startup theme MIDI (v72) · ✅ IACT opcodes fully verified (v85) · ✅ INI replay
+     persistence (v85) · ✅ Indy menu resources (v85) · ✅ Hero-HP tail (v87 — was a misread:
+     DESKADV's "entity+0x90=120" is actually `view->nTargetZoneId=120`; Indy health is
+     doc+0x1096/0x1098 already reset 1/1 by StartGame. No field to wire; added the real missing
+     tail writes — timeBase/unk50/unk2e34/camera 0x160,0xa0. See v87 pickup.).
 2. **H4 — the SDL portable target** (largest lift; spec below).
 3. **Indy Ghidra RE sweep** — comb `DESKADV.EXE` (`program=DESKADV.EXE`) for behavioral differences we've
    missed, naming functions + defining structs along the way (same conventions as YodaDemo; 16-bit NE,
@@ -268,10 +269,62 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-11 v86 — playtest follow-ups all resolved: Statistics
-DLGTEMPLATEEX parse, SDL3 native file dialog, Ctrl+D alias for the Mac-eaten Ctrl+F8 (all
-user-confirmed working live where testable); WASM/Emscripten recorded as GOAL 4. v85 detail
-retained below.)
+### ⏭ NEXT SESSION PICKUP (2026-07-11 v87 — the two remaining v86 work items DONE + all
+user-confirmed live: the LAST GOAL-1 item (Indy hero-HP tail — turned out to be a nothing,
+see below) and the proper in-window `AfxMessageBox` modal. Bonus user-found redraw-residue
+bug fixed. v86 detail retained below; v85 condensed → PLAN_COMPLETED.md ⏮.)
+
+**▶ v87 — ✅ Proper `AfxMessageBox` in-window modal (USER-CONFIRMED live).** Replaced the
+M-era headless stderr stub (auto-answered IDYES/IDOK, so every confirm was INVISIBLE) with a
+real Win95-style modal: `MfxShowMessageBox` in microfx/src/app/mfxdlg.cpp reuses the M5 control
+kit (CK_DLGFRAME bevel + word-wrapped CK_LABEL lines + a CK_DEFBUTTON/CK_BUTTON row mapped from
+the MB_ type: OK/OKCANCEL/YESNO/YESNOCANCEL → return IDOK/IDCANCEL/IDYES/IDNO), its own
+GetMessageA modal loop (Enter=default, Esc=cancel where valid, Y/N accelerators, click→
+WM_COMMAND scoped to msg.hwnd==dialog). Exposed via a new `microfx.h` prototype so BOTH core/
+entry points (AfxMessageBox in mfxcore.cpp, MessageBoxA in mfxstubs.cpp) call it; caption =
+app name else AFX_IDS_APP_TITLE string 0xE000. ⭐ Headless-safe fallback preserved: returns -1
+when `MfxPumpIsUp()` (new pump accessor) is false or no root window, and the callers keep the
+old auto-answer — so worldgen_smoke/game_walk/dlg_smoke stay non-blocking. Screenshot-verified
+("Leave Yoda Stories?" YESNO over the game, correct caption).
+
+**▶ v87 — ✅ Debug oracles now pump inside modal loops too (enabler for the above).** Factored
+the AUTOMOD/AUTOKEY/AUTOCMD/AUTOCLICK/SHOT block out of `CWinThread::Run` into a shared
+`MfxDebugOracles()` (mfxpump.cpp) that the modal `GetMessageA` wait also calls each spin — so a
+YODA_AUTOCLICK can drive/answer a dialog (the v86 "modal loop owns the thread → headless
+dialog-trigger oracles never fire" limitation, now lifted). Also fixed AUTOCLICK to emit
+WM_LBUTTONUP after the DOWN (dialog-kit buttons commit on the UP — a DOWN-only synthetic click
+pushed but never fired them). Per-phase statics keep double-pumping harmless. ⚠ Note: the
+in-game speech BUBBLE is itself a nested modal that swallows non-bubble clicks, so an AUTOCLICK
+fired while a bubble is up can't reach a box behind it — dismiss the bubble first (real game
+gates New/Replay/Load during a bubble anyway).
+
+**▶ v87 — ✅ Redraw residue on New/Replay/Load World FIXED (USER-FOUND + USER-CONFIRMED).**
+The confirm box overlaps the inventory panel; on close it left box pixels over the inventory.
+Root cause = the "out-of-main-loop redraw" class (same family as the level-transition junk):
+those three commands return to a handler that IMMEDIATELY runs a world regen + zone transition,
+and the transition redraws only the game-AREA region in a busy-wait loop (clock-hook presents,
+NOT a full OnDraw), so the box's `MfxSetDirty()` was preempted — its full repaint never ran and
+the inventory region (which a transition never touches) kept the box pixels. Fix: force
+`MfxPaintIfDirty()` synchronously at EVERY modal close (MfxShowMessageBox + CDialog::DoModal +
+both CFileDialog paths, mfxdlg.cpp) so a full erase+OnDraw clears the whole window while the
+game is still in its pre-transition drawable state. About/sliders never tripped it because
+nothing redraws after them. ⭐ LESSON: a modal that returns into a partial-redraw operation
+must repaint ON CLOSE, not just mark dirty.
+
+**▶ v87 — ✅ LAST GOAL-1 item (Indy hero-HP tail) CLOSED — it was a misread, nothing to wire.**
+Re-RE'd DESKADV IndyGenerate's tail (1010:8524) + the StartGame twin `IndyStartNewGameMaybe`
+(1020:0ed0): the v84 "sets hero entity+0x90=120, clears +0x2c" reading was WRONG — `local_3e`
+is the VIEW (from the GetFirstViewPosition/GetNextView vtable pair at the head), so
+"entity+0x90=0x78" is `view->nTargetZoneId = 120` and "entity+0x2c=0" is the view busy flag —
+both of which our shared code already sets. Indy's HEALTH lives at doc+0x1096/0x1098
+(healthLo/healthHi, same lo/hi scheme as Yoda; IACT cond 0x16 at 1010:2e6a reads
+hi*-100-lo+0x191) and is reset to 1/1 by the StartGame twin (doc+0x1096 = 0x10001) — which our
+shared StartGame already does. So NO per-entity hero-HP field exists to wire. While there,
+added the two genuinely-missing DESKADV tail writes (Worldgen.cpp IndyGenerate tail, all
+GAME_INDY-guarded): `timeBase = time(NULL)` (doc+0x58 clock stamp; DESKADV does NOT clear
+timeOffset, kept faithful), `unk50 = startZoneId`/`unk2e34 = 0` (doc+0x44/0xc34), and the
+camera init `cameraX/Y = 0x160/0xa0` (doc+0x10a2, was Yoda's 0x140/0x140). GOAL 1 is now fully
+CLOSED. Anchor: Worldgen.obj recompiled, all 5 oracles GREEN (change is GAME_INDY-guarded).
 
 **▶ v86 — ✅ Statistics dialog opens now (USER-CONFIRMED path via menu).** Root cause was NOT
 the .res or the enable-gate — dialog 0xe1 is the game's ONE **DLGTEMPLATEEX** resource
@@ -311,97 +364,19 @@ logs sdlkey/scancode/mod→vk per key event — the probe that framed this + fut
 byte-match anchor build never compiles microfx, so 211/99.17% is untouched by construction (not
 re-run). Binaries copied to YodaFull/ and YodaIndy/ for the user.
 
-**▶ v85 — ✅ F8 debug dialog + the roaming `CFile::Read` crash: ONE bug, FIXED (F8
-USER-CONFIRMED).** microfx `CFile::Read/Write/Seek/GetPosition/GetLength` ASSERTED on a
-never-opened stream (`mfxcore.cpp`); real MFC release semantics THROW `CFileException` there —
-and `CDeskcppDoc::LoadWorldStateFile` (called from OnDraw at startup, doc path in `CDeskcppApp
-::m_str`) DELIBERATELY relies on that throw for the "no .wld state file" case (TRY/CATCH →
-nFrameMode=12). The assert turned a designed control path into an abort ~seconds into ANY run
-whose doc path is absent — that was v83's "idle crash" AND why Ctrl+F8 (and much else) looked
-broken live. Fixed by making those ops throw. ⭐ Lesson: when a microfx ASSERT fires in
-game-driven code, first ask "does MFC THROW here and does the game CATCH it?" — grep the
-call-site for TRY/CATCH before assuming the game is at fault. (lldb `-b -o run -k "bt 25"`
-against the SDL binary gave the call site in one shot.)
-
-**▶ v85 — ✅ Statistics + INDY menu bar resolved by GROUND TRUTH: retail Indy has NO Stats
-feature.** DESKADV.EXE's RT_MENU id 2 (decoded from the NE image) has NO Statistics item, and
-its RT_DIALOG set has NO 0xe1/0xe0/0xdf — the grayed item was never the bug; shipping YODA's
-menu on Indy was. `make_res.py --indy` now converts DESKADV's 16-bit ANSI menu template to the
-Win32 shape (`ne_menu_to_win32`) and overrides RT_MENU 2 — every command id in Indy's menu
-already exists in our dispatch space (0x8000-0x800e/0xe103/0xe14x; the feared mismatch is
-empirically dead; note Indy's "Using Help" is 0xe143 vs Yoda's 0xe144 — kept faithful).
-Live-verified headless: `YODA_AUTOCLICK=6000:55:10` + `YODA_SHOT` shows Indy's real Options
-popup (no Statistics; World Control correctly grayed; Sound/Music checked) with update-UI
-working. All three Indy-affected builds rebuilt clean (build-sdl-indy, build-indy wine,
-build-sdl). Bonus ground truth: Indy's own dialog 0xbf is control-for-control IDENTICAL to
-Yoda's, so the F8 dialog needs no import; DESKADV also has NO Terrain/HScore/LScore INI keys.
-
-**▶ v85 — ✅ INI replay persistence (was a GOAL-1 straggler, now DONE + verified).** RE'd from
-DESKADV (savers 1020:0000/1020:0339, loaders 1018:e7af/1018:eb39, all previously named in
-Ghidra): Indy persists TWO lists under `[GameData]` — `Wyoming<N>` = the single story history
-(DESKADV doc+0x194; Indy has one world type — kept in our otherwise-unused `storyHistoryAlaska`
-slot; `storyHistoryNevada` already plays the +0x140 transient list inside IndyGenerate) and
-`Hawaii<N>` = the placed-zone list (+0x14e). Format vs Yoda: ',' separator (not '_'), EVERY
-value comma-terminated, 10 values/line, per-line obfKey (rand()%255+1), worldSeed prefix; the
-history caps at 10 (Yoda 3) and an EMPTY history is seeded with default story 0x86. Wired:
-4 new members (tail of Worldgen.cpp GAME_INDY region + decls in Worldgen.h/DeskcppStub.h Indy
-blocks), IndyGenerate head (unconditional history clear → load-if-no-goal → seed/trim) + goal
-append (+0x194 next to the +0x140 one) + tail (RemoveEmptyZonesFromPlacedList ≡ DESKADV's
-IndyFilterEnemyZonesFromPlacedList 1020:06ca — verified structurally identical — then save
-both), and a GAME_INDY branch in OnReplayStory (WorldgenHelpers.cpp — single history, no
-planet switch; DESKADV twin FUN_1020_0dc8 → renamed IndyOnReplayStory in Ghidra). ⚠ The old
-`((void)0)` no-op MACROS for these four names (Worldgen.cpp ~7936) were removed — they silently
-ate the new definitions ("expected unqualified-id" at the definition = your function name is a
-macro; `-E` and look). VERIFIED cross-process: New World loads+appends+saves; Replay Story in a
-fresh process regenerates the history's LAST story and saves the goal≥0-path history
-([0x86, goal] — the head-clear+skip-load shape, DESKADV-faithful). Stale-key flaw (shrinking
-line count leaves old keys readable) is DESKADV-faithful too — reproduce it, don't fix it.
-
-**▶ v85 — ✅ IACT condition table VERIFIED case-for-case vs DESKADV (agent sweep).** The
-condition switch is INLINED in the IACT runner (FUN_1010_2910 → renamed IndyIactRunScripts;
-jump table 1010:2a28) — there is NO separate condition function. Six `kIndyCondToYoda` entries
-were WRONG and are now fixed (src/IactScript.cpp, full rationale in the table comments):
-0x08↔0x09 were swapped (gameState==-1=LOST→Yoda 0x11, ==1=WON→0x12 — Yoda's enum NAMES are
-misleading, its CODE is ground truth); 0x0b→0x20 RandVarNe with arg0 forced to -1 at remap
-time (in IactCondition::Read); 0x14→0x0e CheckEndItem (cellItemA==a0; 142 uses in the DAW —
-the highest-impact fix); 0x15→0x0f CheckStartItem (exact); 0x16→0x13 HealthLs (exact formula).
-Confirmed correct: 0x0a HasItem positive sense, 0x0f ZoneSolved positive sense, cmd 0x13 rect
-arg order ≡ DrawZoneCellRect (all ⚠ flags retired). Cond 0x00 (click-walk-target gate) has NO
-Yoda twin but ZERO uses in all 2825 DESKTOP.DAW scripts — always-pass mapping is safe. ⚠ LIVE
-IMPLICATION: cond 0x14's 142 sites previously mapped to ExperienceEq (likely never matched) —
-scripts newly fire now; if the next Indy playtest shows behavior CHANGES, suspect/celebrate
-this remap first.
-
 **▶ ⚠ Open watch-item:** ONE replay run exited SIGSEGV (exit 139) after the world regenerated;
 NOT reproduced since (3 fixed-INI re-runs + 2 lldb runs all clean, no yoda_crash.log). If a
 crash shows up around Replay Story live, get `lldb -b -o run -k "bt 25"` on it. Also still not
 live-verified: F1→How to Play (low priority), YODA_ACCEL=1 present path.
 
-**▶ NEXT (likely session shape):** (1) user live-playtests Indy — the REAL menu bar, Replay
-Story persistence across app restarts, and gameplay under the corrected condition opcodes
-(NOTE: the user runs `cd YodaIndy && ./yoda` — copy `build-sdl-indy/yoda` there first, or ask;
-an unsolicited cp was declined mid-v85, the user copies it themselves). (2) The LAST GOAL-1
-item: hero-HP tail (DESKADV IndyGenerate tail sets the hero entity+0x90=120 + a UI timer; we
-set only doc fields — wire the hero Character HP at world entry). (3) GOAL 3 RE sweep as fill.
-
-**▶ ⭐ TODO (user-requested 2026-07-11) — give `AfxMessageBox` a PROPER implementation.** Both
-overloads (microfx/src/core/mfxcore.cpp:613/619) are still the M-era headless STUB: they
-`fprintf(stderr, "microfx: AfxMessageBox: %s")` and auto-return `IDYES`/`IDOK` (whatever the
-MB_ button set defaults to). That was fine to keep the game unblocked headless, but live it means
-every confirm ("Leave Yoda Stories?", "This command will discard the current world. Replay
-anyway?", the OOM/data-file errors) is INVISIBLE and auto-answered — the user never sees the
-prompt. Make it a REAL in-window modal, reusing the M5 dialog machinery already in
-microfx/src/app/mfxdlg.cpp (CDialog::DoModal's control kit — DLGFRAME bevel + word-wrapped
-CK_LABEL for the text + CK_BUTTON/CK_DEFBUTTON rows for the MB_ button set, its own
-GetMessageA modal loop, return IDOK/IDCANCEL/IDYES/IDNO/etc). ⚠ Watch: (a) AfxMessageBox lives
-in core/ (mfxcore.cpp) but the dialog kit is in app/ (mfxdlg.cpp) — either move the impl to
-app/ or expose a small MfxShowMessageBox() from app/ that core/ calls (keep the headless-safe
-auto-answer as the fallback when `!g_bMfxPlatUp`, so worldgen_smoke/game_walk/dlg_smoke stay
-non-blocking — gate on the same platform-up flag the modal loops already use). (b) size the box
-to the wrapped text; map the MB_ flags (MB_OK/MB_OKCANCEL/MB_YESNO/MB_YESNOCANCEL) to the button
-rows + return codes. (c) the SDL3 backend now has a native path precedent (MfxPlatShowFileDialog)
-— a native OS message box (SDL_ShowSimpleMessageBox) is an OPTION but the in-window route keeps
-the retro look and needs no new contract hook; recommend in-window first.
+**▶ NEXT (likely session shape):** GOAL 1 is CLOSED and the v86 TODO (AfxMessageBox) is DONE.
+Remaining open work: (1) user live-playtests Indy — the REAL menu bar, Replay Story persistence
+across app restarts, gameplay under the corrected condition opcodes, and now the live confirm
+boxes (Replay/New/Load) with the real modal (NOTE: the user runs `cd YodaIndy && ./yoda` — copy
+`build-sdl-indy/yoda` there first, or ask; an unsolicited cp was declined mid-v85, the user
+copies it themselves). (2) GOAL 2 (H4 SDL polish) / GOAL 4 (WASM port — the blocking modal
+loops incl. the new AfxMessageBox loop are the porting lift). (3) GOAL 3 Indy Ghidra RE sweep
+as fill.
 
 **▶ Research note (from the user, unexplored):** SDL3 has a native file-dialog API
 (`SDL_ShowOpenFileDialog`, https://wiki.libsdl.org/SDL3/SDL_ShowOpenFileDialog) — worth splitting
@@ -418,7 +393,10 @@ falling back to the custom picker on backends without one (null/DS).
   `YODA_AUTOCMD=<startms>:<cmdhex>` (0x8008 New World / 0x800b Replay — the v85 persistence oracle) ·
   `YODA_AUTOCLICK=<ms>:<x>:<y>[,...]` (y<19 = menu bar) · `YODA_DLGSHOT=<path>` · `dlg_smoke` ·
   `YODA_ACCEL=1` · `YODA_VSYNC=1` · `yoda_crash.log` (MfxArrayOOBTrap backtrace dump, cwd) ·
-  microfx `AfxMessageBox` prints to stderr and auto-returns IDYES/IDOK (headless-safe) · run-from
+  microfx `AfxMessageBox` is now a REAL in-window modal when the pump is up (v87) — headless it
+  still prints to stderr + auto-returns IDYES/IDOK (`MfxShowMessageBox` returns -1) · the v87
+  debug oracles (AUTOCLICK etc.) now fire inside modal loops too (shared `MfxDebugOracles`),
+  but a nested speech-bubble modal swallows non-bubble clicks — dismiss it first · run-from
   `build-sdl-indy/` works (DESKTOP.DAW + yoda.INI copied there in v85) — the data path is the EXE's
   OWN folder (`GetModuleFileName`), not cwd.
 

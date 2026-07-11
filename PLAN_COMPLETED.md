@@ -2646,3 +2646,36 @@ user interaction ~10-15s into idling on the title/intro; not isolated to a call 
   CFile::Read assert) — ALL cleared in v85 (see the v85 pickup/⏮): F8+CFile were one microfx bug (CFile ops
   must THROW CFileException on unopened stream, not assert), Statistics = retail Indy HAS no Stats feature
   (real Indy menu imported instead), menu bar = `make_res.py --indy` ne_menu_to_win32.
+
+## ⏮ v85 (2026-07-11) — condensed (demoted from the pickup in v87)
+
+- **F8 debug dialog + the roaming `CFile::Read` crash = ONE bug (F8 USER-CONFIRMED).** microfx
+  `CFile::Read/Write/Seek/GetPosition/GetLength` ASSERTED on a never-opened stream; real MFC release
+  semantics THROW `CFileException`, and `CDeskcppDoc::LoadWorldStateFile` (OnDraw startup path)
+  RELIES on that throw for the "no .wld state file" case (TRY/CATCH → nFrameMode=12). The assert
+  turned a designed control path into an abort ~seconds into any run whose doc path is absent — v83's
+  "idle crash" AND why Ctrl+F8 looked broken. Fixed by making those CFile ops throw (mfxcore.cpp).
+  ⭐ Lesson: when a microfx ASSERT fires in game-driven code, first ask "does MFC THROW here and does
+  the game CATCH it?" — grep the call-site for TRY/CATCH before blaming the game. (lldb `-b -o run -k
+  "bt 25"` gave the call site in one shot.)
+- **Statistics + INDY menu bar resolved by GROUND TRUTH: retail Indy has NO Stats feature.**
+  DESKADV.EXE's RT_MENU id 2 has no Statistics item and its RT_DIALOG set has no 0xe1/0xe0/0xdf — the
+  grayed item was never the bug; shipping YODA's menu on Indy was. `make_res.py --indy` now converts
+  DESKADV's 16-bit ANSI menu template to Win32 (`ne_menu_to_win32`) and overrides RT_MENU 2 — every
+  command id already in our dispatch space (note Indy "Using Help" 0xe143 vs Yoda 0xe144, kept
+  faithful). Indy's dialog 0xbf is control-for-control identical to Yoda's (F8 needs no import).
+- **INI replay persistence DONE + cross-process verified.** RE'd from DESKADV (savers 1020:0000/
+  1020:0339, loaders 1018:e7af/1018:eb39): Indy persists TWO `[GameData]` lists — `Wyoming<N>` = the
+  single story history (doc+0x194; kept in our storyHistoryAlaska slot) and `Hawaii<N>` = placed-zone
+  list (+0x14e). Format vs Yoda: ',' separator, EVERY value comma-terminated, 10/line, per-line
+  obfKey (rand()%255+1), worldSeed prefix; history caps at 10 (Yoda 3); EMPTY history seeds default
+  story 0x86. Wired into IndyGenerate head/goal-append/tail + OnReplayStory GAME_INDY branch. ⚠ The
+  old `((void)0)` no-op MACROS for the four new names silently ATE the new definitions
+  ("expected unqualified-id" AT a definition = the name is a macro; `-E` and look). Stale-key flaw
+  (shrinking line count leaves old keys readable) is DESKADV-faithful — reproduce, don't fix.
+- **IACT condition table VERIFIED case-for-case vs DESKADV.** The condition switch is INLINED in the
+  IACT runner (FUN_1010_2910 → IndyIactRunScripts; jump table 1010:2a28) — NO separate condition fn.
+  Six `kIndyCondToYoda` entries were WRONG, now fixed: 0x08↔0x09 swapped (gameState==-1=LOST→0x11,
+  ==1=WON→0x12 — Yoda's enum NAMES lie, its CODE is truth); 0x0b→0x20 RandVarNe(arg0:=-1); 0x14→0x0e
+  CheckEndItem (142 DAW uses — highest impact); 0x15→0x0f CheckStartItem; 0x16→0x13 HealthLs. Cond
+  0x00 has no Yoda twin but ZERO uses in all 2825 DESKTOP.DAW scripts → always-pass safe.

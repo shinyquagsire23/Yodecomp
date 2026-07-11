@@ -437,10 +437,12 @@ int      ShowCursor(BOOL) { return 0; }
 // GetMessageA/TranslateMessage/DispatchMessageA are REAL as of M4 (mfxpump.cpp — now
 // platform-neutral, so they exist in EVERY build; with the null backend GetMessageA bails
 // immediately → modal loops auto-dismiss, the headless contract).
-int      MessageBoxA(HWND, LPCSTR text, LPCSTR, UINT type)
+int      MessageBoxA(HWND, LPCSTR text, LPCSTR caption, UINT type)
 {
     fprintf(stderr, "microfx: MessageBox: %s\n", text ? text : "(null)");
-    return (type & MB_YESNO) ? IDYES : IDOK;
+    int n = MfxShowMessageBox(text, caption, type);   // real in-window modal when the pump is up
+    if (n > 0) return n;
+    return (type & MB_YESNO) ? IDYES : IDOK;          // headless auto-answer (M-era contract)
 }
 BOOL     MessageBeep(UINT) { return TRUE; }
 HWND     FindWindowA(LPCSTR, LPCSTR) { return 0; }

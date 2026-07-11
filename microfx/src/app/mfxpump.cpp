@@ -267,6 +267,13 @@ static void MfxIdle(void)
 }
 
 // ── the Win32 message API, real (M4) — modal loops in game code work unmodified ─────────────
+// debug oracles (AUTOMOD/AUTOKEY/AUTOCMD/AUTOCLICK/SHOT) — see the implementation after Run().
+// Declared here so the modal GetMessageA wait can pump them too (v86): a blocking modal loop
+// (CDialog/CFileDialog/AfxMessageBox/the game's intro) owns the thread for most of a live run,
+// so oracles that only ran in CWinThread::Run could never drive (or answer) a dialog — the v86
+// "headless dialog-trigger oracles fail" limitation. Per-phase statics make double-pumping safe.
+static void MfxDebugOracles(void);
+
 extern "C" {
 
 BOOL GetMessageA(LPMSG pMsg, HWND, UINT, UINT)
@@ -277,6 +284,7 @@ BOOL GetMessageA(LPMSG pMsg, HWND, UINT, UINT)
     for (;;) {
         if (g_mfxQuit) return 0;                    // WM_QUIT → caller's <1 bail path
         MfxPumpPlatEvents();
+        MfxDebugOracles();
         if (MfxGetPostedMsg(pMsg)) return TRUE;
         if (MfxNextDueTimer(pMsg)) return TRUE;
         MfxIdle();
@@ -291,6 +299,12 @@ LRESULT DispatchMessageA(const MSG *pMsg)
     if (!pMsg) return 0;
     return MfxSendMsg(pMsg->hwnd, pMsg->message, pMsg->wParam, pMsg->lParam);
 }
+
+// 1 once MfxPlatInit has succeeded — modal GetMessageA waits can complete. Lets the message-box
+// backend (mfxdlg.cpp MfxShowMessageBox) decide up-front between the in-window modal and the
+// headless auto-answer fallback (an auto-CANCEL from a dead GetMessageA would be the WRONG
+// fallback: the M-era stubs answer IDOK/IDYES, and the smoke harnesses depend on that).
+int MfxPumpIsUp(void) { return g_bMfxPlatUp; }
 
 } // extern "C"
 
@@ -377,113 +391,8 @@ int CWinThread::Run()
         MfxApplyCursor();                      // SetCursor state → backend cursor
         MfxPresentFrame();                     // screen DIB → the platform window
 
-        // debug oracle: YODA_AUTOMOD=<startms>:<vk>:<durms> holds a MODIFIER key's state (no
-        // WM_KEYDOWN dispatch — just GetAsyncKeyState) so YODA_AUTOKEY can test a chord
-        // (e.g. Ctrl+F8 debug dialog) headlessly.
-        if (const char *pszMod = getenv("YODA_AUTOMOD")) {
-            static int nModPhase = 0;
-            int nStart = 0, nVk = 0, nDur = 0;
-            if (sscanf(pszMod, "%d:%d:%d", &nStart, &nVk, &nDur) == 3 && nVk > 0 && nVk < 256) {
-                DWORD now = MfxRunMs();
-                if (nModPhase == 0 && now >= (DWORD)nStart) { nModPhase = 1; g_mfxKeyState[nVk] |= 0x80; }
-                if (nModPhase == 1 && now >= (DWORD)(nStart + nDur)) { nModPhase = 2; g_mfxKeyState[nVk] &= (BYTE)~0x80; }
-            }
-        }
-
-        // debug oracle: YODA_AUTOKEY=<startms>:<vk>:<durms> holds a virtual key over the
-        // real WM_KEYDOWN/WM_KEYUP dispatch path — the input half of the walk oracle.
-        if (const char *pszKey = getenv("YODA_AUTOKEY")) {
-            static int nKeyPhase = 0;          // 0=waiting 1=held 2=done
-            int nStart = 0, nVk = 0, nDur = 0;
-            if (sscanf(pszKey, "%d:%d:%d", &nStart, &nVk, &nDur) == 3 && nVk > 0 && nVk < 256) {
-                DWORD now = MfxRunMs();
-                if (nKeyPhase == 0 && now >= (DWORD)nStart) {
-                    nKeyPhase = 1;
-                    g_mfxKeyState[nVk] |= 0x80;
-                }
-                if (nKeyPhase == 1) {
-                    if (now < (DWORD)(nStart + nDur))
-                        MfxSendMsg(hView, WM_KEYDOWN, (WPARAM)nVk, 1);   // auto-repeat, Win32-like
-                    else {
-                        nKeyPhase = 2;
-                        g_mfxKeyState[nVk] &= (BYTE)~0x80;
-                        MfxSendMsg(hView, WM_KEYUP, (WPARAM)nVk, 1);
-                    }
-                }
-            }
-        }
-
-        // debug oracle: YODA_AUTOCMD=<startms>:<cmdhex> posts one WM_COMMAND to the frame at a
-        // set time (deterministic menu-command trigger — opens dialogs without a keystroke).
-        if (const char *pszCmd = getenv("YODA_AUTOCMD")) {
-            static int bCmdSent = 0;
-            int nStart = 0; unsigned nCmd = 0;
-            if (!bCmdSent && sscanf(pszCmd, "%d:%x", &nStart, &nCmd) == 2 &&
-                MfxRunMs() >= (DWORD)nStart) {
-                bCmdSent = 1;
-                PostMessageA(hFrameNow, WM_COMMAND, MAKELONG((WORD)nCmd, 0), 0);
-            }
-        }
-
-        // debug oracle: YODA_AUTOCLICK=<ms>:<x>:<y>[,<ms>:<x>:<y>...] (up to 4) synthesizes a
-        // click at a WINDOW coordinate — the mouse half of the menu-bar oracle (headless
-        // click-testing without a live pointer). y < MFX_MENUBAR_H hits the bar itself;
-        // y >= MFX_MENUBAR_H rides the normal capture-aware routing (popup rows, game controls).
-        if (const char *pszClick = getenv("YODA_AUTOCLICK")) {
-            static int nPhase = 0, nCount = -1;
-            static int nStarts[4], nXs[4], nYs[4];
-            if (nCount < 0) {
-                nCount = 0;
-                const char *p = pszClick;
-                while (*p && nCount < 4) {
-                    int nAdv = 0;
-                    if (sscanf(p, "%d:%d:%d%n", &nStarts[nCount], &nXs[nCount], &nYs[nCount], &nAdv) != 3)
-                        break;
-                    nCount++;
-                    p += nAdv;
-                    if (*p == ',') p++;
-                }
-            }
-            if (nPhase < nCount && MfxRunMs() >= (DWORD)nStarts[nPhase]) {
-                int nX = nXs[nPhase], nY = nYs[nPhase];
-                if (nY < MFX_MENUBAR_H) {
-                    MfxMenuHandleMouse(WM_MOUSEMOVE, nX, nY);
-                    MfxMenuHandleMouse(WM_LBUTTONDOWN, nX, nY);
-                } else {
-                    POINT pt = { nX, nY - MFX_MENUBAR_H };
-                    g_mfxCursorPos = pt;
-                    HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(pt);
-                    MfxQueueInput(hTarget ? hTarget : hView, WM_MOUSEMOVE, MfxMouseFlags(),
-                                  MAKELPARAM(pt.x, pt.y));
-                    MfxQueueInput(hTarget ? hTarget : hView, WM_LBUTTONDOWN,
-                                  MfxMouseFlags() | MK_LBUTTON, MAKELPARAM(pt.x, pt.y));
-                }
-                nPhase++;
-            }
-        }
-
-        // debug oracle: YODA_SHOT=<prefix>[:count] dumps the screen DIB as <prefix>NN.bmp
-        // every 2s (default 8 shots) — lets a headless-ish driver verify boot/render/
-        // animation without eyes.
-        static int nShots = 0;
-        static DWORD nNextShot = 0;
-        if (const char *pszShot = getenv("YODA_SHOT")) {
-            char szPfx[256];
-            int nMaxShots = 8;
-            if (sscanf(pszShot, "%255[^:]:%d", szPfx, &nMaxShots) < 2)
-                nMaxShots = 8;
-            DWORD now = MfxRunMs();
-            if (nShots < nMaxShots && now >= nNextShot) {
-                char szPath[512];
-                snprintf(szPath, sizeof szPath, "%s%02d.bmp", szPfx, nShots++);
-                MFXDIB dibComposed;
-                if (MfxComposeWindowDib(&dibComposed))
-                    MfxWriteMFXDIBToBMP(&dibComposed, szPath);
-                else
-                    MfxWriteDibBMP(MfxScreenDC(), szPath);
-                nNextShot = now + 2000;
-            }
-        }
+        MfxDebugOracles();                 // AUTOMOD/AUTOKEY/AUTOCMD/AUTOCLICK/SHOT (v86:
+                                           // shared with the modal GetMessageA wait)
         MfxPlatDelay(5);
     }
 
@@ -510,4 +419,128 @@ int CWinThread::Run()
 
     MfxPlatShutdown();
     return g_mfxQuitCode;
+}
+
+
+// the debug-oracle pump shared by CWinThread::Run and the modal GetMessageA wait (v86 — a
+// blocking modal loop owns the thread for most of a live run; oracles that only ran in Run
+// could never drive a dialog). All state is per-phase static, so double-pumping is harmless.
+static void MfxDebugOracles(void)
+{
+    CView *pViewNow = MfxRootWnd() ? ((CFrameWnd *)MfxRootWnd()->pWnd)->GetActiveView() : 0;
+    HWND hView = pViewNow ? pViewNow->m_hWnd : 0;
+    HWND hFrameNow = MfxRootWnd() ? MfxRootWnd()->pWnd->m_hWnd : 0;
+
+    // debug oracle: YODA_AUTOMOD=<startms>:<vk>:<durms> holds a MODIFIER key's state (no
+    // WM_KEYDOWN dispatch — just GetAsyncKeyState) so YODA_AUTOKEY can test a chord
+    // (e.g. Ctrl+F8 debug dialog) headlessly.
+    if (const char *pszMod = getenv("YODA_AUTOMOD")) {
+        static int nModPhase = 0;
+        int nStart = 0, nVk = 0, nDur = 0;
+        if (sscanf(pszMod, "%d:%d:%d", &nStart, &nVk, &nDur) == 3 && nVk > 0 && nVk < 256) {
+            DWORD now = MfxRunMs();
+            if (nModPhase == 0 && now >= (DWORD)nStart) { nModPhase = 1; g_mfxKeyState[nVk] |= 0x80; }
+            if (nModPhase == 1 && now >= (DWORD)(nStart + nDur)) { nModPhase = 2; g_mfxKeyState[nVk] &= (BYTE)~0x80; }
+        }
+    }
+
+    // debug oracle: YODA_AUTOKEY=<startms>:<vk>:<durms> holds a virtual key over the
+    // real WM_KEYDOWN/WM_KEYUP dispatch path — the input half of the walk oracle.
+    if (const char *pszKey = getenv("YODA_AUTOKEY")) {
+        static int nKeyPhase = 0;          // 0=waiting 1=held 2=done
+        int nStart = 0, nVk = 0, nDur = 0;
+        if (sscanf(pszKey, "%d:%d:%d", &nStart, &nVk, &nDur) == 3 && nVk > 0 && nVk < 256) {
+            DWORD now = MfxRunMs();
+            if (nKeyPhase == 0 && now >= (DWORD)nStart) {
+                nKeyPhase = 1;
+                g_mfxKeyState[nVk] |= 0x80;
+            }
+            if (nKeyPhase == 1) {
+                if (now < (DWORD)(nStart + nDur))
+                    MfxSendMsg(hView, WM_KEYDOWN, (WPARAM)nVk, 1);   // auto-repeat, Win32-like
+                else {
+                    nKeyPhase = 2;
+                    g_mfxKeyState[nVk] &= (BYTE)~0x80;
+                    MfxSendMsg(hView, WM_KEYUP, (WPARAM)nVk, 1);
+                }
+            }
+        }
+    }
+
+    // debug oracle: YODA_AUTOCMD=<startms>:<cmdhex> posts one WM_COMMAND to the frame at a
+    // set time (deterministic menu-command trigger — opens dialogs without a keystroke).
+    if (const char *pszCmd = getenv("YODA_AUTOCMD")) {
+        static int bCmdSent = 0;
+        int nStart = 0; unsigned nCmd = 0;
+        if (!bCmdSent && sscanf(pszCmd, "%d:%x", &nStart, &nCmd) == 2 &&
+            MfxRunMs() >= (DWORD)nStart) {
+            bCmdSent = 1;
+            PostMessageA(hFrameNow, WM_COMMAND, MAKELONG((WORD)nCmd, 0), 0);
+        }
+    }
+
+    // debug oracle: YODA_AUTOCLICK=<ms>:<x>:<y>[,<ms>:<x>:<y>...] (up to 4) synthesizes a
+    // click at a WINDOW coordinate — the mouse half of the menu-bar oracle (headless
+    // click-testing without a live pointer). y < MFX_MENUBAR_H hits the bar itself;
+    // y >= MFX_MENUBAR_H rides the normal capture-aware routing (popup rows, game controls).
+    if (const char *pszClick = getenv("YODA_AUTOCLICK")) {
+        static int nPhase = 0, nCount = -1;
+        static int nStarts[4], nXs[4], nYs[4];
+        if (nCount < 0) {
+            nCount = 0;
+            const char *p = pszClick;
+            while (*p && nCount < 4) {
+                int nAdv = 0;
+                if (sscanf(p, "%d:%d:%d%n", &nStarts[nCount], &nXs[nCount], &nYs[nCount], &nAdv) != 3)
+                    break;
+                nCount++;
+                p += nAdv;
+                if (*p == ',') p++;
+            }
+        }
+        if (nPhase < nCount && MfxRunMs() >= (DWORD)nStarts[nPhase]) {
+            int nX = nXs[nPhase], nY = nYs[nPhase];
+            if (nY < MFX_MENUBAR_H) {
+                MfxMenuHandleMouse(WM_MOUSEMOVE, nX, nY);
+                MfxMenuHandleMouse(WM_LBUTTONDOWN, nX, nY);
+            } else {
+                POINT pt = { nX, nY - MFX_MENUBAR_H };
+                g_mfxCursorPos = pt;
+                HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(pt);
+                MfxQueueInput(hTarget ? hTarget : hView, WM_MOUSEMOVE, MfxMouseFlags(),
+                              MAKELPARAM(pt.x, pt.y));
+                MfxQueueInput(hTarget ? hTarget : hView, WM_LBUTTONDOWN,
+                              MfxMouseFlags() | MK_LBUTTON, MAKELPARAM(pt.x, pt.y));
+                // full press: dialog-kit buttons commit on the UP (mfxdlg.cpp
+                // MfxCtlProc), so a DOWN-only synthetic click could push but
+                // never fire them (v86)
+                MfxQueueInput(hTarget ? hTarget : hView, WM_LBUTTONUP,
+                              MfxMouseFlags(), MAKELPARAM(pt.x, pt.y));
+            }
+            nPhase++;
+        }
+    }
+
+    // debug oracle: YODA_SHOT=<prefix>[:count] dumps the screen DIB as <prefix>NN.bmp
+    // every 2s (default 8 shots) — lets a headless-ish driver verify boot/render/
+    // animation without eyes.
+    static int nShots = 0;
+    static DWORD nNextShot = 0;
+    if (const char *pszShot = getenv("YODA_SHOT")) {
+        char szPfx[256];
+        int nMaxShots = 8;
+        if (sscanf(pszShot, "%255[^:]:%d", szPfx, &nMaxShots) < 2)
+            nMaxShots = 8;
+        DWORD now = MfxRunMs();
+        if (nShots < nMaxShots && now >= nNextShot) {
+            char szPath[512];
+            snprintf(szPath, sizeof szPath, "%s%02d.bmp", szPfx, nShots++);
+            MFXDIB dibComposed;
+            if (MfxComposeWindowDib(&dibComposed))
+                MfxWriteMFXDIBToBMP(&dibComposed, szPath);
+            else
+                MfxWriteDibBMP(MfxScreenDC(), szPath);
+            nNextShot = now + 2000;
+        }
+    }
 }

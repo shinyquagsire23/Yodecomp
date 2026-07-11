@@ -10164,13 +10164,21 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             //   DESKADV: (local_1a + local_1c)*2 + doc+0x13a; local_1a=nSplits, local_1c=nGoals,
             //   doc+0x13a = goalTileList size (nSteps+1).
             totalZones = (nSplits + nGoals) * 2 + goalTileList.GetSize();
+            timeBase = (int)time(NULL);              // DESKADV doc+0x58 = IndyTime(0,0) — the game
+                                                     // clock stamp (Yoda Generate twin, line ~3347;
+                                                     // note DESKADV does NOT clear timeOffset here,
+                                                     // unlike Yoda — kept faithful)
 
             playerX = nStartX;                       // DESKADV local_38 -> player start col
             playerY = nStartY;                       // DESKADV local_3a -> player start row
             gameState = 0;                           // in-progress (kept from head)
-            // DESKADV also resets the HERO ENTITY's health to 120 (0x78) at entity+0x90 and clears
-            // entity+0x2c. That is the player Character's HP; TODO(integration) to wire the hero
-            // Character HP. DESKADV additionally sets a UI/turn-timer (doc+0x10a2) + a clock stamp.
+            // (v86 ground truth — the v84 "hero HP = 120" reading of this tail was WRONG: DESKADV's
+            // local_3e is the VIEW (GetFirstViewPosition/GetNextView vtable pair at the head), so
+            // "entity+0x90 = 0x78" is view->nTargetZoneId = 120 and "entity+0x2c = 0" is the view
+            // busy flag. Indy's health lives at doc+0x1096/0x1098 (healthLo/healthHi, same lo/hi
+            // scheme as Yoda — IACT cond 0x16 at 1010:2e6a reads hi*-100-lo+0x191) and is reset to
+            // 1/1 by the StartGame twin (1020:0ed0 writes doc+0x1096 = 0x10001), which our shared
+            // StartGame already does. There is no per-entity hero HP field to wire.)
             // ---- world-entry transition (Indy skips Yoda's Populate(), so replicate its tail —
             //      src/Worldgen.cpp Populate() lines ~6163-6174 — the world-view handoff). Without
             //      pView->bBusy=0 the view never renders past the STUP graphic. ----
@@ -10179,10 +10187,18 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             // because its demo layout puts the intro zone at id 0; Indy's start zone id is
             // dynamic, so read it from the grid cell the player spawns in. Using 0 rendered
             // and ran scripts against the wrong zone (its objects/doors never matched).
+            short nStartZoneId = (short)GetZoneCell(nStartX, nStartY);
             if (pView != NULL)
-                pView->nTargetZoneId = GetZoneCell(nStartX, nStartY);
-            cameraX = 0x140;
-            cameraY = 0x140;
+                pView->nTargetZoneId = nStartZoneId; // DESKADV view+0x90 = 0x78 (see note above)
+            unk2e34 = 0;                             // DESKADV doc+0xc34 = 0 (≡ Yoda Populate tail)
+            unk50 = nStartZoneId;                    // DESKADV doc+0x44 = 0x78 — the current-zone-id
+                                                     // slot ZoneTransitionStep stores into (Yoda
+                                                     // Populate tail writes unk50 = 0, its zone 0)
+            cameraX = 0x160;                         // DESKADV doc+0x10a2 = 0x160 (v86 — was Yoda's
+            cameraY = 0xa0;                          // 0x140/0x140; doc+0x10a2/0x10a4 = cameraX/Y,
+                                                     // proven by the StartGame twin's cameraY=0;
+                                                     // cameraX=0; UpdateCamera() sequence at
+                                                     // 1020:0ed0 lines 64-66)
             nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
             // bWorldInvalid=1 routes the OnTimer case-0xb entry through ZoneTransitionStep, which
             // self-climbs step 0->10 to play mode (nFrameMode=3); case 0xb clears bWorldInvalid=0
@@ -10194,6 +10210,9 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
             // (Yoda's Hoth intro zone DOES have one, which is why Yoda uses WorldEntryStepMaybe.)
             // The v59-pickup "revert once ACTN distributed" note was based on analysing the WRONG
             // zone (id 0) — the target-zone bug above; ACTN distribution was orthogonal.
+            // (v86: DESKADV hardcodes view+0x90 = 0x78 here, and DESKTOP.DAW has exactly ONE
+            // type-11 MAP_START_AREA zone — id 120 = 0x78 — so the dynamic lookup below is
+            // provably equivalent to DESKADV's constant, and robust if the DAW ever differed.)
             bWorldInvalid = 1;
             bQuestCellsResident = 1;
             BackupRecords();                         // snapshot the as-loaded quest-record block

@@ -610,10 +610,20 @@ HINSTANCE AfxGetInstanceHandle() { return g_mfxModuleState.m_hCurrentInstanceHan
 HINSTANCE AfxGetResourceHandle() { return g_mfxModuleState.m_hCurrentResourceHandle; }
 AFX_MODULE_STATE* AfxGetModuleState() { return &g_mfxModuleState; }
 
+// real in-window modal when the pump is live (app/mfxdlg.cpp); -1 → headless auto-answer
+extern "C" int MfxShowMessageBox(const char *pszText, const char *pszCaption, unsigned nType);
+
 int AfxMessageBox(LPCSTR lpszText, UINT nType, UINT)
 {
     fprintf(stderr, "microfx: AfxMessageBox: %s\n", lpszText ? lpszText : "(null)");
-    return (nType & MB_YESNO) ? IDYES : IDOK;
+    // caption = app name, else the AFX_IDS_APP_TITLE string resource (0xE000 — "Yoda Stories" /
+    // "Desktop Adventures"), matching real MFC's InitApplication fallback chain
+    CString strTitle;
+    if (g_pMfxApp && g_pMfxApp->m_pszAppName) strTitle = g_pMfxApp->m_pszAppName;
+    else strTitle.LoadString(0xE000);
+    int n = MfxShowMessageBox(lpszText, strTitle, nType);
+    if (n > 0) return n;
+    return (nType & MB_YESNO) ? IDYES : IDOK;   // M-era auto-answer: smoke harnesses never block
 }
 
 int AfxMessageBox(UINT nIDPrompt, UINT nType, UINT nIDHelp)

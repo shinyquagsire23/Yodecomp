@@ -556,7 +556,7 @@ int CDialog::DoModal()
     if (MfxIsWnd(m_hWnd)) ::DestroyWindow(m_hWnd);
     ::DeleteObject((HGDIOBJ)hFont);
     ::DeleteObject((HGDIOBJ)hFontBold);
-    MfxSetDirty();
+    MfxSetDirty(); MfxPaintIfDirty();   // full erase+OnDraw NOW (see note at MfxShowMessageBox)
     return m_nModalResult;
 }
 
@@ -659,7 +659,7 @@ int CFileDialog::DoModal()
         int nNative = MfxPlatShowFileDialog(m_bOpenFileDialog, pszDir, pszExt,
                                             (const char *)strDefault, szPath, (int)sizeof szPath);
         if (nNative >= 0) {                       // backend HAS a native picker
-            MfxSetDirty();                        // panel obscured the game window
+            MfxSetDirty(); MfxPaintIfDirty();     // panel obscured the game window — repaint NOW
             if (nNative == 1) { m_strPath = szPath; m_nModalResult = IDOK; return IDOK; }
             m_nModalResult = IDCANCEL; return IDCANCEL;
         }
@@ -756,9 +756,187 @@ int CFileDialog::DoModal()
     if (MfxIsWnd(m_hWnd)) ::DestroyWindow(m_hWnd);
     ::DeleteObject((HGDIOBJ)hFont);
     ::DeleteObject((HGDIOBJ)hFontBold);
-    MfxSetDirty();
+    MfxSetDirty(); MfxPaintIfDirty();   // full erase+OnDraw NOW (see note at MfxShowMessageBox)
 
     if (m_nModalResult == IDOK)
         m_strPath = MfxFileDialogResolve(nChosenId, ID_NEW, ID_ROW0, strDefault, aFound, nFound, pszDir);
     return m_nModalResult;
+}
+
+// ── AfxMessageBox / MessageBoxA backend (v86) ───────────────────────────────────────────────────
+// The real in-window modal message box the ⭐ v85 pickup TODO asked for: every game confirm
+// ("Leave Yoda Stories?", "…Replay anyway?", the OOM/data-file errors) was invisible while
+// AfxMessageBox was the M-era stderr stub that auto-answered IDYES/IDOK. Built on the same
+// control kit as CDialog::DoModal above (CK_DLGFRAME bevel + word-wrapped CK_LABEL lines +
+// a CK_DEFBUTTON/CK_BUTTON row from the MB_ type), with the same GetMessageA modal loop.
+// core/ reaches it through the microfx.h prototype; when the pump is down (smoke harnesses,
+// null backend) it returns -1 and the callers keep the headless-safe auto-answer, so
+// worldgen_smoke/game_walk/dlg_smoke stay non-blocking.
+
+// greedy word wrap honoring embedded '\n' (hdc has the dialog font selected)
+static int MfxMsgBoxWrap(HDC hdc, const char *pszIn, int nMaxW, CString aLine[], int nMaxLines)
+{
+    const char *p = pszIn ? pszIn : "";
+    int nLines = 0;
+    char szLine[240];
+    while (*p && nLines < nMaxLines) {
+        int nLen = 0, nLastSpace = -1;
+        while (p[nLen] && p[nLen] != '\n' && nLen < (int)sizeof szLine - 1) {
+            SIZE sz;
+            ::GetTextExtentPoint32A(hdc, p, nLen + 1, &sz);
+            if (sz.cx > nMaxW && nLen > 0) break;
+            if (p[nLen] == ' ') nLastSpace = nLen;
+            nLen++;
+        }
+        int nTake = nLen, bAteSpace = 0;
+        if (p[nLen] && p[nLen] != '\n' && nLastSpace > 0) { nTake = nLastSpace; bAteSpace = 1; }
+        memcpy(szLine, p, nTake); szLine[nTake] = 0;
+        aLine[nLines++] = szLine;
+        p += nTake;
+        if (bAteSpace) p++;                    // the space becomes the line break
+        else if (*p == '\n') p++;
+    }
+    if (nLines == 0) aLine[nLines++] = "";
+    return nLines;
+}
+
+extern "C" int MfxPumpIsUp(void);
+
+extern "C" int MfxShowMessageBox(const char *pszText, const char *pszCaption, unsigned nType)
+{
+    if (!MfxPumpIsUp() || !MfxRootWnd()) return -1;
+
+    // button row from the MB_ type (the game uses MB_OK — often with an icon flag — and
+    // MB_YESNO; OKCANCEL/YESNOCANCEL supported for MFC completeness, anything else → OK)
+    struct { UINT id; const char *psz; } aBtn[3];
+    int nBtn = 0; UINT idEsc = 0;
+    switch (nType & 0xF) {
+    case MB_OKCANCEL:
+        aBtn[nBtn].id = IDOK;     aBtn[nBtn++].psz = "OK";
+        aBtn[nBtn].id = IDCANCEL; aBtn[nBtn++].psz = "Cancel"; idEsc = IDCANCEL; break;
+    case MB_YESNO:                                 // Windows: ESC does nothing on MB_YESNO
+        aBtn[nBtn].id = IDYES;    aBtn[nBtn++].psz = "Yes";
+        aBtn[nBtn].id = IDNO;     aBtn[nBtn++].psz = "No"; break;
+    case MB_YESNOCANCEL:
+        aBtn[nBtn].id = IDYES;    aBtn[nBtn++].psz = "Yes";
+        aBtn[nBtn].id = IDNO;     aBtn[nBtn++].psz = "No";
+        aBtn[nBtn].id = IDCANCEL; aBtn[nBtn++].psz = "Cancel"; idEsc = IDCANCEL; break;
+    default:
+        aBtn[nBtn].id = IDOK;     aBtn[nBtn++].psz = "OK"; idEsc = IDOK; break;
+    }
+    UINT idDef = aBtn[0].id;
+    // what a dead pump mid-loop must yield: the M-era stub's answer, never a surprise CANCEL
+    int nQuitAnswer = (aBtn[0].id == IDYES) ? IDYES : IDOK;
+
+    HFONT hFont = ::CreateFontA(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
+    HFONT hFontBold = ::CreateFontA(-8, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
+
+    // wrap + measure under the dialog font
+    enum { MAX_LINES = 12 };
+    CString aLine[MAX_LINES];
+    HDC hdc = MfxScreenDC();
+    HGDIOBJ hOldF = ::SelectObject(hdc, (HGDIOBJ)hFont);
+    const int WRAP_W = 300;
+    int nLines = MfxMsgBoxWrap(hdc, pszText, WRAP_W, aLine, MAX_LINES);
+    int nTextW = 0;
+    for (int i = 0; i < nLines; i++) {
+        SIZE sz;
+        ::GetTextExtentPoint32A(hdc, aLine[i], aLine[i].GetLength(), &sz);
+        if (sz.cx > nTextW) nTextW = sz.cx;
+    }
+    ::SelectObject(hdc, hOldF);
+
+    const int PAD = 10, LINE_H = 14, BTN_W = 60, BTN_H = 16, GAP = 8;
+    int nBtnsW = nBtn * BTN_W + (nBtn - 1) * GAP;
+    int clientW = (nTextW > nBtnsW ? nTextW : nBtnsW) + 2 * PAD;
+    if (clientW < 140) clientW = 140;
+    int clientH = PAD + nLines * LINE_H + PAD + BTN_H + PAD;
+    int outerW = clientW + 2 * DLG_BORDER;
+    int outerH = clientH + 2 * DLG_BORDER + DLG_CAPTION;
+    HWND hRoot = MfxRootWnd();
+    int rootW = hRoot ? hRoot->rc.right - hRoot->rc.left : 525;
+    int rootH = hRoot ? hRoot->rc.bottom - hRoot->rc.top : 310;
+    int winX = (rootW - outerW) / 2; if (winX < 0) winX = 0;
+    int winY = (rootH - outerH) / 2; if (winY < 0) winY = 0;
+    int cliX = winX + DLG_BORDER, cliY = winY + DLG_BORDER + DLG_CAPTION;
+
+    CWnd wndDlg;                                  // plain CWnd — the loop only needs its HWND
+    RECT rcDlg = { winX, winY, winX + outerW, winY + outerH };
+    wndDlg.Create(0, 0, WS_VISIBLE, rcDlg, AfxGetMainWnd(), 0);
+
+    MfxDlgItem *aItems[MAX_LINES + 5]; int nItems = 0;
+    MfxDlgItem *pFrame = new MfxDlgItem;
+    pFrame->m_kind = CK_DLGFRAME; pFrame->m_style = WS_CAPTION;
+    pFrame->m_hFont = hFont; pFrame->m_hFontBold = hFontBold;
+    pFrame->m_text = (pszCaption && *pszCaption) ? pszCaption : "Message";
+    pFrame->Create(0, 0, WS_VISIBLE, rcDlg, &wndDlg, 0);
+    aItems[nItems++] = pFrame;
+
+    for (int i = 0; i < nLines; i++) {
+        MfxDlgItem *pLbl = new MfxDlgItem;
+        pLbl->m_kind = CK_LABEL; pLbl->m_align = 1; pLbl->m_hFont = hFont;
+        pLbl->m_text = aLine[i];
+        RECT rc = { cliX + PAD, cliY + PAD + i * LINE_H,
+                    cliX + clientW - PAD, cliY + PAD + (i + 1) * LINE_H };
+        pLbl->Create(0, 0, WS_VISIBLE, rc, &wndDlg, 0);
+        aItems[nItems++] = pLbl;
+    }
+    int xBtn = winX + (outerW - nBtnsW) / 2;
+    int yBtn = cliY + PAD + nLines * LINE_H + PAD;
+    for (int i = 0; i < nBtn; i++) {
+        MfxDlgItem *pBtn = new MfxDlgItem;
+        pBtn->m_kind = (aBtn[i].id == idDef) ? CK_DEFBUTTON : CK_BUTTON;
+        pBtn->m_hFont = hFont; pBtn->m_hFontBold = hFontBold; pBtn->m_text = aBtn[i].psz;
+        RECT rc = { xBtn + i * (BTN_W + GAP), yBtn, xBtn + i * (BTN_W + GAP) + BTN_W, yBtn + BTN_H };
+        pBtn->Create(0, 0, WS_VISIBLE, rc, &wndDlg, aBtn[i].id);
+        aItems[nItems++] = pBtn;
+    }
+
+    MfxSetDirty();
+    MfxPaintIfDirty();
+    if (const char *pszShot = getenv("YODA_DLGSHOT")) MfxWriteDibBMP(MfxScreenDC(), pszShot);
+
+    int nResult = -1;
+    while (nResult == -1) {
+        MSG msg;
+        if (!GetMessageA(&msg, 0, 0, 0)) { nResult = nQuitAnswer; break; }
+        if (msg.message == WM_KEYDOWN && msg.wParam == VK_RETURN) { nResult = (int)idDef; break; }
+        if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE && idEsc) { nResult = (int)idEsc; break; }
+        // Y/N accelerators when those buttons exist (VK codes for letters == ASCII uppercase)
+        if (msg.message == WM_KEYDOWN && msg.wParam == 'Y' && aBtn[0].id == IDYES) { nResult = IDYES; break; }
+        if (msg.message == WM_KEYDOWN && msg.wParam == 'N' && aBtn[0].id == IDYES) { nResult = IDNO; break; }
+        // clicked button → WM_COMMAND posted to the dialog window (same scoping as CFileDialog:
+        // hwnd==dialog keeps accelerator-originated frame commands from faking a click)
+        if (msg.message == WM_COMMAND && msg.hwnd == wndDlg.m_hWnd && HIWORD(msg.wParam) == BN_CLICKED) {
+            nResult = (int)LOWORD(msg.wParam); break;
+        }
+        // modal: swallow input aimed at windows outside the dialog subtree
+        if ((msg.message == WM_LBUTTONDOWN || msg.message == WM_LBUTTONUP ||
+             msg.message == WM_RBUTTONDOWN || msg.message == WM_MOUSEMOVE ||
+             msg.message == WM_KEYDOWN || msg.message == WM_KEYUP || msg.message == WM_CHAR) &&
+            !MfxIsDlgOwned(msg.hwnd, wndDlg.m_hWnd))
+            continue;
+        DispatchMessageA(&msg);
+    }
+
+    for (int i = nItems - 1; i >= 0; i--) {
+        if (MfxIsWnd(aItems[i]->m_hWnd)) ::DestroyWindow(aItems[i]->m_hWnd);
+        delete aItems[i];
+    }
+    if (MfxIsWnd(wndDlg.m_hWnd)) ::DestroyWindow(wndDlg.m_hWnd);
+    ::DeleteObject((HGDIOBJ)hFont);
+    ::DeleteObject((HGDIOBJ)hFontBold);
+    // Force a FULL erase+OnDraw synchronously on close, rather than only marking dirty and
+    // letting the next Run-loop MfxPaintIfDirty clear it (v86 redraw-residue fix). The three
+    // commands that route through here — New World / Replay / Load World — return to a handler
+    // that IMMEDIATELY runs a world regen + zone transition. That transition redraws only the
+    // game-AREA region in a busy-wait loop (clock-hook presents, NOT a full OnDraw — the
+    // "out-of-main-loop" redraw path), so the pending dirty flag's full repaint is preempted and
+    // the box pixels sitting OVER the inventory panel (which a transition never touches) are
+    // never erased. Painting here, while the game is still in its pre-transition drawable state,
+    // clears the whole window (OnEraseBkgnd fills the clip box, OnDraw repaints incl. inventory)
+    // before the caller can start the partial-redraw transition. (About/sliders never triggered
+    // this because nothing redraws after them.)
+    MfxSetDirty(); MfxPaintIfDirty();
+    return nResult;
 }

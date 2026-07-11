@@ -40,6 +40,14 @@ void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
 // Pass 0 to unregister.
 void MfxSetClockHook(void (*pfn)(void));
 
+// 1 once MfxPlatInit has succeeded (the pump is live; modal GetMessageA waits can complete).
+int MfxPumpIsUp(void);
+
+// In-window Win95-style message box (mfxdlg.cpp, same control kit as CDialog::DoModal).
+// Returns IDOK/IDCANCEL/IDYES/IDNO; -1 when no interactive platform is up — the caller
+// (AfxMessageBox / MessageBoxA in core/) then falls back to the headless auto-answer.
+int MfxShowMessageBox(const char *pszText, const char *pszCaption, unsigned nType);
+
 // Overlay hook: fired BEFORE the present hook on every screen-DC write — the window layer
 // re-composites visible child controls over the view (they're not separate surfaces here).
 void MfxSetScreenOverlayHook(HDC hdcScreen, void (*pfn)(void));
