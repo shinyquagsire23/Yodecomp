@@ -2559,3 +2559,15 @@ F8 = M4. ⚠ When PatBlt/FillRect/SetPixel become real (M4 HUD), fire the screen
 there too. Open items carried: M3 audio (DONE in v78 — WaveMix+MCI over SDL2_mixer,
 user-confirmed, dwFlags=2=USELRUCHANNEL lesson), INDY×SDL untested (DONE in v78 — builds+runs,
 native MIDI), Indy stragglers, DESKADV sweep.
+
+### ⏮ v78 pickup (condensed; demoted 2026-07-10 when v79 completed M4 core)
+H4 M3 AUDIO COMPLETE (user-confirmed): snd/mfxsnd.cpp = WaveMix*+mciSendString over SDL2_mixer.
+Key lesson 7: MIXPLAYPARAMS dwFlags=2 = WMIX_USELRUCHANNEL (not CLEARQUEUE) — sounds MIX;
+"cut off prematurely" = flag misread. Handles = 1-based indices into a Mix_Chunk table
+(g_waveHandles int[64], LP64); packed params via memcpy; AfxBeginThread deliberately runs no
+thread (SDL_mixer self-mixes). INDY×SDL first built & ran natively this session (THEME.MID via
+fluidsynth; GM SoundFont at /opt/homebrew/share/soundfonts/default.sf2 — GeneralUser GS; demo
+font = wip-wip percussion symptom). Only src/ edit: 3 YODA_PORTABLE old-for-scope decls in
+Worldgen.cpp's GAME_INDY tail (lesson 8) — anchor re-ran FULL GREEN. The M4 goals it set
+(res loader, GDI chrome, modal TextDialog w/ locator-click test case, scrollbar, teardown,
+software-cursor option) all landed in v79a-g.

@@ -1,6 +1,19 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M3 COMPLETE, ⭐ USER-CONFIRMED AUDIBLE (2026-07-10, v78). SOUND + MUSIC WORK NATIVELY:
+*Status: M4 CORE COMPLETE, ⭐ USER-CONFIRMED (2026-07-10, v79a-g). RESOURCES + UI CHROME WORK
+NATIVELY: embedded .res loader (LoadString/LoadIcon/LoadCursor/named RT_BITMAPs), real GDI
+chrome (pens/brushes/FillRect/PatBlt/Pie/RoundRect/Polygon/lines/pixels + PC_RESERVED-aware
+color mapping), genuine MS Sans Serif bitmap-font text (13px/16px FNT strikes), a REAL modal
+GetMessage pump + word-wrapping CEdit + CBitmapButtons (TextDialog speech bubbles fully
+modal — text renders, close button shows, Enter/Esc/click dismiss, zone repaints beneath),
+software cursor composited at present time, Win95-style SB_CTL scrollbar, and real window
+teardown (view dtor → WaveMixCloseSession — "[snd] session closed"). USER-CONFIRMED: item
+click-drag (incl. heal via player AND health-circle drop targets), locator textboxes
+(the v78 test case), close-on-PRESS button fidelity matching the original. Remaining M4/M5
+tails: CDialog::DoModal (F8 stats, About, option sliders, save/load), menus, INDY×SDL
+in-game playtest. Details per subsystem below; v79 lessons at the end of the lessons list.*
+
+*M3-era status (v78): SOUND + MUSIC WORK NATIVELY:
 `snd/mfxsnd.cpp` implements the full WaveMix* set + mciSendString over SDL2_mixer — the Yoda
 startup theme, the intro X-Wing STUP flight and SFX all play and MIX correctly (user-confirmed
 live), and the previously-untested INDY×SDL config now BUILDS AND RUNS natively (DESKTOP.DAW
@@ -157,6 +170,43 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
    old scope). clang errors "undeclared identifier". Fix pattern: `#ifdef YODA_PORTABLE` real
    declaration at function top (behavior-identical — every leaked use re-initializes in its
    for-init; verify that before applying). Worldgen.cpp was the only affected TU (3 sites).
+9. **⭐ The GetPixel probe demands WM_ERASEBKGND (v79).** DrawGameArea probes pixel
+   (0x138,0x11c) and triggers a FULL RedrawWindow whenever it isn't COLOR_3DFACE gray — the
+   gray comes from OnEraseBkgnd, which Win32's BeginPaint delivers before WM_PAINT. Making
+   GDI real without delivering the erase turned every game blit into a full-repaint storm
+   (~15s CPU); MfxPaintIfDirty now sends WM_ERASEBKGND ahead of WM_PAINT.
+10. **⭐ GDI color matching must skip PC_RESERVED palette entries (v79, user-detected).** The
+   game flags its palette-cycling ring entries peFlags=1; Win32 never matches solid colors
+   into them. A naive nearest-across-256 mapped the health dial's green onto a cycling index
+   — the disc visibly "flashed" as CyclePalette animated. MfxMapColor now matches against
+   the DC's selected palette, skipping reserved entries. Sibling fidelity bug, same class:
+   Win32 LineTo EXCLUDES the endpoint — an inclusive Bresenham overshot the DrawRect bevel
+   mitres by one pixel (user-visible on the panel's right edge).
+11. **Shared-surface children need re-compositing + boot-dirty care (v79).** (a) Win32 child
+   controls are separate surfaces a parent blit can't erase; here everything shares one
+   screen DIB, so DrawGameArea would wipe the bubble edit/buttons — gdi fires an OVERLAY
+   hook (MfxPaintChildren) before the present hook on every screen write, reentry-guarded,
+   with MfxTouchHold/Release batching a control's many primitives into one present. (b) The
+   game leaves the bubble BUTTONS at WM_SETREDRAW(0) forever yet Win32 still shows them —
+   treat the redraw flag as gating only state-change self-repaints, never show/full-repaint
+   passes. (c) The frame is created WS_VISIBLE, so "mark dirty only on hidden→visible
+   transition" never fires — a redundant ShowWindow(SW_SHOW) must still mark the first
+   paint dirty (black-screen regression until fixed).
+12. **Modal loops: one MSG queue + a headless bail (v79).** TextDialog::Run and the F8/stats
+   loops call raw GetMessage/DispatchMessage — the pump was restructured so SDL events and
+   due timers become MSGs in the SAME posted queue that GetMessageA drains (msg.pt carries
+   the cursor pos the game's PtInRect tests read; mouse messages hit-test to child windows,
+   capture-aware). CWinThread::Run is now itself a Win32-shaped GetMessage-less pump over
+   that queue. GetMessageA returns 0 immediately when no SDL window exists — a headless
+   harness (game_walk) that trips a bubble would otherwise hang forever in a modal wait
+   (observed: game_walk 100%-CPU hang before the guard).
+13. **Cursors are SOFTWARE by default (v79, user-detected regression → redesign).** SDL
+   hardware color cursors misbehaved (cursor vanished everywhere); now the decoded .res
+   cursor is composited over the window surface at present time — chunky at the window
+   scale (matches the game pixels), screenshot-visible, and the path a DS port needs.
+   YODA_HWCURSOR=1 re-enables the SDL hardware path. Fidelity rules: before the game's
+   FIRST SetCursor Win32 shows the class arrow (leave the OS cursor); SetCursor(NULL)
+   hides (keyboard-move/drag modes); IDC_ARROW keeps the OS arrow.
 
 ## What runs vs what's stubbed (v74)
 
@@ -217,10 +267,11 @@ THEME.MID plays natively (build-sdl-indy — config now builds and runs; in-game
 pending). Known M4 tail: the polite-exit path never runs the view dtor (pump exit doesn't
 destroy the frame), so WaveMixCloseSession isn't reached — the OS reclaims audio at process
 death; harmless but wire it when real window teardown lands.
-STUBBED (M4): pens/brushes/Pie/FillRect HUD drawing (right panel renders black),
-child controls (CEdit/CButton/CScrollBar Create → no HWND; inventory scrollbar invisible),
-dialogs (DoModal→IDCANCEL; TextDialog::Run's modal loop exits immediately —
-GetMessage stub — so text bubbles auto-dismiss), LoadString, cursors.
+REAL as of M4 (v79): the whole HUD/bubble chrome — see the M4 milestone entry below for the
+full inventory (res loader, GDI drawing, MS Sans Serif text, modal GetMessage + CEdit +
+CBitmapButton + CScrollBar, software cursors, teardown).
+STILL STUBBED (M5-ish): CDialog::DoModal → IDCANCEL (F8 stats, About, the three option
+sliders, save/load CFileDialog), menus (ON_COMMAND ids reachable by keyboard only).
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
@@ -344,8 +395,33 @@ microfx/
   CMake: find_package(SDL2_mixer) → MICROFX_HAS_MIXER; absent = silent-stub fallback.
   Bonus: the INDY×SDL config (`cmake -B build-sdl-indy -DYODA_PLATFORM=SDL -DYODA_GAME=INDY`)
   builds and runs natively after 3 old-for-scope fixes (lesson 8).
-- **M4 — resources + UI chrome.** res/ embedded-blob loader (cursors, icons, strings); TextDialog +
-  save/load dialogs; menus (SDL UI or keyboard shortcuts first).
+- **M4 — resources + UI chrome.** ✅ CORE v79 (a-g), USER-CONFIRMED. Delivered:
+  - **res/** (mfxres.cpp): the SAME yoda.res the WIN32 link consumes, embedded via
+    tools/bin2c.py (PortableSDL.cmake mirrors the demo/full/indy make_res variants) and
+    parsed at runtime (.res container walk). LoadString (all bubble/HUD text), LoadIcon +
+    DrawIcon (HUD direction arrows 0xc4-0xcb), LoadCursor (the 11 game cursors + IDC_*),
+    named RT_BITMAPs (bubble button faces CLOSEU/DNAU/UPAU…). Images decode to a uniform
+    MfxImg (indices + own color table + AND mask); gdi's MfxDrawImage maps colors per-pixel
+    into the DC palette (microfx.h MFXIMG API).
+  - **gdi chrome** (mfxgdi.cpp): real pen/brush/font objects + per-DC draw state; FillRect/
+    PatBlt/Rectangle/RoundRect/Polygon/Pie/MoveTo/LineTo(endpoint-exclusive)/SetPixel/
+    GetPixel/GetClipBox/GetSysColor(Win95 scheme); MfxMapColor skips PC_RESERVED (lesson 10);
+    all writes fire the overlay+present hooks (MfxTouch, batched via MfxTouchHold/Release).
+  - **text** (mfxgdi.cpp + mfxfont_data.c): genuine MS Sans Serif 13px/16px FNT strikes
+    (tools/fon2c.py from a Windows SSERIFE.FON, committed), GDI-style strike mapping for
+    CreateFont(-8/-14), synthesized bold, TextOut/GetTextMetrics/GetTextExtentPoint32.
+  - **modal UI** (mfxpump.cpp/mfxwnd.cpp/mfxctl.cpp): real GetMessageA over the shared MSG
+    queue (lesson 12), word-wrapping CEdit (EM_GETLINECOUNT/EM_LINESCROLL/WM_SETFONT/
+    WM_SETREDRAW/WM_SETTEXT), CBitmapButton (BM_GETSTATE auto-repeat, BN_CLICKED via queue),
+    child registry + mouse hit-testing + overlay re-compositing (lesson 11). Bubbles fully
+    modal; the v78 locator-click test case passes (user-confirmed).
+  - **cursors**: software composite at present (lesson 13).
+  - **scrollbar** (M4e): Win95-chrome SB_CTL (bevel arrows/checker track/thumb drag), scroll
+    state on HWND, WM_VSCROLL(SB_*) to the parent → InvScrollBar's reflected handler.
+  - **teardown**: pump exit destroys view+frame; ~CDeskcppView reached → WaveMixCloseSession
+    ("[snd] session closed" in YODA_SNDLOG).
+  - REMAINING (M5-ish): CDialog::DoModal (F8 stats box, About, Difficulty/GameSpeed/
+    WorldSize sliders, save/load CFileDialog), menus/command UI, INDY×SDL in-game playtest.
 - **Done when:** native SDL Yoda Stories runs on macOS AND `tools/progress.py` still reports 211 exact
   (trivially true if TU edits stay at zero; verify anyway after any shared edit).
 
