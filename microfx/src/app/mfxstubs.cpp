@@ -30,8 +30,7 @@ BOOL CWnd::SetWindowPos(const CWnd* pAfter, int x, int y, int cx, int cy, UINT n
     { return ::SetWindowPos(m_hWnd, pAfter ? pAfter->m_hWnd : 0, x, y, cx, cy, nFlags); }
 int  CWnd::GetWindowText(LPSTR lpsz, int nMax) const { if (nMax > 0) lpsz[0] = 0; return 0; }
 void CWnd::GetWindowText(CString& rString) const { rString.Empty(); }
-void CWnd::CenterWindow(CWnd*) { MFX_STUB(); }
-CWnd* CWnd::GetDlgItem(int) const { MFX_STUB(); return 0; }
+// CWnd::CenterWindow / CWnd::GetDlgItem are REAL as of M5 (app/mfxwnd.cpp).
 void CWnd::ScreenToClient(LPRECT lpRect) const
 {
     POINT tl = { lpRect->left, lpRect->top }, br = { lpRect->right, lpRect->bottom };
@@ -214,7 +213,7 @@ CDialog::CDialog(UINT nIDTemplate, CWnd* pParentWnd)
 CDialog::CDialog(LPCSTR, CWnd* pParentWnd)
     : m_nIDTemplate(0), m_pParentWnd(pParentWnd), m_nModalResult(IDCANCEL) {}
 CDialog::~CDialog() {}
-int  CDialog::DoModal() { MFX_STUB(); return IDCANCEL; }     // real dialogs land at M4
+// CDialog::DoModal is REAL as of M5 (app/mfxdlg.cpp: parse RT_DIALOG, create controls, modal loop).
 BOOL CDialog::OnInitDialog() { UpdateData(FALSE); return TRUE; }
 void CDialog::OnOK() { UpdateData(TRUE); EndDialog(IDOK); }
 void CDialog::OnCancel() { EndDialog(IDCANCEL); }
@@ -226,13 +225,13 @@ BOOL CDialog::UpdateData(BOOL bSaveAndValidate)
     return TRUE;
 }
 void CDialog::EndDialog(int nResult) { m_nModalResult = nResult; }
+// standard dialog command routing: OK/Cancel buttons → OnOK/OnCancel (→ EndDialog).
 BEGIN_MESSAGE_MAP(CDialog, CWnd)
+    ON_COMMAND(IDOK, OnOK)
+    ON_COMMAND(IDCANCEL, OnCancel)
 END_MESSAGE_MAP()
 
-void AFXAPI DDX_Text(CDataExchange*, int, CString&) {}
-void AFXAPI DDX_Text(CDataExchange*, int, int&) {}
-void AFXAPI DDX_Control(CDataExchange*, int, CWnd&) {}
-void AFXAPI DDX_Check(CDataExchange*, int, int&) {}
+// DDX_Text / DDX_Control / DDX_Check are REAL as of M5 (app/mfxdlg.cpp).
 
 CFileDialog::CFileDialog(BOOL bOpenFileDialog, LPCSTR lpszDefExt, LPCSTR lpszFileName,
                          DWORD dwFlags, LPCSTR, CWnd* pParentWnd)

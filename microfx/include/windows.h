@@ -347,7 +347,35 @@ typedef struct tagOPENFILENAME {
 #define ES_MULTILINE 0x0004
 #define ES_READONLY  0x0800
 #define ES_LEFT      0x0000
+#define WS_CAPTION   0x00C00000
+#define WS_POPUP     0x80000000
+#define WS_DLGFRAME  0x00400000
+#define WS_SYSMENU   0x00080000
+#define WM_INITDIALOG 0x0110
+// button styles (low nibble of a BUTTON control's style)
+#define BS_PUSHBUTTON    0x0000
+#define BS_DEFPUSHBUTTON 0x0001
+#define BS_CHECKBOX      0x0002
+#define BS_AUTOCHECKBOX  0x0003
+#define BS_RADIOBUTTON   0x0004
+#define BS_GROUPBOX      0x0007
 #define BS_OWNERDRAW 0x000b
+#define BS_TYPEMASK  0x000f
+// static styles (low nibble of a STATIC control's style)
+#define SS_LEFT      0x0000
+#define SS_CENTER    0x0001
+#define SS_RIGHT     0x0002
+#define SS_ICON      0x0003
+#define SS_BLACKRECT 0x0004
+#define SS_GRAYRECT  0x0005
+#define SS_WHITERECT 0x0006
+#define SS_BLACKFRAME 0x0007
+#define SS_GRAYFRAME 0x0008
+#define SS_WHITEFRAME 0x0009
+#define SS_TYPEMASK  0x001f
+// scrollbar-control styles
+#define SBS_HORZ 0x0000
+#define SBS_VERT 0x0001
 // system colors
 #define COLOR_WINDOW       5
 #define COLOR_WINDOWTEXT   8

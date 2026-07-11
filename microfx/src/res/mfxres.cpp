@@ -320,6 +320,15 @@ HBITMAP LoadBitmapA(HINSTANCE, LPCSTR name)
     return (HBITMAP)MfxLoadBitmapByName(name);
 }
 
+// raw resource blob accessor (M5 dialogs: RT_DIALOG=5 templates parsed by mfxdlg.cpp)
+const unsigned char *MfxFindResourceData(unsigned nType, unsigned nId, unsigned *pnSize)
+{
+    const MfxResEntry *pE = MfxFindRes(nType, nId);
+    if (!pE) { if (pnSize) *pnSize = 0; return 0; }
+    if (pnSize) *pnSize = pE->nSize;
+    return pE->pData;
+}
+
 int MfxGetImage(const void *hImg, MFXIMG *pOut)
 {
     const MfxImg *p = (const MfxImg *)hImg;

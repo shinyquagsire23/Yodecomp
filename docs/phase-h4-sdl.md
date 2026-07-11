@@ -1,6 +1,24 @@
 # Phase H4 — the portable SDL target via "microfx" (a source-compatible MFC subset)
 
-*Status: M4 CORE COMPLETE, ⭐ USER-CONFIRMED (2026-07-10, v79a-g). RESOURCES + UI CHROME WORK
+*Status: M5 DIALOGS + ACCELERATORS COMPLETE (2026-07-10, v80) — CDialog::DoModal is REAL:
+parses an RT_DIALOG template from the embedded .res, creates a child control per DLGITEMTEMPLATE
+(push/def buttons, static labels w/ word-wrap + alignment, SS_ICON, group boxes, horizontal
+scrollbars), converts dialog-units → px from the dialog font's base units, calls the virtual
+OnInitDialog (→ DoDataExchange → real DDX_Text), then runs a Win32-shaped modal loop over the
+shared MSG queue until EndDialog. VERIFIED by screenshot: File>About (0x64 — navy caption + bold
+title, LucasArts icon, wrapped credits group box, OK button) and the Combat Difficulty slider
+(0x6f — horizontal scrollbar w/ thumb at the value, Easy/Medium/Hard labels, OK/Cancel). Menus
+delivered via the game's REAL accelerator table (RT_ACCELERATOR id 2): Ctrl-chord WM_KEYDOWNs
+translate to WM_COMMAND in CWinThread::Run (Ctrl+A About, Ctrl+C/G/W the sliders, Ctrl+T Stats,
+etc.) — no OS menu bar needed. Remaining: save/load CFileDialog (still stub → IDCANCEL), a
+VISIBLE menu bar (deferred — accelerators cover the commands), INDY×SDL in-game playtest.
+New test hooks: YODA_AUTOCMD=<ms>:<cmdhex> posts a command deterministically; YODA_DLGSHOT=<path>
+dumps the composited dialog (YODA_SHOT stalls inside modal loops). ⭐ NOTE (user-confirmed vs the
+original): slider "snap" is EMERGENT from each dialog's byte-matched SetScrollRange, not special-cased
+— Difficulty is 1–100 (continuous, three decorative labels), WorldSize is 1–3 (snaps to Small/Medium/
+Large). The microfx horizontal scrollbar's integer thumb-position math reflects both correctly.*
+
+*Prior — M4 CORE COMPLETE, ⭐ USER-CONFIRMED (2026-07-10, v79a-g). RESOURCES + UI CHROME WORK
 NATIVELY: embedded .res loader (LoadString/LoadIcon/LoadCursor/named RT_BITMAPs), real GDI
 chrome (pens/brushes/FillRect/PatBlt/Pie/RoundRect/Polygon/lines/pixels + PC_RESERVED-aware
 color mapping), genuine MS Sans Serif bitmap-font text (13px/16px FNT strikes), a REAL modal
@@ -9,9 +27,7 @@ modal — text renders, close button shows, Enter/Esc/click dismiss, zone repain
 software cursor composited at present time, Win95-style SB_CTL scrollbar, and real window
 teardown (view dtor → WaveMixCloseSession — "[snd] session closed"). USER-CONFIRMED: item
 click-drag (incl. heal via player AND health-circle drop targets), locator textboxes
-(the v78 test case), close-on-PRESS button fidelity matching the original. Remaining M4/M5
-tails: CDialog::DoModal (F8 stats, About, option sliders, save/load), menus, INDY×SDL
-in-game playtest. Details per subsystem below; v79 lessons at the end of the lessons list.*
+(the v78 test case), close-on-PRESS button fidelity matching the original.*
 
 *M3-era status (v78): SOUND + MUSIC WORK NATIVELY:
 `snd/mfxsnd.cpp` implements the full WaveMix* set + mciSendString over SDL2_mixer — the Yoda
@@ -207,6 +223,26 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
    YODA_HWCURSOR=1 re-enables the SDL hardware path. Fidelity rules: before the game's
    FIRST SetCursor Win32 shows the class arrow (leave the OS cursor); SetCursor(NULL)
    hides (keyboard-move/drag modes); IDC_ARROW keeps the OS arrow.
+14. **DDX_Text must keep C++ linkage (v80).** afxwin.h declares the overloaded
+    `void AFXAPI DDX_Text(CDataExchange*, int, CString&)` / `(…, int&)` with C++ linkage;
+    defining them inside an `extern "C"` block gives the definitions C linkage → the mangled
+    call sites in the game don't resolve ("Undefined symbols … DDX_Text(…)"). Overloaded free
+    functions can NEVER be `extern "C"`. Only MfxFindResourceData and the forward GetMessageA/
+    DispatchMessageA decls belong in the extern "C" block.
+15. **Dialog controls carry ABSOLUTE root-client rects, not dialog-relative (v80).** The whole
+    microfx window model is flat: MfxWndFromPoint / MfxPaintChildren test one shared coordinate
+    space (view at 0,0 → client == screen). A modal dialog therefore places each control at
+    (dialogClientOrigin + DLU→px), and CenterWindow shifts the dialog AND every child by the same
+    delta (children don't auto-follow a parent move — there is no real parent-relative layer).
+    Dialog-units → px comes from the dialog FONT's base units, not GetDialogBaseUnits: 52-char
+    "A…Za…z" extent /26 → baseX, tmHeight → baseY, px = MulDiv(dlu, base, 4|8) — matches Win95
+    proportions on the 13px MS Sans Serif strike (verified vs the About/Difficulty layouts).
+16. **Menus = the real accelerator table, not a fake key map (v80).** RT_ACCELERATOR id 2 already
+    ships in the .res; loading it and translating Ctrl-chord WM_KEYDOWN → WM_COMMAND in
+    CWinThread::Run (NEVER in a modal GetMessage loop) delivers every menu command authentically
+    without an OS menu bar. A new file added to microfx/src needs a `cmake -B build-sdl`
+    reconfigure — the CMake GLOB_RECURSE is evaluated at configure time (symptom: the new TU's
+    symbols link-fail as "Undefined" even though the file compiles).
 
 ## What runs vs what's stubbed (v74)
 
@@ -270,8 +306,10 @@ death; harmless but wire it when real window teardown lands.
 REAL as of M4 (v79): the whole HUD/bubble chrome — see the M4 milestone entry below for the
 full inventory (res loader, GDI drawing, MS Sans Serif text, modal GetMessage + CEdit +
 CBitmapButton + CScrollBar, software cursors, teardown).
-STILL STUBBED (M5-ish): CDialog::DoModal → IDCANCEL (F8 stats, About, the three option
-sliders, save/load CFileDialog), menus (ON_COMMAND ids reachable by keyboard only).
+REAL as of M5 (v80): CDialog::DoModal (RT_DIALOG parse → controls → modal loop → DDX; About +
+sliders verified), GetDlgItem/CenterWindow, DDX_Text, and menu commands via the real accelerator
+table (Ctrl-chords → WM_COMMAND). STILL STUBBED: CFileDialog::DoModal → IDCANCEL (save/load
+picker), a visible menu bar (accelerators substitute).
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
@@ -420,8 +458,39 @@ microfx/
     state on HWND, WM_VSCROLL(SB_*) to the parent → InvScrollBar's reflected handler.
   - **teardown**: pump exit destroys view+frame; ~CDeskcppView reached → WaveMixCloseSession
     ("[snd] session closed" in YODA_SNDLOG).
-  - REMAINING (M5-ish): CDialog::DoModal (F8 stats box, About, Difficulty/GameSpeed/
-    WorldSize sliders, save/load CFileDialog), menus/command UI, INDY×SDL in-game playtest.
+- **M5 — dialogs + menus.** ✅ CORE v80 (mfxdlg.cpp). CDialog::DoModal REAL:
+  - **template → controls** (mfxdlg.cpp): MfxFindResourceData(RT_DIALOG=5) serves the raw
+    DLGTEMPLATE; DoModal parses it (mirrors tools/reslib.py parse_dlg32 — header rect/caption/
+    font + a DLGITEMTEMPLATE array), maps dialog-units → px via the dialog font's base units
+    (52-char extent /26 → baseX; tmHeight → baseY; px = MulDiv(dlu, base, 4|8)), and creates one
+    internal `MfxDlgItem : CWnd` per control at an ABSOLUTE root-client rect (class atom 0x80
+    BUTTON / 0x82 STATIC / 0x84 SCROLLBAR → kind). Kinds: push/def button (bevel, BN_CLICKED via
+    the queue), static label (word-wrap + SS_LEFT/CENTER/RIGHT), SS_ICON (DrawIcon), group box
+    (etched groove + gap label), horizontal scrollbar (Win95 chrome; mouse → WM_HSCROLL(SB_*) to
+    the dialog → the game's own OnHScroll). The dialog frame paints as a first child (KIND_DLGFRAME:
+    raised bevel + black frame + navy caption + bold title) so MfxPaintChildren z-orders it under
+    the controls, same shared-DIB compositing as the M4 bubble.
+  - **GetDlgItem / CenterWindow** now REAL (mfxwnd.cpp): GetDlgItem finds a direct child by id
+    (the sliders' SetScrollRange path); CenterWindow shifts the dialog + all its children by the
+    centering delta.
+  - **DDX** REAL (mfxdlg.cpp): DDX_Text(CString/int) sets/reads the target control's text (statics
+    for Stats/TextDialog value fields); DDX_Control/Check no-op. (Must be C++ linkage — overloaded;
+    an early `extern "C"` wrapper broke the mangled reference.)
+  - **modal loop** (DoModal): GetMessageA/DispatchMessageA over the shared queue; Enter→OnOK,
+    Esc→OnCancel; mouse/key aimed outside the dialog subtree is swallowed (modality); headless
+    GetMessageA returns 0 → auto-IDCANCEL (game_walk never hangs). CDialog map now carries
+    ON_COMMAND(IDOK,OnOK)/ON_COMMAND(IDCANCEL,OnCancel) so buttons route.
+  - **menus via accelerators** (mfxpump.cpp): the game's RT_ACCELERATOR id 2 table is loaded and
+    Ctrl-chord WM_KEYDOWNs translate to WM_COMMAND in CWinThread::Run only (a modal dialog does NOT
+    translate the frame's accelerators). Delivers About/Difficulty/GameSpeed/WorldSize/Stats/New/
+    Save/… without an OS menu bar. Plain-key accels (P pause, F1 help) deferred (avoid cheat-text
+    conflict).
+  - VERIFIED: About (0xe140) + Difficulty (0x8005) screenshots faithful; anchor 211 (zero src/
+    edits — all microfx/); bugscan 0/0/0, vtcheck 10, msgcheck 11 CLEAN.
+  - REMAINING: save/load CFileDialog (stub → IDCANCEL — needs a picker or fixed-slot fallback);
+    a VISIBLE menu bar + dropdowns (deferred; accelerators cover the commands); F8 status box
+    (CTextDialog 0xbf) + Stats (0xe1, demo template corrupt) exercise DDX but aren't accel- or
+    command-triggerable — spot-check via a live Ctrl+F8 / the FULL build; INDY×SDL in-game playtest.
 - **Done when:** native SDL Yoda Stories runs on macOS AND `tools/progress.py` still reports 211 exact
   (trivially true if TU edits stay at zero; verify anyway after any shared edit).
 

@@ -18,6 +18,7 @@ int CWinThread::Run() { return 0; }    // headless build: nothing to pump
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <stdlib.h>
+#include <string.h>
 
 // ── SDL keycode → Win32 VK (only what the game's OnKeyDown/OnKeyUp/GetAsyncKeyState read) ───
 static int MfxKeyToVk(SDL_Keycode sym)
@@ -317,6 +318,37 @@ LRESULT DispatchMessageA(const MSG *pMsg)
 
 } // extern "C"
 
+// ── keyboard accelerators (M5): the game's real ACCEL table (RT_ACCELERATOR id 2) maps Ctrl+
+// chords to menu commands — Ctrl+A About, Ctrl+C/G/W the option sliders, etc. Translate a
+// modifier-chord WM_KEYDOWN into a WM_COMMAND to the frame (Win32 TranslateAccelerator), so
+// every menu command is reachable without an OS menu bar. Only in CWinThread::Run — NOT in
+// modal GetMessage loops (a modal dialog doesn't translate the frame's accelerators).
+extern "C" const unsigned char *MfxFindResourceData(unsigned nType, unsigned nId, unsigned *pnSize);
+
+static int MfxTranslateAccel(const MSG *pMsg, HWND hFrame)
+{
+    if (pMsg->message != WM_KEYDOWN || !hFrame) return 0;
+    static const unsigned char *pAccel = 0;
+    static unsigned nAccelSize = 0;
+    static int bLoaded = 0;
+    if (!bLoaded) { pAccel = MfxFindResourceData(9 /*RT_ACCELERATOR*/, 2, &nAccelSize); bLoaded = 1; }
+    if (!pAccel) return 0;
+    int vk = (int)pMsg->wParam;
+    int bCtrl = (g_mfxKeyState[VK_CONTROL] & 0x80) != 0;
+    for (unsigned off = 0; off + 8 <= nAccelSize; off += 8) {
+        WORD fFlags, key, cmd;
+        memcpy(&fFlags, pAccel + off, 2);
+        memcpy(&key,    pAccel + off + 2, 2);
+        memcpy(&cmd,    pAccel + off + 4, 2);
+        if ((fFlags & 0x01) && (fFlags & 0x08) && bCtrl && key == vk) {  // FVIRTKEY+FCONTROL chord
+            PostMessageA(hFrame, WM_COMMAND, MAKELONG(cmd, 0), 0);
+            return 1;
+        }
+        if (fFlags & 0x80) break;   // last entry
+    }
+    return 0;
+}
+
 int CWinThread::Run()
 {
     HWND hRoot = MfxRootWnd();
@@ -358,7 +390,9 @@ int CWinThread::Run()
         MfxPumpSdlEvents();
 
         MSG msg;
+        HWND hFrameNow = MfxRootWnd() ? MfxRootWnd()->pWnd->m_hWnd : 0;
         while (!g_mfxQuit && MfxGetPostedMsg(&msg)) {
+            if (MfxTranslateAccel(&msg, hFrameNow)) continue;   // Ctrl-chord → WM_COMMAND
             TranslateMessage(&msg);
             DispatchMessageA(&msg);
         }
@@ -389,6 +423,18 @@ int CWinThread::Run()
                         MfxSendMsg(hView, WM_KEYUP, (WPARAM)nVk, 1);
                     }
                 }
+            }
+        }
+
+        // debug oracle: YODA_AUTOCMD=<startms>:<cmdhex> posts one WM_COMMAND to the frame at a
+        // set time (deterministic menu-command trigger — opens dialogs without a keystroke).
+        if (const char *pszCmd = getenv("YODA_AUTOCMD")) {
+            static int bCmdSent = 0;
+            int nStart = 0; unsigned nCmd = 0;
+            if (!bCmdSent && SDL_sscanf(pszCmd, "%d:%x", &nStart, &nCmd) == 2 &&
+                SDL_GetTicks() >= (Uint32)nStart) {
+                bCmdSent = 1;
+                PostMessageA(hFrameNow, WM_COMMAND, MAKELONG((WORD)nCmd, 0), 0);
             }
         }
 

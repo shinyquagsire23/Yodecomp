@@ -23,13 +23,15 @@ Phase H (extension — functional correctness, not byte-matching) status:
 - **H2 full Yoda Stories** ✅ (docs/phase-h2-full-game.md) — all 3 planets generate + play; Save/Load/Replay work.
 - **H3 Indy 32-bit port** ⏳ broadly PLAYABLE (docs/phase-h3-indy.md) — DAW load, worldgen, ACTN scripts,
   doors, HUD, palette, resources (Indy icon/title/About) all done + user-confirmed; minor tails remain.
-- **H4 SDL portable target** — ⏳ M0–M4 CORE COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS
+- **H4 SDL portable target** — ⏳ M0–M5 CORE COMPLETE (docs/phase-h4-sdl.md): ⭐ the game RUNS
   NATIVELY on macOS (`build-sdl/yoda`) — title, intro, game loop, input, walking, zone/door
-  transitions, item drag, weapons, FULL AUDIO (WaveMix+MCI over SDL2_mixer), and (v79) FULL
-  UI CHROME: HUD panel/health dial/arrows, MS Sans Serif text, MODAL speech bubbles w/ real
-  GetMessage + CEdit + buttons, .res strings/icons/cursors, scrollbar, clean teardown — all
-  user-confirmed (drag-heal, locator bubbles, close-on-press fidelity). Next: M5 dialogs
-  (DoModal from RT_DIALOG) + menus; INDY×SDL in-game playtest.
+  transitions, item drag, weapons, FULL AUDIO (WaveMix+MCI over SDL2_mixer), FULL UI CHROME
+  (HUD/health dial/arrows, MS Sans Serif text, MODAL speech bubbles, .res strings/icons/cursors,
+  scrollbar, teardown — all v79 user-confirmed), and (v80) REAL DIALOGS: CDialog::DoModal parses
+  RT_DIALOG templates → controls → modal loop → DDX (About + option sliders screenshot-verified),
+  plus menu commands via the game's real accelerator table (Ctrl-chords → WM_COMMAND). Next:
+  save/load CFileDialog picker, a visible menu bar (accelerators substitute for now), INDY×SDL
+  in-game playtest.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -226,66 +228,49 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v79 — H4 M4 UI CHROME CORE COMPLETE, USER-CONFIRMED; next M5 dialogs/menus + Indy playtest; anchor untouched)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v80 — H4 M5 DIALOGS + MENUS CORE COMPLETE; next save/load picker + visible menu bar + Indy playtest; anchor untouched)
 
-**▶ v79 this session (H4 M4, commits v79a-g — ZERO src/ edits, all microfx/cmake/tools):**
-resources + GDI chrome + text + modal UI + cursors + scrollbar + teardown. ⭐ USER-CONFIRMED:
-item click-drag heals via BOTH drop targets (player + health circle), locator textboxes (the
-v78 test case) work, and button close-on-PRESS matches the original ("accuracy of the MFC
-implementation is actually really surprising"). Full inventory + new lessons 9-13 in
-docs/phase-h4-sdl.md. Headlines:
-- **res/mfxres.cpp**: embedded yoda.res (tools/bin2c.py; PortableSDL.cmake mirrors the
-  demo/full/indy make_res variants) → LoadString (ALL bubble/HUD text), LoadIcon+DrawIcon
-  (HUD arrows), LoadCursor, named RT_BITMAPs (bubble buttons); MfxImg decode + MFXIMG API.
-- **gdi real**: pens/brushes/fonts + per-DC draw state + FillRect/PatBlt/Pie/RoundRect/
-  Polygon/lines/pixels/GetClipBox + Win95 GetSysColor (feeds sysPalette[1..3]). ⭐ Lesson 9:
-  DrawGameArea's GetPixel probe needs WM_ERASEBKGND before WM_PAINT or every blit becomes a
-  full-redraw storm. ⭐ Lesson 10 (user-detected): color matching must SKIP PC_RESERVED
-  cycling-ring entries (health-dial flash); LineTo EXCLUDES its endpoint (bevel off-by-one).
-- **text**: genuine MS Sans Serif 13px/16px FNT strikes committed (microfx/src/gdi/
-  mfxfont_data.c via tools/fon2c.py from a real SSERIFE.FON); strike mapping -8/-14 +
-  synthesized bold; TextOut/GetTextMetrics/GetTextExtentPoint32.
-- **modal UI**: GetMessageA/DispatchMessageA REAL — SDL events + timers become MSGs in the
-  ONE posted queue that both CWinThread::Run and the game's own modal loops drain (msg.pt =
-  cursor pos; mouse hit-tests to visible child windows, capture-aware). Word-wrapping CEdit
-  + CBitmapButton + window registry; children re-composite via a gdi OVERLAY hook fired on
-  every screen write (one shared surface — DrawGameArea would erase them), presents batched
-  by MfxTouchHold/Release. Lesson-11 gotchas: buttons stay WM_SETREDRAW(0) forever yet must
-  draw; a redundant ShowWindow(SW_SHOW) must still dirty the frame (black-boot regression).
-  Lesson 12: GetMessageA returns 0 when no SDL window exists — game_walk hung at 100% CPU
-  in a modal wait until that guard landed.
-- **cursors** (user-detected regression → redesign, lesson 13): SOFTWARE cursor composited
-  over the window surface at present time (chunky at window scale; the DS-port path);
-  YODA_HWCURSOR=1 opts into SDL hardware; never-set/IDC_ARROW keep the OS arrow;
-  SetCursor(NULL) hides (faithful keyboard-move/drag behavior).
-- **M4e**: Win95-chrome SB_CTL scrollbar (bevel arrows/checker track/thumb drag →
-  WM_VSCROLL(SB_*) to the parent → the reflected InvScrollBar handler) + real teardown on
-  pump exit (view dtor → WaveMixCloseSession; YODA_SNDLOG=1 shows "[snd] session closed").
+**▶ v80 this session (H4 M5, ZERO src/ edits — all microfx/): CDialog::DoModal is REAL.**
+New `microfx/src/app/mfxdlg.cpp`: parses an RT_DIALOG template (MfxFindResourceData(5) serves
+the raw blob; parse mirrors tools/reslib.py parse_dlg32), maps dialog-units→px from the dialog
+FONT's base units (52-char extent/26→baseX, tmHeight→baseY, px=MulDiv(dlu,base,4|8)), creates one
+internal `MfxDlgItem:CWnd` per control at an ABSOLUTE root-client rect, calls virtual OnInitDialog
+(→ DoDataExchange → real DDX_Text), runs a Win32 modal loop (Enter→OnOK/Esc→OnCancel, outside-click
+swallowed, headless GetMessageA→auto-IDCANCEL so game_walk never hangs). Control kinds by class atom
+(0x80 button / 0x82 static / 0x84 scrollbar): push/def button (bevel + BN_CLICKED via queue),
+word-wrapping static (L/C/R align), SS_ICON (DrawIcon), group box, HORIZONTAL scrollbar (→ WM_HSCROLL
+to the game's own OnHScroll). Dialog frame = a first KIND_DLGFRAME child (navy caption + bold title +
+raised bevel + black frame), z-ordered under controls by MfxPaintChildren (same shared-DIB compositing
+as the M4 bubble). GetDlgItem + CenterWindow now REAL (mfxwnd.cpp); CDialog map gained
+ON_COMMAND(IDOK/IDCANCEL). Menus delivered via the game's REAL accelerator table (RT_ACCELERATOR id 2):
+Ctrl-chord WM_KEYDOWN → WM_COMMAND in CWinThread::Run ONLY (mfxpump.cpp) — Ctrl+A About, Ctrl+C/G/W the
+sliders, Ctrl+T Stats, Ctrl+N/S/…; no OS menu bar needed. VERIFIED by screenshot: About (0xe140) and
+Difficulty (0x8005) faithful. New test hooks: `YODA_AUTOCMD=<startms>:<cmdhex>` posts one command
+deterministically; `YODA_DLGSHOT=<path>` dumps the composited dialog (YODA_SHOT stalls in modal loops).
+⭐ New lessons 14-16 (docs/phase-h4-sdl.md): DDX_Text overloads CANNOT be extern "C" (mangled-ref link
+fail); dialog controls carry ABSOLUTE rects in the flat coord model (CenterWindow shifts dialog+children
+by the delta); a new microfx/src file needs a `cmake -B build-sdl` reconfigure (GLOB is configure-time →
+"Undefined symbols" despite compiling). ⭐ Slider "snap" is EMERGENT from each dialog's byte-matched
+SetScrollRange (user-confirmed vs original): Difficulty 1-100 continuous, WorldSize 1-3 snaps to
+Small/Med/Large — the integer thumb math reflects both, no special-casing.
 
-**▶ GOAL 2 — H4 next = M5 dialogs + menus (the main thread):**
-- CDialog::DoModal real: parse RT_DIALOG templates from the embedded .res
-  (tools/reslib.py parse_dlg32 = the format reference), create child controls, run a modal
-  loop (GetMessage already real). Order: F8 StatsDlg first (simple), then About,
-  Difficulty/GameSpeed/WorldSize sliders (1 CScrollBar + OnHScroll each — plumbing exists),
-  save/load last (CFileDialog needs a picker; consider fixed-slot fallback).
-- Menus: ON_COMMAND ids are ints — keyboard map or minimal menu bar can post them
-  (WM_COMMAND routing view→frame→app works). The .res blob still carries menu id 2.
-- USER-CONFIRMED post-v79g: bubble UP/DOWN scroll buttons work held AND tapped; inventory
-  scrolling fixed in v79h (::GetParent was still a stub returning 0 → InvScrollBar's
-  FromHandle(GetParent())->DrawText(0) repaint never ran; scrollbar moved, items stale).
-  Audit hint for future symptoms of the shape "X updates but Y doesn't": grep mfxstubs.cpp
-  for the USER/GDI call the Y-path depends on — a silent 0-returning stub is the pattern.
-- ⏳ USER-VERIFY: health-dial flash + bevel fixes (v79b); cursor feel (v79f).
-- ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry).
-  Harness INIs: `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run
-  and writes it back — reset before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed>
-  [--zone id] [--dump x.bmp] [--show]` · `game_walk <seed>` · `YODA_SHOT=<pfx>[:n] ./yoda` ·
-  `YODA_AUTOKEY=<startms>:<vk>:<durms>`. Bubbles in automated runs: dismiss via
-  `osascript` (activate the "yoda" process, then `key code 36`) — v79 technique; the pump's
-  shot counter stalls while a modal loop runs (expected — Run is blocked inside GetMessage).
-- Perf note (fine to ignore): scripted intro flights present per BitBlt (~55% CPU during
-  busy-wait IACTs). If it ever bothers: rate-limit the present hook (~8ms), keep BitBlt
-  immediate for transitions.
+**▶ GOAL 2 — H4 next (the main thread):**
+- **save/load CFileDialog** — still `MFX_STUB` → IDCANCEL (mfxstubs.cpp:246). Needs a file picker
+  (SDL has none native) or a fixed-slot fallback (the game's save format is self-consistent per
+  build). This is the last stubbed dialog.
+- **VISIBLE menu bar + dropdowns** — DEFERRED (accelerators already reach every command). If wanted:
+  parse MENU id 2 (in the .res), render a bar + popups, hit-test → post WM_COMMAND. Substantial;
+  the accelerator path is the pragmatic substitute.
+- **F8 status box (CTextDialog 0xbf) + Stats (0xe1)** exercise DDX_Text into static value fields but
+  aren't accelerator/command-triggerable (F8 is inline in the view's OnKeyDown w/ Ctrl; the demo Stats
+  template 0xe1 is corrupt — Stats is demo-disabled). Spot-check via a LIVE Ctrl+F8 or the FULL build.
+- ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry). Harness INIs:
+  `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and writes it back — reset
+  before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed> [--zone id] [--dump x.bmp] [--show]` ·
+  `game_walk <seed>` · `YODA_SHOT=<pfx>[:n] ./yoda` · `YODA_AUTOKEY=<startms>:<vk>:<durms>` ·
+  `YODA_AUTOCMD=<startms>:<cmdhex>` (v80, opens dialogs) · `YODA_DLGSHOT=<path>` (v80, capture a modal).
+- Perf note (fine to ignore): scripted intro flights present per BitBlt (~55% CPU during busy-wait
+  IACTs). If it bothers: rate-limit the present hook (~8ms), keep BitBlt immediate for transitions.
 
 **▶ GOAL 1 — Indy (after M5 or user-led):** ⏳ INDY×SDL in-game playtest (`YodaIndy/yoda_sdl`,
 rebuilt v79 — the .res pipeline now feeds it Indy resources incl. Indy cursors/strings); then
@@ -298,10 +283,10 @@ MFC/CRT library, SKIP). Method: twin-rich area → string/import xrefs or caller
 + plate-comment the Yoda twin. ⚠ match twins by STRUCTURE not 16-bit offsets; data xrefs may be
 unresolved (search PUSH of negative DGROUP offset); check gaps for undiscovered functions.
 
-**▶ Anchor:** 211 exact / 99.17 % (progress.py re-verified during v79). v79 made ZERO src/ or
-shared-header edits (microfx/cmake/tools only — the anchor build never sees those trees), so the
-remaining oracles cannot have moved; run the full table around any future shared-TU edit as
-usual. All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug rig
+**▶ Anchor:** 211 exact / 99.17 % (progress.py re-verified during v80; bugscan 0/0/0, vtcheck 10,
+msgcheck 11 CLEAN). v80 made ZERO src/ or shared-header edits (microfx/ only — the anchor build never
+sees that tree), so the oracles cannot have moved; run the full table around any future shared-TU edit
+as usual. All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded; debug rig
 YODA_DEBUG-guarded (committed builds OFF). H4 rule of thumb: fix portability in microfx
 headers/stubs first; touch a game TU only for __asm / pointer-width casts / old-for-scope,
 always guarded, always re-oracled — and NEVER add an unguarded include to a byte-matched TU

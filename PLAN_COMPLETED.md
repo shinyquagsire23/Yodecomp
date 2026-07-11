@@ -2571,3 +2571,18 @@ font = wip-wip percussion symptom). Only src/ edit: 3 YODA_PORTABLE old-for-scop
 Worldgen.cpp's GAME_INDY tail (lesson 8) — anchor re-ran FULL GREEN. The M4 goals it set
 (res loader, GDI chrome, modal TextDialog w/ locator-click test case, scrollbar, teardown,
 software-cursor option) all landed in v79a-g.
+
+⏮ v79 pickup (demoted 2026-07-10, superseded by v80) — H4 M4 UI CHROME CORE, USER-CONFIRMED (a-g,
+ZERO src/ edits). res/mfxres.cpp parses embedded yoda.res → LoadString/LoadIcon+DrawIcon/LoadCursor/
+named RT_BITMAPs; real GDI pens/brushes/fonts + FillRect/PatBlt/Pie/RoundRect/Polygon/lines/pixels/
+GetClipBox/GetSysColor; genuine MS Sans Serif 13/16px FNT strikes (fon2c.py→mfxfont_data.c, -8→13px
+-14→16px, synth bold); REAL GetMessageA over ONE MSG queue (both CWinThread::Run and the game's modal
+loops drain it; msg.pt=cursor, hit-test to children, capture-aware); word-wrap CEdit + CBitmapButton;
+overlay hook re-composites children on every screen write (MfxTouchHold/Release batches); SB_CTL
+scrollbar (bevel arrows/checker/thumb → WM_VSCROLL to InvScrollBar); teardown (pump exit → view dtor →
+WaveMixCloseSession). Lessons 9-13 (docs/phase-h4-sdl.md): WM_ERASEBKGND before WM_PAINT (redraw
+storm); PC_RESERVED skip in color match (health-dial flash) + LineTo excludes endpoint (bevel);
+shared-surface children need overlay re-composite + boot-dirty care; modal loops = one queue +
+headless GetMessage bail; SOFTWARE cursor composited at present (YODA_HWCURSOR=1 hw). v79h fixed
+inventory-scroll: ::GetParent was a stub returning 0 → InvScrollBar repaint never ran (audit hint:
+"X updates but Y doesn't" ⇒ grep mfxstubs.cpp for a silent 0-returning stub the Y-path needs).

@@ -531,6 +531,44 @@ CFrameWnd *CWnd::GetParentFrame() const
     return g_hRoot && g_hRoot->pWnd != this ? (CFrameWnd *)g_hRoot->pWnd : 0;
 }
 
+// GetDlgItem: a direct child of this window with the given control id (M5 dialogs — the
+// slider dialogs call GetDlgItem(0x67) then ::SetScrollRange on its m_hWnd).
+CWnd *CWnd::GetDlgItem(int nID) const
+{
+    if (!MfxIsWnd(m_hWnd)) return 0;
+    for (int i = 0; i < g_nWnds; i++) {
+        HWND h = g_aWnds[i];
+        if (MfxIsWnd(h) && h->hParent == m_hWnd && h->nId == (UINT)nID)
+            return h->pWnd;
+    }
+    return 0;
+}
+
+// CenterWindow (M5): center this window in the root client area, shifting every direct child
+// (dialog controls carry absolute root-client rects, so they move with the frame).
+void CWnd::CenterWindow(CWnd *)
+{
+    if (!MfxIsWnd(m_hWnd) || !g_hRoot) return;
+    int rootW = g_hRoot->rc.right - g_hRoot->rc.left;
+    int rootH = g_hRoot->rc.bottom - g_hRoot->rc.top;
+    int w = m_hWnd->rc.right - m_hWnd->rc.left;
+    int h = m_hWnd->rc.bottom - m_hWnd->rc.top;
+    int newX = (rootW - w) / 2, newY = (rootH - h) / 2;
+    if (newX < 0) newX = 0;
+    if (newY < 0) newY = 0;
+    int dx = newX - m_hWnd->rc.left, dy = newY - m_hWnd->rc.top;
+    if (!dx && !dy) return;
+    for (int i = 0; i < g_nWnds; i++) {
+        HWND h2 = g_aWnds[i];
+        if (!MfxIsWnd(h2)) continue;
+        if (h2 == m_hWnd || h2->hParent == m_hWnd) {
+            h2->rc.left += dx; h2->rc.right += dx;
+            h2->rc.top  += dy; h2->rc.bottom += dy;
+        }
+    }
+    MfxSetDirty();
+}
+
 // ── frame creation (real MFC shape: LoadFrame → WM_CREATE → OnCreate → OnCreateClient) ──────
 
 BOOL CFrameWnd::LoadFrame(UINT /*nIDResource*/, DWORD dwDefaultStyle,
