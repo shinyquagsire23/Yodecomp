@@ -12,7 +12,9 @@
        assembled into an .ico + inlined so the page stays self-contained -->
   <title>Desktop Adventures</title>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #101418; }
+    /* Win95 3DFACE gray — matches the game's own chrome, so the pre-first-frame load
+       moment doesn't flash a different color (user request) */
+    html, body { margin: 0; padding: 0; height: 100%; background: #c0c0c0; }
     body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
     canvas.emscripten {
       border: 0; outline: none; display: block;
@@ -20,7 +22,7 @@
       max-width: 100vw; max-height: 100vh;
     }
     #status {
-      color: #8fa3ad; font: 14px system-ui, sans-serif; padding: 8px;
+      color: #404040; font: 14px system-ui, sans-serif; padding: 8px;
       position: fixed; bottom: 6px; left: 0; right: 0; text-align: center;
       pointer-events: none;
     }
