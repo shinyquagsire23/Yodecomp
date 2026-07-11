@@ -317,19 +317,30 @@ BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy
 }
 
 // ── color mapping + drawing primitives (M4) ─────────────────────────────────────────────────
-// A COLORREF is resolved against the target DIB's color table at draw time (exact match fast
-// path, else nearest by squared RGB distance) — Win32-on-8bpp-display behavior. The DIB's
-// table tracks RealizePalette/AnimatePalette, so mapped colors follow the game palette.
+// A COLORREF is resolved against the DC's palette at draw time (exact match fast path, else
+// nearest by squared RGB distance) — Win32-on-8bpp-display behavior. CRITICAL: entries with
+// peFlags & PC_RESERVED (1) are SKIPPED, exactly like GDI — the game marks its palette-cycling
+// ring entries reserved, and matching into a ring makes solid fills (the health dial!) change
+// color as CyclePalette animates. DCs without a selected palette (the Canvas memory DCs) fall
+// back to their DIB color table with no flag knowledge — the game only draws UI solids there
+// in stable colors (bubble white/black).
 
-static BYTE MfxMapColor(HBITMAP__ *pDib, COLORREF cr)
+static BYTE MfxMapColor(HDC hdc, COLORREF cr)
 {
     int r = (int)(cr & 0xff), g = (int)((cr >> 8) & 0xff), b = (int)((cr >> 16) & 0xff);
     long nBestDist = 0x7fffffff;
     int  nBest = 0;
+    HPALETTE hPal = MfxIsPal(hdc->hPal) ? hdc->hPal : 0;
     for (int i = 0; i < 256; i++) {
-        long dr = r - pDib->aPal[i].rgbRed;
-        long dg = g - pDib->aPal[i].rgbGreen;
-        long db = b - pDib->aPal[i].rgbBlue;
+        int pr, pg, pb;
+        if (hPal) {
+            if (hPal->aPal[i].peFlags & 1) continue;     // PC_RESERVED: never matched
+            pr = hPal->aPal[i].peRed; pg = hPal->aPal[i].peGreen; pb = hPal->aPal[i].peBlue;
+        } else {
+            pr = hdc->hDib->aPal[i].rgbRed; pg = hdc->hDib->aPal[i].rgbGreen;
+            pb = hdc->hDib->aPal[i].rgbBlue;
+        }
+        long dr = r - pr, dg = g - pg, db = b - pb;
         long d = dr * dr + dg * dg + db * db;
         if (d == 0) return (BYTE)i;
         if (d < nBestDist) { nBestDist = d; nBest = i; }
@@ -359,16 +370,20 @@ static void MfxFillRectIx(HBITMAP__ *pDib, int l, int t, int r, int b, BYTE ix)
         MfxHLine(pDib, l, r - 1, y, ix);
 }
 
-// Bresenham with the DC pen. Win32 LineTo excludes the final endpoint; for the game's 1px
-// bubble-tail edges the visual difference is nil — we draw inclusive for simplicity.
-static void MfxLineIx(HBITMAP__ *pDib, int x0, int y0, int x1, int y1, BYTE ix)
+// Bresenham. bLast=0 = Win32 LineTo semantics (the final endpoint is NOT drawn) — the
+// DrawRect bevel mitres depend on it: with an inclusive line the top/bottom bevel rows
+// overshoot one pixel into the right column (user-visible off-by-one, v79 playtest).
+static void MfxLineIx(HBITMAP__ *pDib, int x0, int y0, int x1, int y1, BYTE ix, int bLast)
 {
     int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
     int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
     int err = dx + dy;
     for (;;) {
+        if (x0 == x1 && y0 == y1) {
+            if (bLast) MfxPutPixel(pDib, x0, y0, ix);
+            break;
+        }
         MfxPutPixel(pDib, x0, y0, ix);
-        if (x0 == x1 && y0 == y1) break;
         int e2 = 2 * err;
         if (e2 >= dy) { err += dy; x0 += sx; }
         if (e2 <= dx) { err += dx; y0 += sy; }
@@ -457,7 +472,7 @@ int FillRect(HDC hdc, const RECT *prc, HBRUSH hbr)
     MfxBrush *pBr = MfxIsBrush(hbr) ? (MfxBrush *)hbr : &g_brWhite;
     if (pBr->bNull) return 1;
     MfxFillRectIx(hdc->hDib, prc->left, prc->top, prc->right, prc->bottom,
-                  MfxMapColor(hdc->hDib, pBr->cr));
+                  MfxMapColor(hdc, pBr->cr));
     MfxTouch(hdc);
     return 1;
 }
@@ -469,12 +484,12 @@ BOOL PatBlt(HDC hdc, int x, int y, int cx, int cy, DWORD rop)
     if (rop == PATCOPY) {
         MfxBrush *pBr = MfxDcBrush(hdc);
         if (!pBr->bNull)
-            MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, pBr->cr));
+            MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(hdc, pBr->cr));
     }
     else if (rop == BLACKNESS)
-        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, RGB(0, 0, 0)));
+        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(hdc, RGB(0, 0, 0)));
     else if (rop == WHITENESS)
-        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(pDib, RGB(255, 255, 255)));
+        MfxFillRectIx(pDib, x, y, x + cx, y + cy, MfxMapColor(hdc, RGB(255, 255, 255)));
     MfxTouch(hdc);
     return TRUE;
 }
@@ -492,7 +507,7 @@ BOOL LineTo(HDC hdc, int x, int y)
     if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
     MfxPen *pPen = MfxDcPen(hdc);
     if (pPen->nStyle != PS_NULL)
-        MfxLineIx(hdc->hDib, hdc->ptCur.x, hdc->ptCur.y, x, y, MfxMapColor(hdc->hDib, pPen->cr));
+        MfxLineIx(hdc->hDib, hdc->ptCur.x, hdc->ptCur.y, x, y, MfxMapColor(hdc, pPen->cr), 0);
     hdc->ptCur.x = x; hdc->ptCur.y = y;
     MfxTouch(hdc);
     return TRUE;
@@ -501,7 +516,7 @@ BOOL LineTo(HDC hdc, int x, int y)
 COLORREF SetPixel(HDC hdc, int x, int y, COLORREF c)
 {
     if (!MfxIsDc(hdc) || !hdc->hDib) return c;
-    MfxPutPixel(hdc->hDib, x, y, MfxMapColor(hdc->hDib, c));
+    MfxPutPixel(hdc->hDib, x, y, MfxMapColor(hdc, c));
     MfxTouch(hdc);
     return c;
 }
@@ -521,14 +536,14 @@ BOOL Rectangle(HDC hdc, int l, int t, int r, int b)
     HBITMAP__ *pDib = hdc->hDib;
     MfxBrush *pBr = MfxDcBrush(hdc);
     if (!pBr->bNull)
-        MfxFillRectIx(pDib, l + 1, t + 1, r - 1, b - 1, MfxMapColor(pDib, pBr->cr));
+        MfxFillRectIx(pDib, l + 1, t + 1, r - 1, b - 1, MfxMapColor(hdc, pBr->cr));
     MfxPen *pPen = MfxDcPen(hdc);
     if (pPen->nStyle != PS_NULL) {
-        BYTE ix = MfxMapColor(pDib, pPen->cr);
+        BYTE ix = MfxMapColor(hdc, pPen->cr);
         MfxHLine(pDib, l, r - 1, t, ix);
         MfxHLine(pDib, l, r - 1, b - 1, ix);
-        MfxLineIx(pDib, l, t, l, b - 1, ix);
-        MfxLineIx(pDib, r - 1, t, r - 1, b - 1, ix);
+        MfxLineIx(pDib, l, t, l, b - 1, ix, 1);
+        MfxLineIx(pDib, r - 1, t, r - 1, b - 1, ix, 1);
     }
     MfxTouch(hdc);
     return TRUE;
@@ -546,8 +561,8 @@ BOOL RoundRect(HDC hdc, int l, int t, int r, int b, int rw, int rh)
     if (rb > (b - t) / 2) rb = (b - t) / 2;
     MfxBrush *pBr = MfxDcBrush(hdc);
     MfxPen  *pPen = MfxDcPen(hdc);
-    BYTE ixBr  = pBr->bNull ? 0 : MfxMapColor(pDib, pBr->cr);
-    BYTE ixPen = MfxMapColor(pDib, pPen->cr);
+    BYTE ixBr  = pBr->bNull ? 0 : MfxMapColor(hdc, pBr->cr);
+    BYTE ixPen = MfxMapColor(hdc, pPen->cr);
     int  bPen  = pPen->nStyle != PS_NULL;
     int aPrevL = 0, aPrevR = 0, bHavePrev = 0;
     for (int y = t; y < b; y++) {
@@ -591,7 +606,7 @@ BOOL Polygon(HDC hdc, const POINT *apt, int n)
     HBITMAP__ *pDib = hdc->hDib;
     MfxBrush *pBr = MfxDcBrush(hdc);
     if (!pBr->bNull && n >= 3) {
-        BYTE ix = MfxMapColor(pDib, pBr->cr);
+        BYTE ix = MfxMapColor(hdc, pBr->cr);
         int yMin = apt[0].y, yMax = apt[0].y;
         for (int i = 1; i < n; i++) {
             if (apt[i].y < yMin) yMin = apt[i].y;
@@ -616,9 +631,9 @@ BOOL Polygon(HDC hdc, const POINT *apt, int n)
     }
     MfxPen *pPen = MfxDcPen(hdc);
     if (pPen->nStyle != PS_NULL) {
-        BYTE ix = MfxMapColor(pDib, pPen->cr);
+        BYTE ix = MfxMapColor(hdc, pPen->cr);
         for (int i = 0; i < n; i++)
-            MfxLineIx(pDib, apt[i].x, apt[i].y, apt[(i + 1) % n].x, apt[(i + 1) % n].y, ix);
+            MfxLineIx(pDib, apt[i].x, apt[i].y, apt[(i + 1) % n].x, apt[(i + 1) % n].y, ix, 1);
     }
     MfxTouch(hdc);
     return TRUE;
@@ -634,7 +649,7 @@ BOOL Pie(HDC hdc, int l, int t, int r, int b, int x1, int y1, int x2, int y2)
     HBITMAP__ *pDib = hdc->hDib;
     MfxBrush *pBr = MfxDcBrush(hdc);
     if (pBr->bNull) return TRUE;
-    BYTE ix = MfxMapColor(pDib, pBr->cr);
+    BYTE ix = MfxMapColor(hdc, pBr->cr);
     double cx = (l + r - 1) / 2.0, cy = (t + b - 1) / 2.0;
     double ra = (r - l) / 2.0, rb2 = (b - t) / 2.0;
     if (ra <= 0 || rb2 <= 0) return TRUE;
