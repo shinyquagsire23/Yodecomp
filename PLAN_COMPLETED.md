@@ -2679,3 +2679,41 @@ user interaction ~10-15s into idling on the title/intro; not isolated to a call 
   ==1=WON→0x12 — Yoda's enum NAMES lie, its CODE is truth); 0x0b→0x20 RandVarNe(arg0:=-1); 0x14→0x0e
   CheckEndItem (142 DAW uses — highest impact); 0x15→0x0f CheckStartItem; 0x16→0x13 HealthLs. Cond
   0x00 has no Yoda twin but ZERO uses in all 2825 DESKTOP.DAW scripts → always-pass safe.
+
+## ⏮ v87 pickup (condensed 2026-07-11, on starting v88)
+
+**AfxMessageBox real modal (M5 tail):** `MfxShowMessageBox` (mfxdlg.cpp) reuses the M5 control kit
+(CK_DLGFRAME + wrapped CK_LABELs + OK/CANCEL/YES/NO button row from the MB_ type), own GetMessageA
+loop (Enter/Esc/Y/N, click scoped to the dialog), exposed via microfx.h so AfxMessageBox (mfxcore)
+and MessageBoxA (mfxstubs) share it; caption = app name else AFX_IDS_APP_TITLE. Headless-safe:
+returns -1 when `MfxPumpIsUp()` is false → callers keep the M-era auto-answer (smoke harnesses
+unchanged). USER-CONFIRMED live. **Debug oracles in modal loops:** AUTOMOD/AUTOKEY/AUTOCMD/
+AUTOCLICK/SHOT factored into shared `MfxDebugOracles()` (mfxpump.cpp), pumped by the modal
+GetMessageA wait too; AUTOCLICK now emits the LBUTTONUP (kit buttons commit on UP). ⚠ a speech
+BUBBLE is itself a nested modal that swallows non-bubble clicks. **Redraw residue on New/Replay/
+Load (user-found):** modal boxes overlapping the inventory left pixels after close — the handler
+returns into a regen+transition whose busy-wait redraws only the game area (clock-hook presents,
+no full OnDraw), so the close-time MfxSetDirty never ran. Fix: force `MfxPaintIfDirty()`
+synchronously at EVERY modal close (MfxShowMessageBox, CDialog::DoModal, both CFileDialog paths).
+⭐ LESSON: a modal returning into a partial-redraw operation must repaint ON CLOSE, not mark dirty.
+**GOAL 1 closed (Indy):** the v84 "hero-HP tail" was a misread — DESKADV's "entity+0x90=120" is
+`view->nTargetZoneId=120` (local_3e is the VIEW from GetFirstViewPosition), and Indy health is
+doc+0x1096/0x1098 reset 1/1 by the StartGame twin (1020:0ed0) — all already in shared code. Added
+the genuinely missing IndyGenerate tail writes (GAME_INDY-guarded): timeBase=time(NULL) (+0x58,
+timeOffset NOT cleared — faithful), unk50=startZoneId/unk2e34=0 (+0x44/+0xc34), cameraX/Y=0x160/0xa0
+(+0x10a2, vs Yoda's 0x140/0x140). Anchor re-verified green (211/99.17, all 5 oracles).
+
+## ⏮ v86 pickup (condensed 2026-07-11, during v88 cleanup)
+
+**Statistics dialog:** dialog 0xe1 is the game's ONE DLGTEMPLATEEX resource — microfx
+CDialog::DoModal only parsed classic DLGTEMPLATE → bogus cx/cy → early IDCANCEL (v80's "corrupt
+in the .res" note explained). Added an EX branch (0xFFFF signature) to header+control parse
+(mfxdlg.cpp); classic path untouched. **SDL3 native file dialog:** `MfxPlatShowFileDialog` on the
+mfxplat.h contract; SDL3 backend drives the async SDL_ShowOpen/SaveFileDialog to completion
+(pump-spin); other backends return -1 → in-window row picker. Focus nit fixed: flush
+FOCUS_LOST/GAINED + SDL_RaiseWindow after the panel closes (a stale lone FOCUS_LOST paused the
+game — nFrameMode=0/bBusy=1 stuck on STUP). **Ctrl+D → F8 dialog:** macOS eats the Ctrl+F8 CHORD
+(system shortcut) before SDL; neutral-pump alias injects synthetic VK_F8 while real Ctrl held;
+`YODA_KEYLOG=1` (sdl3 backend) logs key events. **Testing lesson (superseded in v87):** the game
+sits in a blocking GetMessageA modal loop from ~3s in, so main-loop-only debug oracles never fired
+once the intro started — v87's shared MfxDebugOracles fixed this.

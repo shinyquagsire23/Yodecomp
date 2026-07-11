@@ -69,18 +69,20 @@ Phase H (extension — functional correctness, not byte-matching) status:
 3. **Indy Ghidra RE sweep** — comb `DESKADV.EXE` (`program=DESKADV.EXE`) for behavioral differences we've
    missed, naming functions + defining structs along the way (same conventions as YodaDemo; 16-bit NE,
    segmented addresses — recover LOGIC, not codegen).
-4. **⭐ WASM port (user-set 2026-07-11)** — compile the H4/microfx SDL3 target to WebAssembly via
-   Emscripten, still SDL3 (Emscripten ships an SDL port; SDL3 supports the web backend). The pump's
-   main loop must convert to `emscripten_set_main_loop` (a browser can't own the loop the way
-   `CWinThread::Run`'s `while(!quit)` does — see the modal-loop caveat below). Assets (YODESK.DTA /
-   DESKTOP.DAW / .res / WAV+MID) ship in the Emscripten virtual FS (`--preload-file`); audio via
-   SDL3's web audio; the SDL3 native file dialog (v85) has no web equivalent → `MfxPlatShowFileDialog`
-   returns -1 in a wasm backend so CFileDialog's in-window row-list picker is used (already the
-   fallback). ⚠ The blocking modal loops (CDialog::DoModal, CFileDialog, the intro) use a nested
-   `while(GetMessageA)` — those DON'T work under a browser's cooperative event loop and are the main
-   porting lift (either Asyncify, or restructure the modal loops into state machines). New backend =
-   `microfx/src/platform/mfxplat_wasm.cpp` + a CMake/emcmake toolchain config; keep it a config-matrix
-   corner like the others. Reference: OpenJKDF2 has an Emscripten build.
+4. **⭐ WASM port (user-set 2026-07-11) — ✅ CORE SHIPPED v88** (playable in Chrome + Firefox,
+   user-tested): `emcmake cmake -B build-wasm -DYODA_PLATFORM=SDL -DYODA_VARIANT=FULL`. The
+   feared blocking-modal-loop lift dissolved: **ASYNCIFY + zero game-code restructuring** —
+   every blocking wait already funnels through `MfxPlatDelay()`, which the sdl3 backend routes
+   to `emscripten_sleep()` under `__EMSCRIPTEN__` (plus a yield after each present so busy-wait
+   animation loops display mid-handler). `mfxplat_sdl3.cpp` IS the wasm backend (emscripten
+   ships an SDL3 port, `--use-port=sdl3` — the browser is just another SDL3 platform; no
+   separate mfxplat_wasm.cpp needed). Audio = new `mfxsnd_sdl3stream.cpp` (SDL3-core streams;
+   no SDL3_mixer port exists; Yoda ships no .mid so SFX ≈ full audio — Indy-wasm MIDI needs a
+   soft-synth later, e.g. TinySoundFont + GM .sf2). Two asset modes (user-set):
+   `YODA_WASM_PRELOAD=ON` default (DTA/INI/sfx baked into yoda.data — automation/self-testing) /
+   `OFF` (SHIPPABLE page, zero game data; `--pre-js` picker `microfx/web/mfx_asset_picker.pre.js`
+   copies the user's folder into MEMFS pre-main). Remaining tails: INI/save persistence across
+   reloads (IDBFS), Indy-wasm MIDI, user-found gameplay deltas. See "WASM build/debug" below.
 
 ### H4 spec — Beyond Win95: portable SDL target via "microfx" (full design: docs/phase-h4-sdl.md)
 - **Strategy (user-set 2026-07-10): implement a source-compatible MFC SUBSET ("microfx"), not per-call
@@ -150,6 +152,40 @@ Per-bug status table: docs/engine-bugs.md.
   extended-config .res = Yoda's `.rsrc` base (our code depends on YodaDemo's integer resource IDs — never
   wholesale-swap) with only identity resources overridden (icon/title/About). Pure demo anchor uses
   `extract_res.py`. `IDR_MAINFRAME==2` in this app (not 128). `tools/reslib.py` parses both PE and 16-bit NE.
+
+### WASM build/debug (GOAL 4 — v88)
+
+- **Build:** `emcmake cmake -B build-wasm -DYODA_PLATFORM=SDL -DYODA_VARIANT=FULL [-DYODA_DEBUG=ON]
+  [-DYODA_WASM_PRELOAD=OFF] && cmake --build build-wasm` → `yoda.html/.js/.wasm[/.data]`. Homebrew
+  emscripten; SDL3 via `--use-port=sdl3` (no find_package under EMSCRIPTEN — the CMake branch handles
+  it); `-fexceptions` is REQUIRED (microfx CFile throws CFileException; JS-EH is the Asyncify-safe
+  choice). Keep two trees: `build-wasm` (preload + YODA_DEBUG — automation) and `build-wasm-pick`
+  (`-DYODA_WASM_PRELOAD=OFF`, shippable, no baked game data — the in-page folder picker).
+- **Node harnesses = the fast oracles (no browser):** the same worldgen_smoke/zone_view/game_walk/
+  dlg_smoke build as `.js` with NODERAWFS — run `node build-wasm/worldgen_smoke.js <seed>` from a
+  folder holding the DTA + `yoda.INI` (wasm exe base is always "yoda": `GetModuleFileNameA` returns
+  `<cwd>/yoda`). v88 parity: 5/5 seeds byte-identical `yoda_debug.log` vs native, zone_view BMP
+  pixel-identical. ⚠ cross-libc A/B needs BOTH pins: `YODA_SEED` AND `YODA_PLANET` (the planet
+  re-pick spins an unseeded `rand()` — macOS/musl/msvcrt disagree; both pins are YODA_DEBUG-only).
+- **⭐ Puppeteer browser oracle (how to debug wasm WITHOUT eyes):** `npm install puppeteer-core` in
+  any scratch dir (uses installed Chrome, no download), serve the build
+  (`cd build-wasm && python3 -m http.server 8777 &`), then from that scratch dir run
+  `node tools/wasm_boottest.js [url] [shotPrefix] [assetDirForPickerBuilds]` — boots the page,
+  clicks through the title, walks, screenshots the canvas (`<pfx>{0,1,2}.png` — READ these as
+  images), and prints canvas-pixel + audio-graph stats (PASS = painted canvas + AudioContext
+  'running'). Patterns inside worth reusing for ad-hoc probes: `page.evaluateOnNewDocument` to
+  instrument JS APIs before the app loads (that's how the audio graph is proven), `canvas.screenshot`
+  per phase, `page.on('pageerror')` for wasm traps (an Asyncify stack overflow or a missing FS file
+  shows up there), `input.uploadFile(<dir>)` drives the `webkitdirectory` picker. Env vars for the
+  page (YODA_SHOT etc.) do NOT pass through the browser — instrument via JS instead.
+- **Architecture facts:** ASYNCIFY makes the blocking loops legal — the ONLY yield points are
+  `MfxPlatDelay` (→`emscripten_sleep`) and the post-present yield in `mfxplat_sdl3.cpp`; a new
+  busy-wait that never presents nor delays will freeze the tab. `ASYNCIFY_STACK_SIZE=1MB` (deep
+  modal-in-handler stacks). MEMFS is CASE-SENSITIVE (the DTA's `Door.wav` only loads via the snd
+  layer's lowercase retry) and non-persistent (INI/saves lost on reload — IDBFS is the open tail).
+  wasm32 `long`=32-bit but emscripten `time_t`=64-bit → the 1997 `long time(long*)` decls in
+  Score/MainFrm are renamed to `mfx_time32` wrappers by the `MFX_TIME32_SHIM` tails of Worldgen.h/
+  MainFrm.h (keep the two copies synced).
 
 ## Reference binaries & key RE facts
 
@@ -269,124 +305,60 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-11 v87 — the two remaining v86 work items DONE + all
-user-confirmed live: the LAST GOAL-1 item (Indy hero-HP tail — turned out to be a nothing,
-see below) and the proper in-window `AfxMessageBox` modal. Bonus user-found redraw-residue
-bug fixed. v86 detail retained below; v85 condensed → PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-07-11 v88 — ⭐ GOAL 4 WASM PORT: CORE SHIPPED in one
+session, USER-TESTED in Chrome AND Firefox ("actually looking pretty good"). Both v88 user
+requests landed same-session: real audio (was perma-muted) + the two asset modes. v87/v86
+detail condensed → PLAN_COMPLETED.md ⏮.)
 
-**▶ v87 — ✅ Proper `AfxMessageBox` in-window modal (USER-CONFIRMED live).** Replaced the
-M-era headless stderr stub (auto-answered IDYES/IDOK, so every confirm was INVISIBLE) with a
-real Win95-style modal: `MfxShowMessageBox` in microfx/src/app/mfxdlg.cpp reuses the M5 control
-kit (CK_DLGFRAME bevel + word-wrapped CK_LABEL lines + a CK_DEFBUTTON/CK_BUTTON row mapped from
-the MB_ type: OK/OKCANCEL/YESNO/YESNOCANCEL → return IDOK/IDCANCEL/IDYES/IDNO), its own
-GetMessageA modal loop (Enter=default, Esc=cancel where valid, Y/N accelerators, click→
-WM_COMMAND scoped to msg.hwnd==dialog). Exposed via a new `microfx.h` prototype so BOTH core/
-entry points (AfxMessageBox in mfxcore.cpp, MessageBoxA in mfxstubs.cpp) call it; caption =
-app name else AFX_IDS_APP_TITLE string 0xE000. ⭐ Headless-safe fallback preserved: returns -1
-when `MfxPumpIsUp()` (new pump accessor) is false or no root window, and the callers keep the
-old auto-answer — so worldgen_smoke/game_walk/dlg_smoke stay non-blocking. Screenshot-verified
-("Leave Yoda Stories?" YESNO over the game, correct caption).
+**▶ v88 — ✅ WASM port core (GOAL 4).** Full recipe + architecture facts live in the "WASM
+build/debug" section above — the load-bearing findings:
+- **ASYNCIFY dissolved the modal-loop lift**: every blocking wait already funnels through
+  `MfxPlatDelay()` → route it to `emscripten_sleep()` and the nested `while(GetMessageA)`
+  loops (DoModal/CFileDialog/AfxMessageBox/intro) just WORK in a browser. Plus one yield after
+  each present (busy-wait animation loops present via the clock hook and never touch Delay).
+  NO game-code restructuring, NO emscripten_set_main_loop conversion.
+- **`mfxplat_sdl3.cpp` IS the wasm backend** (`--use-port=sdl3`; tiny `__EMSCRIPTEN__` deltas:
+  file dialog returns -1, delay/present yields). The planned separate mfxplat_wasm.cpp was
+  unnecessary — the browser is just another SDL3 platform.
+- **New `mfxsnd_sdl3stream.cpp`** (SDL3-core streams bound to one device — SDL mixes; no
+  SDL3_mixer port exists): fixed the user-reported perma-mute + dead Sound/Music checkboxes
+  (null backend ⇒ the game's own no-sound-card path). Yoda ships NO .mid (audio = 66 sfx WAVs),
+  so this is full Yoda audio; also the native fallback now when SDL3_mixer isn't installed.
+  Browser audio-graph PROVEN via puppeteer AudioContext instrumentation (state=running@48kHz).
+- **Cross-libc portability fixes**: emscripten time_t is 64-bit vs the 1997 `long time(long*)`
+  decls (Score/MainFrm) → `MFX_TIME32_SHIM` name-redirect at the tails of Worldgen.h/MainFrm.h
+  (token-neutral; keep the 2 copies synced) + wrappers in mfxcore. And the planet re-pick spins
+  an UNSEEDED rand() ("first rand() of the process" — macOS/musl/msvcrt all disagree!) → new
+  YODA_DEBUG-only `YODA_PLANET` env pin in LoadWorld (sibling of YODA_SEED; BOTH pins are
+  required for any cross-host A/B).
+- **Oracles all green**: node worldgen_smoke 5/5 seeds byte-identical yoda_debug.log vs native;
+  zone_view BMP pixel-identical; browser boot/interact/audio via `tools/wasm_boottest.js`
+  (checked in — see the CLAUDE.md recipe; puppeteer-core + system Chrome; screenshots proved
+  title → worldgen → Dagobah + bubble + inventory + walking IN THE BROWSER).
+- **Two asset modes (user-set)**: `build-wasm` (YODA_WASM_PRELOAD=ON default + YODA_DEBUG=ON —
+  assets baked, for automation) and `build-wasm-pick` (OFF — SHIPPABLE, zero game data,
+  `microfx/web/mfx_asset_picker.pre.js` folder picker; smoke-tested via puppeteer directory
+  upload, boots to gameplay). Serve: `cd build-wasm && python3 -m http.server 8777`.
 
-**▶ v87 — ✅ Debug oracles now pump inside modal loops too (enabler for the above).** Factored
-the AUTOMOD/AUTOKEY/AUTOCMD/AUTOCLICK/SHOT block out of `CWinThread::Run` into a shared
-`MfxDebugOracles()` (mfxpump.cpp) that the modal `GetMessageA` wait also calls each spin — so a
-YODA_AUTOCLICK can drive/answer a dialog (the v86 "modal loop owns the thread → headless
-dialog-trigger oracles never fire" limitation, now lifted). Also fixed AUTOCLICK to emit
-WM_LBUTTONUP after the DOWN (dialog-kit buttons commit on the UP — a DOWN-only synthetic click
-pushed but never fired them). Per-phase statics keep double-pumping harmless. ⚠ Note: the
-in-game speech BUBBLE is itself a nested modal that swallows non-bubble clicks, so an AUTOCLICK
-fired while a bubble is up can't reach a box behind it — dismiss the bubble first (real game
-gates New/Replay/Load during a bubble anyway).
+**▶ ⚠ Open watch-items:** (1) the v86 one-off Replay SIGSEGV (exit 139, never reproduced —
+lldb `bt 25` if it recurs). (2) wasm INI/save persistence: MEMFS is lost on reload — IDBFS
+(mount + sync on write) is the natural next wasm milestone. (3) picker mode: a user INI with
+Terrain=-1 (Indy-shared bottle INI) would infinite-retry worldgen — consider sanitizing in the
+pre-js. (4) F1→How to Play + YODA_ACCEL=1 still never live-verified.
 
-**▶ v87 — ✅ Redraw residue on New/Replay/Load World FIXED (USER-FOUND + USER-CONFIRMED).**
-The confirm box overlaps the inventory panel; on close it left box pixels over the inventory.
-Root cause = the "out-of-main-loop redraw" class (same family as the level-transition junk):
-those three commands return to a handler that IMMEDIATELY runs a world regen + zone transition,
-and the transition redraws only the game-AREA region in a busy-wait loop (clock-hook presents,
-NOT a full OnDraw), so the box's `MfxSetDirty()` was preempted — its full repaint never ran and
-the inventory region (which a transition never touches) kept the box pixels. Fix: force
-`MfxPaintIfDirty()` synchronously at EVERY modal close (MfxShowMessageBox + CDialog::DoModal +
-both CFileDialog paths, mfxdlg.cpp) so a full erase+OnDraw clears the whole window while the
-game is still in its pre-transition drawable state. About/sliders never tripped it because
-nothing redraws after them. ⭐ LESSON: a modal that returns into a partial-redraw operation
-must repaint ON CLOSE, not just mark dirty.
-
-**▶ v87 — ✅ LAST GOAL-1 item (Indy hero-HP tail) CLOSED — it was a misread, nothing to wire.**
-Re-RE'd DESKADV IndyGenerate's tail (1010:8524) + the StartGame twin `IndyStartNewGameMaybe`
-(1020:0ed0): the v84 "sets hero entity+0x90=120, clears +0x2c" reading was WRONG — `local_3e`
-is the VIEW (from the GetFirstViewPosition/GetNextView vtable pair at the head), so
-"entity+0x90=0x78" is `view->nTargetZoneId = 120` and "entity+0x2c=0" is the view busy flag —
-both of which our shared code already sets. Indy's HEALTH lives at doc+0x1096/0x1098
-(healthLo/healthHi, same lo/hi scheme as Yoda; IACT cond 0x16 at 1010:2e6a reads
-hi*-100-lo+0x191) and is reset to 1/1 by the StartGame twin (doc+0x1096 = 0x10001) — which our
-shared StartGame already does. So NO per-entity hero-HP field exists to wire. While there,
-added the two genuinely-missing DESKADV tail writes (Worldgen.cpp IndyGenerate tail, all
-GAME_INDY-guarded): `timeBase = time(NULL)` (doc+0x58 clock stamp; DESKADV does NOT clear
-timeOffset, kept faithful), `unk50 = startZoneId`/`unk2e34 = 0` (doc+0x44/0xc34), and the
-camera init `cameraX/Y = 0x160/0xa0` (doc+0x10a2, was Yoda's 0x140/0x140). GOAL 1 is now fully
-CLOSED. Anchor: Worldgen.obj recompiled, all 5 oracles GREEN (change is GAME_INDY-guarded).
-
-**▶ v86 — ✅ Statistics dialog opens now (USER-CONFIRMED path via menu).** Root cause was NOT
-the .res or the enable-gate — dialog 0xe1 is the game's ONE **DLGTEMPLATEEX** resource
-(dlgVer=1/sig=0xFFFF), and microfx's `CDialog::DoModal` only parsed the classic DLGTEMPLATE
-layout → it read the EX header's fields at the wrong offsets → bogus cx/cy → early IDCANCEL
-(that's the real meaning of v80's "corrupt in the .res" note). Added an EX branch to the
-header + control parse (microfx/src/app/mfxdlg.cpp); the classic path is untouched (EX branch
-only fires on the 0xFFFF signature). Parse validated against the real 0xe1 bytes (cx=147,cy=71,
-9 controls, exact 482 B). ⚠ Testing note learned this session: the game sits in a **blocking
-`while(GetMessageA)` modal loop the whole run** (the title/intro owns the thread from ~3s in —
-heartbeat proof), so `YODA_AUTOCMD`/`YODA_AUTOCLICK` (evaluated only in the main `CWinThread::Run`
-loop) NEVER fire once the intro starts; only real input, which the modal loop's own GetMessage
-drains, gets through. That's why headless dialog-trigger oracles fail — NOT the fix. This same
-blocking-modal-loop structure is THE WASM porting lift (GOAL 4).
-
-**▶ v86 — ✅ SDL3 native file dialog for Save/Load World.** New `MfxPlatShowFileDialog` hook on
-the mfxplat.h contract; the SDL3 backend drives the async `SDL_ShowOpen/SaveFileDialog` to
-completion (pump events until the callback lands). SDL2/null/(future DS/WASM) return -1 →
-`CFileDialog::DoModal` falls back to microfx's in-window row-list picker (unchanged; dlg_smoke
-still green). Signatures verified against /opt/homebrew/include/SDL3/SDL_dialog.h. ⭐ Focus nit
-(user-found, FIXED): the panel steals keyboard focus → queues FOCUS_LOST that the spin loop
-never polls → the pump later drains a LONE stale FOCUS_LOST → `CMainFrame::OnActivate` pauses
-the game (nFrameMode=0/bBusy=1 = stuck on STUP) with no matching wake (SDL doesn't reliably
-re-emit FOCUS_GAINED on panel close). Fix: after the panel closes, `SDL_FlushEvent` both focus
-events + `SDL_RaiseWindow` so the game stays in its pre-dialog active state. Whether the SAVE
-path (native panel returns a path) writes correctly is still user-playtest-pending.
-
-**▶ v86 — ✅ Ctrl+D opens the F8 debug dialog (USER-CONFIRMED working live).** macOS reserves
-the **Ctrl+F8 chord** as a system shortcut ("move focus to status menus") and eats it before SDL
-(user-confirmed: plain F8 reaches the app, only the Ctrl+F8 combo is grabbed). Fix in the neutral
-pump (mfxpump.cpp): a plain `Ctrl+D` (unused by the game, not a macOS shortcut) injects a synthetic
-`VK_F8` WM_KEYDOWN while real Ctrl is held → the game's own OnKeyDown VK_F8 handler opens the dialog
-with NO key-state faking. Windows' native Ctrl+F8 unaffected. `YODA_KEYLOG=1` (SDL3 backend, kept)
-logs sdlkey/scancode/mod→vk per key event — the probe that framed this + future key issues.
-
-**▶ v86 anchor note:** all v86 edits are microfx-only (mfxdlg/mfxpump/mfxplat + 3 backends) — the
-byte-match anchor build never compiles microfx, so 211/99.17% is untouched by construction (not
-re-run). Binaries copied to YodaFull/ and YodaIndy/ for the user.
-
-**▶ ⚠ Open watch-item:** ONE replay run exited SIGSEGV (exit 139) after the world regenerated;
-NOT reproduced since (3 fixed-INI re-runs + 2 lldb runs all clean, no yoda_crash.log). If a
-crash shows up around Replay Story live, get `lldb -b -o run -k "bt 25"` on it. Also still not
-live-verified: F1→How to Play (low priority), YODA_ACCEL=1 present path.
-
-**▶ NEXT (likely session shape):** GOAL 1 is CLOSED and the v86 TODO (AfxMessageBox) is DONE.
-Remaining open work: (1) user live-playtests Indy — the REAL menu bar, Replay Story persistence
-across app restarts, gameplay under the corrected condition opcodes, and now the live confirm
-boxes (Replay/New/Load) with the real modal (NOTE: the user runs `cd YodaIndy && ./yoda` — copy
-`build-sdl-indy/yoda` there first, or ask; an unsolicited cp was declined mid-v85, the user
-copies it themselves). (2) GOAL 2 (H4 SDL polish) / GOAL 4 (WASM port — the blocking modal
-loops incl. the new AfxMessageBox loop are the porting lift). (3) GOAL 3 Indy Ghidra RE sweep
-as fill.
-
-**▶ Research note (from the user, unexplored):** SDL3 has a native file-dialog API
-(`SDL_ShowOpenFileDialog`, https://wiki.libsdl.org/SDL3/SDL_ShowOpenFileDialog) — worth splitting
-`CFileDialog::DoModal`'s custom row-list picker (mfxdlg.cpp, v80) behind a new
-`MfxPlatShowFileDialog`-shaped `mfxplat.h` hook (same precedent as v82/v84 `MfxPlatMinimize`),
-falling back to the custom picker on backends without one (null/DS).
+**▶ NEXT (likely session shape):** (1) user feedback from wasm play sessions (audio now in —
+needs EARS; the picker page; anything weird under Asyncify timing) and the still-pending v87
+Indy playtest items (real menu bar, Replay persistence across restarts, corrected opcodes,
+live confirm boxes; user copies build-sdl-indy/yoda to YodaIndy/ themselves). (2) wasm tails:
+IDBFS persistence · Indy-wasm corner (DESKTOP.DAW preload exists in the CMake branch already;
+MIDI needs a soft-synth — TinySoundFont + a GM .sf2 in the preload, ~2 MB) · maybe host the
+picker build somewhere static. (3) GOAL 3 Indy Ghidra RE sweep as fill.
 
 - ⚠ worldgen needs Terrain∈{1,2,3} in the INI (Terrain=-1 ⇒ infinite Generate retry). Harness INIs:
-  `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and writes it back — reset
-  before A/B runs (v85: persistence tests must also snapshot/restore `[GameData]`!). `worldgen_smoke
+  `<exebase>.INI` next to the binary (wasm harnesses: always `<cwd>/yoda.INI`); doc ctor re-picks the
+  planet EVERY run and writes it back — reset before A/B runs, and pin `YODA_PLANET` alongside
+  `YODA_SEED` for any cross-host/cross-libc diff (v88; both YODA_DEBUG-only) (v85: persistence tests
+  must also snapshot/restore `[GameData]`!). `worldgen_smoke
   <seed>` · `zone_view <seed> [--zone id] [--dump x.bmp] [--show]` · `game_walk <seed>` ·
   `YODA_SHOT=<pfx>[:n] ./yoda` (composited window incl. menu bar) · `YODA_AUTOKEY=<startms>:<vk>:<durms>`
   · `YODA_AUTOMOD=<startms>:<vk>:<durms>` (modifier key-state only, for chords) ·
@@ -409,9 +381,10 @@ worked perfectly for the v85 INI-keys hunt); Ghidra flow-splits big 16-bit funct
 a FRAGMENT of IndyGenerate's tail, plate-commented) — "No function found" from the decompile
 endpoint near a known function usually means you're in such a fragment; disassemble instead.
 
-**▶ Anchor:** 211 exact / 99.17 % — ALL 5 oracles re-verified TWICE in v85 (after the
-WorldgenHelpers/IactScript/Worldgen mid-file GAME_INDY ifdef edits, and again after the final
-IactScript comment pass). All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded;
+**▶ Anchor:** 211 exact / 99.17 % — ALL 5 oracles re-verified in v88 after the shared-code edits
+(Worldgen.cpp YODA_DEBUG planet-pin block; MFX_TIME32_SHIM tails on Worldgen.h/MainFrm.h): link
+0 unresolved/0 dup, bugscan 0 HIGH/0 SHIFT, vt 10 CLEAN, msg 11 CLEAN.
+All Indy work GAME_INDY-guarded; all H4 work YODA_PORTABLE-guarded;
 debug rig YODA_DEBUG-guarded (committed builds OFF). H4 rule of thumb: fix portability in microfx
 headers/stubs first (v85's CFile fix is the model case); touch a game TU only for __asm /
 pointer-width casts / old-for-scope / a genuine crash-class bug, always guarded via

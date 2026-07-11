@@ -501,7 +501,15 @@ DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
     if (nSize == 0) return 0;
     char szBuf[1024];
     szBuf[0] = 0;
-#ifdef __APPLE__
+#if defined(__EMSCRIPTEN__)
+    // no real exe path in a browser — report <cwd>/yoda, so the game's data dir is the cwd.
+    // Browser build: MEMFS cwd is "/" and assets are preloaded there (cmake/PortableSDL.cmake);
+    // node harnesses (NODERAWFS): run from the folder holding the DTA + INI, like the native ones.
+    if (!getcwd(szBuf, sizeof(szBuf) - 8)) szBuf[0] = 0;
+    size_t nLen = strlen(szBuf);
+    if (nLen == 0 || szBuf[nLen - 1] != '/') strcat(szBuf, "/");
+    strcat(szBuf, "yoda");
+#elif defined(__APPLE__)
     uint32_t nBuf = sizeof(szBuf);
     if (_NSGetExecutablePath(szBuf, &nBuf) != 0)
         szBuf[0] = 0;

@@ -659,3 +659,18 @@ const AFX_MSGMAP* CCmdTarget::GetThisMessageMap()
 BOOL CCmdTarget::OnCmdMsg(UINT, int, void*, void*) { return FALSE; }
 void CCmdTarget::BeginWaitCursor() {}
 void CCmdTarget::EndWaitCursor() {}
+
+// ── wasm32 time wrappers (GOAL 4) ────────────────────────────────────────────────────────────
+// The game-header shim (src/Worldgen.h / src/MainFrm.h tails) renames the byte-matched TUs'
+// 1997 CRT decls `long time(long*)` / `double difftime(long,long)` to these, because
+// emscripten's time_t is 64-bit on wasm32. Seconds-since-epoch fits 32 bits until 2038 —
+// exactly the original engine's own horizon.
+#ifdef __EMSCRIPTEN__
+extern "C" long mfx_time32(long *pOut)
+{
+    long t = (long)time(0);
+    if (pOut) *pOut = t;
+    return t;
+}
+extern "C" double mfx_difftime32(long a, long b) { return (double)a - (double)b; }
+#endif

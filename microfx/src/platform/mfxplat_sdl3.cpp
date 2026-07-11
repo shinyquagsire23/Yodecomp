@@ -12,6 +12,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+// This TU is ALSO the wasm backend (GOAL 4): emscripten ships an SDL3 port (--use-port=sdl3),
+// so the browser is just another SDL3 platform — the __EMSCRIPTEN__ deltas below are the whole
+// difference (yield to the browser via emscripten_sleep; no native file-picker panel). The
+// blocking modal loops work because ASYNCIFY turns every MfxPlatDelay into a real browser yield.
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 static SDL_Window *s_pWin = 0;
 static int s_nScale = 2;
 
@@ -99,7 +107,9 @@ extern "C" int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *
                                      const char *pszDef, char *pszOut, int nOutSize)
 {
     if (!s_pWin) return -1;
-
+#ifdef __EMSCRIPTEN__
+    return -1;      // no native picker in a browser → CFileDialog's in-window row-list fallback
+#else
     char szDesc[64];
     snprintf(szDesc, sizeof szDesc, "%s files",
              pszExt && *pszExt ? pszExt : "wld");
@@ -147,6 +157,7 @@ extern "C" int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *
     strncpy(pszOut, res.szPath, nOutSize - 1);
     pszOut[nOutSize - 1] = 0;
     return 1;
+#endif // !__EMSCRIPTEN__
 }
 
 // ── events ───────────────────────────────────────────────────────────────────────────────────
@@ -307,10 +318,21 @@ static void MfxPresentAccel(const MFXDIB *pDib, int xCur, int yCur)
     SDL_RenderPresent(s_pRen);
 }
 
+#ifdef __EMSCRIPTEN__
+// A presented frame only reaches the canvas when the browser gets control, and the game's
+// busy-wait animation loops (zone transitions, palette flashes — they present via the clock
+// hook, throttled) never pass through MfxPlatDelay. Yield right after each present so
+// mid-handler animation frames actually display; presents are already throttled (~8ms), so
+// this adds at most one browser turn per frame.
+static void MfxWasmPresentYield(void) { emscripten_sleep(0); }
+#else
+static void MfxWasmPresentYield(void) {}
+#endif
+
 extern "C" void MfxPlatPresent(const MFXDIB *pDib, int xCur, int yCur)
 {
     if (!s_pWin) return;
-    if (s_pRen && s_pFrameTex) { MfxPresentAccel(pDib, xCur, yCur); return; }
+    if (s_pRen && s_pFrameTex) { MfxPresentAccel(pDib, xCur, yCur); MfxWasmPresentYield(); return; }
 
     SDL_Surface *pSrc = SDL_CreateSurfaceFrom(pDib->nWidth, pDib->nHeight,
         SDL_PIXELFORMAT_INDEX8, pDib->pBits, pDib->nWidth);
@@ -348,6 +370,7 @@ extern "C" void MfxPlatPresent(const MFXDIB *pDib, int xCur, int yCur)
         SDL_UpdateWindowSurface(s_pWin);
     }
     SDL_DestroySurface(pSrc);
+    MfxWasmPresentYield();
 }
 
 // ── cursor display ───────────────────────────────────────────────────────────────────────────
@@ -416,4 +439,11 @@ extern "C" void MfxPlatSetCursor(int nMode, const MFXIMG *pImg, const void *pKey
     }
 }
 
+#ifdef __EMSCRIPTEN__
+// Explicit emscripten_sleep (not SDL_Delay) so the yield does not depend on the SDL port's
+// internal ASYNCIFY handling: this is THE point where the browser's event loop gets control —
+// CWinThread::Run and every modal GetMessageA wait end their spin here.
+extern "C" void MfxPlatDelay(unsigned nMs) { emscripten_sleep(nMs); }
+#else
 extern "C" void MfxPlatDelay(unsigned nMs) { SDL_Delay(nMs); }
+#endif

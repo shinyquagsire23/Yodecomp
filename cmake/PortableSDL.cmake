@@ -98,14 +98,26 @@ set(YODA_MFX_AUDIO_BACKEND "" CACHE STRING "microfx audio backend (default: pair
 file(GLOB_RECURSE _mfx_srcs "${_mfx}/src/*.cpp" "${_mfx}/src/*.c")
 list(FILTER _mfx_srcs EXCLUDE REGEX "/src/platform/")
 
-find_package(SDL3 QUIET CONFIG)
-find_package(SDL3_mixer QUIET CONFIG)
-find_package(SDL2 QUIET)
-find_package(SDL2_mixer QUIET)
+# ── GOAL 4: the WASM corner (emcmake cmake -B build-wasm -DYODA_PLATFORM=SDL ...) ────────────
+# Under Emscripten, SDL3 comes from emscripten's own port system (--use-port=sdl3), never from
+# find_package (the toolchain's find-root excludes host libs by design). There is no SDL3_mixer
+# port, so audio defaults to null (the game sees WaveMixInit==0 and disables sound — the same
+# graceful path as a machine with no sound card). The blocking-modal-loop problem (CWinThread::
+# Run / GetMessageA / DoModal own the thread) is solved with ASYNCIFY: every blocking wait
+# already funnels through MfxPlatDelay(), which the sdl3 backend routes to emscripten_sleep()
+# under __EMSCRIPTEN__ — the browser gets control at every wait with NO game-code restructuring.
+if(NOT EMSCRIPTEN)
+  find_package(SDL3 QUIET CONFIG)
+  find_package(SDL3_mixer QUIET CONFIG)
+  find_package(SDL2 QUIET)
+  find_package(SDL2_mixer QUIET)
+endif()
 
 set(_mfx_video "${YODA_MFX_VIDEO_BACKEND}")
 if(_mfx_video STREQUAL "")
-  if(SDL3_FOUND)
+  if(EMSCRIPTEN)
+    set(_mfx_video "sdl3")
+  elseif(SDL3_FOUND)
     set(_mfx_video "sdl3")
   elseif(SDL2_FOUND)
     set(_mfx_video "sdl2")
@@ -115,8 +127,12 @@ if(_mfx_video STREQUAL "")
 endif()
 set(_mfx_audio "${YODA_MFX_AUDIO_BACKEND}")
 if(_mfx_audio STREQUAL "")
-  if(_mfx_video STREQUAL "sdl3" AND SDL3_mixer_FOUND)
+  if(EMSCRIPTEN)
+    set(_mfx_audio "sdl3stream")     # SDL3-core streams; no SDL3_mixer port exists
+  elseif(_mfx_video STREQUAL "sdl3" AND SDL3_mixer_FOUND)
     set(_mfx_audio "sdl3mixer")
+  elseif(_mfx_video STREQUAL "sdl3")
+    set(_mfx_audio "sdl3stream")     # SDL3 without SDL3_mixer: SFX-only core-audio backend
   elseif(_mfx_video STREQUAL "sdl2" AND SDL2_mixer_FOUND)
     set(_mfx_audio "sdl2mixer")
   else()
@@ -124,7 +140,8 @@ if(_mfx_audio STREQUAL "")
   endif()
 endif()
 if((_mfx_video STREQUAL "sdl3" AND _mfx_audio STREQUAL "sdl2mixer") OR
-   (_mfx_video STREQUAL "sdl2" AND _mfx_audio STREQUAL "sdl3mixer"))
+   (_mfx_video STREQUAL "sdl2" AND (_mfx_audio STREQUAL "sdl3mixer" OR
+                                    _mfx_audio STREQUAL "sdl3stream")))
   message(FATAL_ERROR "microfx: cannot mix SDL2 and SDL3 runtimes in one binary "
                       "(video=${_mfx_video} audio=${_mfx_audio})")
 endif()
@@ -137,7 +154,15 @@ endforeach()
 
 add_library(microfx STATIC ${_mfx_srcs} "${_res_c}")
 target_include_directories(microfx PUBLIC "${_mfx}/include")
-if(_mfx_video STREQUAL "sdl3" OR _mfx_audio STREQUAL "sdl3mixer")
+if(EMSCRIPTEN)
+  # PUBLIC: every consumer (yoda + the node harnesses) needs the SDL3 port headers at compile
+  # and the port library at link. microfx throws/catches real C++ exceptions (CFileException —
+  # the v85 CFile fix), and emscripten disables EH by default → -fexceptions everywhere
+  # (JS-based EH; the combination known to work with ASYNCIFY, unlike -fwasm-exceptions).
+  target_compile_options(microfx PUBLIC "--use-port=sdl3" -fexceptions)
+  target_link_options(microfx PUBLIC "--use-port=sdl3" -fexceptions)
+elseif(_mfx_video STREQUAL "sdl3" OR _mfx_audio STREQUAL "sdl3mixer"
+       OR _mfx_audio STREQUAL "sdl3stream")
   target_link_libraries(microfx PUBLIC SDL3::SDL3)
 endif()
 if(_mfx_video STREQUAL "sdl2")
@@ -218,6 +243,71 @@ if(NOT _mfx_video STREQUAL "null")
   else()
     target_link_options(yoda PRIVATE
       "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
+  endif()
+endif()
+
+# ── WASM tail: per-target emscripten link config ─────────────────────────────────────────────
+if(EMSCRIPTEN)
+  # Harnesses run under NODE against the real filesystem (NODERAWFS) — worldgen_smoke is the
+  # wasm logic-parity oracle (same seed, diff the log vs a native run). EXIT_RUNTIME so node
+  # actually exits when main returns.
+  foreach(_t worldgen_smoke dlg_smoke zone_view game_walk)
+    target_link_options(${_t} PRIVATE
+      "-sNODERAWFS=1" "-sALLOW_MEMORY_GROWTH=1" "-sEXIT_RUNTIME=1" "-sSTACK_SIZE=2097152")
+  endforeach()
+
+  # The game itself → yoda.html. ASYNCIFY makes the blocking loops legal in a browser (see the
+  # header note); the generous ASYNCIFY_STACK_SIZE covers unwinding a deep game stack (modal
+  # loop inside a WM handler inside dispatch inside Run). Assets ship in the preloaded MEMFS
+  # at "/" — GetModuleFileNameA reports /yoda under wasm, so the game derives its data dir as
+  # "/" and its INI as /yoda.INI (preload names are case-SENSITIVE, unlike macOS).
+  if(TARGET yoda)
+    if(YODA_GAME STREQUAL "INDY")
+      set(_wasm_dta "${CMAKE_CURRENT_SOURCE_DIR}/YodaIndy/DESKTOP.DAW")
+      set(_wasm_dta_name "DESKTOP.DAW")
+    elseif(YODA_VARIANT STREQUAL "FULL")
+      set(_wasm_dta "${CMAKE_CURRENT_SOURCE_DIR}/YodaFull/YODESK.DTA")
+      set(_wasm_dta_name "YODESK.DTA")
+    else()
+      set(_wasm_dta "${CMAKE_CURRENT_SOURCE_DIR}/YodaDemo/YodaDemo.dta")
+      set(_wasm_dta_name "YODADEMO.DTA")
+    endif()
+    set_target_properties(yoda PROPERTIES SUFFIX ".html")
+    target_link_options(yoda PRIVATE
+      "-sASYNCIFY=1" "-sASYNCIFY_STACK_SIZE=1048576"
+      "-sALLOW_MEMORY_GROWTH=1" "-sSTACK_SIZE=2097152" "-sEXIT_RUNTIME=1")
+    # Two asset modes (user-set 2026-07-11):
+    #   YODA_WASM_PRELOAD=ON  (default) — DTA/INI/sfx baked into yoda.data: self-contained page
+    #                         for automation (tools/wasm_boottest.js) and local testing.
+    #   YODA_WASM_PRELOAD=OFF — SHIPPABLE page: no game data in the bundle; a --pre-js picker
+    #                         (microfx/web/mfx_asset_picker.pre.js) asks the user for their
+    #                         game folder and copies it into MEMFS before main() runs.
+    option(YODA_WASM_PRELOAD "wasm: bake game assets into the page (OFF = user picks a folder)" ON)
+    if(YODA_WASM_PRELOAD)
+      if(NOT EXISTS "${_wasm_dta}")
+        message(FATAL_ERROR "wasm: game data not found: ${_wasm_dta}")
+      endif()
+      # minimal INI: a valid Terrain (worldgen retries forever on -1); the doc ctor re-picks the
+      # planet each run and writes it back (MEMFS is writable; persistence across reloads is a
+      # later milestone — IDBFS).
+      file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/wasm_yoda.INI"
+           "[OPTIONS]\nTerrain=1\nMIDILoad=1\nLCount=1\n")
+      target_link_options(yoda PRIVATE
+        "SHELL:--preload-file ${_wasm_dta}@/${_wasm_dta_name}"
+        "SHELL:--preload-file ${CMAKE_CURRENT_BINARY_DIR}/wasm_yoda.INI@/yoda.INI")
+      # SFX live in a sfx/ folder next to the DTA (wave paths arrive "sfx\NAME.WAV" relative to
+      # the cwd, which is "/" in MEMFS). Ship it when present.
+      get_filename_component(_wasm_dta_dir "${_wasm_dta}" DIRECTORY)
+      if(EXISTS "${_wasm_dta_dir}/sfx")
+        target_link_options(yoda PRIVATE "SHELL:--preload-file ${_wasm_dta_dir}/sfx@/sfx")
+      endif()
+    else()
+      file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/wasm_picker_cfg.pre.js"
+           "var MFX_DATA_NAME = \"${_wasm_dta_name}\";\n")
+      target_link_options(yoda PRIVATE
+        "SHELL:--pre-js ${CMAKE_CURRENT_BINARY_DIR}/wasm_picker_cfg.pre.js"
+        "SHELL:--pre-js ${_mfx}/web/mfx_asset_picker.pre.js")
+    endif()
   endif()
 endif()
 

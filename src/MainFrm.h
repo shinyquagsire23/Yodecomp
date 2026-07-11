@@ -247,3 +247,18 @@ protected:
 };
 
 #endif
+
+// ── wasm32 time shim (GOAL 4; identical copy in Worldgen.h — keep synced) ───────────────────
+// Emscripten's time_t is 64-bit, but byte-matched TUs re-declare the 1997 CRT signatures
+// (`extern "C" long time(long*)` — Score.cpp/MainFrm.cpp), which agreed with Win32 AND with
+// 64-bit-long desktop hosts by luck. Redirect the NAMES (decls and calls alike) to 32-bit
+// wrappers in microfx (mfxcore.cpp). Token-neutral for every non-wasm build; <time.h> lands
+// first so the real 64-bit decls exist un-renamed (its include guard defuses later includes).
+#if defined(__EMSCRIPTEN__) && !defined(MFX_TIME32_SHIM)
+#define MFX_TIME32_SHIM
+#include <time.h>
+extern "C" long   mfx_time32(long *);
+extern "C" double mfx_difftime32(long, long);
+#define time     mfx_time32
+#define difftime mfx_difftime32
+#endif // MFX_TIME32_SHIM

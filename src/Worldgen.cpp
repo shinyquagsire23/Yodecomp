@@ -4028,6 +4028,14 @@ int CDeskcppDoc::LoadWorld()
             }
         }
     }
+#ifdef YODA_DEBUG
+    // debug oracle: pin the planet (env YODA_PLANET ∈ 1/2/3) — the pick above spins rand()
+    // with NO srand, and different libcs (macOS vs wine msvcrt vs emscripten musl) disagree on
+    // the first rand() values, so a cross-host A/B log-diff needs the planet pinned as well as
+    // the seed (sibling of Randomize's YODA_SEED pin).
+    if (getenv("YODA_PLANET") != NULL)
+        currentPlanet = atoi(getenv("YODA_PLANET"));
+#endif
 #if defined(GAME_INDY)
     currentPlanet = -1;              // Indy has no planets: -1 matches every zone's planet=-1
                                      // (Zone ctor default; Indy's IZON carries no planet field),
