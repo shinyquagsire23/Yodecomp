@@ -359,7 +359,13 @@ int CWinThread::Run()
         g_nPresentMs = atoi(pszPms);           // clock-flush throttle; 0 = legacy per-write
 
     CWinApp *pApp = AfxGetApp();
-    const char *pszTitle = (pApp && pApp->m_pszAppName) ? pApp->m_pszAppName : "microfx";
+    // window/tab title = app name, else the AFX_IDS_APP_TITLE string (0xE000 — "Yoda Stories" /
+    // "Desktop Adventures"), else the library name — the same fallback chain as the
+    // AfxMessageBox caption (mfxcore.cpp). Visible as the browser TAB title under wasm.
+    CString strTitle;
+    if (pApp && pApp->m_pszAppName) strTitle = pApp->m_pszAppName;
+    else strTitle.LoadString(0xE000);
+    const char *pszTitle = !strTitle.IsEmpty() ? (const char *)strTitle : "microfx";
     // the window is MFX_MENUBAR_H rows taller than the game's screen DC — the menu bar chrome
     // is composited above it at present time (MfxPresentFrame), never inside it (mfxmenu.cpp).
     int nUp = MfxPlatInit(pszTitle, nW, nH + MFX_MENUBAR_H, nScale);

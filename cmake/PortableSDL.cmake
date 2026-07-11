@@ -128,7 +128,9 @@ endif()
 set(_mfx_audio "${YODA_MFX_AUDIO_BACKEND}")
 if(_mfx_audio STREQUAL "")
   if(EMSCRIPTEN)
-    set(_mfx_audio "sdl3stream")     # SDL3-core streams; no SDL3_mixer port exists
+    set(_mfx_audio "webaudio")       # AudioBufferSourceNodes — immediate start, audio-thread
+                                     # rendering (the ScriptProcessor path lags ~1s on Firefox);
+                                     # override with sdl3stream/null if ever needed
   elseif(_mfx_video STREQUAL "sdl3" AND SDL3_mixer_FOUND)
     set(_mfx_audio "sdl3mixer")
   elseif(_mfx_video STREQUAL "sdl3")
@@ -144,6 +146,9 @@ if((_mfx_video STREQUAL "sdl3" AND _mfx_audio STREQUAL "sdl2mixer") OR
                                     _mfx_audio STREQUAL "sdl3stream")))
   message(FATAL_ERROR "microfx: cannot mix SDL2 and SDL3 runtimes in one binary "
                       "(video=${_mfx_video} audio=${_mfx_audio})")
+endif()
+if(_mfx_audio STREQUAL "webaudio" AND NOT EMSCRIPTEN)
+  message(FATAL_ERROR "microfx: the webaudio backend is wasm-only (EM_JS)")
 endif()
 foreach(_backend "mfxplat_${_mfx_video}" "mfxsnd_${_mfx_audio}")
   if(NOT EXISTS "${_mfx}/src/platform/${_backend}.cpp")
@@ -275,7 +280,8 @@ if(EMSCRIPTEN)
     set_target_properties(yoda PROPERTIES SUFFIX ".html")
     target_link_options(yoda PRIVATE
       "-sASYNCIFY=1" "-sASYNCIFY_STACK_SIZE=1048576"
-      "-sALLOW_MEMORY_GROWTH=1" "-sSTACK_SIZE=2097152" "-sEXIT_RUNTIME=1")
+      "-sALLOW_MEMORY_GROWTH=1" "-sSTACK_SIZE=2097152" "-sEXIT_RUNTIME=1"
+      "SHELL:--shell-file ${_mfx}/web/mfx_shell.html")   # no branding / console textarea
     # Two asset modes (user-set 2026-07-11):
     #   YODA_WASM_PRELOAD=ON  (default) — DTA/INI/sfx baked into yoda.data: self-contained page
     #                         for automation (tools/wasm_boottest.js) and local testing.

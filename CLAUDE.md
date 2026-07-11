@@ -340,6 +340,25 @@ build/debug" section above — the load-bearing findings:
   `microfx/web/mfx_asset_picker.pre.js` folder picker; smoke-tested via puppeteer directory
   upload, boots to gameplay). Serve: `cd build-wasm && python3 -m http.server 8777`.
 
+**▶ v89 (same day) — deploy + user-feedback fixes, all verified via the puppeteer oracle:**
+`tools/deploy_wasm.sh` builds + copies the GitHub Pages layout (user-set): `yodecomp/index.html`
+= chooser (microfx/web/chooser.html — detects WHICH game a picked folder holds by data-file
+name, stashes the Files in IndexedDB, redirects to per-game PRELOAD=OFF builds in
+`yodecomp/{full,demo,indy}/`; the picker pre-js consumes the stash so no re-pick — survives
+refresh too) + `yodecompdemo/` = PRELOAD=ON demo build (freely-distributable assets baked,
+instant play). Chooser flow tested end-to-end (upload YodaFull → redirect → boots). ⭐ AUDIO
+LAG ROOT CAUSE (user found the key clue: "later click = more lag"): browsers keep AudioContext
+SUSPENDED until a user gesture; the sdl3stream/ScriptProcessor path queued samples the whole
+time and drained the backlog at realtime rate after the first click — a PERMANENT shift equal
+to the pre-click wait. Fix = new `mfxsnd_webaudio.cpp` (wasm default): each SFX is an
+AudioBufferSourceNode `start(0)` (immediate; renders on the browser's audio thread, immune to
+Asyncify stalls), and plays attempted while the context isn't 'running' are DROPPED, not
+queued. Also: custom shell `microfx/web/mfx_shell.html` (no emscripten branding/console
+textarea, dark centered canvas) and the window/tab title now falls back to the
+AFX_IDS_APP_TITLE string 0xE000 ("Yoda Stories") in CWinThread::Run, mirroring the
+AfxMessageBox caption chain. Pages repo deploy is copy-only — the user reviews + commits
+shinyquagsire23.github.io themselves.
+
 **▶ ⚠ Open watch-items:** (1) the v86 one-off Replay SIGSEGV (exit 139, never reproduced —
 lldb `bt 25` if it recurs). (2) wasm INI/save persistence: MEMFS is lost on reload — IDBFS
 (mount + sync on write) is the natural next wasm milestone. (3) picker mode: a user INI with

@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- microfx web/ — minimal emscripten shell for the wasm build (GOAL 4): no branding, no
+     console textarea; stdout/stderr go to the devtools console. Emscripten substitutes the
+     generated loader at {{{ SCRIPT }}}. The asset-picker pre-js (YODA_WASM_PRELOAD=OFF
+     builds) overlays its own folder prompt on top of this page. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desktop Adventures</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #101418; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    canvas.emscripten {
+      border: 0; outline: none; display: block;
+      image-rendering: pixelated; image-rendering: crisp-edges;
+      max-width: 100vw; max-height: 100vh;
+    }
+    #status {
+      color: #8fa3ad; font: 14px system-ui, sans-serif; padding: 8px;
+      position: fixed; bottom: 6px; left: 0; right: 0; text-align: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  <div id="status"></div>
+  <script>
+    var statusElement = document.getElementById('status');
+    var Module = {
+      canvas: (function () {
+        var canvas = document.getElementById('canvas');
+        // wasm context loss: a reload is the honest recovery
+        canvas.addEventListener('webglcontextlost', function (e) {
+          e.preventDefault();
+          statusElement.textContent = 'Graphics context lost — reload the page.';
+        }, false);
+        return canvas;
+      })(),
+      print: function () { console.log.apply(console, arguments); },
+      printErr: function () { console.warn.apply(console, arguments); },
+      setStatus: function (text) {
+        // emscripten load progress ("Downloading data... (x/y)"); blank once running
+        statusElement.textContent = text || '';
+      },
+      monitorRunDependencies: function (left) {
+        if (left === 0) statusElement.textContent = '';
+      },
+    };
+    window.onerror = function (msg) {
+      statusElement.textContent = 'Error — see the browser console.';
+      console.error(msg);
+    };
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

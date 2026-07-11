@@ -1,0 +1,81 @@
+<!doctype html>
+<!-- microfx web/ — the deploy front door (GOAL 4): user picks their game folder ONCE; this
+     page detects WHICH game it holds (retail Yoda = YODESK.DTA, demo = YODADEMO.DTA /
+     YodaDemo.dta, Indy = DESKTOP.DAW), stashes the picked Files in IndexedDB (origin-scoped,
+     survives navigation + refresh), and redirects to the matching per-game wasm build in
+     ./full/ ./demo/ ./indy/ — whose asset-picker pre-js consumes the stash instead of asking
+     again. Deployed as yodecomp/index.html by tools/deploy_wasm.sh. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desktop Adventures</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #101418; color: #e6e6d8; }
+    body { display: flex; flex-direction: column; align-items: center; justify-content: center;
+           font: 16px system-ui, sans-serif; text-align: center; padding: 2em; box-sizing: border-box; }
+    h1 { margin: 0 0 .3em; font-size: 1.6em; }
+    p { max-width: 36em; line-height: 1.45; }
+    .err { color: #ff9d9d; min-height: 1.4em; }
+    input { margin-top: 1em; font: inherit; color: inherit; }
+    a { color: #8fd0ff; }
+  </style>
+</head>
+<body>
+  <h1>Desktop Adventures</h1>
+  <p>Pick your game's install folder — <b>Yoda Stories</b> (YODESK.DTA), the
+     <b>Yoda Stories demo</b> (YODADEMO.DTA), or <b>Indiana Jones and His Desktop
+     Adventures</b> (DESKTOP.DAW). The right engine build loads automatically.
+     Files stay in your browser — nothing is uploaded.</p>
+  <p>No copy handy? <a href="../yodecompdemo/">Play the freely distributable demo</a>.</p>
+  <p class="err" id="err"></p>
+  <input type="file" id="pick" webkitdirectory multiple>
+  <script>
+    var GAMES = [   // detection order: a folder with several data files prefers the full game
+      { file: 'yodesk.dta',   dir: 'full/' },   // retail Yoda Stories
+      { file: 'desktop.daw',  dir: 'indy/' },   // Indy Desktop Adventures
+      { file: 'yodademo.dta', dir: 'demo/' },   // demo (ships as "YodaDemo.dta"; compare is lowercase)
+    ];
+    document.getElementById('pick').addEventListener('change', function () {
+      var files = Array.prototype.slice.call(this.files);
+      var entries = files.map(function (f) {
+        var rel = (f.webkitRelativePath || f.name).split('/');
+        if (rel.length > 1) rel.shift();
+        return { path: rel.join('/'), file: f };
+      });
+      var names = entries.map(function (e) {
+        return e.path.split('/').pop().toLowerCase();
+      });
+      var game = null;
+      for (var i = 0; i < GAMES.length && !game; i++)
+        if (names.indexOf(GAMES[i].file) >= 0) game = GAMES[i];
+      if (!game) {
+        document.getElementById('err').textContent =
+          'No YODESK.DTA, YODADEMO.DTA, or DESKTOP.DAW in that folder — pick the game’s install folder.';
+        return;
+      }
+      // keep only what the engine reads: the data file, .INIs, and sfx/ (skip EXEs/DLLs)
+      var keep = entries.filter(function (e) {
+        var base = e.path.split('/').pop().toLowerCase();
+        var parent = e.path.split('/').slice(-2, -1)[0] || '';
+        return base === 'yodesk.dta' || base === 'desktop.daw' || base === 'yodademo.dta' ||
+               /\.ini$/.test(base) ||
+               (parent.toLowerCase() === 'sfx' && /\.(wav|mid)$/.test(base));
+      });
+      var req = indexedDB.open('mfx-assets', 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore('picked'); };
+      req.onsuccess = function () {
+        var tx = req.result.transaction('picked', 'readwrite');
+        tx.objectStore('picked').put(keep, 'files');
+        tx.oncomplete = function () { location.href = game.dir; };
+        tx.onerror = function () {
+          document.getElementById('err').textContent = 'Could not stash the files — try again.';
+        };
+      };
+      req.onerror = function () {
+        document.getElementById('err').textContent = 'IndexedDB unavailable in this browser.';
+      };
+    });
+  </script>
+</body>
+</html>
