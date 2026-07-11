@@ -705,6 +705,22 @@ void CDeskcppDoc::OnReplayStory()
             nRequestedGoalItem = nCurrentGoalItem;
         }
         else {
+#ifdef GAME_INDY
+            // Indy has ONE story history ([GameData] Wyoming<N>, kept in the storyHistoryAlaska
+            // slot) — DESKADV OnReplayStory (FUN_1020_0dc8) loads it directly, no planet switch;
+            // most-recent entry becomes the requested goal (v85 INI replay persistence).
+            IndyLoadStoryHistory();
+            {
+                int n = storyHistoryAlaska.GetSize();
+                if (n > 0) {
+                    nRequestedGoalItem = storyHistoryAlaska[n - 1];
+                }
+                else {
+                    AfxMessageBox(0xe01c, 0, -1);
+                    return;
+                }
+            }
+#else
             switch (currentPlanet) {
             case 1: {
                 LoadStoryHistoryNevada();
@@ -743,6 +759,7 @@ void CDeskcppDoc::OnReplayStory()
                 break;
             }
             }
+#endif // GAME_INDY (single-history replay above; Yoda per-planet switch here)
         }
         goalTileList.SetSize(0, -1);
         placedZoneIds.SetSize(0, -1);

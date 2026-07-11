@@ -2627,3 +2627,22 @@ registry/drives to probe) and our SDL picker not falling back to cwd the way rea
 does — fixed via an `opendir` probe + `"."` fallback in `CFileDialog::DoModal`. Found but
 NOT fixed: a DEMO-variant `CFile::Read` assertion crash (`m_pStream` null) reproduces with zero
 user interaction ~10-15s into idling on the title/intro; not isolated to a call site.
+
+## ⏮ v84 (2026-07-11) — INDY×SDL live playtest: crash #16 fixed, Hide Me!/P-pause wired (condensed pickup)
+
+- **Indy indoor-talk/bump crash FIXED, user-confirmed** (docs/engine-bugs.md #16): `CDeskcppView::ShowWinMessage`
+  has Yoda-hardcoded tile ids 780/2034, never GAME_INDY-ifdef'd; Indy's smaller tile catalog (1144 entries) made
+  `tiles.GetAt(2034)` read OOB on nearly every bump/talk (the 2034 arm evaluates before the goal-item check via
+  left-to-right `&&`). Fixed with the line-neutral `YODA_SIC_FIX` short-circuit shape (standing lesson in
+  CLAUDE.md THE ANCHOR). ⭐ Method: the fix came from a LIVE BACKTRACE via `MfxArrayOOBTrap` (kept in
+  microfx/include/afxwin.h; logs array/index/size + backtrace to stderr and yoda_crash.log) — the first
+  code-read guess (#15 charId bounds) was a plausible-looking red herring. Reach for the trap FIRST on OOB hunts.
+- **Hide Me! wired, user-confirmed**: `CWnd::OnSysCommand` was a no-op stub; added `MfxPlatMinimize()` to the
+  mfxplat.h backend contract (sdl3/sdl2 = SDL_MinimizeWindow, null = no-op).
+- **P pause hotkey wired, user-confirmed**: `MfxTranslateAccel` broadened from Ctrl-chords-only to plain
+  FVIRTKEY entries (`bWantCtrl == bCtrl`); F1→ID_HELP_INDEX rides the same path (still not live-verified).
+- New harness: `YODA_AUTOMOD=<start>:<vk>:<dur>` (holds a modifier's g_mfxKeyState only, for chord tests).
+- End-of-session live-confirmed STILL BROKEN list (F8 dialog, Statistics, INDY menu bar, the roaming
+  CFile::Read assert) — ALL cleared in v85 (see the v85 pickup/⏮): F8+CFile were one microfx bug (CFile ops
+  must THROW CFileException on unopened stream, not assert), Statistics = retail Indy HAS no Stats feature
+  (real Indy menu imported instead), menu bar = `make_res.py --indy` ne_menu_to_win32.

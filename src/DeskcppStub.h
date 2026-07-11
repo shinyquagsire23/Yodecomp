@@ -311,6 +311,10 @@ public:
     int          Generate(unsigned int nSeed);            // worldgen driver
 #ifdef GAME_INDY
     int          IndyGenerate(unsigned int nSeed);        // DESKADV 1010:8524 (Indy worldgen)
+    void         IndyLoadStoryHistory();                  // DESKADV 1018:e7af ([GameData] Wyoming<N>)
+    void         IndyLoadPlacedZoneList();                // DESKADV 1018:eb39 ([GameData] Hawaii<N>)
+    void         IndySaveStoryHistory();                  // DESKADV 1020:0000
+    void         IndySavePlacedZoneList();                // DESKADV 1020:0339
 #endif
     unsigned int Randomize();                             // 0x00424380  reseed rand
     void         BackupZoneGrid();                        // zones[0..99] -> [100..199]

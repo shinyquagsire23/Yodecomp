@@ -7931,12 +7931,9 @@ void CDeskcppView::RemoveItem(Tile *pItem)
 #define IndyQueueItemForPlacement(tag, item)  WorldgenPushZoneEntry(item, tag)
 #define IndyAddPlacedItemEntry(tag, item)     WorldgenAddZoneEntry(item, tag)
 #define IndyFilterEnemyZonesFromPlacedList()  RemoveEmptyZonesFromPlacedList()
-// Intentionally-skipped INI persistence + DOS-time seed helper (seed comes from
-// the existing Randomize()). No-ops for now (docs/phase-h3-indy.md TODOs).
-#define IndyLoadPlacedZoneList()              ((void)0)
-#define IndyLoadStoryHistory()                ((void)0)
-#define IndySavePlacedZoneList()              ((void)0)
-#define IndySaveStoryHistory()                ((void)0)
+// INI persistence is REAL as of v85 — IndyLoad/SaveStoryHistory + IndyLoad/SavePlacedZoneList
+// are member functions now (tail of this file); the old ((void)0) no-op macros are gone.
+// DOS-time seed helper stays a no-op (seed comes from the existing Randomize()).
 #define IndyTime()                            0
 
 // ===========================================================================
@@ -9811,13 +9808,22 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
         worldgenPendingZones.SetSize(0, -1);
     }
 
-    // load prior placed/story lists if requestedGoal < 0 (DESKADV: +0x52 < 0):
+    // INI replay persistence (v85, DESKADV 1010:8524 head): the story history (+0x194, our
+    // storyHistoryAlaska slot) is cleared unconditionally, reloaded from the INI only when no
+    // goal was requested, then seeded with the default story 0x86 if still empty and trimmed
+    // to <= 10. (A replay of the CURRENT goal deliberately skips the load — DESKADV then
+    // saves a one-entry history at the tail; faithful.)
+    storyHistoryAlaska.SetSize(0, -1);           // DESKADV head-clears +0x194 with +0x57/+0x5f
     if (nRequestedGoalItem < 0)
     {
-        // IndyLoadPlacedZoneList(); IndyLoadStoryHistory();   // TODO: INI persistence (SKIP)
+        IndyLoadPlacedZoneList();                // [GameData] Hawaii<N>  -> placedZoneIds
+        IndyLoadStoryHistory();                  // [GameData] Wyoming<N> -> storyHistoryAlaska
     }
     int nOldPlaced = placedZoneIds.GetSize();   // local_40
-    // (DESKADV trims the used-puzzle history to <= ~11 entries; keep equivalent if desired)
+    if (storyHistoryAlaska.GetSize() == 0)
+        storyHistoryAlaska.SetAtGrow(0, 0x86);   // DESKADV: empty history -> default story 0x86
+    if (storyHistoryAlaska.GetSize() > 10)
+        storyHistoryAlaska.RemoveAt(0, 1);       // DESKADV trims the history to <= 10 entries
 
     // difficulty node-count band tables (DESKADV +0x109e):  {t2Hi,t2Lo,t3Hi,t3Lo,t4Hi,t4Lo,extraHi,extraLo}
     int t2Hi, t2Lo, t3Hi, t3Lo, t4Hi, t4Lo, extraHi, extraLo;
@@ -9958,6 +9964,9 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
         // mark the goal puzzle used, then main-quest assembly:
         // g_finalGoalItem = ((Puzzle*)puzzles.GetAt(goal))->itemA;   // doc+0xc36
         storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
+        // DESKADV 1010:8524 also appends the goal to the PERSISTED story history (+0x194,
+        // SetAtGrow right after the +0x140 one) — that's what Replay Story reads back (v85).
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), goal);
 
         // --- PASS 1: VEHICLE/COMPANION pass. For each unclaimed PLAN_GOAL cell, place a node-type-6
         //     zone (the "FROM_ANOTHER_MAP" side), read its VEHICLE_TO (obj type 3) destination zone,
@@ -10140,8 +10149,13 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
                 // placedZoneIds (the pre-existing used-zone ids carried in from a loaded game).
                 placedZoneIds.RemoveAt(0, nOldPlaced);
             }
-            // IndyFilterEnemyZonesFromPlacedList(); IndySavePlacedZoneList();
-            // IndySaveStoryHistory();              // TODO: INI persistence (SKIP per brief)
+            // INI replay persistence (v85, DESKADV tail 1010:9a95..9ac1): drop Empty-type zones
+            // from the placed list (DESKADV IndyFilterEnemyZonesFromPlacedList 1020:06ca is
+            // structurally identical to Yoda's RemoveEmptyZonesFromPlacedList — same type!=1
+            // keep-filter), then write both lists back to the INI.
+            RemoveEmptyZonesFromPlacedList();
+            IndySavePlacedZoneList();                // [GameData] Hawaii<N>
+            IndySaveStoryHistory();                  // [GameData] Wyoming<N>
             nRequestedGoalItem = -1;                 // DESKADV doc+0x52 = 0xffff
 
             // ---- play-state tail (DESKADV 1010:8524 tail; field ROLES cross-checked vs Yoda
@@ -10194,6 +10208,254 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
         goalTileList.SetSize(0, -1);
         // (reset the reused lists as at function head)
         return 0;
+    }
+}
+
+// ---- INI replay persistence (v85) — DESKADV [GameData] "Wyoming<N>" story history +
+// "Hawaii<N>" placed-zone list. Same 10-values-per-line + obfuscation scheme as Yoda's
+// Load/SaveStoryHistory* (WorldgenHelpers.cpp), with these DESKADV deltas (RE'd 2026-07-11
+// from 1018:e7af/1018:eb39/1020:0000/1020:039b — "%ld,"/"%d,"/"10," are its only format
+// strings, at 1020:1a98..):
+//   - separator is ',' not '_', and EVERY value carries a trailing comma;
+//   - Indy has ONE world type, so a single history (DESKADV doc+0x194) — kept in the
+//     otherwise-unused storyHistoryAlaska slot (storyHistoryNevada already plays the DESKADV
+//     doc+0x140 transient used-puzzle list inside IndyGenerate);
+//   - the history caps at 10 entries (Yoda: 3), and an EMPTY history is seeded with the
+//     default story 0x86 before saving (savers: story seeds 0x86, placed-list writes nothing).
+
+// FUNCTION: DESKADV 1018:e7af
+// Read [GameData] Wyoming0..N into storyHistoryAlaska (the Indy story history): per line
+// "<seed>,<obfKey>,<count>,<v0+obf>,..," — seed parsed but discarded, obfKey subtracted from
+// each value; reads until a missing key (default "0"); trims the list to <= 10 entries.
+void CDeskcppDoc::IndyLoadStoryHistory()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString prefix("Wyoming");
+    CString key;
+    int i = 0;
+    int done = 0;
+    do {
+        sprintf(buf, "%d", i);
+        i++;
+        key = prefix;
+        key += buf;
+        CString line = pApp->GetProfileString("GameData", key, "0");
+        if (*(const char *)line == '0') {
+            done = done + 1;
+        }
+        else {
+            CString left = line.Left(line.Find(","));
+            CString tmp;
+            atol(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            left = line.Left(line.Find(","));
+            int obfKey = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            left = line.Left(line.Find(","));
+            int count = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            int j = 0;
+            if (count > 0) {
+                do {
+                    if (line.Find(",") > 0)
+                        left = line.Left(line.Find(","));
+                    else
+                        left = line;
+                    int v = atoi(left) - obfKey;
+                    storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), (short)v);
+                    if (j < count - 1) {
+                        tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+                        line = tmp;
+                    }
+                    j++;
+                } while (count > j);
+            }
+        }
+    } while (done == 0);
+    if (storyHistoryAlaska.GetSize() > 10)
+        storyHistoryAlaska.RemoveAt(0, 1);
+}
+
+// FUNCTION: DESKADV 1018:eb39
+// Read [GameData] Hawaii0..N into placedZoneIds (same line format as the story history; no
+// trailing trim — the placed list may legitimately be long).
+void CDeskcppDoc::IndyLoadPlacedZoneList()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString prefix("Hawaii");
+    CString key;
+    int i = 0;
+    int done = 0;
+    do {
+        sprintf(buf, "%d", i);
+        i++;
+        key = prefix;
+        key += buf;
+        CString line = pApp->GetProfileString("GameData", key, "0");
+        if (*(const char *)line == '0') {
+            done = done + 1;
+        }
+        else {
+            CString left = line.Left(line.Find(","));
+            CString tmp;
+            atol(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            left = line.Left(line.Find(","));
+            int obfKey = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            left = line.Left(line.Find(","));
+            int count = atoi(left);
+            tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+            line = tmp;
+            int j = 0;
+            if (count > 0) {
+                do {
+                    if (line.Find(",") > 0)
+                        left = line.Left(line.Find(","));
+                    else
+                        left = line;
+                    int v = atoi(left) - obfKey;
+                    placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), (short)v);
+                    if (j < count - 1) {
+                        tmp = line.Right(line.GetLength() - line.Find(",") - 1);
+                        line = tmp;
+                    }
+                    j++;
+                } while (count > j);
+            }
+        }
+    } while (done == 0);
+}
+
+// FUNCTION: DESKADV 1020:0000
+// Write storyHistoryAlaska to [GameData] Wyoming0..N: 10 values per line, each obfuscated by
+// +obfKey (rand()%255+1); worldSeed as the decimal prefix, every value comma-terminated.
+// Trims to <= 10 first; an empty history is seeded with the default story 0x86.
+void CDeskcppDoc::IndySaveStoryHistory()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString line;
+    CString prefix("Wyoming");
+    int obfKey = rand() % 0xff + 1;
+    int n = storyHistoryAlaska.GetSize();
+    if (n > 10) {
+        storyHistoryAlaska.RemoveAt(0, 1);
+        n = storyHistoryAlaska.GetSize();
+    }
+    if (n == 0) {
+        storyHistoryAlaska.SetAtGrow(0, 0x86);
+        n = 1;
+    }
+    int fullLines = n / 10;
+    int rem = n % 10;
+    int lineNo = 0;
+    if (fullLines > 0) {
+        int base = 0;
+        do {
+            sprintf(buf, "%ld,", worldSeed);
+            line = buf;
+            sprintf(buf, "%d,", obfKey);
+            line += buf;
+            strcpy(buf, "10,");
+            line += buf;
+            int k = 0;
+            do {
+                sprintf(buf, "%d,", storyHistoryAlaska[base + k] + obfKey);
+                k++;
+                line += buf;
+            } while (k < 10);
+            sprintf(buf, "%d", lineNo);
+            {
+                CString key = prefix + buf;
+                pApp->WriteProfileString("GameData", key, line);
+            }
+            base += 10;
+            lineNo++;
+        } while (lineNo < fullLines);
+    }
+    if (rem > 0) {
+        sprintf(buf, "%d", lineNo);
+        CString key = prefix + buf;
+        sprintf(buf, "%ld,", worldSeed);
+        line = buf;
+        sprintf(buf, "%d,", obfKey);
+        line += buf;
+        sprintf(buf, "%d,", rem);
+        line += buf;
+        int k = 0;
+        do {
+            sprintf(buf, "%d,", storyHistoryAlaska[k + lineNo * 10] + obfKey);
+            k++;
+            line += buf;
+        } while (k < rem);
+        pApp->WriteProfileString("GameData", key, line);
+    }
+}
+
+// FUNCTION: DESKADV 1020:0339 (body ~039b)
+// Write placedZoneIds to [GameData] Hawaii0..N (same scheme; no trim, no empty-seed — an
+// empty list writes nothing).
+void CDeskcppDoc::IndySavePlacedZoneList()
+{
+    char buf[32];
+    CWinApp *pApp = AfxGetApp();
+    CString line;
+    CString prefix("Hawaii");
+    int obfKey = rand() % 0xff + 1;
+    int n = placedZoneIds.GetSize();
+    if (n > 0) {
+        int fullLines = n / 10;
+        int rem = n % 10;
+        int lineNo = 0;
+        if (fullLines > 0) {
+            int base = 0;
+            do {
+                sprintf(buf, "%ld,", worldSeed);
+                line = buf;
+                sprintf(buf, "%d,", obfKey);
+                line += buf;
+                strcpy(buf, "10,");
+                line += buf;
+                int k = 0;
+                do {
+                    sprintf(buf, "%d,", placedZoneIds[base + k] + obfKey);
+                    k++;
+                    line += buf;
+                } while (k < 10);
+                sprintf(buf, "%d", lineNo);
+                {
+                    CString key = prefix + buf;
+                    pApp->WriteProfileString("GameData", key, line);
+                }
+                base += 10;
+                lineNo++;
+            } while (lineNo < fullLines);
+        }
+        if (rem > 0) {
+            sprintf(buf, "%d", lineNo);
+            CString key = prefix + buf;
+            sprintf(buf, "%ld,", worldSeed);
+            line = buf;
+            sprintf(buf, "%d,", obfKey);
+            line += buf;
+            sprintf(buf, "%d,", rem);
+            line += buf;
+            int k = 0;
+            do {
+                sprintf(buf, "%d,", placedZoneIds[k + lineNo * 10] + obfKey);
+                k++;
+                line += buf;
+            } while (k < rem);
+            pApp->WriteProfileString("GameData", key, line);
+        }
     }
 }
 

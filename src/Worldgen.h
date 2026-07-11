@@ -382,6 +382,12 @@ public:
     void IndyCollectZoneItems(int nZoneId);                          // 1010:8482
     int  IndyIsPuzzleUsed(short puzzleId);                           // 1010:9b4e
     Zone *IndyGetZoneById(int nZoneId);                             // 1020:11b8
+    // INI replay persistence (v85): [GameData] Wyoming<N> story history (kept in the unused
+    // storyHistoryAlaska slot) + Hawaii<N> placed-zone list.
+    void IndyLoadStoryHistory();                                    // 1018:e7af
+    void IndyLoadPlacedZoneList();                                  // 1018:eb39
+    void IndySaveStoryHistory();                                    // 1020:0000
+    void IndySavePlacedZoneList();                                  // 1020:0339
 #endif // GAME_INDY
 };
 

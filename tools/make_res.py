@@ -8,9 +8,12 @@
 #
 #   --full <Yodesk.exe>    (YODA_FULL): the retail Yoda About dialog (id 100), so the About box
 #                          reads "Yoda(tm) Stories" instead of the demo's "Yoda(tm) Stories Demo".
-#   --indy <DESKADV.EXE>   (GAME_INDY): the app icon + title string (see the icon/title code) AND
-#                          the About dialog rewritten with Indy's title + credits ("Indiana Jones
-#                          and his Desktop Adventures", "The Desktop Adventures Team", …).
+#   --indy <DESKADV.EXE>   (GAME_INDY): the app icon + title string (see the icon/title code), the
+#                          About dialog rewritten with Indy's title + credits ("Indiana Jones
+#                          and his Desktop Adventures", "The Desktop Adventures Team", …), AND
+#                          Indy's real RT_MENU id 2 (no Statistics item — retail Indy has neither
+#                          the menu item nor dialog 0xe1; every command id in Indy's menu already
+#                          exists in the shared dispatch space, verified 2026-07-11).
 #
 # Usage: python3 tools/make_res.py <YodaDemo.exe> <out.res> [--full <Yodesk.exe>] [--indy <DESKADV.exe>]
 import sys, os
@@ -51,6 +54,32 @@ def indy_about(demo_dialog):
         elif k == 'sz' and 'Team Yoda' in v:
             c['text'] = ('sz', INDY_CREDITS)
     return build_dlg32(hdr, ctrls)
+
+
+RT_MENU = 4
+
+def ne_menu_to_win32(data):
+    """Convert a 16-bit NE MENU template (ANSI strings) to the Win32 MENUITEMTEMPLATE shape
+    (identical WORD flags/id layout, UTF-16 strings) that LoadMenu/mfxmenu.cpp consume."""
+    import struct
+    out = bytearray(data[:4])                      # MENUITEMTEMPLATEHEADER (ver 0, offset 0)
+    off = 4
+    def cvt():
+        nonlocal off
+        while off < len(data):
+            flags = struct.unpack_from('<H', data, off)[0]; off += 2
+            out.extend(struct.pack('<H', flags))
+            if not flags & 0x10:                   # not MF_POPUP: WORD command id
+                out.extend(data[off:off + 2]); off += 2
+            end = data.index(b'\0', off)
+            out.extend(data[off:end].decode('cp1252').encode('utf-16-le') + b'\0\0')
+            off = end + 1
+            if flags & 0x10:
+                cvt()                              # popup: nested item list follows
+            if flags & 0x80:                       # MF_END closes this level
+                return
+    cvt()
+    return bytes(out)
 
 
 def indy_icon(indy_exe):
@@ -102,12 +131,14 @@ def main():
                 lv = [t, n, l, patch_stringtable(d, AFX_IDS_APP_TITLE % 16, INDY_APP_TITLE)]
             elif t == ('I', RT_DIALOG) and n == ('I', IDD_ABOUTBOX):
                 lv = [t, n, l, indy_about(d)]
+            elif t == ('I', RT_MENU) and n == ('I', IDR_MAINFRAME):
+                lv = [t, n, l, ne_menu_to_win32(ne_resources(indy_exe)[(RT_MENU, IDR_MAINFRAME)])]
             kept.append(lv)
         lang = ('I', 1033)
         kept.append([('I', RT_GROUP_ICON), ('I', IDR_MAINFRAME), lang, grp])
         kept.append([('I', RT_ICON), ('I', INDY_ICON_ID), lang, icon])
         leaves = kept
-        notes.append(f"Indy icon(#{INDY_ICON_ID}) + title({INDY_APP_TITLE!r}) + About")
+        notes.append(f"Indy icon(#{INDY_ICON_ID}) + title({INDY_APP_TITLE!r}) + About + menu")
 
     emit_res(leaves, out)
     print(f"wrote {out}: {len(leaves)} leaves; " + ", ".join(notes) if notes else

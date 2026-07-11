@@ -321,35 +321,44 @@ BOOL CFile::Open(LPCSTR pszFileName, UINT nOpenFlags, CFileException* pError)
     return TRUE;
 }
 
+// MFC release semantics: operating on a CFile whose Open failed/never ran THROWS a
+// CFileException — game code leans on this (CDeskcppDoc::LoadWorldStateFile TRY/CATCHes the
+// Read of a possibly-absent .wld and treats the throw as "no state file"). An assert here
+// turns that designed control path into an abort.
 UINT CFile::Read(void* lpBuf, UINT nCount)
 {
-    ASSERT(m_pStream);
+    if (!m_pStream)
+        AfxThrowFileException(CFileException::fileNotFound);
     return (UINT)fread(lpBuf, 1, nCount, m_pStream);
 }
 
 void CFile::Write(const void* lpBuf, UINT nCount)
 {
-    ASSERT(m_pStream);
+    if (!m_pStream)
+        AfxThrowFileException(CFileException::fileNotFound);
     if (fwrite(lpBuf, 1, nCount, m_pStream) != nCount)
         AfxThrowFileException(CFileException::diskFull);
 }
 
 LONG CFile::Seek(LONG lOff, UINT nFrom)
 {
-    ASSERT(m_pStream);
+    if (!m_pStream)
+        AfxThrowFileException(CFileException::fileNotFound);
     fseek(m_pStream, lOff, nFrom == begin ? SEEK_SET : nFrom == current ? SEEK_CUR : SEEK_END);
     return (LONG)ftell(m_pStream);
 }
 
 DWORD CFile::GetPosition() const
 {
-    ASSERT(m_pStream);
+    if (!m_pStream)
+        AfxThrowFileException(CFileException::fileNotFound);
     return (DWORD)ftell(m_pStream);
 }
 
 DWORD CFile::GetLength() const
 {
-    ASSERT(m_pStream);
+    if (!m_pStream)
+        AfxThrowFileException(CFileException::fileNotFound);
     long cur = ftell(m_pStream);
     fseek(m_pStream, 0, SEEK_END);
     long len = ftell(m_pStream);
