@@ -76,6 +76,67 @@ extern "C" void MfxPlatMinimize(void)
     if (s_pWin) SDL_MinimizeWindow(s_pWin);
 }
 
+// ── native file dialog (SDL3 SDL_ShowOpen/SaveFileDialog) ──────────────────────────────────────
+// SDL3's picker is ASYNCHRONOUS (a callback fires from the event loop); the game's CFileDialog
+// expects a blocking result, so we spin SDL_PumpEvents until the callback lands. The callback
+// runs on the SDL event thread during pumping — no locking needed for these statics since the
+// spin and the callback are the same thread.
+struct MfxSdl3FileResult { int nState; char szPath[1024]; };   // nState: 0 pending, 1 got, 2 cancel
+
+static void SDLCALL MfxSdl3FileCb(void *pUser, const char *const *paList, int /*nFilter*/)
+{
+    MfxSdl3FileResult *pR = (MfxSdl3FileResult *)pUser;
+    if (paList && paList[0]) {
+        strncpy(pR->szPath, paList[0], sizeof pR->szPath - 1);
+        pR->szPath[sizeof pR->szPath - 1] = 0;
+        pR->nState = 1;
+    } else {
+        pR->nState = 2;      // paList!=NULL but empty = user cancelled; paList==NULL = error
+    }
+}
+
+extern "C" int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *pszExt,
+                                     const char *pszDef, char *pszOut, int nOutSize)
+{
+    if (!s_pWin) return -1;
+
+    char szDesc[64];
+    snprintf(szDesc, sizeof szDesc, "%s files",
+             pszExt && *pszExt ? pszExt : "wld");
+    SDL_DialogFileFilter aFilters[2];
+    aFilters[0].name = szDesc;
+    aFilters[0].pattern = (pszExt && *pszExt) ? pszExt : "wld";
+    aFilters[1].name = "All files";
+    aFilters[1].pattern = "*";
+
+    // SDL wants an absolute default LOCATION; for Save, seed it with dir + default name so the
+    // native panel pre-fills the slot name.
+    char szLoc[1024];
+    if (!bOpen && pszDef && *pszDef) {
+        snprintf(szLoc, sizeof szLoc, "%s%s%s",
+                 (pszDir && *pszDir) ? pszDir : ".",
+                 (pszDir && *pszDir && pszDir[strlen(pszDir) - 1] != '/') ? "/" : "",
+                 pszDef);
+    } else {
+        snprintf(szLoc, sizeof szLoc, "%s", (pszDir && *pszDir) ? pszDir : ".");
+    }
+
+    MfxSdl3FileResult res; res.nState = 0; res.szPath[0] = 0;
+    if (bOpen)
+        SDL_ShowOpenFileDialog(MfxSdl3FileCb, &res, s_pWin, aFilters, 2, szLoc, false);
+    else
+        SDL_ShowSaveFileDialog(MfxSdl3FileCb, &res, s_pWin, aFilters, 2, szLoc);
+
+    while (res.nState == 0) {          // drive the async picker to completion
+        SDL_PumpEvents();
+        SDL_Delay(10);
+    }
+    if (res.nState != 1) return 0;     // cancelled
+    strncpy(pszOut, res.szPath, nOutSize - 1);
+    pszOut[nOutSize - 1] = 0;
+    return 1;
+}
+
 // ── events ───────────────────────────────────────────────────────────────────────────────────
 
 // SDL keycode → Win32 VK (only what the game's OnKeyDown/OnKeyUp/GetAsyncKeyState read)
@@ -143,6 +204,10 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
         case SDL_EVENT_KEY_DOWN:
         case SDL_EVENT_KEY_UP: {
             int vk = MfxKeyToVk(ev.key.key);
+            if (getenv("YODA_KEYLOG"))
+                fprintf(stderr, "KEYLOG %s sdlkey=0x%x scancode=0x%x mod=0x%x -> vk=0x%x\n",
+                        ev.type == SDL_EVENT_KEY_DOWN ? "DOWN" : "UP ",
+                        (unsigned)ev.key.key, (unsigned)ev.key.scancode, (unsigned)ev.key.mod, vk);
             if (!vk) break;                         // unmapped key: keep polling
             pEv->nType = (ev.type == SDL_EVENT_KEY_DOWN) ? MFXPLAT_EV_KEYDOWN
                                                          : MFXPLAT_EV_KEYUP;

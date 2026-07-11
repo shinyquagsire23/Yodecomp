@@ -68,6 +68,18 @@ Phase H (extension — functional correctness, not byte-matching) status:
 3. **Indy Ghidra RE sweep** — comb `DESKADV.EXE` (`program=DESKADV.EXE`) for behavioral differences we've
    missed, naming functions + defining structs along the way (same conventions as YodaDemo; 16-bit NE,
    segmented addresses — recover LOGIC, not codegen).
+4. **⭐ WASM port (user-set 2026-07-11)** — compile the H4/microfx SDL3 target to WebAssembly via
+   Emscripten, still SDL3 (Emscripten ships an SDL port; SDL3 supports the web backend). The pump's
+   main loop must convert to `emscripten_set_main_loop` (a browser can't own the loop the way
+   `CWinThread::Run`'s `while(!quit)` does — see the modal-loop caveat below). Assets (YODESK.DTA /
+   DESKTOP.DAW / .res / WAV+MID) ship in the Emscripten virtual FS (`--preload-file`); audio via
+   SDL3's web audio; the SDL3 native file dialog (v85) has no web equivalent → `MfxPlatShowFileDialog`
+   returns -1 in a wasm backend so CFileDialog's in-window row-list picker is used (already the
+   fallback). ⚠ The blocking modal loops (CDialog::DoModal, CFileDialog, the intro) use a nested
+   `while(GetMessageA)` — those DON'T work under a browser's cooperative event loop and are the main
+   porting lift (either Asyncify, or restructure the modal loops into state machines). New backend =
+   `microfx/src/platform/mfxplat_wasm.cpp` + a CMake/emcmake toolchain config; keep it a config-matrix
+   corner like the others. Reference: OpenJKDF2 has an Emscripten build.
 
 ### H4 spec — Beyond Win95: portable SDL target via "microfx" (full design: docs/phase-h4-sdl.md)
 - **Strategy (user-set 2026-07-10): implement a source-compatible MFC SUBSET ("microfx"), not per-call

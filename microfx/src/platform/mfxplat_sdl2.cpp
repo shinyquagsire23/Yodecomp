@@ -81,6 +81,13 @@ extern "C" void MfxPlatMinimize(void)
     if (s_pWin) SDL_MinimizeWindow(s_pWin);
 }
 
+// SDL2 has no common-file-dialog API — return -1 so CFileDialog uses microfx's own in-window
+// row-list picker (SDL3's native panel is the only backend that overrides it).
+extern "C" int MfxPlatShowFileDialog(int, const char *, const char *, const char *, char *, int)
+{
+    return -1;
+}
+
 // ── events ───────────────────────────────────────────────────────────────────────────────────
 
 // SDL keycode → Win32 VK (only what the game's OnKeyDown/OnKeyUp/GetAsyncKeyState read)

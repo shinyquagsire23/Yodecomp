@@ -3,9 +3,10 @@
 // DLGITEMTEMPLATE (buttons / statics / group boxes / icons / horizontal scrollbars), calls the
 // virtual OnInitDialog (→ DoDataExchange → DDX), then runs a Win32-shaped modal message loop
 // over the same posted queue GetMessageA drains (M4 lesson 12) until EndDialog fires. Lights up
-// the F8 status box (CTextDialog 0xbf), File>About (CAboutDlg 0x64), and the Difficulty/
-// GameSpeed/WorldSize sliders (0x6f/0xd7/0xda). The Stats template (0xe1) is corrupt in the
-// DEMO .res (Stats is demo-disabled) — a missing/short template just returns IDCANCEL.
+// the F8 status box (CTextDialog 0xbf), File>About (CAboutDlg 0x64), the Difficulty/
+// GameSpeed/WorldSize sliders (0x6f/0xd7/0xda), and Options>Statistics (StatsDlg 0xe1 — the
+// game's one DLGTEMPLATEEX resource; the old "corrupt in the .res" note was this format,
+// which DoModal now parses alongside the classic shape). Missing/short template → IDCANCEL.
 //
 // Geometry: DLGTEMPLATE units are dialog-units; base units come from the dialog font (the
 // classic MS Sans Serif 8 → 13px strike), px = MulDiv(dlu, baseUnit, 4|8). Controls carry
@@ -21,6 +22,9 @@
 #include <string.h>
 #include <strings.h>
 #include <dirent.h>
+
+// SDL3 native file picker (mfxplat.h contract); SDL2/null/DS return -1 → custom picker fallback.
+extern "C" int MfxPlatShowFileDialog(int, const char *, const char *, const char *, char *, int);
 
 extern "C" const unsigned char *MfxFindResourceData(unsigned nType, unsigned nId, unsigned *pnSize);
 #define RT_DIALOG_ID 5
@@ -403,21 +407,33 @@ int CDialog::DoModal()
 {
     unsigned nSize = 0;
     const BYTE *pT = MfxFindResourceData(RT_DIALOG_ID, m_nIDTemplate, &nSize);
+    if (getenv("YODA_DLGTRACE"))
+        fprintf(stderr, "DLGTRACE DoModal id=0x%x tpl=%p size=%u\n", m_nIDTemplate, (void*)pT, nSize);
     if (!pT || nSize < 18) { m_nModalResult = IDCANCEL; return IDCANCEL; }
 
-    // header
+    // header — classic DLGTEMPLATE or DLGTEMPLATEEX (dlgVer=1, signature=0xFFFF; the Stats
+    // dialog 0xe1 is the game's one EX template — v80's "corrupt in the shipped .res" was
+    // actually this format, which real Windows parses natively)
+    int bEx = (MfxRdW(pT) == 1 && MfxRdW(pT + 2) == 0xffff);
     MfxDlgHdr hdr;
-    hdr.style = MfxRdD(pT);
-    const BYTE *p = pT + 10;                       // skip style(4)+ext(4)+cdit(2)
-    hdr.nCtrl = MfxRdW(pT + 8);
+    const BYTE *p;
+    if (bEx) {
+        hdr.style = MfxRdD(pT + 12);               // dlgVer(2)+sig(2)+helpID(4)+exStyle(4)
+        hdr.nCtrl = MfxRdW(pT + 16);
+        p = pT + 18;
+    } else {
+        hdr.style = MfxRdD(pT);
+        hdr.nCtrl = MfxRdW(pT + 8);
+        p = pT + 10;                               // skip style(4)+ext(4)+cdit(2)
+    }
     hdr.x = (short)MfxRdW(p);       hdr.y = (short)MfxRdW(p + 2);
     hdr.cx = (short)MfxRdW(p + 4);  hdr.cy = (short)MfxRdW(p + 6); p += 8;
     p = MfxSkipName(p, 0, 0, 0);                   // menu
     p = MfxSkipName(p, 0, 0, 0);                   // class
     hdr.pCaption = (const WORD *)p;                // caption (UTF-16Z)
     while (MfxRdW(p)) p += 2; p += 2;
-    if (hdr.style & 0x40) {                        // DS_SETFONT: point size + face
-        p += 2;
+    if (hdr.style & 0x40) {                        // DS_SETFONT: point size [+EX: weight(2)+
+        p += bEx ? 6 : 2;                          //  italic(1)+charset(1)] + face name
         while (MfxRdW(p)) p += 2; p += 2;
     }
     if (hdr.cx <= 0 || hdr.cy <= 0) { m_nModalResult = IDCANCEL; return IDCANCEL; }
@@ -463,13 +479,15 @@ int CDialog::DoModal()
         aItems[nItems++] = pFrame;
     }
 
-    // controls
+    // controls (EX items: helpID(4)+exStyle(4)+style(4), coords, then a DWORD id)
     for (int i = 0; i < hdr.nCtrl && nItems < 40; i++) {
         p = (const BYTE *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
-        DWORD cst = MfxRdD(p); p += 8;              // style(4) + ext(4)
+        DWORD cst;
+        if (bEx) { cst = MfxRdD(p + 8); p += 12; }
+        else     { cst = MfxRdD(p);     p += 8;  }  // style(4) + ext(4)
         int ix = (short)MfxRdW(p),     iy = (short)MfxRdW(p + 2);
         int icx = (short)MfxRdW(p + 4), icy = (short)MfxRdW(p + 6);
-        UINT iid = MfxRdW(p + 8); p += 10;
+        UINT iid = MfxRdW(p + 8); p += bEx ? 12 : 10;
         int bClsOrd; UINT clsOrd; const WORD *pClsSz;
         p = MfxSkipName(p, &bClsOrd, &clsOrd, &pClsSz);
         int bTxtOrd; UINT txtOrd; const WORD *pTxtSz;
@@ -629,10 +647,25 @@ int CFileDialog::DoModal()
 
     enum { MAX_FOUND = 8, ID_NEW = 90, ID_ROW0 = 100 };
     CString aFound[MAX_FOUND];
-    int nFound = MfxFileDialogScan(pszDir, pszExt, aFound, MAX_FOUND);
 
     CString strDefault = m_strPath;
     if (strDefault.Find('.') < 0) { strDefault += "."; strDefault += pszExt; }
+
+    // Native OS picker first (SDL3 has one; SDL2/null/DS return -1 → fall through to the
+    // in-window row-list picker below). This is the user-requested SDL3 SDL_ShowOpen/SaveFileDialog
+    // path — it blocks inside the backend until the panel closes, then we're done.
+    {
+        char szPath[1024] = { 0 };
+        int nNative = MfxPlatShowFileDialog(m_bOpenFileDialog, pszDir, pszExt,
+                                            (const char *)strDefault, szPath, (int)sizeof szPath);
+        if (nNative >= 0) {                       // backend HAS a native picker
+            MfxSetDirty();                        // panel obscured the game window
+            if (nNative == 1) { m_strPath = szPath; m_nModalResult = IDOK; return IDOK; }
+            m_nModalResult = IDCANCEL; return IDCANCEL;
+        }
+    }
+
+    int nFound = MfxFileDialogScan(pszDir, pszExt, aFound, MAX_FOUND);
 
     CString aRow[MAX_FOUND + 1]; UINT aRowId[MAX_FOUND + 1];
     int nRows = MfxFileDialogBuildRows(m_bOpenFileDialog, strDefault, aFound, nFound,

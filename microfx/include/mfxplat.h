@@ -89,6 +89,19 @@ void MfxPlatDelay(unsigned nMs);
 // backend with no such concept (e.g. a handheld) can no-op.
 void MfxPlatMinimize(void);
 
+// Native OS file picker for Save/Load World (CFileDialog). SYNCHRONOUS from the caller's view:
+// a backend that owns an event loop (SDL3) drives its own async picker to completion here.
+//   bOpen    : 1 = open/load (must exist), 0 = save (name may be new)
+//   pszDir   : initial directory (may be "" — backend picks a sensible default)
+//   pszExt   : filter extension without the dot (e.g. "wld")
+//   pszDef   : default file name for save (may be "")
+//   pszOut   : receives the chosen absolute path (NUL-terminated) on success
+// Returns 1 = a path was chosen, 0 = user cancelled, -1 = NO native picker on this backend
+// (the caller then falls back to microfx's own in-window row-list picker). A handheld/null
+// backend returns -1 so the portable custom picker is always available.
+int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *pszExt,
+                          const char *pszDef, char *pszOut, int nOutSize);
+
 // ── audio ────────────────────────────────────────────────────────────────────────────────────
 
 // The neutral WaveMix/MCI contract layer (mfxsnd.cpp) owns handles, channel policy (LRU
