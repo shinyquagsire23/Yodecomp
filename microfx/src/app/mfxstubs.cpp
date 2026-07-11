@@ -453,7 +453,8 @@ BOOL     ClientToScreen(HWND, LPPOINT) { return TRUE; }
 // Get/SetScrollPos/Range + ShowScrollBar are REAL as of M4e (mfxwnd.cpp, SB_CTL state).
 // DrawIcon is REAL as of M4 — gdi/mfxgdi.cpp (res/ image draw w/ palette mapping).
 // InvalidateRect / UpdateWindow / RedrawWindow are REAL as of M2 (mfxwnd.cpp dirty flag).
-HWND     GetParent(HWND) { return 0; }
+// ::GetParent is REAL as of M4e-fix (mfxwnd.cpp) — InvScrollBar::OnVScroll finds the view
+// through it to repaint the item list after a scroll (stub 0 = list never redrew).
 void     FatalAppExitA(UINT, LPCSTR msg)
     { fprintf(stderr, "microfx: FatalAppExit: %s\n", msg ? msg : ""); abort(); }
 BOOL     CopyRect(LPRECT dst, const RECT* src) { *dst = *src; return TRUE; }
