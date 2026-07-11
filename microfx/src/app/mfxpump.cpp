@@ -377,6 +377,25 @@ int CWinThread::Run()
     MfxSetClockHook(MfxFlushPendingPresent);
     MfxMenuInit();
 
+    // Boot color-table seed. Until the game realizes its first palette, the screen DIB's
+    // color table is zeroed — so every pre-worldgen paint renders WRONG: presents of the
+    // calloc'd DIB were solid black, and OnEraseBkgnd's COLOR_BTNFACE fill (the window
+    // background until the game's first full world draw brings the teal frame) nearest-matched
+    // into whatever partial palette existed (a blue, on the user's machine). A real Win95
+    // 8bpp display always carries the 20 STATIC colors — seed them (slots 0-9/246-255, gray
+    // C0C0C0 among them) so the whole boot phase renders as Win95 did: chrome gray. The
+    // game's palette realizes overwrite the table afterwards, exactly as before.
+    PALETTEENTRY aSys[256];
+    ::GetSystemPaletteEntries(0, 0, 256, aSys);
+    RGBQUAD aBootPal[256];
+    for (int i = 0; i < 256; i++) {
+        aBootPal[i].rgbRed   = aSys[i].peRed;
+        aBootPal[i].rgbGreen = aSys[i].peGreen;
+        aBootPal[i].rgbBlue  = aSys[i].peBlue;
+        aBootPal[i].rgbReserved = 0;
+    }
+    ::SetDIBColorTable(MfxScreenDC(), 0, 256, aBootPal);
+
     while (!g_mfxQuit) {
         CView *pViewNow = MfxRootWnd() ? ((CFrameWnd *)MfxRootWnd()->pWnd)->GetActiveView() : 0;
         HWND hView = pViewNow ? pViewNow->m_hWnd : 0;

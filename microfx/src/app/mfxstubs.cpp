@@ -487,7 +487,8 @@ int      GetDeviceCaps(HDC, int index)
 // CreateBitmap/SetBitmapBits/GetBitmapBits are REAL as of M2 tail — gdi/mfxgdi.cpp
 // (drag save-under: an 8bpp DDB is just a DIB in our device).
 // PostQuitMessage is REAL as of M2 (mfxwnd.cpp — sets the pump's quit flag).
-BOOL     Chord(HDC, int, int, int, int, int, int, int, int) { return TRUE; }
+// Chord is REAL as of v89 tail — gdi/mfxgdi.cpp (the health dial's 3D rim: two chord halves
+// in BTNHIGHLIGHT/BTNSHADOW under the green Pie disc; this stub left the dial rim flat).
 // TextOutA/GetTextMetricsA/GetTextExtentPoint32A are REAL as of M4c — gdi/mfxgdi.cpp
 // (genuine MS Sans Serif bitmap strikes, mfxfont_data.c).
 

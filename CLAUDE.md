@@ -359,6 +359,20 @@ AFX_IDS_APP_TITLE string 0xE000 ("Yoda Stories") in CWinThread::Run, mirroring t
 AfxMessageBox caption chain. Pages repo deploy is copy-only — the user reviews + commits
 shinyquagsire23.github.io themselves.
 
+**▶ v89 tail (user-driven polish, all USER-CONFIRMED):** (1) YodaDemo app icon = page favicon
+(GROUP_ICON 2 via reslib → .ico → data-URI in mfx_shell.html + chooser.html; ⚠ emcc bakes shell/
+pre-js at LINK time — LINK_DEPENDS added so edits actually relink yoda.html). (2) Boot renders
+Win95-correct now: the screen DIB color table starts ZEROED, so pre-realize paints were wrong —
+presents black, and OnEraseBkgnd's COLOR_BTNFACE nearest-matched to a BLUE once a partial palette
+existed ("interface draws on a blue background until worldgen finishes"). Fix: seed the table with
+the 20 Win95 STATIC colors (GetSystemPaletteEntries, slots 0-9/246-255) at pump start — realizes
+overwrite it after, identical to before; do NOT pin statics through realize (game indexes assume
+identity — pinning would break confirmed-correct sprites). Shell html bg = 3DFACE gray too.
+(3) Health-dial 3D rim was missing because ::Chord was a SILENT STUB (mfxstubs) — DrawHealthDial
+draws two Chord halves (hilite/shadow) under the green Pie disc. Real Chord now in mfxgdi.cpp
+(Pie's scanline + arc-side-of-chord-line half-plane test); sunken look confirmed. ⭐ grep
+mfxstubs.cpp for remaining silent GDI stubs when a UI element "draws flat/missing".
+
 **▶ ⚠ Open watch-items:** (1) the v86 one-off Replay SIGSEGV (exit 139, never reproduced —
 lldb `bt 25` if it recurs). (2) wasm INI/save persistence: MEMFS is lost on reload — IDBFS
 (mount + sync on write) is the natural next wasm milestone. (3) picker mode: a user INI with

@@ -838,6 +838,49 @@ BOOL TextOutA(HDC hdc, int x, int y, LPCSTR psz, int n)
 // arc direction) from the (x1,y1) radial to the (x2,y2) radial. Coincident radials = the
 // full ellipse (the health dial's "full disc" first call). Pen == brush color in every game
 // call site, so the outline is covered by the fill.
+// Chord: the ellipse segment between the CCW arc a1→a2 and the straight chord joining the
+// arc's endpoints. Scanline fill = inside the ellipse AND on the arc's side of the chord
+// line (the side holding the arc's midpoint angle). Sole game use: DrawHealthDial's 3D rim —
+// a highlight half + a shadow half (pen == brush color there, so brush fill covers the look;
+// the green Pie disc then draws over the middle leaving the 2px bevel ring).
+BOOL Chord(HDC hdc, int l, int t, int r, int b, int x1, int y1, int x2, int y2)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    MfxBrush *pBr = MfxDcBrush(hdc);
+    if (pBr->bNull) return TRUE;
+    BYTE ix = MfxMapColor(hdc, pBr->cr);
+    double cx = (l + r - 1) / 2.0, cy = (t + b - 1) / 2.0;
+    double ra = (r - l) / 2.0, rb2 = (b - t) / 2.0;
+    if (ra <= 0 || rb2 <= 0) return TRUE;
+    double a1 = atan2(cy - y1, x1 - cx);             // y flipped → math angles (as Pie)
+    double a2 = atan2(cy - y2, x2 - cx);
+    double sweep = a2 - a1;
+    const double PI2 = 6.28318530717958647692;
+    while (sweep < 0) sweep += PI2;
+    if (sweep < 1e-9) sweep = PI2;                   // start == end → full ellipse
+    // chord endpoints on the ellipse + the arc midpoint (which side to fill)
+    double p1x = cx + ra * cos(a1), p1y = cy - rb2 * sin(a1);
+    double p2x = cx + ra * cos(a2), p2y = cy - rb2 * sin(a2);
+    double am = a1 + sweep / 2;
+    double mx = cx + ra * cos(am), my = cy - rb2 * sin(am);
+    double dx = p2x - p1x, dy = p2y - p1y;
+    double sideArc = dx * (my - p1y) - dy * (mx - p1x);
+    for (int y = t; y < b; y++) {
+        double fy = (y - cy) / rb2;
+        if (fy < -1 || fy > 1) continue;
+        double half = ra * sqrt(1.0 - fy * fy);
+        int xl = (int)ceil(cx - half), xr = (int)floor(cx + half);
+        for (int x = xl; x <= xr; x++) {
+            double side = dx * (y - p1y) - dy * (x - p1x);
+            if (side * sideArc >= 0)
+                MfxPutPixel(pDib, x, y, ix);
+        }
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
 BOOL Pie(HDC hdc, int l, int t, int r, int b, int x1, int y1, int x2, int y2)
 {
     if (!MfxIsDc(hdc) || !hdc->hDib) return FALSE;
