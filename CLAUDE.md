@@ -268,10 +268,43 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-11 v85 — the ENTIRE v84 broken list cleared: F8 dialog +
-CFile crash were ONE microfx bug (fixed, F8 user-confirmed), Statistics resolved via Indy's REAL
-menu (live-rendering), INI replay persistence implemented + round-trip verified, and the IACT
-condition table fully verified vs DESKADV (6 entries were wrong). GOAL 1 is down to ONE item.)
+### ⏭ NEXT SESSION PICKUP (2026-07-11 v86 — playtest follow-ups all resolved: Statistics
+DLGTEMPLATEEX parse, SDL3 native file dialog, Ctrl+D alias for the Mac-eaten Ctrl+F8 (all
+user-confirmed working live where testable); WASM/Emscripten recorded as GOAL 4. v85 detail
+retained below.)
+
+**▶ v86 — ✅ Statistics dialog opens now (USER-CONFIRMED path via menu).** Root cause was NOT
+the .res or the enable-gate — dialog 0xe1 is the game's ONE **DLGTEMPLATEEX** resource
+(dlgVer=1/sig=0xFFFF), and microfx's `CDialog::DoModal` only parsed the classic DLGTEMPLATE
+layout → it read the EX header's fields at the wrong offsets → bogus cx/cy → early IDCANCEL
+(that's the real meaning of v80's "corrupt in the .res" note). Added an EX branch to the
+header + control parse (microfx/src/app/mfxdlg.cpp); the classic path is untouched (EX branch
+only fires on the 0xFFFF signature). Parse validated against the real 0xe1 bytes (cx=147,cy=71,
+9 controls, exact 482 B). ⚠ Testing note learned this session: the game sits in a **blocking
+`while(GetMessageA)` modal loop the whole run** (the title/intro owns the thread from ~3s in —
+heartbeat proof), so `YODA_AUTOCMD`/`YODA_AUTOCLICK` (evaluated only in the main `CWinThread::Run`
+loop) NEVER fire once the intro starts; only real input, which the modal loop's own GetMessage
+drains, gets through. That's why headless dialog-trigger oracles fail — NOT the fix. This same
+blocking-modal-loop structure is THE WASM porting lift (GOAL 4).
+
+**▶ v86 — ✅ SDL3 native file dialog for Save/Load World.** New `MfxPlatShowFileDialog` hook on
+the mfxplat.h contract; the SDL3 backend drives the async `SDL_ShowOpen/SaveFileDialog` to
+completion (pump events until the callback lands). SDL2/null/(future DS/WASM) return -1 →
+`CFileDialog::DoModal` falls back to microfx's in-window row-list picker (unchanged; dlg_smoke
+still green). Signatures verified against /opt/homebrew/include/SDL3/SDL_dialog.h. Not
+headless-verifiable (needs a live panel) — flagged for user playtest.
+
+**▶ v86 — ✅ Ctrl+D opens the F8 debug dialog (USER-CONFIRMED working live).** macOS reserves
+the **Ctrl+F8 chord** as a system shortcut ("move focus to status menus") and eats it before SDL
+(user-confirmed: plain F8 reaches the app, only the Ctrl+F8 combo is grabbed). Fix in the neutral
+pump (mfxpump.cpp): a plain `Ctrl+D` (unused by the game, not a macOS shortcut) injects a synthetic
+`VK_F8` WM_KEYDOWN while real Ctrl is held → the game's own OnKeyDown VK_F8 handler opens the dialog
+with NO key-state faking. Windows' native Ctrl+F8 unaffected. `YODA_KEYLOG=1` (SDL3 backend, kept)
+logs sdlkey/scancode/mod→vk per key event — the probe that framed this + future key issues.
+
+**▶ v86 anchor note:** all v86 edits are microfx-only (mfxdlg/mfxpump/mfxplat + 3 backends) — the
+byte-match anchor build never compiles microfx, so 211/99.17% is untouched by construction (not
+re-run). Binaries copied to YodaFull/ and YodaIndy/ for the user.
 
 **▶ v85 — ✅ F8 debug dialog + the roaming `CFile::Read` crash: ONE bug, FIXED (F8
 USER-CONFIRMED).** microfx `CFile::Read/Write/Seek/GetPosition/GetLength` ASSERTED on a
