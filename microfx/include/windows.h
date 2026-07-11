@@ -560,6 +560,8 @@ COLORREF SetBkColor(HDC hdc, COLORREF color);
 int      SetBkMode(HDC hdc, int mode);
 BOOL     GetTextMetricsA(HDC hdc, LPTEXTMETRIC lptm);
 #define GetTextMetrics GetTextMetricsA
+BOOL     GetTextExtentPoint32A(HDC hdc, LPCSTR lpString, int c, LPSIZE psizl);
+#define GetTextExtentPoint32 GetTextExtentPoint32A
 int      GetClipBox(HDC hdc, LPRECT lprect);
 
 // ── kernel / thread subset ───────────────────────────────────────────────────────────────────

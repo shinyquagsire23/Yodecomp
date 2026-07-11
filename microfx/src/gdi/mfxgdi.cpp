@@ -670,6 +670,138 @@ BOOL DrawIcon(HDC hdc, int x, int y, HICON hIcon)
     return TRUE;
 }
 
+// ── text (M4c): the REAL MS Sans Serif bitmap strikes, rendered from raw FNT blocks ─────────
+// mfxfont_data.c embeds the 13px (8pt) and 16px (10pt) strikes verbatim (tools/fon2c.py from
+// a Windows SSERIFE.FON). The game's two requests map like GDI's font mapper: CreateFont(-8)
+// → nearest character height (13px strike, charH 11) and CreateFont(-14) → 16px strike
+// (charH 13). Weight >= 600 is synthesized bold (1px-right OR smear), as GDI does for
+// bitmap fonts without a bold strike.
+
+extern "C" {
+extern const unsigned char g_mfxFnt13[];
+extern const unsigned char g_mfxFnt16[];
+}
+
+struct MfxStrike {               // parsed view of one raw FNT v2 block
+    const unsigned char *pFnt;
+    int nPixHeight, nAscent, nLead, nAvgWidth, nMaxWidth;
+    int nFirst, nLast, nDefault;
+};
+
+static const MfxStrike *MfxGetStrike(int nIndex)   // 0 = 13px, 1 = 16px
+{
+    static MfxStrike aStrikes[2];
+    static int bInit = 0;
+    if (!bInit) {
+        const unsigned char *aFnt[2] = { g_mfxFnt13, g_mfxFnt16 };
+        for (int i = 0; i < 2; i++) {
+            MfxStrike *s = &aStrikes[i];
+            s->pFnt = aFnt[i];
+            s->nAscent    = aFnt[i][0x4a] | (aFnt[i][0x4b] << 8);
+            s->nLead      = aFnt[i][0x4c] | (aFnt[i][0x4d] << 8);
+            s->nPixHeight = aFnt[i][0x58] | (aFnt[i][0x59] << 8);
+            s->nAvgWidth  = aFnt[i][0x5b] | (aFnt[i][0x5c] << 8);
+            s->nMaxWidth  = aFnt[i][0x5d] | (aFnt[i][0x5e] << 8);
+            s->nFirst     = aFnt[i][0x5f];
+            s->nLast      = aFnt[i][0x60];
+            s->nDefault   = aFnt[i][0x61];
+        }
+        bInit = 1;
+    }
+    return &aStrikes[nIndex];
+}
+
+// FNT v2 char table @0x76: {WORD width, WORD offset} per char first..last(+1 sentinel)
+static int MfxGlyph(const MfxStrike *s, int ch, const unsigned char **ppBits)
+{
+    if (ch < s->nFirst || ch > s->nLast) ch = s->nFirst + s->nDefault;
+    const unsigned char *pE = s->pFnt + 0x76 + 4 * (ch - s->nFirst);
+    int nWidth = pE[0] | (pE[1] << 8);
+    if (ppBits) *ppBits = s->pFnt + (pE[2] | (pE[3] << 8));
+    return nWidth;
+}
+
+static const MfxStrike *MfxStrikeForDc(HDC hdc, int *pbBold)
+{
+    MfxFont *pFont = hdc->pFont;
+    int nReq = pFont ? (pFont->nHeight < 0 ? -pFont->nHeight : pFont->nHeight) : 0;
+    if (pbBold) *pbBold = pFont && pFont->nWeight >= 600;
+    if (!pFont || nReq == 0) return MfxGetStrike(0);
+    int nBest = 0, nBestDist = 0x7fff;
+    for (int i = 0; i < 2; i++) {
+        const MfxStrike *s = MfxGetStrike(i);
+        int nCand = pFont->nHeight < 0 ? s->nPixHeight - s->nLead : s->nPixHeight;
+        int d = nCand > nReq ? nCand - nReq : nReq - nCand;
+        if (d < nBestDist) { nBestDist = d; nBest = i; }
+    }
+    return MfxGetStrike(nBest);
+}
+
+extern "C" {
+
+BOOL GetTextMetricsA(HDC hdc, LPTEXTMETRIC tm)
+{
+    if (!tm || !MfxIsDc(hdc)) return FALSE;
+    int bBold = 0;
+    const MfxStrike *s = MfxStrikeForDc(hdc, &bBold);
+    memset(tm, 0, sizeof *tm);
+    tm->tmHeight          = s->nPixHeight;
+    tm->tmAscent          = s->nAscent;
+    tm->tmDescent         = s->nPixHeight - s->nAscent;
+    tm->tmInternalLeading = s->nLead;
+    tm->tmAveCharWidth    = s->nAvgWidth + (bBold ? 1 : 0);
+    tm->tmMaxCharWidth    = s->nMaxWidth + (bBold ? 1 : 0);
+    return TRUE;
+}
+
+BOOL GetTextExtentPoint32A(HDC hdc, LPCSTR psz, int n, LPSIZE pSize)
+{
+    if (!pSize || !MfxIsDc(hdc) || !psz) return FALSE;
+    int bBold = 0;
+    const MfxStrike *s = MfxStrikeForDc(hdc, &bBold);
+    long cx = 0;
+    for (int i = 0; i < n; i++)
+        cx += MfxGlyph(s, (unsigned char)psz[i], 0) + (bBold ? 1 : 0);
+    pSize->cx = cx;
+    pSize->cy = s->nPixHeight;
+    return TRUE;
+}
+
+BOOL TextOutA(HDC hdc, int x, int y, LPCSTR psz, int n)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib || !psz) return FALSE;
+    HBITMAP__ *pDib = hdc->hDib;
+    int bBold = 0;
+    const MfxStrike *s = MfxStrikeForDc(hdc, &bBold);
+    BYTE ixText = MfxMapColor(hdc, hdc->crText);
+    if (hdc->nBkMode == OPAQUE) {
+        SIZE sz;
+        GetTextExtentPoint32A(hdc, psz, n, &sz);
+        MfxFillRectIx(pDib, x, y, x + (int)sz.cx, y + s->nPixHeight,
+                      MfxMapColor(hdc, hdc->crBk));
+    }
+    int h = s->nPixHeight;
+    for (int i = 0; i < n; i++) {
+        const unsigned char *pBits = 0;
+        int w = MfxGlyph(s, (unsigned char)psz[i], &pBits);
+        int nCols = (w + 7) / 8;                    // v2 layout: byte-column-major
+        for (int row = 0; row < h; row++)
+            for (int j = 0; j < nCols; j++) {
+                unsigned char b = pBits[j * h + row];
+                if (bBold) b |= (unsigned char)(b >> 1) |
+                                (j ? (unsigned char)(pBits[(j - 1) * h + row] << 7) : 0);
+                for (int bit = 0; bit < 8; bit++)
+                    if (b & (0x80 >> bit))
+                        MfxPutPixel(pDib, x + j * 8 + bit, y + row, ixText);
+            }
+        x += w + (bBold ? 1 : 0);
+    }
+    MfxTouch(hdc);
+    return TRUE;
+}
+
+} // extern "C"
+
 // Pie: fill the elliptical sector swept COUNTERCLOCKWISE (in y-up math terms, GDI default
 // arc direction) from the (x1,y1) radial to the (x2,y2) radial. Coincident radials = the
 // full ellipse (the health dial's "full disc" first call). Pen == brush color in every game

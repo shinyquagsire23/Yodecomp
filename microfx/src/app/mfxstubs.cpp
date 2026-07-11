@@ -490,19 +490,8 @@ int      GetDeviceCaps(HDC, int index)
 // (drag save-under: an 8bpp DDB is just a DIB in our device).
 // PostQuitMessage is REAL as of M2 (mfxwnd.cpp — sets the pump's quit flag).
 BOOL     Chord(HDC, int, int, int, int, int, int, int, int) { return TRUE; }
-BOOL     TextOutA(HDC, int, int, LPCSTR, int) { return TRUE; }
-BOOL     GetTextMetricsA(HDC, LPTEXTMETRIC tm)
-{
-    // placeholder MS-Sans-Serif-8 numbers so bubble layout math stays sane until the real
-    // bitmap-font renderer (M4c) replaces this
-    if (!tm) return FALSE;
-    memset(tm, 0, sizeof *tm);
-    tm->tmHeight = 13;
-    tm->tmAscent = 11;
-    tm->tmAveCharWidth = 5;
-    tm->tmMaxCharWidth = 12;
-    return TRUE;
-}
+// TextOutA/GetTextMetricsA/GetTextExtentPoint32A are REAL as of M4c — gdi/mfxgdi.cpp
+// (genuine MS Sans Serif bitmap strikes, mfxfont_data.c).
 
 DWORD    GetVersion(void) { return 0xC3B60004; }   // report Win95 (4.0 build 950)
 HINSTANCE GetModuleHandleA(LPCSTR) { return 0; }

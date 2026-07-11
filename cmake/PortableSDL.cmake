@@ -85,7 +85,7 @@ add_custom_command(
   COMMENT "embed yoda.res -> mfxres_blob.c" VERBATIM)
 
 # ── microfx: the MFC/Win32 subset library ────────────────────────────────────────────────────
-file(GLOB_RECURSE _mfx_srcs "${_mfx}/src/*.cpp")
+file(GLOB_RECURSE _mfx_srcs "${_mfx}/src/*.cpp" "${_mfx}/src/*.c")
 add_library(microfx STATIC ${_mfx_srcs} "${_res_c}")
 target_include_directories(microfx PUBLIC "${_mfx}/include")
 # SDL2 becomes REQUIRED at M1 (gdi/) — keep M0 (core/) buildable without it.
