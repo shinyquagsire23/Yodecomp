@@ -131,6 +131,18 @@ extern "C" int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *
         SDL_PumpEvents();
         SDL_Delay(10);
     }
+
+    // The panel stole keyboard focus, queueing FOCUS_LOST (and maybe FOCUS_GAINED) that the
+    // spin above never polled. If we let the neutral pump drain a lone stale FOCUS_LOST later,
+    // CMainFrame::OnActivate pauses the game (nFrameMode=0/bBusy=1 → stuck on STUP) with no
+    // matching activate to wake it (SDL doesn't reliably re-emit FOCUS_GAINED on panel close).
+    // Drop the whole focus churn and re-raise: the game window IS active now, so it should
+    // simply stay in its pre-dialog state.
+    SDL_PumpEvents();
+    SDL_FlushEvent(SDL_EVENT_WINDOW_FOCUS_LOST);
+    SDL_FlushEvent(SDL_EVENT_WINDOW_FOCUS_GAINED);
+    SDL_RaiseWindow(s_pWin);
+
     if (res.nState != 1) return 0;     // cancelled
     strncpy(pszOut, res.szPath, nOutSize - 1);
     pszOut[nOutSize - 1] = 0;
