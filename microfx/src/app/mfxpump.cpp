@@ -60,6 +60,10 @@ static UINT MfxMouseFlags(void)
     return nFlags;
 }
 
+// software cursor state (MfxApplyCursor decides; MfxPresent composites it over the frame)
+static SDL_Surface *g_pMfxCursorSurf = 0;
+static int g_nMfxCursorHotX = 0, g_nMfxCursorHotY = 0;
+
 static void MfxPresent(SDL_Window *pWin)
 {
     MFXDIB dib;
@@ -77,10 +81,23 @@ static void MfxPresent(SDL_Window *pWin)
     SDL_SetPaletteColors(pSrc->format->palette, aColors, 0, 256);
     SDL_Surface *pWinSurf = SDL_GetWindowSurface(pWin);
     if (pWinSurf) {
+        int nScale = 1;
         if (pWinSurf->w == pSrc->w && pWinSurf->h == pSrc->h)
             SDL_BlitSurface(pSrc, 0, pWinSurf, 0);
-        else
+        else {
             SDL_BlitScaled(pSrc, 0, pWinSurf, 0);   // integer window scale (YODA_SCALE)
+            nScale = pSrc->w ? pWinSurf->w / pSrc->w : 1;
+            if (nScale < 1) nScale = 1;
+        }
+        // software cursor: composite over the scaled frame (hardware path leaves this 0)
+        SDL_Surface *pCur = g_pMfxCursorSurf;
+        if (pCur) {
+            SDL_Rect rcDst;
+            rcDst.x = (g_mfxCursorPos.x - g_nMfxCursorHotX) * nScale;
+            rcDst.y = (g_mfxCursorPos.y - g_nMfxCursorHotY) * nScale;
+            rcDst.w = pCur->w; rcDst.h = pCur->h;
+            SDL_BlitSurface(pCur, 0, pWinSurf, &rcDst);
+        }
         SDL_UpdateWindowSurface(pWin);
     }
     SDL_FreeSurface(pSrc);
@@ -97,15 +114,14 @@ static void MfxPresentOnScreenWrite(void)
 
 // ── cursors (M4): apply the game's SetCursor through SDL ────────────────────────────────────
 // The game drives cursor choice via WM_SETCURSOR → CDeskcppView::OnSetCursor → ::SetCursor
-// (11 directional/interaction .res cursors + IDC_ARROW + hide-during-drag NULL). We render
-// them as HARDWARE cursors (SDL_CreateColorCursor, scaled by the window scale). NOTE for the
-// possible DS port: keep this the only cursor surface — a software path can be added behind
-// a build option later without touching gdi/ (the game never draws the pointer itself).
-static SDL_Cursor *MfxMakeSdlCursor(const MFXIMG *pImg, int nScale)
+// (11 directional/interaction .res cursors + IDC_ARROW + hide-in-keyboard-mode/drag NULL).
+// DEFAULT: a SOFTWARE cursor — the decoded cursor image is composited over the window
+// surface at present time (chunky at the window scale, matches the game pixels; also the
+// path a DS port needs, and YODA_HWCURSOR=1 opts into SDL hardware color cursors).
+// IDC_ARROW / never-set keep the OS arrow (Win32 shows the class cursor until the game's
+// first SetCursor).
+static SDL_Surface *MfxMakeCursorSurface(const MFXIMG *pImg, int nScale)
 {
-    if (pImg->nSysCursor)
-        return SDL_CreateSystemCursor(pImg->nSysCursor == 32514 ? SDL_SYSTEM_CURSOR_WAIT
-                                                                : SDL_SYSTEM_CURSOR_ARROW);
     int w = pImg->nWidth * nScale, h = pImg->nHeight * nScale;
     SDL_Surface *pSurf = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
     if (!pSurf) return 0;
@@ -121,33 +137,59 @@ static SDL_Cursor *MfxMakeSdlCursor(const MFXIMG *pImg, int nScale)
             }
             pPix[(size_t)y * (pSurf->pitch / 4) + x] = v;
         }
-    SDL_Cursor *pCur = SDL_CreateColorCursor(pSurf, pImg->xHot * nScale, pImg->yHot * nScale);
-    SDL_FreeSurface(pSurf);
-    return pCur;
+    return pSurf;
 }
 
 static void MfxApplyCursor(int nScale)
 {
     static HCURSOR hLast = (HCURSOR)(ULONG_PTR)-1;
-    static struct { HCURSOR h; SDL_Cursor *p; } aCache[24];
+    static struct { HCURSOR h; SDL_Surface *pSurf; SDL_Cursor *pHw; int xHot, yHot; } aCache[24];
     static int nCache = 0;
-    if (g_mfxCursor == hLast) return;
+    static int nHwMode = -1;
+    if (nHwMode < 0) nHwMode = getenv("YODA_HWCURSOR") ? 1 : 0;
+
+    if (g_mfxCursor == hLast && g_mfxCursorEverSet) return;
     hLast = g_mfxCursor;
-    if (!g_mfxCursor) {                              // SetCursor(NULL) = hide (drag mode)
+
+    if (!g_mfxCursorEverSet) {                       // boot: class arrow (the OS one)
+        g_pMfxCursorSurf = 0;
+        SDL_ShowCursor(SDL_ENABLE);
+        return;
+    }
+    if (!g_mfxCursor) {                              // SetCursor(NULL) = hidden (faithful)
+        g_pMfxCursorSurf = 0;
         SDL_ShowCursor(SDL_DISABLE);
         return;
     }
-    SDL_Cursor *pCur = 0;
-    for (int i = 0; i < nCache; i++)
-        if (aCache[i].h == g_mfxCursor) { pCur = aCache[i].p; break; }
-    if (!pCur) {
-        MFXIMG img;
-        if (!MfxGetImage(g_mfxCursor, &img)) { SDL_ShowCursor(SDL_ENABLE); return; }
-        pCur = MfxMakeSdlCursor(&img, nScale);
-        if (pCur && nCache < 24) { aCache[nCache].h = g_mfxCursor; aCache[nCache].p = pCur; nCache++; }
+    MFXIMG img;
+    if (!MfxGetImage(g_mfxCursor, &img) || img.nSysCursor) {
+        g_pMfxCursorSurf = 0;                        // IDC_ARROW/WAIT: the OS arrow suffices
+        SDL_ShowCursor(SDL_ENABLE);
+        return;
     }
-    if (pCur) SDL_SetCursor(pCur);
-    SDL_ShowCursor(SDL_ENABLE);
+    int nHit = -1;
+    for (int i = 0; i < nCache; i++)
+        if (aCache[i].h == g_mfxCursor) { nHit = i; break; }
+    if (nHit < 0 && nCache < 24) {
+        nHit = nCache;
+        aCache[nHit].h = g_mfxCursor;
+        aCache[nHit].pSurf = MfxMakeCursorSurface(&img, nScale);
+        aCache[nHit].pHw = nHwMode && aCache[nHit].pSurf
+            ? SDL_CreateColorCursor(aCache[nHit].pSurf, img.xHot * nScale, img.yHot * nScale) : 0;
+        aCache[nHit].xHot = img.xHot; aCache[nHit].yHot = img.yHot;
+        nCache++;
+    }
+    if (nHit < 0) { SDL_ShowCursor(SDL_ENABLE); return; }
+    if (nHwMode && aCache[nHit].pHw) {
+        g_pMfxCursorSurf = 0;
+        SDL_SetCursor(aCache[nHit].pHw);
+        SDL_ShowCursor(SDL_ENABLE);
+    } else {
+        g_pMfxCursorSurf = aCache[nHit].pSurf;
+        g_nMfxCursorHotX = aCache[nHit].xHot;
+        g_nMfxCursorHotY = aCache[nHit].yHot;
+        SDL_ShowCursor(SDL_DISABLE);                 // we draw it ourselves
+    }
 }
 
 // ── the shared event core (M4): SDL events → MSGs in the posted queue ───────────────────────

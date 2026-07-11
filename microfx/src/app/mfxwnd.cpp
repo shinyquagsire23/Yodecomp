@@ -338,7 +338,9 @@ SHORT GetAsyncKeyState(int vKey)
 
 BOOL GetCursorPos(LPPOINT p) { if (p) *p = g_mfxCursorPos; return TRUE; }
 
-HCURSOR SetCursor(HCURSOR h) { HCURSOR hOld = g_mfxCursor; g_mfxCursor = h; return hOld; }
+int g_mfxCursorEverSet = 0;    // before the game's first SetCursor, Win32 shows the class arrow
+HCURSOR SetCursor(HCURSOR h)
+    { HCURSOR hOld = g_mfxCursor; g_mfxCursor = h; g_mfxCursorEverSet = 1; return hOld; }
 
 HWND SetCapture(HWND h)   { HWND hOld = g_mfxCapture; g_mfxCapture = h; return hOld; }
 BOOL ReleaseCapture(void) { g_mfxCapture = 0; return TRUE; }

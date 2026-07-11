@@ -42,5 +42,7 @@ extern POINT g_mfxCursorPos;      // last mouse position, client coords
 extern HWND  g_mfxCapture;
 extern HWND  g_mfxFocus;
 extern HCURSOR g_mfxCursor;       // last SetCursor() — the pump applies it (SDL cursor)
+extern "C" int g_mfxCursorEverSet;// 0 until the game's first SetCursor (leave the OS arrow)
+                                  // (defined inside mfxwnd.cpp's extern "C" USER block)
 
 #endif
