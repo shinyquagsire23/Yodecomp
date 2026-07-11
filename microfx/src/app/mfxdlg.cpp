@@ -18,6 +18,8 @@
 #include "mfxwnd.h"
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <dirent.h>
 
 extern "C" const unsigned char *MfxFindResourceData(unsigned nType, unsigned nId, unsigned *pnSize);
 #define RT_DIALOG_ID 5
@@ -536,5 +538,183 @@ int CDialog::DoModal()
     ::DeleteObject((HGDIOBJ)hFont);
     ::DeleteObject((HGDIOBJ)hFontBold);
     MfxSetDirty();
+    return m_nModalResult;
+}
+
+// ── CFileDialog::DoModal (H4 M5 tail, docs/phase-h4-sdl.md) ─────────────────────────────────────
+// SDL has no native common-file dialog, so this reuses the control kit above (DLGFRAME bevel +
+// CK_BUTTON rows) instead of parsing a DLGTEMPLATE: it lists *.<ext> files found in the save
+// directory as clickable rows — Save adds a leading "(new)" row for the caller's default
+// filename, Load lists only what exists — and a click commits immediately. No text-entry
+// control exists yet (M5 didn't add ATOM_EDIT), so renaming isn't offered; that's fine, the
+// game only ever asks for a save SLOT, not a name.
+// not static: exercised directly by the microfx/harness/dlg_smoke unit test (the modal loop
+// itself can't be driven headlessly — GetMessageA bails instantly with no SDL window, M4
+// lesson 12 — so the pure list/resolve logic is what a headless harness CAN verify).
+int MfxFileDialogScan(const char *pszDir, const char *pszExt, CString aNames[], int nMax)
+{
+    int nCount = 0;
+    DIR *pDir = opendir(pszDir && *pszDir ? pszDir : ".");
+    if (!pDir) return 0;
+    size_t nExtLen = strlen(pszExt);
+    struct dirent *pEnt;
+    while (nCount < nMax && (pEnt = readdir(pDir)) != 0) {
+        size_t nLen = strlen(pEnt->d_name);
+        if (nLen <= nExtLen + 1 || pEnt->d_name[nLen - nExtLen - 1] != '.') continue;
+        if (strcasecmp(pEnt->d_name + nLen - nExtLen, pszExt) != 0) continue;
+        aNames[nCount++] = pEnt->d_name;
+    }
+    closedir(pDir);
+    return nCount;
+}
+
+// row 0..N-1 = one button per listed file (Save also gets a leading "(new)" row for the
+// caller's default filename, unless that name is already one of the listed files).
+int MfxFileDialogBuildRows(int bOpenFileDialog, const CString &strDefault,
+                           const CString aFound[], int nFound,
+                           CString aRow[], UINT aRowId[], int nMaxRows, UINT idNew, UINT idRow0)
+{
+    int nRows = 0;
+    if (!bOpenFileDialog) {
+        int bHasDefault = 0;
+        for (int i = 0; i < nFound; i++) if (aFound[i] == strDefault) bHasDefault = 1;
+        if (!bHasDefault && nRows < nMaxRows) {
+            aRow[nRows] = strDefault + "  (new)"; aRowId[nRows] = idNew; nRows++;
+        }
+        for (int i = 0; i < nFound && nRows < nMaxRows; i++, nRows++) {
+            aRow[nRows] = (aFound[i] == strDefault) ? aFound[i] + "  (overwrite)" : aFound[i];
+            aRowId[nRows] = idRow0 + i;
+        }
+    } else {
+        for (int i = 0; i < nFound && nRows < nMaxRows; i++, nRows++) {
+            aRow[nRows] = aFound[i]; aRowId[nRows] = idRow0 + i;
+        }
+    }
+    return nRows;
+}
+
+// clicked row id -> full path. Falls back to strDefault for an out-of-range id (defensive:
+// the modal loop scopes WM_COMMAND to msg.hwnd==m_hWnd before calling this, but a stray
+// accelerator-originated command sharing the BN_CLICKED=0 HIWORD must never index OOB).
+CString MfxFileDialogResolve(UINT nChosenId, UINT idNew, UINT idRow0, const CString &strDefault,
+                             const CString aFound[], int nFound, const char *pszDir)
+{
+    CString strName;
+    int nIdx = (int)nChosenId - (int)idRow0;
+    if (nChosenId == idNew) strName = strDefault;
+    else if (nIdx >= 0 && nIdx < nFound) strName = aFound[nIdx];
+    else strName = strDefault;
+
+    CString strPath = pszDir;
+    if (strPath.GetLength() && strPath[strPath.GetLength() - 1] != '/') strPath += "/";
+    strPath += strName;
+    return strPath;
+}
+
+int CFileDialog::DoModal()
+{
+    const char *pszDir = (m_ofn.lpstrInitialDir && *m_ofn.lpstrInitialDir) ? m_ofn.lpstrInitialDir : ".";
+    const char *pszExt = m_ofn.lpstrDefExt ? (const char *)m_ofn.lpstrDefExt : "wld";
+
+    enum { MAX_FOUND = 8, ID_NEW = 90, ID_ROW0 = 100 };
+    CString aFound[MAX_FOUND];
+    int nFound = MfxFileDialogScan(pszDir, pszExt, aFound, MAX_FOUND);
+
+    CString strDefault = m_strPath;
+    if (strDefault.Find('.') < 0) { strDefault += "."; strDefault += pszExt; }
+
+    CString aRow[MAX_FOUND + 1]; UINT aRowId[MAX_FOUND + 1];
+    int nRows = MfxFileDialogBuildRows(m_bOpenFileDialog, strDefault, aFound, nFound,
+                                       aRow, aRowId, MAX_FOUND + 1, ID_NEW, ID_ROW0);
+
+    HFONT hFont = ::CreateFontA(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
+    HFONT hFontBold = ::CreateFontA(-8, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
+
+    const int ROW_H = 18, PAD = 8, BTN_W = 60, BTN_H = 16;
+    int clientW = 220;
+    int nRowsShown = nRows > 0 ? nRows : 1;
+    int clientH = PAD + nRowsShown * ROW_H + PAD + BTN_H + PAD;
+    int outerW = clientW + 2 * DLG_BORDER;
+    int outerH = clientH + 2 * DLG_BORDER + DLG_CAPTION;
+    HWND hRoot = MfxRootWnd();
+    int rootW = hRoot ? hRoot->rc.right - hRoot->rc.left : 525;
+    int rootH = hRoot ? hRoot->rc.bottom - hRoot->rc.top : 310;
+    int winX = (rootW - outerW) / 2; if (winX < 0) winX = 0;
+    int winY = (rootH - outerH) / 2; if (winY < 0) winY = 0;
+    int cliX = winX + DLG_BORDER, cliY = winY + DLG_BORDER + DLG_CAPTION;
+
+    CWnd *pParent = m_pParentWnd ? m_pParentWnd : AfxGetMainWnd();
+    RECT rcDlg = { winX, winY, winX + outerW, winY + outerH };
+    Create(0, 0, WS_VISIBLE, rcDlg, pParent, 0);
+
+    MfxDlgItem *aItems[16]; int nItems = 0;
+    MfxDlgItem *pFrame = new MfxDlgItem;
+    pFrame->m_kind = CK_DLGFRAME; pFrame->m_style = WS_CAPTION;
+    pFrame->m_hFont = hFont; pFrame->m_hFontBold = hFontBold;
+    pFrame->m_text = m_bOpenFileDialog ? "Load World" : "Save World";
+    pFrame->Create(0, 0, WS_VISIBLE, rcDlg, this, 0);
+    aItems[nItems++] = pFrame;
+
+    if (nRows == 0) {
+        MfxDlgItem *pLbl = new MfxDlgItem;
+        pLbl->m_kind = CK_LABEL; pLbl->m_align = 1; pLbl->m_hFont = hFont;
+        pLbl->m_text = "No saved games found.";
+        RECT rc = { cliX + PAD, cliY + PAD, cliX + clientW - PAD, cliY + PAD + ROW_H };
+        pLbl->Create(0, 0, WS_VISIBLE, rc, this, 0);
+        aItems[nItems++] = pLbl;
+    }
+    for (int i = 0; i < nRows && nItems < 15; i++) {
+        MfxDlgItem *pBtn = new MfxDlgItem;
+        pBtn->m_kind = CK_BUTTON; pBtn->m_hFont = hFont; pBtn->m_text = aRow[i];
+        RECT rc = { cliX + PAD, cliY + PAD + i * ROW_H,
+                    cliX + clientW - PAD, cliY + PAD + i * ROW_H + ROW_H - 2 };
+        pBtn->Create(0, 0, WS_VISIBLE, rc, this, aRowId[i]);
+        aItems[nItems++] = pBtn;
+    }
+    MfxDlgItem *pCancel = new MfxDlgItem;
+    pCancel->m_kind = CK_BUTTON; pCancel->m_hFont = hFont; pCancel->m_text = "Cancel";
+    RECT rcCancel = { cliX + clientW - PAD - BTN_W, cliY + clientH - PAD - BTN_H,
+                       cliX + clientW - PAD, cliY + clientH - PAD };
+    pCancel->Create(0, 0, WS_VISIBLE, rcCancel, this, IDCANCEL);
+    aItems[nItems++] = pCancel;
+
+    MfxSetDirty();
+    MfxPaintIfDirty();
+    if (const char *pszShot = getenv("YODA_DLGSHOT")) MfxWriteDibBMP(MfxScreenDC(), pszShot);
+
+    UINT nChosenId = 0;
+    m_nModalResult = -1;
+    while (m_nModalResult == -1) {
+        MSG msg;
+        if (!GetMessageA(&msg, 0, 0, 0)) { m_nModalResult = IDCANCEL; break; }
+        if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE) { m_nModalResult = IDCANCEL; break; }
+        // msg.hwnd==m_hWnd scopes this to OUR row/Cancel buttons (they post WM_COMMAND to their
+        // parent, i.e. this dialog) — a menu accelerator's WM_COMMAND(cmdId,0) to the FRAME
+        // shares BN_CLICKED's HIWORD==0 and must NOT be mistaken for a row click (would index
+        // aFound[] with a garbage id).
+        if (msg.message == WM_COMMAND && msg.hwnd == m_hWnd && HIWORD(msg.wParam) == BN_CLICKED) {
+            UINT id = LOWORD(msg.wParam);
+            m_nModalResult = (id == IDCANCEL) ? IDCANCEL : IDOK; nChosenId = id;
+            break;
+        }
+        if ((msg.message == WM_LBUTTONDOWN || msg.message == WM_LBUTTONUP ||
+             msg.message == WM_RBUTTONDOWN || msg.message == WM_MOUSEMOVE ||
+             msg.message == WM_KEYDOWN || msg.message == WM_KEYUP || msg.message == WM_CHAR) &&
+            !MfxIsDlgOwned(msg.hwnd, m_hWnd))
+            continue;
+        DispatchMessageA(&msg);
+    }
+
+    for (int i = nItems - 1; i >= 0; i--) {
+        if (MfxIsWnd(aItems[i]->m_hWnd)) ::DestroyWindow(aItems[i]->m_hWnd);
+        delete aItems[i];
+    }
+    if (MfxIsWnd(m_hWnd)) ::DestroyWindow(m_hWnd);
+    ::DeleteObject((HGDIOBJ)hFont);
+    ::DeleteObject((HGDIOBJ)hFontBold);
+    MfxSetDirty();
+
+    if (m_nModalResult == IDOK)
+        m_strPath = MfxFileDialogResolve(nChosenId, ID_NEW, ID_ROW0, strDefault, aFound, nFound, pszDir);
     return m_nModalResult;
 }

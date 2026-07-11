@@ -239,8 +239,16 @@ LRESULT CScrollBar::MfxCtlProc(UINT message, WPARAM, LPARAM lParam)
             return 0;
         }
         else if (nThumbTop >= 0) nCode = (y < nThumbTop) ? SB_PAGEUP : SB_PAGEDOWN;
-        if (nCode != (UINT)-1)
+        if (nCode != (UINT)-1) {
+            // InvScrollBar's reflected OnVScroll repaints the WHOLE item list as many small
+            // BitBlts; unbatched, each one fires a separate full-window present (playtest:
+            // ~2s stall per arrow click). One Hold/Release around the synchronous send
+            // collapses that to a single present, like MfxCtlPaint already does for our own
+            // drawing above.
+            MfxTouchHold();
             MfxSendMsg(hParent, WM_VSCROLL, MAKELONG(nCode, 0), (LPARAM)m_hWnd);
+            MfxTouchRelease(MfxScreenDC());
+        }
         return 0;
     }
     case WM_MOUSEMOVE:
@@ -252,7 +260,9 @@ LRESULT CScrollBar::MfxCtlProc(UINT message, WPARAM, LPARAM lParam)
                 int nPos = m_hWnd->nScrollMin + (y * nRange + nTravel / 2) / nTravel;
                 if (nPos < m_hWnd->nScrollMin) nPos = m_hWnd->nScrollMin;
                 if (nPos > m_hWnd->nScrollMax) nPos = m_hWnd->nScrollMax;
+                MfxTouchHold();
                 MfxSendMsg(hParent, WM_VSCROLL, MAKELONG(SB_THUMBTRACK, nPos), (LPARAM)m_hWnd);
+                MfxTouchRelease(MfxScreenDC());
             }
         }
         return 0;
@@ -260,8 +270,10 @@ LRESULT CScrollBar::MfxCtlProc(UINT message, WPARAM, LPARAM lParam)
         if (m_mfxDragging) {
             m_mfxDragging = 0;
             ::ReleaseCapture();
+            MfxTouchHold();
             MfxSendMsg(hParent, WM_VSCROLL,
                        MAKELONG(SB_THUMBPOSITION, m_hWnd->nScrollPos), (LPARAM)m_hWnd);
+            MfxTouchRelease(MfxScreenDC());
         }
         return 0;
     case WM_PAINT:

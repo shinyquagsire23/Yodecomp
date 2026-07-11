@@ -29,9 +29,10 @@ Phase H (extension — functional correctness, not byte-matching) status:
   (HUD/health dial/arrows, MS Sans Serif text, MODAL speech bubbles, .res strings/icons/cursors,
   scrollbar, teardown — all v79 user-confirmed), and (v80) REAL DIALOGS: CDialog::DoModal parses
   RT_DIALOG templates → controls → modal loop → DDX (About + option sliders screenshot-verified),
-  plus menu commands via the game's real accelerator table (Ctrl-chords → WM_COMMAND). Next:
-  save/load CFileDialog picker, a visible menu bar (accelerators substitute for now), INDY×SDL
-  in-game playtest.
+  plus menu commands via the game's real accelerator table (Ctrl-chords → WM_COMMAND), and
+  (v80 tail) a real save/load CFileDialog (SDL has no native picker — lists *.wld files as
+  clickable rows; unit-tested via new `dlg_smoke` harness, not yet live-screenshot-verified).
+  Next: a visible menu bar (accelerators substitute for now), INDY×SDL in-game playtest.
 
 ## ⭐ CURRENT GOALS (user-set 2026-07-10)
 
@@ -255,9 +256,13 @@ SetScrollRange (user-confirmed vs original): Difficulty 1-100 continuous, WorldS
 Small/Med/Large — the integer thumb math reflects both, no special-casing.
 
 **▶ GOAL 2 — H4 next (the main thread):**
-- **save/load CFileDialog** — still `MFX_STUB` → IDCANCEL (mfxstubs.cpp:246). Needs a file picker
-  (SDL has none native) or a fixed-slot fallback (the game's save format is self-consistent per
-  build). This is the last stubbed dialog.
+- **save/load CFileDialog** — DONE this session (mfxdlg.cpp, zero src/ edits): SDL has no native
+  picker, so it lists `*.wld` files in the save dir as clickable rows (Save adds a leading "(new)"
+  row) — see docs/phase-h4-sdl.md lesson 17 (the WM_COMMAND/BN_CLICKED-vs-accelerator collision
+  bug found + fixed) and `microfx/harness/dlg_smoke.cpp` (new unit-test harness for the
+  scan/build-rows/resolve logic — the modal loop itself can't be driven headlessly). Anchor
+  re-verified 211/99.17% (microfx-only change). NOT YET live-screenshot-verified (needs a real
+  windowed run — this session had no attached display) — do that before calling M5 fully closed.
 - **VISIBLE menu bar + dropdowns** — DEFERRED (accelerators already reach every command). If wanted:
   parse MENU id 2 (in the .res), render a bar + popups, hit-test → post WM_COMMAND. Substantial;
   the accelerator path is the pragmatic substitute.
@@ -268,7 +273,19 @@ Small/Med/Large — the integer thumb math reflects both, no special-casing.
   `<exebase>.INI` next to the binary; doc ctor re-picks the planet EVERY run and writes it back — reset
   before A/B runs. `worldgen_smoke <seed>` · `zone_view <seed> [--zone id] [--dump x.bmp] [--show]` ·
   `game_walk <seed>` · `YODA_SHOT=<pfx>[:n] ./yoda` · `YODA_AUTOKEY=<startms>:<vk>:<durms>` ·
-  `YODA_AUTOCMD=<startms>:<cmdhex>` (v80, opens dialogs) · `YODA_DLGSHOT=<path>` (v80, capture a modal).
+  `YODA_AUTOCMD=<startms>:<cmdhex>` (v80, opens dialogs; File>Save=0xe103, File>Load=0x800a) ·
+  `YODA_DLGSHOT=<path>` (v80, capture a modal) · `dlg_smoke` (v80 tail, headless CFileDialog
+  logic unit test — no window/game bootstrap needed) · `YODA_ACCEL=1` (v80 tail, OPT-IN
+  SDL_Renderer+texture present path — not yet live-verified, see docs/phase-h4-sdl.md) ·
+  `YODA_VSYNC=1` (re-adds PRESENTVSYNC under YODA_ACCEL, default is uncapped).
+- ⚠ **playtest perf note (user-reported 2026-07-10)**: clicking the inventory scrollbar's down
+  arrow used to stall ~2s before input worked again — the redraw-batching added for level
+  transitions wasn't applied to InvScrollBar's WM_VSCROLL-triggered item-list repaint (many
+  unbatched BitBlts → many full-window presents, each ~vsync-cost on macOS's window-surface
+  path). Fixed this session (mfxctl.cpp Hold/Release around the 3 WM_VSCROLL sends) — NOT YET
+  user-confirmed via live playtest. If still slow, or for other UI stalls, audit other
+  `MfxSendMsg`-into-game-handler call sites for the same missing-batching pattern, and try
+  `YODA_ACCEL=1` (see docs/phase-h4-sdl.md) as a deeper present-path fix.
 - Perf note (fine to ignore): scripted intro flights present per BitBlt (~55% CPU during busy-wait
   IACTs). If it bothers: rate-limit the present hook (~8ms), keep BitBlt immediate for transitions.
 

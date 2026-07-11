@@ -64,11 +64,71 @@ static UINT MfxMouseFlags(void)
 // software cursor state (MfxApplyCursor decides; MfxPresent composites it over the frame)
 static SDL_Surface *g_pMfxCursorSurf = 0;
 static int g_nMfxCursorHotX = 0, g_nMfxCursorHotY = 0;
+static int g_nMfxScale = 2;    // integer window scale (YODA_SCALE); set once in Run()
+
+// ── YODA_ACCEL=1 (opt-in): SDL_Renderer + streaming texture present path ────────────────────
+// The default path below (SDL_GetWindowSurface/SDL_UpdateWindowSurface) is a CPU blit that,
+// per SDL2's Cocoa backend, effectively syncs with the window compositor on every call — fine
+// for one present/frame, but the mfxctl.cpp Hold/Release fix exists precisely because a
+// pre-fix unbatched repaint could fire dozens of these in one synchronous handler (that's the
+// "~2s inventory stall" bug, not a per-draw-operation vsync wait). This path makes each
+// INDIVIDUAL present itself cheaper too (GPU-scaled RenderCopy instead of a CPU BlitScaled +
+// full window-surface flush) — a separate, complementary optimization. Opt-in (not the
+// default) because it hasn't been screenshot-verified against a live window yet; the legacy
+// path below is UNCHANGED when YODA_ACCEL is unset, so this carries zero regression risk to
+// the confirmed-working default. YODA_VSYNC=1 re-adds SDL_RENDERER_PRESENTVSYNC if the
+// uncapped default causes tearing worth trading back for.
+static SDL_Renderer *g_pMfxRen = 0;
+static SDL_Texture  *g_pMfxFrameTex = 0;
+
+static void MfxPresentAccel(MFXDIB *pDib)
+{
+    Uint32 aArgb[256];
+    for (int i = 0; i < 256; i++)
+        aArgb[i] = 0xff000000u | ((Uint32)pDib->pPal[i].rgbRed << 16) |
+                   ((Uint32)pDib->pPal[i].rgbGreen << 8) | pDib->pPal[i].rgbBlue;
+
+    void *pPix; int nPitch;
+    if (SDL_LockTexture(g_pMfxFrameTex, 0, &pPix, &nPitch) == 0) {
+        for (int y = 0; y < pDib->nHeight; y++) {
+            Uint32 *pDstRow = (Uint32 *)((Uint8 *)pPix + (size_t)y * nPitch);
+            const unsigned char *pSrcRow = pDib->pBits + (size_t)y * pDib->nWidth;
+            for (int x = 0; x < pDib->nWidth; x++) pDstRow[x] = aArgb[pSrcRow[x]];
+        }
+        SDL_UnlockTexture(g_pMfxFrameTex);
+    }
+    SDL_RenderClear(g_pMfxRen);
+    SDL_RenderCopy(g_pMfxRen, g_pMfxFrameTex, 0, 0);
+
+    // software cursor: g_pMfxCursorSurf is pre-scaled by g_nMfxScale (MfxMakeCursorSurface) —
+    // same rcDst math as the legacy path, just drawn via a cached texture + RenderCopy.
+    if (g_pMfxCursorSurf) {
+        static SDL_Surface *pLastSurf = 0;
+        static SDL_Texture *pLastTex = 0;
+        if (pLastSurf != g_pMfxCursorSurf) {
+            if (pLastTex) SDL_DestroyTexture(pLastTex);
+            pLastTex = SDL_CreateTextureFromSurface(g_pMfxRen, g_pMfxCursorSurf);
+            if (pLastTex) SDL_SetTextureBlendMode(pLastTex, SDL_BLENDMODE_BLEND);
+            pLastSurf = g_pMfxCursorSurf;
+        }
+        if (pLastTex) {
+            SDL_Rect rcDst;
+            rcDst.x = (g_mfxCursorPos.x - g_nMfxCursorHotX) * g_nMfxScale;
+            rcDst.y = (g_mfxCursorPos.y - g_nMfxCursorHotY) * g_nMfxScale;
+            rcDst.w = g_pMfxCursorSurf->w; rcDst.h = g_pMfxCursorSurf->h;
+            SDL_RenderCopy(g_pMfxRen, pLastTex, 0, &rcDst);
+        }
+    }
+    SDL_RenderPresent(g_pMfxRen);
+}
 
 static void MfxPresent(SDL_Window *pWin)
 {
     MFXDIB dib;
     if (!MfxGetDCDib(MfxScreenDC(), &dib)) return;
+
+    if (g_pMfxRen && g_pMfxFrameTex) { MfxPresentAccel(&dib); return; }
+
     SDL_Surface *pSrc = SDL_CreateRGBSurfaceWithFormatFrom(dib.pBits,
         dib.nWidth, dib.nHeight, 8, dib.nWidth, SDL_PIXELFORMAT_INDEX8);
     if (!pSrc) return;
@@ -197,7 +257,6 @@ static void MfxApplyCursor(int nScale)
 // Both CWinThread::Run AND the game's own modal loops (TextDialog::Run via GetMessageA)
 // retrieve messages from ONE queue, Win32-style. Direct-send stays for window housekeeping
 // (activation, SC_CLOSE); input becomes queued MSGs so modal loops can filter/dispatch them.
-static int g_nMfxScale = 2;
 static int g_nMfxQuitRequests = 0;
 
 static void MfxQueueInput(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -383,6 +442,24 @@ int CWinThread::Run()
     g_pMfxPresentWin = pWin;
     MfxSetScreenWriteHook(MfxScreenDC(), MfxPresentOnScreenWrite);
 
+    if (getenv("YODA_ACCEL")) {
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");   // nearest — the chunky pixel-art look
+        Uint32 nRenFlags = SDL_RENDERER_ACCELERATED;
+        if (getenv("YODA_VSYNC")) nRenFlags |= SDL_RENDERER_PRESENTVSYNC;
+        g_pMfxRen = SDL_CreateRenderer(pWin, -1, nRenFlags);
+        if (g_pMfxRen) {
+            SDL_RenderSetLogicalSize(g_pMfxRen, nW * nScale, nH * nScale);
+            g_pMfxFrameTex = SDL_CreateTexture(g_pMfxRen, SDL_PIXELFORMAT_ARGB8888,
+                                               SDL_TEXTUREACCESS_STREAMING, nW, nH);
+        }
+        if (!g_pMfxRen || !g_pMfxFrameTex) {
+            fprintf(stderr, "microfx: YODA_ACCEL renderer init failed (%s) — "
+                            "falling back to window-surface present\n", SDL_GetError());
+            if (g_pMfxFrameTex) { SDL_DestroyTexture(g_pMfxFrameTex); g_pMfxFrameTex = 0; }
+            if (g_pMfxRen) { SDL_DestroyRenderer(g_pMfxRen); g_pMfxRen = 0; }
+        }
+    }
+
     while (!g_mfxQuit) {
         CView *pViewNow = MfxRootWnd() ? ((CFrameWnd *)MfxRootWnd()->pWnd)->GetActiveView() : 0;
         HWND hView = pViewNow ? pViewNow->m_hWnd : 0;
@@ -461,6 +538,8 @@ int CWinThread::Run()
 
     MfxSetScreenWriteHook(0, 0);
     g_pMfxPresentWin = 0;
+    if (g_pMfxFrameTex) { SDL_DestroyTexture(g_pMfxFrameTex); g_pMfxFrameTex = 0; }
+    if (g_pMfxRen) { SDL_DestroyRenderer(g_pMfxRen); g_pMfxRen = 0; }
 
     // real window teardown (M4e): the polite-exit path previously never ran the view dtor,
     // so ~CDeskcppView's WaveMixCloseSession was unreached (audio reclaimed by the OS).

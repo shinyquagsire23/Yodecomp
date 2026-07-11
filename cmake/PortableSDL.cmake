@@ -131,6 +131,10 @@ else()
     "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
 endif()
 
+# ── M5 tail oracle: CFileDialog scan/build-rows/resolve unit test (no game bootstrap needed) ──
+add_executable(dlg_smoke "${_mfx}/harness/dlg_smoke.cpp")
+target_link_libraries(dlg_smoke PRIVATE microfx)
+
 # ── M1 oracle: render a zone through the real Canvas/gdi path (BMP dump; --show = SDL window) ─
 add_executable(zone_view "${_mfx}/harness/zone_view.cpp")
 target_include_directories(zone_view PRIVATE "${_src}")

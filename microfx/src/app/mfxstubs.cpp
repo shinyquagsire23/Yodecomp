@@ -242,7 +242,8 @@ CFileDialog::CFileDialog(BOOL bOpenFileDialog, LPCSTR lpszDefExt, LPCSTR lpszFil
     m_ofn.lpstrDefExt = lpszDefExt;
     if (lpszFileName) m_strPath = lpszFileName;
 }
-int CFileDialog::DoModal() { MFX_STUB(); return IDCANCEL; }
+// CFileDialog::DoModal is REAL as of M5 tail (app/mfxdlg.cpp: no OS file picker on SDL, so it
+// lists *.<ext> files in the save dir as clickable rows — see the comment there).
 CString CFileDialog::GetPathName() const { return m_strPath; }
 
 CWinThread::CWinThread() : m_pMainWnd(0), m_bAutoDelete(TRUE), m_hThread(0) {}

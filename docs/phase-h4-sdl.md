@@ -10,8 +10,11 @@ title, LucasArts icon, wrapped credits group box, OK button) and the Combat Diff
 (0x6f — horizontal scrollbar w/ thumb at the value, Easy/Medium/Hard labels, OK/Cancel). Menus
 delivered via the game's REAL accelerator table (RT_ACCELERATOR id 2): Ctrl-chord WM_KEYDOWNs
 translate to WM_COMMAND in CWinThread::Run (Ctrl+A About, Ctrl+C/G/W the sliders, Ctrl+T Stats,
-etc.) — no OS menu bar needed. Remaining: save/load CFileDialog (still stub → IDCANCEL), a
-VISIBLE menu bar (deferred — accelerators cover the commands), INDY×SDL in-game playtest.
+etc.) — no OS menu bar needed. CFileDialog::DoModal is now REAL too (v80 tail): SDL has no
+native common-file dialog, so it lists `*.<ext>` files in the save dir as clickable rows (Save
+adds a leading "(new)" row for the default filename) instead of parsing a DLGTEMPLATE — see the
+milestone entry below. Remaining: a VISIBLE menu bar (deferred — accelerators cover the
+commands), INDY×SDL in-game playtest.
 New test hooks: YODA_AUTOCMD=<ms>:<cmdhex> posts a command deterministically; YODA_DLGSHOT=<path>
 dumps the composited dialog (YODA_SHOT stalls inside modal loops). ⭐ NOTE (user-confirmed vs the
 original): slider "snap" is EMERGENT from each dialog's byte-matched SetScrollRange, not special-cased
@@ -307,9 +310,9 @@ REAL as of M4 (v79): the whole HUD/bubble chrome — see the M4 milestone entry 
 full inventory (res loader, GDI drawing, MS Sans Serif text, modal GetMessage + CEdit +
 CBitmapButton + CScrollBar, software cursors, teardown).
 REAL as of M5 (v80): CDialog::DoModal (RT_DIALOG parse → controls → modal loop → DDX; About +
-sliders verified), GetDlgItem/CenterWindow, DDX_Text, and menu commands via the real accelerator
-table (Ctrl-chords → WM_COMMAND). STILL STUBBED: CFileDialog::DoModal → IDCANCEL (save/load
-picker), a visible menu bar (accelerators substitute).
+sliders verified), GetDlgItem/CenterWindow, DDX_Text, menu commands via the real accelerator
+table (Ctrl-chords → WM_COMMAND), and CFileDialog::DoModal (hand-rolled *.wld row picker, no
+DLGTEMPLATE — see below). STILL STUBBED: a visible menu bar (accelerators substitute).
 ⚠ Worldgen requires a REAL planet: `Generate` filters zones by `pZone->planet == currentPlanet`,
 so Terrain=-1 in the INI (Indy writes -1 into a shared bottle INI — Indy zones carry planet=-1)
 makes Yoda worldgen retry FOREVER; with a YODA_SEED-pinned Randomize that's a 100%-CPU hang on
@@ -487,10 +490,67 @@ microfx/
     conflict).
   - VERIFIED: About (0xe140) + Difficulty (0x8005) screenshots faithful; anchor 211 (zero src/
     edits — all microfx/); bugscan 0/0/0, vtcheck 10, msgcheck 11 CLEAN.
-  - REMAINING: save/load CFileDialog (stub → IDCANCEL — needs a picker or fixed-slot fallback);
-    a VISIBLE menu bar + dropdowns (deferred; accelerators cover the commands); F8 status box
-    (CTextDialog 0xbf) + Stats (0xe1, demo template corrupt) exercise DDX but aren't accel- or
-    command-triggerable — spot-check via a live Ctrl+F8 / the FULL build; INDY×SDL in-game playtest.
+  - **CFileDialog::DoModal (v80 tail, ZERO src/ edits — microfx/src/app/mfxdlg.cpp)**: SDL has no
+    native common-file dialog, so this reuses the M5 control kit (DLGFRAME bevel + CK_BUTTON rows)
+    instead of parsing a DLGTEMPLATE — there's no RT_DIALOG resource for a system file picker to
+    begin with. Scans the save dir (`m_ofn.lpstrInitialDir`, empty → CWD, which IS the run folder —
+    `lpszSaveDir` is never assigned in the transcribed source, so it's always NULL/empty in
+    practice) for `*.<ext>` files (`opendir`/`readdir`); Save lists them as overwrite targets plus
+    a leading "(new)" row for the caller's default filename (skipped if that name already exists);
+    Load lists only what's found, or a "No saved games found" label. A row click commits
+    immediately — no text-entry control exists yet (M5 didn't add ATOM_EDIT), so renaming isn't
+    offered; the game only ever asks for a save SLOT, not a name, so this isn't a real gap.
+    ⭐ Lesson 17: the modal loop intercepts `WM_COMMAND` with `HIWORD(wParam)==BN_CLICKED` (i.e.
+    0) to detect row clicks — but a menu accelerator's `WM_COMMAND(cmdId, 0)` to the FRAME shares
+    that same HIWORD. Without also checking `msg.hwnd==m_hWnd` (row buttons post to their parent,
+    i.e. this dialog), a stray Ctrl-chord fired while the picker is open would be misread as a
+    row id and index `aFound[]` out of bounds. Fixed by scoping the interception to
+    `msg.hwnd==m_hWnd`; `MfxFileDialogResolve` also falls back to the default name on an
+    out-of-range id as a second line of defense. The scan/build-rows/resolve logic is factored
+    into free functions (not `static`) specifically so `microfx/harness/dlg_smoke.cpp` — a new
+    unit-test harness, `cmake --build build-sdl --target dlg_smoke` — can exercise it directly
+    against a real temp directory; the full modal loop can't be driven headlessly (GetMessageA
+    bails instantly with no SDL window, same M4 lesson 12 as everything else here), so this is the
+    verification ceiling reachable without a live windowed run.
+  - REMAINING: a VISIBLE menu bar + dropdowns (deferred; accelerators cover the commands); F8
+    status box (CTextDialog 0xbf) + Stats (0xe1, demo template corrupt) exercise DDX but aren't
+    accel- or command-triggerable — spot-check via a live Ctrl+F8 / the FULL build; INDY×SDL
+    in-game playtest; live-window screenshot verification of the save/load picker itself (only
+    unit-tested so far, not screenshot-confirmed like About/Difficulty were).
+  - **inventory-scroll present-batching fix (playtest report: ~2s stall clicking the down
+    arrow)**: `microfx/src/app/mfxctl.cpp`'s `CScrollBar::MfxCtlProc` sends `WM_VSCROLL`
+    synchronously to the game's real `InvScrollBar::OnVScroll` (the v79h fix that made this
+    handler actually run — see the `MfxTouchHold`/`MfxTouchRelease` framework comment at the
+    top of mfxgdi.cpp). That handler repaints the WHOLE item list as many small `BitBlt`s; each
+    unbatched one fired a SEPARATE full-window present. `SDL_UpdateWindowSurface` (the default,
+    non-`YODA_ACCEL` present path) effectively syncs with the compositor per call on macOS —
+    ~16ms × dozens of icon blits ≈ the reported ~2s. Fix: wrap all three `MfxSendMsg(hParent,
+    WM_VSCROLL, ...)` call sites (line-down/page click, thumb drag, thumb release) in
+    `MfxTouchHold()`/`MfxTouchRelease(MfxScreenDC())`, collapsing the whole synchronous handler
+    chain into ONE present — same idiom `MfxCtlPaint()` already uses for its own drawing, and
+    `mfxwnd.cpp`'s child-repaint pass. This is a GENERAL pattern worth auditing for elsewhere:
+    any code that calls `MfxSendMsg`/dispatches into game handlers that redraw multiple things
+    should Hold/Release around the send, not just around its own painting.
+  - **YODA_ACCEL=1 (opt-in): SDL_Renderer + streaming-texture present path**
+    (`microfx/src/app/mfxpump.cpp`, `MfxPresentAccel`) — a follow-up perf question (is
+    `SDL_UpdateWindowSurface` itself, not just unbatched call COUNT, an inherently expensive
+    per-present operation on macOS?). Default path unchanged: `SDL_GetWindowSurface` +
+    `SDL_BlitScaled` + `SDL_UpdateWindowSurface`, a CPU blit that syncs with the window
+    compositor every call. `YODA_ACCEL=1` creates an `SDL_Renderer` (`SDL_RENDERER_ACCELERATED`,
+    no `SDL_RENDERER_PRESENTVSYNC` unless `YODA_VSYNC=1` is also set) + one streaming
+    `SDL_Texture` sized to the UNSCALED game resolution, with `SDL_RenderSetLogicalSize` set to
+    `nW*nScale × nH*nScale` so `SDL_RenderCopy` reproduces the exact scaling `SDL_BlitScaled`
+    did — GPU-scaled instead of CPU-scaled, and each present is a texture upload + RenderCopy +
+    RenderPresent rather than a full window-surface flush. The software cursor reuses the
+    EXISTING pre-scaled `g_pMfxCursorSurf` (unchanged `MfxMakeCursorSurface`) wrapped in a
+    cached `SDL_Texture`, with the IDENTICAL `rcDst` math the legacy path uses — the only new
+    code is the texture wrap + `RenderCopy` call, not new coordinate logic. **Opt-in, not
+    default**, specifically because it hasn't been screenshot-verified against a live window
+    (this session had no attached display) — the legacy path is byte-for-byte unchanged when
+    `YODA_ACCEL` is unset, so this carries ZERO regression risk to the confirmed-working
+    default. Before flipping the default: `./run_sdl.sh` with `YODA_ACCEL=1` set, confirm the
+    frame renders correctly (colors/scale/cursor), A/B the inventory-scroll feel against the
+    default path, then decide whether to make it the default or drop it if it doesn't help.
 - **Done when:** native SDL Yoda Stories runs on macOS AND `tools/progress.py` still reports 211 exact
   (trivially true if TU edits stay at zero; verify anyway after any shared edit).
 
