@@ -382,8 +382,26 @@ Story persistence across app restarts, and gameplay under the corrected conditio
 (NOTE: the user runs `cd YodaIndy && ./yoda` — copy `build-sdl-indy/yoda` there first, or ask;
 an unsolicited cp was declined mid-v85, the user copies it themselves). (2) The LAST GOAL-1
 item: hero-HP tail (DESKADV IndyGenerate tail sets the hero entity+0x90=120 + a UI timer; we
-set only doc fields — wire the hero Character HP at world entry). (3) GOAL 3 RE sweep / SDL3
-native file dialog (research note below) as fill.
+set only doc fields — wire the hero Character HP at world entry). (3) GOAL 3 RE sweep as fill.
+
+**▶ ⭐ TODO (user-requested 2026-07-11) — give `AfxMessageBox` a PROPER implementation.** Both
+overloads (microfx/src/core/mfxcore.cpp:613/619) are still the M-era headless STUB: they
+`fprintf(stderr, "microfx: AfxMessageBox: %s")` and auto-return `IDYES`/`IDOK` (whatever the
+MB_ button set defaults to). That was fine to keep the game unblocked headless, but live it means
+every confirm ("Leave Yoda Stories?", "This command will discard the current world. Replay
+anyway?", the OOM/data-file errors) is INVISIBLE and auto-answered — the user never sees the
+prompt. Make it a REAL in-window modal, reusing the M5 dialog machinery already in
+microfx/src/app/mfxdlg.cpp (CDialog::DoModal's control kit — DLGFRAME bevel + word-wrapped
+CK_LABEL for the text + CK_BUTTON/CK_DEFBUTTON rows for the MB_ button set, its own
+GetMessageA modal loop, return IDOK/IDCANCEL/IDYES/IDNO/etc). ⚠ Watch: (a) AfxMessageBox lives
+in core/ (mfxcore.cpp) but the dialog kit is in app/ (mfxdlg.cpp) — either move the impl to
+app/ or expose a small MfxShowMessageBox() from app/ that core/ calls (keep the headless-safe
+auto-answer as the fallback when `!g_bMfxPlatUp`, so worldgen_smoke/game_walk/dlg_smoke stay
+non-blocking — gate on the same platform-up flag the modal loops already use). (b) size the box
+to the wrapped text; map the MB_ flags (MB_OK/MB_OKCANCEL/MB_YESNO/MB_YESNOCANCEL) to the button
+rows + return codes. (c) the SDL3 backend now has a native path precedent (MfxPlatShowFileDialog)
+— a native OS message box (SDL_ShowSimpleMessageBox) is an OPTION but the in-window route keeps
+the retro look and needs no new contract hook; recommend in-window first.
 
 **▶ Research note (from the user, unexplored):** SDL3 has a native file-dialog API
 (`SDL_ShowOpenFileDialog`, https://wiki.libsdl.org/SDL3/SDL_ShowOpenFileDialog) — worth splitting
