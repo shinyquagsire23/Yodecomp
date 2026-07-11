@@ -29,6 +29,10 @@ int MfxWriteDibBMP(HDC hdc, const char *pszPath);
 // screen-DC visibility. Pass (0, 0) to unregister.
 void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
 
+// Overlay hook: fired BEFORE the present hook on every screen-DC write — the window layer
+// re-composites visible child controls over the view (they're not separate surfaces here).
+void MfxSetScreenOverlayHook(HDC hdcScreen, void (*pfn)(void));
+
 // ── M4 resources: decoded image view of an HICON/HCURSOR/resource-bitmap handle ─────────────
 // (res/mfxres.cpp decodes the .res blob into MfxImg objects; gdi/mfxgdi.cpp draws them.)
 typedef struct MFXIMG {

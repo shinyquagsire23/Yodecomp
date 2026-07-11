@@ -14,11 +14,14 @@ struct HWND__ {                  // a window: an MFC object + a rect in root-cli
     UINT     nId;                // child id (AFX_IDW_PANE_FIRST for the view)
     RECT     rc;                 // client rect; root: {0,0,cx,cy}
     int      bVisible;
+    int      bEnabled;           // EnableWindow state (M4 controls)
 };
 
 int  MfxIsWnd(HWND h);
 HWND MfxRootWnd();               // the first parentless window created (the main frame), or 0
 HDC  MfxScreenDC();              // the shared screen DC (8bpp DIB attached when the root exists)
+HWND MfxWndFromPoint(POINT pt);  // deepest visible child under pt (mouse routing), else 0
+void MfxPaintChildren();         // MfxCtlPaint every visible child control (after a view paint)
 
 // Message delivery: walk pWnd's message-map chain, decode the AfxSig, call the handler.
 // Returns the handler's result; 0 if no map entry matched (Win32 "default" behavior).
@@ -26,6 +29,7 @@ LRESULT MfxDispatchMsg(CWnd *pWnd, UINT message, WPARAM wParam, LPARAM lParam);
 LRESULT MfxSendMsg(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 int  MfxGetPostedMsg(MSG *pMsg);  // pop one PostMessage'd MSG; 1 = got one
+int  MfxNextDueTimer(MSG *pMsg);  // one due timer as a WM_TIMER MSG; 1 = got one
 void MfxPumpTimers();             // fire due timers (WM_TIMER via MfxSendMsg)
 void MfxSetDirty();               // request a WM_PAINT on the next MfxPaintIfDirty
 void MfxPaintIfDirty();           // deliver WM_PAINT to the active view if invalidated

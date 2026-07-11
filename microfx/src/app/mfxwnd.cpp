@@ -16,6 +16,7 @@
 #include <microfx.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 // ── globals ──────────────────────────────────────────────────────────────────────────────────
 int   g_mfxQuit = 0;
@@ -32,6 +33,37 @@ static int  g_bDirty = 0;
 
 int  MfxIsWnd(HWND h) { return h && h->nTag == MFX_TAG_WND; }
 HWND MfxRootWnd()     { return g_hRoot; }
+int  MfxWndVisible(HWND h) { return MfxIsWnd(h) ? h->bVisible : 0; }
+int  MfxWndEnabled(HWND h) { return MfxIsWnd(h) ? h->bEnabled : 0; }
+
+// window registry (M4): mouse hit-testing and child painting need to enumerate windows
+static HWND g_aWnds[64];
+static int  g_nWnds = 0;
+
+HWND MfxWndFromPoint(POINT pt)
+{
+    // children are all direct children of the view/frame at fixed rects — last created wins
+    HWND hHit = 0;
+    for (int i = 0; i < g_nWnds; i++) {
+        HWND h = g_aWnds[i];
+        if (!MfxIsWnd(h) || !h->bVisible || !h->hParent) continue;
+        if (h == g_hRoot) continue;
+        if (h->nId == AFX_IDW_PANE_FIRST) continue;              // the view: fallback target
+        if (pt.x >= h->rc.left && pt.x < h->rc.right &&
+            pt.y >= h->rc.top  && pt.y < h->rc.bottom)
+            hHit = h;
+    }
+    return hHit;
+}
+
+void MfxPaintChildren()
+{
+    for (int i = 0; i < g_nWnds; i++) {
+        HWND h = g_aWnds[i];
+        if (MfxIsWnd(h) && h->bVisible && h->hParent && h->nId != AFX_IDW_PANE_FIRST && h->pWnd)
+            h->pWnd->MfxCtlPaint();
+    }
+}
 
 HDC MfxScreenDC()
 {
@@ -59,6 +91,8 @@ static void MfxCreateScreenDib(int cx, int cy)
     HBITMAP hDib = ::CreateDIBSection(MfxScreenDC(), (BITMAPINFO *)&bmi, 0, &pBits, 0, 0);
     if (hDib)
         ::SelectObject(MfxScreenDC(), hDib);     // old (none) not tracked — screen DIB is permanent
+    // children re-composite over every screen write (DrawGameArea would erase them otherwise)
+    MfxSetScreenOverlayHook(MfxScreenDC(), MfxPaintChildren);
 }
 
 // ── message-map dispatch engine ──────────────────────────────────────────────────────────────
@@ -159,9 +193,18 @@ LRESULT MfxDispatchMsg(CWnd *pWnd, UINT message, WPARAM wParam, LPARAM lParam)
     if (message == WM_COMMAND)
         return MfxDispatchCommand(pWnd, wParam, lParam);
     const AFX_MSGMAP_ENTRY *pE = MfxFindEntry(pWnd, message, 0, 0);
-    if (!pE) return 0;                            // unhandled → DefWindowProc-equivalent
+    if (!pE)                                      // unhandled → DefWindowProc-equivalent:
+        return pWnd->MfxCtlProc(message, wParam, lParam);   // controls do EM_*/BM_*/paint here
     return MfxCallEntry(pWnd, pE, wParam, lParam);
 }
+
+// default "DefWindowProc": most messages ignored; base CWnd controls have no extra behavior
+LRESULT CWnd::MfxCtlProc(UINT message, WPARAM, LPARAM)
+{
+    if (message == WM_PAINT) { MfxCtlPaint(); return 0; }
+    return 0;
+}
+void CWnd::MfxCtlPaint() {}
 
 LRESULT MfxSendMsg(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -188,14 +231,30 @@ int MfxGetPostedMsg(MSG *pMsg)
 struct MfxTimer { HWND hWnd; UINT nId; UINT nElapse; DWORD nNext; int bUsed; };
 static MfxTimer g_aTimers[16];
 
-void MfxPumpTimers()
+// one due timer → a WM_TIMER MSG (modal GetMessage loops retrieve timers as messages,
+// exactly like Win32 — TextDialog::Run's auto-repeat is a WM_TIMER wParam 1 in the queue)
+int MfxNextDueTimer(MSG *pMsg)
 {
     DWORD now = GetTickCount();
     for (int i = 0; i < 16; i++) {
         if (!g_aTimers[i].bUsed || (LONG)(now - g_aTimers[i].nNext) < 0) continue;
         g_aTimers[i].nNext = now + g_aTimers[i].nElapse;   // coalesce missed ticks (Win32-like)
-        MfxSendMsg(g_aTimers[i].hWnd, WM_TIMER, g_aTimers[i].nId, 0);
+        pMsg->hwnd = g_aTimers[i].hWnd;
+        pMsg->message = WM_TIMER;
+        pMsg->wParam = g_aTimers[i].nId;
+        pMsg->lParam = 0;
+        pMsg->time = now;
+        pMsg->pt = g_mfxCursorPos;
+        return 1;
     }
+    return 0;
+}
+
+void MfxPumpTimers()
+{
+    MSG msg;
+    while (MfxNextDueTimer(&msg))
+        MfxSendMsg(msg.hwnd, msg.message, msg.wParam, msg.lParam);
 }
 
 // ── paint ────────────────────────────────────────────────────────────────────────────────────
@@ -214,6 +273,7 @@ void MfxPaintIfDirty()
     // (a non-gray probe pixel triggers a full RedrawWindow every blit — a redraw storm).
     MfxDispatchMsg(pView, WM_ERASEBKGND, (WPARAM)MfxScreenDC(), 0);
     MfxDispatchMsg(pView, WM_PAINT, 0, 0);        // → CView::OnPaint → OnDraw(screen DC)
+    MfxPaintChildren();                           // controls paint OVER the view (z-order)
 }
 
 // ── USER C API (real implementations; the M0 stubs for these are gone) ───────────────────────
@@ -288,8 +348,53 @@ HWND GetActiveWindow(void) { return g_hRoot; }
 BOOL ShowWindow(HWND hWnd, int nCmdShow)
 {
     if (!MfxIsWnd(hWnd)) return FALSE;
+    int bWas = hWnd->bVisible;
     hWnd->bVisible = (nCmdShow != SW_HIDE);
-    if (hWnd->bVisible) MfxSetDirty();
+    if (hWnd->bVisible) {
+        if (hWnd->hParent && hWnd->nId != AFX_IDW_PANE_FIRST) {
+            (void)bWas;                           // even a redundant show repaints (the game
+            if (hWnd->pWnd)                       // re-shows AFTER blitting over the controls)
+                hWnd->pWnd->MfxCtlPaint();
+        } else
+            MfxSetDirty();                        // frame/view: every show marks a paint
+    }
+    return TRUE;
+}
+
+BOOL EnableWindow(HWND hWnd, BOOL bEnable)
+{
+    if (!MfxIsWnd(hWnd)) return FALSE;
+    int bWas = hWnd->bEnabled;
+    hWnd->bEnabled = bEnable ? 1 : 0;
+    if (bWas != hWnd->bEnabled && hWnd->bVisible && hWnd->pWnd && hWnd->pWnd->m_mfxRedraw)
+        hWnd->pWnd->MfxCtlPaint();                // bitmap buttons swap to the X/U face
+    return !bWas;
+}
+
+BOOL MoveWindow(HWND hWnd, int x, int y, int cx, int cy, BOOL bRepaint)
+{
+    if (!MfxIsWnd(hWnd)) return FALSE;
+    SetRect(&hWnd->rc, x, y, x + cx, y + cy);
+    if (bRepaint && hWnd->bVisible && hWnd->pWnd && hWnd->pWnd->m_mfxRedraw)
+        hWnd->pWnd->MfxCtlPaint();
+    return TRUE;
+}
+
+BOOL SetWindowPos(HWND hWnd, HWND, int x, int y, int cx, int cy, UINT nFlags)
+{
+    if (!MfxIsWnd(hWnd)) return FALSE;
+    int w = (nFlags & SWP_NOSIZE) ? hWnd->rc.right - hWnd->rc.left : cx;
+    int h = (nFlags & SWP_NOSIZE) ? hWnd->rc.bottom - hWnd->rc.top : cy;
+    int nx = (nFlags & SWP_NOMOVE) ? hWnd->rc.left : x;
+    int ny = (nFlags & SWP_NOMOVE) ? hWnd->rc.top : y;
+    SetRect(&hWnd->rc, nx, ny, nx + w, ny + h);
+    return TRUE;
+}
+
+BOOL SetWindowTextA(HWND hWnd, LPCSTR psz)
+{
+    if (!MfxIsWnd(hWnd)) return FALSE;
+    MfxSendMsg(hWnd, WM_SETTEXT, 0, (LPARAM)psz);
     return TRUE;
 }
 
@@ -307,6 +412,8 @@ BOOL DestroyWindow(HWND hWnd)
     if (g_mfxFocus == hWnd) g_mfxFocus = 0;
     if (hWnd->pWnd) hWnd->pWnd->m_hWnd = 0;
     if (g_hRoot == hWnd) { g_hRoot = 0; g_mfxQuit = 1; }   // main window gone → leave the pump
+    for (int i = 0; i < g_nWnds; i++)
+        if (g_aWnds[i] == hWnd) { g_aWnds[i] = g_aWnds[--g_nWnds]; break; }
     hWnd->nTag = 0;
     free(hWnd);
     return TRUE;
@@ -336,7 +443,9 @@ BOOL CWnd::Create(LPCSTR, LPCSTR, DWORD dwStyle, const RECT &rect,
     h->nId = nID;
     h->rc = rect;
     h->bVisible = (dwStyle & WS_VISIBLE) ? 1 : 0;
+    h->bEnabled = 1;
     m_hWnd = h;
+    if (g_nWnds < 64) g_aWnds[g_nWnds++] = h;
     if (!h->hParent && !g_hRoot) {
         g_hRoot = h;
         MfxCreateScreenDib(rect.right - rect.left, rect.bottom - rect.top);

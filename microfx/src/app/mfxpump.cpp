@@ -150,6 +150,131 @@ static void MfxApplyCursor(int nScale)
     SDL_ShowCursor(SDL_ENABLE);
 }
 
+// ── the shared event core (M4): SDL events → MSGs in the posted queue ───────────────────────
+// Both CWinThread::Run AND the game's own modal loops (TextDialog::Run via GetMessageA)
+// retrieve messages from ONE queue, Win32-style. Direct-send stays for window housekeeping
+// (activation, SC_CLOSE); input becomes queued MSGs so modal loops can filter/dispatch them.
+static int g_nMfxScale = 2;
+static int g_nMfxQuitRequests = 0;
+
+static void MfxQueueInput(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    PostMessageA(hWnd, message, wParam, lParam);   // stamps time + pt (screen == client)
+}
+
+static void MfxPumpSdlEvents(void)
+{
+    CFrameWnd *pFrame = MfxRootWnd() ? (CFrameWnd *)MfxRootWnd()->pWnd : 0;
+    CView *pView = pFrame ? pFrame->GetActiveView() : 0;
+    HWND hFrame = pFrame ? pFrame->m_hWnd : 0;
+    HWND hView = pView ? pView->m_hWnd : 0;
+    HWND hFocus = g_mfxFocus ? g_mfxFocus : hView;
+    int nScale = g_nMfxScale;
+
+    SDL_Event ev;
+    while (SDL_PollEvent(&ev) && !g_mfxQuit) {
+        switch (ev.type) {
+        case SDL_QUIT:
+            // window close → WM_SYSCOMMAND SC_CLOSE: the game intercepts and runs its
+            // exit confirmation (auto-Yes headless). Second request = hard quit.
+            if (++g_nMfxQuitRequests >= 2) g_mfxQuit = 1;
+            else MfxSendMsg(hFrame, WM_SYSCOMMAND, SC_CLOSE, 0);
+            break;
+        case SDL_WINDOWEVENT:
+            if (ev.window.event == SDL_WINDOWEVENT_EXPOSED)
+                MfxSetDirty();
+            else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_ACTIVE, 0), 0);
+            else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_INACTIVE, 0), 0);
+            break;
+        case SDL_KEYDOWN: {
+            int vk = MfxKeyToVk(ev.key.keysym.sym);
+            if (!vk) break;
+            g_mfxKeyState[vk] |= 0x80;
+            MfxQueueInput(hFocus, WM_KEYDOWN, (WPARAM)vk, 1);
+            break;
+        }
+        case SDL_KEYUP: {
+            int vk = MfxKeyToVk(ev.key.keysym.sym);
+            if (!vk) break;
+            g_mfxKeyState[vk] &= (BYTE)~0x80;
+            MfxQueueInput(hFocus, WM_KEYUP, (WPARAM)vk, 1);
+            break;
+        }
+        case SDL_TEXTINPUT:
+            for (const char *p = ev.text.text; *p; p++)
+                if ((unsigned char)*p < 0x80)
+                    MfxQueueInput(hFocus, WM_CHAR, (WPARAM)(unsigned char)*p, 1);
+            break;
+        case SDL_MOUSEMOTION: {
+            int x = ev.motion.x / nScale, y = ev.motion.y / nScale;
+            g_mfxCursorPos.x = x; g_mfxCursorPos.y = y;
+            // Win32 sends WM_SETCURSOR ahead of the move — CDeskcppView::OnSetCursor
+            // picks the directional/interaction cursor (SetCursor → g_mfxCursor).
+            MfxSendMsg(hView, WM_SETCURSOR, (WPARAM)hView,
+                       MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+            HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(g_mfxCursorPos);
+            MfxQueueInput(hTarget ? hTarget : hView, WM_MOUSEMOVE,
+                          MfxMouseFlags(), MAKELPARAM(x, y));
+            break;
+        }
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP: {
+            int x = ev.button.x / nScale, y = ev.button.y / nScale;
+            g_mfxCursorPos.x = x; g_mfxCursorPos.y = y;
+            UINT nMsg = 0;
+            if (ev.button.button == SDL_BUTTON_LEFT)
+                nMsg = (ev.type == SDL_MOUSEBUTTONDOWN) ? WM_LBUTTONDOWN : WM_LBUTTONUP;
+            else if (ev.button.button == SDL_BUTTON_RIGHT && ev.type == SDL_MOUSEBUTTONDOWN)
+                nMsg = WM_RBUTTONDOWN;
+            if (nMsg) {
+                HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(g_mfxCursorPos);
+                MfxQueueInput(hTarget ? hTarget : hView, nMsg,
+                              MfxMouseFlags(), MAKELPARAM(x, y));
+            }
+            break;
+        }
+        }
+    }
+}
+
+// idle housekeeping shared by Run and modal GetMessage waits
+static void MfxIdle(void)
+{
+    MfxPaintIfDirty();
+    MfxApplyCursor(g_nMfxScale);
+    if (g_pMfxPresentWin) MfxPresent(g_pMfxPresentWin);
+}
+
+// ── the Win32 message API, real (M4) — modal loops in game code work unmodified ─────────────
+extern "C" {
+
+BOOL GetMessageA(LPMSG pMsg, HWND, UINT, UINT)
+{
+    // headless (no SDL window — game_walk et al): no user input can ever arrive, so a modal
+    // wait would hang forever; bail like the old stub → dialogs auto-dismiss deterministically
+    if (!g_pMfxPresentWin) return 0;
+    for (;;) {
+        if (g_mfxQuit) return 0;                    // WM_QUIT → caller's <1 bail path
+        MfxPumpSdlEvents();
+        if (MfxGetPostedMsg(pMsg)) return TRUE;
+        if (MfxNextDueTimer(pMsg)) return TRUE;
+        MfxIdle();
+        SDL_Delay(5);
+    }
+}
+
+BOOL TranslateMessage(const MSG *) { return FALSE; }   // WM_CHAR comes pre-made (SDL_TEXTINPUT)
+
+LRESULT DispatchMessageA(const MSG *pMsg)
+{
+    if (!pMsg) return 0;
+    return MfxSendMsg(pMsg->hwnd, pMsg->message, pMsg->wParam, pMsg->lParam);
+}
+
+} // extern "C"
+
 int CWinThread::Run()
 {
     HWND hRoot = MfxRootWnd();
@@ -164,6 +289,7 @@ int CWinThread::Run()
         if (nScale < 1) nScale = 1;
         if (nScale > 8) nScale = 8;
     }
+    g_nMfxScale = nScale;
 
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -183,79 +309,17 @@ int CWinThread::Run()
     g_pMfxPresentWin = pWin;
     MfxSetScreenWriteHook(MfxScreenDC(), MfxPresentOnScreenWrite);
 
-    int nQuitRequests = 0;
     while (!g_mfxQuit) {
-        CFrameWnd *pFrame = MfxRootWnd() ? (CFrameWnd *)MfxRootWnd()->pWnd : 0;
-        CView *pView = pFrame ? pFrame->GetActiveView() : 0;
-        HWND hFrame = pFrame ? pFrame->m_hWnd : 0;
-        HWND hView = pView ? pView->m_hWnd : 0;
-        HWND hMouseTarget = g_mfxCapture ? g_mfxCapture : hView;
+        CView *pViewNow = MfxRootWnd() ? ((CFrameWnd *)MfxRootWnd()->pWnd)->GetActiveView() : 0;
+        HWND hView = pViewNow ? pViewNow->m_hWnd : 0;
 
-        SDL_Event ev;
-        while (SDL_PollEvent(&ev) && !g_mfxQuit) {
-            switch (ev.type) {
-            case SDL_QUIT:
-                // window close → WM_SYSCOMMAND SC_CLOSE: the game intercepts and runs its
-                // exit confirmation (auto-Yes headless). Second request = hard quit.
-                if (++nQuitRequests >= 2) g_mfxQuit = 1;
-                else MfxSendMsg(hFrame, WM_SYSCOMMAND, SC_CLOSE, 0);
-                break;
-            case SDL_WINDOWEVENT:
-                if (ev.window.event == SDL_WINDOWEVENT_EXPOSED)
-                    MfxSetDirty();
-                else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
-                    MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_ACTIVE, 0), 0);
-                else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                    MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_INACTIVE, 0), 0);
-                break;
-            case SDL_KEYDOWN: {
-                int vk = MfxKeyToVk(ev.key.keysym.sym);
-                if (!vk) break;
-                g_mfxKeyState[vk] |= 0x80;
-                MfxSendMsg(hView, WM_KEYDOWN, (WPARAM)vk, 1);
-                break;
-            }
-            case SDL_KEYUP: {
-                int vk = MfxKeyToVk(ev.key.keysym.sym);
-                if (!vk) break;
-                g_mfxKeyState[vk] &= (BYTE)~0x80;
-                MfxSendMsg(hView, WM_KEYUP, (WPARAM)vk, 1);
-                break;
-            }
-            case SDL_TEXTINPUT:
-                for (const char *p = ev.text.text; *p; p++)
-                    if ((unsigned char)*p < 0x80)
-                        MfxSendMsg(hView, WM_CHAR, (WPARAM)(unsigned char)*p, 1);
-                break;
-            case SDL_MOUSEMOTION: {
-                int x = ev.motion.x / nScale, y = ev.motion.y / nScale;
-                g_mfxCursorPos.x = x; g_mfxCursorPos.y = y;
-                // Win32 sends WM_SETCURSOR ahead of the move — CDeskcppView::OnSetCursor
-                // picks the directional/interaction cursor (SetCursor → g_mfxCursor).
-                MfxSendMsg(hView, WM_SETCURSOR, (WPARAM)hView,
-                           MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
-                MfxSendMsg(hMouseTarget, WM_MOUSEMOVE, MfxMouseFlags(), MAKELPARAM(x, y));
-                break;
-            }
-            case SDL_MOUSEBUTTONDOWN:
-            case SDL_MOUSEBUTTONUP: {
-                int x = ev.button.x / nScale, y = ev.button.y / nScale;
-                g_mfxCursorPos.x = x; g_mfxCursorPos.y = y;
-                UINT nMsg = 0;
-                if (ev.button.button == SDL_BUTTON_LEFT)
-                    nMsg = (ev.type == SDL_MOUSEBUTTONDOWN) ? WM_LBUTTONDOWN : WM_LBUTTONUP;
-                else if (ev.button.button == SDL_BUTTON_RIGHT && ev.type == SDL_MOUSEBUTTONDOWN)
-                    nMsg = WM_RBUTTONDOWN;
-                if (nMsg)
-                    MfxSendMsg(hMouseTarget, nMsg, MfxMouseFlags(), MAKELPARAM(x, y));
-                break;
-            }
-            }
-        }
+        MfxPumpSdlEvents();
 
         MSG msg;
-        while (!g_mfxQuit && MfxGetPostedMsg(&msg))
-            MfxSendMsg(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+        while (!g_mfxQuit && MfxGetPostedMsg(&msg)) {
+            TranslateMessage(&msg);
+            DispatchMessageA(&msg);
+        }
 
         if (g_mfxQuit) break;
         MfxPumpTimers();                       // WM_TIMER 0x1d1d → OnTimer → the game tick

@@ -15,10 +15,13 @@
 // ── CWnd family ──────────────────────────────────────────────────────────────────────────────
 // (FromHandle / Create / DestroyWindow / GetParent / GetParentFrame are REAL as of M2 —
 // app/mfxwnd.cpp owns the HWND object model and the message-map dispatch engine.)
+// HWND__ is app-private (mfxwnd.h) — reach the visible/enabled flags via helpers there.
+extern int MfxWndVisible(HWND h);
+extern int MfxWndEnabled(HWND h);
 CWnd::~CWnd() {}
 HWND CWnd::GetSafeHwnd() const { return this ? m_hWnd : 0; }
-BOOL CWnd::IsWindowVisible() const { return TRUE; }
-BOOL CWnd::IsWindowEnabled() const { return TRUE; }
+BOOL CWnd::IsWindowVisible() const { return MfxWndVisible(m_hWnd); }
+BOOL CWnd::IsWindowEnabled() const { return MfxWndEnabled(m_hWnd); }
 CDC* CWnd::GetDC() { return CDC::FromHandle(::GetDC(m_hWnd)); }
 int  CWnd::ReleaseDC(CDC* pDC) { return ::ReleaseDC(m_hWnd, pDC ? pDC->m_hDC : 0); }
 void CWnd::MoveWindow(LPCRECT r, BOOL bRepaint)
@@ -70,13 +73,10 @@ BOOL CWnd::OnQueryEndSession() { return TRUE; }
 BEGIN_MESSAGE_MAP(CWnd, CCmdTarget)
 END_MESSAGE_MAP()
 
-// ── controls ─────────────────────────────────────────────────────────────────────────────────
-BOOL CEdit::Create(DWORD, const RECT&, CWnd*, UINT) { MFX_STUB(); return TRUE; }
-BOOL CScrollBar::Create(DWORD, const RECT&, CWnd*, UINT) { MFX_STUB(); return TRUE; }
-BOOL CButton::Create(LPCSTR, DWORD, const RECT&, CWnd*, UINT) { MFX_STUB(); return TRUE; }
+// ── controls — REAL as of M4 in app/mfxctl.cpp (CEdit/CButton/CBitmapButton) ─────────────────
+BOOL CScrollBar::Create(DWORD, const RECT&, CWnd*, UINT) { MFX_STUB(); return TRUE; }   // M4e
 void CButton::SetCheck(int) {}
 int  CButton::GetCheck() const { return 0; }
-BOOL CBitmapButton::LoadBitmaps(LPCSTR, LPCSTR, LPCSTR, LPCSTR) { MFX_STUB(); return TRUE; }
 BOOL CBitmapButton::AutoLoad(UINT, CWnd*) { MFX_STUB(); return TRUE; }
 void CBitmapButton::SizeToContent() {}
 BOOL CProgressCtrl::Create(DWORD, const RECT&, CWnd*, UINT) { return TRUE; }
@@ -431,9 +431,11 @@ int      GetSystemMetrics(int) { return 0; }
 int      ShowCursor(BOOL) { return 0; }
 // GetCursorPos / GetAsyncKeyState / SetTimer / KillTimer / SendMessageA / PostMessageA are
 // REAL as of M2 (mfxwnd.cpp — pump-fed state, timer table, message-map dispatch).
-BOOL     GetMessageA(LPMSG, HWND, UINT, UINT) { return FALSE; }
-BOOL     TranslateMessage(const MSG*) { return FALSE; }
-LRESULT  DispatchMessageA(const MSG*) { return 0; }
+// GetMessageA/TranslateMessage/DispatchMessageA are REAL as of M4 (mfxpump.cpp, SDL builds) —
+// these weak fallbacks keep a no-SDL build linking (modal loops bail → dialogs auto-dismiss).
+__attribute__((weak)) BOOL    GetMessageA(LPMSG, HWND, UINT, UINT) { return FALSE; }
+__attribute__((weak)) BOOL    TranslateMessage(const MSG*) { return FALSE; }
+__attribute__((weak)) LRESULT DispatchMessageA(const MSG*) { return 0; }
 int      MessageBoxA(HWND, LPCSTR text, LPCSTR, UINT type)
 {
     fprintf(stderr, "microfx: MessageBox: %s\n", text ? text : "(null)");
@@ -445,11 +447,8 @@ BOOL     BringWindowToTop(HWND) { return TRUE; }
 BOOL     IsIconic(HWND) { return FALSE; }
 HWND     GetLastActivePopup(HWND h) { return h; }
 // GetActiveWindow / GetDC / ReleaseDC / ShowWindow / DestroyWindow / SetFocus / SetCapture /
-// ReleaseCapture / GetClientRect / GetWindowRect are REAL as of M2 (mfxwnd.cpp).
-BOOL     EnableWindow(HWND, BOOL) { return TRUE; }
-BOOL     MoveWindow(HWND, int, int, int, int, BOOL) { return TRUE; }
-BOOL     SetWindowPos(HWND, HWND, int, int, int, int, UINT) { return TRUE; }
-BOOL     SetWindowTextA(HWND, LPCSTR) { return TRUE; }
+// ReleaseCapture / GetClientRect / GetWindowRect are REAL as of M2 (mfxwnd.cpp);
+// EnableWindow / MoveWindow / SetWindowPos / SetWindowTextA are REAL as of M4 (mfxwnd.cpp).
 BOOL     ScreenToClient(HWND, LPPOINT) { return TRUE; }   // window client == screen (one window)
 BOOL     ClientToScreen(HWND, LPPOINT) { return TRUE; }
 int      GetScrollPos(HWND, int) { return 0; }

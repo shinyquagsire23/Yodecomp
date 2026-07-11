@@ -265,6 +265,8 @@ UINT GetDIBColorTable(HDC hdc, UINT iStart, UINT cEntries, RGBQUAD *prgbq)
 // raw function pointer so gdi/ stays SDL-free (headless harnesses never register one).
 static HDC   g_hdcScreenWrite = 0;
 static void (*g_pfnScreenWrite)(void) = 0;
+static HDC   g_hdcOverlay = 0;
+static void (*g_pfnOverlay)(void) = 0;
 
 void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void))
 {
@@ -272,12 +274,28 @@ void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void))
     g_pfnScreenWrite = pfn;
 }
 
-// Every primitive that writes pixels calls this with its target DC — M4 chrome (FillRect/
-// PatBlt/Pie/lines/…) must present mid-handler exactly like BitBlt does (pickup warning).
+void MfxSetScreenOverlayHook(HDC hdcScreen, void (*pfn)(void))
+{
+    g_hdcOverlay = hdcScreen;
+    g_pfnOverlay = pfn;
+}
+
+// Every primitive that writes pixels calls this with its target DC. Two hooks fire, guarded
+// against reentry (the overlay itself draws through these primitives):
+//  1. overlay — mfxwnd re-composites visible child controls. Win32 children are separate
+//     windows a screen blit can't erase; in our one-surface model a canvas blit (DrawGameArea)
+//     would wipe the bubble edit/buttons, so they re-lay after every screen write.
+//  2. present — the pump shows the frame (M4 chrome must present mid-handler like BitBlt).
 void MfxTouch(HDC hdc)
 {
+    static int bInTouch = 0;
+    if (bInTouch) return;
+    bInTouch = 1;
+    if (hdc == g_hdcOverlay && g_pfnOverlay)
+        g_pfnOverlay();
     if (hdc == g_hdcScreenWrite && g_pfnScreenWrite)
         g_pfnScreenWrite();
+    bInTouch = 0;
 }
 
 BOOL BitBlt(HDC hdcDst, int x, int y, int cx, int cy, HDC hdcSrc, int sx, int sy, DWORD /*rop*/)

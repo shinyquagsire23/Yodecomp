@@ -248,6 +248,10 @@ typedef struct tagOPENFILENAME {
 #define HTCLIENT   1
 #define HTCAPTION  2
 #define BM_GETSTATE 0x00f2
+#define BM_SETSTATE 0x00f3
+#define WM_SETTEXT  0x000c
+#define BN_CLICKED  0
+#define BST_PUSHED  0x0004
 #define BST_PUSHED  0x0004
 // virtual keys
 #define VK_BACK    0x08

@@ -730,7 +730,7 @@ public:
 class CWnd : public CCmdTarget
 {
 public:
-    CWnd() : m_hWnd(0) {}
+    CWnd() : m_mfxRedraw(1), m_hWnd(0) {}
     virtual ~CWnd();
 
     HWND GetSafeHwnd() const;
@@ -791,6 +791,14 @@ public:
     virtual void PostNcDestroy();
     LRESULT Default();
 
+    // microfx-internal (M4): DefWindowProc-equivalent for messages no map entry handled —
+    // control classes (CEdit/CButton/CScrollBar) implement their EM_*/BM_*/paint behavior
+    // here. MfxCtlPaint draws the control into the shared screen DC (children paint AFTER
+    // the view in MfxPaintIfDirty, Win32 z-order).
+    virtual LRESULT MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam);
+    virtual void MfxCtlPaint();
+    int m_mfxRedraw;               // WM_SETREDRAW state (controls; init 1)
+
     afx_msg int  OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnDestroy();
     afx_msg void OnPaint();
@@ -822,10 +830,24 @@ public:
 };
 
 // ── controls ─────────────────────────────────────────────────────────────────────────────────
+// The bubble text control (wndDialogText): a word-wrapping multiline read-only EDIT. Only
+// what TextDialog exercises — WM_SETTEXT/WM_SETFONT/EM_GETLINECOUNT/EM_LINESCROLL + painting
+// visible lines into the screen DC (mfxctl.cpp).
 class CEdit : public CWnd
 {
 public:
+    CEdit() : m_mfxFont(0), m_mfxFirstLine(0), m_mfxLineCount(0) {}
     BOOL Create(DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID);
+    virtual LRESULT MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam);
+    virtual void MfxCtlPaint();
+
+    CString m_mfxText;
+    HFONT   m_mfxFont;
+    int     m_mfxFirstLine;
+    int     m_mfxLineCount;
+    int     m_mfxLineStart[96];    // wrapped-line cache (bubble text is short)
+    int     m_mfxLineLen[96];
+    void    MfxRecalcLines();
 };
 
 class CScrollBar : public CWnd
@@ -841,9 +863,12 @@ public:
 class CButton : public CWnd
 {
 public:
+    CButton() : m_mfxPushed(0) {}
     BOOL Create(LPCSTR lpszCaption, DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID);
     void SetCheck(int nCheck);
     int  GetCheck() const;
+    virtual LRESULT MfxCtlProc(UINT message, WPARAM wParam, LPARAM lParam);
+    int m_mfxPushed;               // BM_GETSTATE bit 2 (BST_PUSHED) — dialog auto-repeat
 };
 
 class CBitmapButton : public CButton
@@ -853,6 +878,7 @@ public:
                      LPCSTR lpszBitmapResourceFocus = 0, LPCSTR lpszBitmapResourceDisabled = 0);
     BOOL AutoLoad(UINT nID, CWnd* pParent);
     void SizeToContent();
+    virtual void MfxCtlPaint();
     CBitmap m_bitmap, m_bitmapSel, m_bitmapFocus, m_bitmapDisabled;
 };
 
