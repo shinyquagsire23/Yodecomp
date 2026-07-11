@@ -565,8 +565,15 @@ DWORD GetTickCount(void)
 
 // game TUs' clock() remaps here (afxwin.h tail #define) — Win32 CRT semantics:
 // WALL time, CLOCKS_PER_SEC==1000. The game busy-waits on differences only.
+// Every poll fires the clock hook (MfxSetClockHook): the pump's throttled present-flush rides
+// the game's own busy-wait loops, so screen writes deferred during a frame's draws still show
+// mid-handler (ScrollZoneTransition, IACT CMD_WaitTicks). Unregistered (headless) = zero cost.
+static void (*g_pfnMfxClockHook)(void) = 0;
+extern "C" void MfxSetClockHook(void (*pfn)(void)) { g_pfnMfxClockHook = pfn; }
+
 clock_t mfx_clock(void)
 {
+    if (g_pfnMfxClockHook) g_pfnMfxClockHook();
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (clock_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);

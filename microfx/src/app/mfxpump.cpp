@@ -81,6 +81,22 @@ static int g_nMfxScale = 2;    // integer window scale (YODA_SCALE); set once in
 static SDL_Renderer *g_pMfxRen = 0;
 static SDL_Texture  *g_pMfxFrameTex = 0;
 
+// Deferred presents (v81, the GOAL-0 batching fix): MfxPresentOnScreenWrite used to present
+// PER PRIMITIVE — every screen-DC write cost a full window present (~vsync each on macOS's
+// window-surface path), so any handler drawing many primitives visibly stepped through its
+// draws and stalled input (the scrollbar ~2s stall was one call site; the storm was general).
+// Now a screen write only marks the frame dirty; the pending present is flushed
+//   (a) once per pump iteration (CWinThread::Run's MfxPresent),
+//   (b) in modal GetMessage loops (MfxIdle),
+//   (c) inside mfx_clock() via MfxSetClockHook, throttled to g_nPresentMs — busy-wait
+//       animation loops (ScrollZoneTransition, IACT CMD_WaitTicks, palette flashes) poll
+//       clock() right after each frame's draws, so mid-handler animations still present
+//       per frame with no per-primitive cost.
+// YODA_PRESENT_MS tunes the clock-flush throttle; 0 restores legacy present-per-write.
+static int    g_nPresentMs      = 8;
+static int    g_bPresentPending = 0;
+static Uint32 g_tLastPresent    = 0;
+
 static void MfxPresentAccel(MFXDIB *pDib)
 {
     Uint32 aArgb[256];
@@ -126,6 +142,8 @@ static void MfxPresent(SDL_Window *pWin)
 {
     MFXDIB dib;
     if (!MfxGetDCDib(MfxScreenDC(), &dib)) return;
+    g_bPresentPending = 0;                     // every present clears the deferred-flush state
+    g_tLastPresent = SDL_GetTicks();
 
     if (g_pMfxRen && g_pMfxFrameTex) { MfxPresentAccel(&dib); return; }
 
@@ -164,13 +182,26 @@ static void MfxPresent(SDL_Window *pWin)
     SDL_FreeSurface(pSrc);
 }
 
-// present-on-screen-write hook target (MfxSetScreenWriteHook): fired by gdi BitBlt for every
-// write to the screen DC, so single-handler animations (scroll transitions, the X-Wing STUP
-// flight) reach the window mid-handler — the pump loop's own MfxPresent never runs there.
+// present-on-screen-write hook target (MfxSetScreenWriteHook): fired by gdi for every write
+// to the screen DC. Marks the frame dirty instead of presenting (see the deferred-present
+// comment above MfxPresentAccel); single-handler animations reach the window through the
+// clock-hook flush below — the pump loop's own MfxPresent never runs mid-handler.
 static SDL_Window *g_pMfxPresentWin = 0;
 static void MfxPresentOnScreenWrite(void)
 {
-    if (g_pMfxPresentWin) MfxPresent(g_pMfxPresentWin);
+    if (!g_pMfxPresentWin) return;
+    if (g_nPresentMs <= 0) { MfxPresent(g_pMfxPresentWin); return; }   // legacy per-write
+    g_bPresentPending = 1;
+}
+
+// clock-hook target (MfxSetClockHook): the game's busy-wait loops poll clock() between
+// animation frames — flush the deferred present there, throttled, so a frame's completed
+// draws show while the handler is still running.
+static void MfxFlushPendingPresent(void)
+{
+    if (!g_bPresentPending || !g_pMfxPresentWin) return;
+    if (SDL_GetTicks() - g_tLastPresent < (Uint32)g_nPresentMs) return;
+    MfxPresent(g_pMfxPresentWin);
 }
 
 // ── cursors (M4): apply the game's SetCursor through SDL ────────────────────────────────────
@@ -424,6 +455,9 @@ int CWinThread::Run()
     }
     g_nMfxScale = nScale;
 
+    if (const char *pszPms = getenv("YODA_PRESENT_MS"))
+        g_nPresentMs = atoi(pszPms);           // clock-flush throttle; 0 = legacy per-write
+
     SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "microfx: SDL_Init: %s\n", SDL_GetError());
@@ -441,6 +475,7 @@ int CWinThread::Run()
     SDL_StartTextInput();                      // WM_CHAR synthesis (the cheat-code buffer)
     g_pMfxPresentWin = pWin;
     MfxSetScreenWriteHook(MfxScreenDC(), MfxPresentOnScreenWrite);
+    MfxSetClockHook(MfxFlushPendingPresent);
 
     if (getenv("YODA_ACCEL")) {
         SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");   // nearest — the chunky pixel-art look
@@ -536,6 +571,7 @@ int CWinThread::Run()
         SDL_Delay(5);
     }
 
+    MfxSetClockHook(0);
     MfxSetScreenWriteHook(0, 0);
     g_pMfxPresentWin = 0;
     if (g_pMfxFrameTex) { SDL_DestroyTexture(g_pMfxFrameTex); g_pMfxFrameTex = 0; }

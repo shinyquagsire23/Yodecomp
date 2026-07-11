@@ -246,6 +246,25 @@ The ONLY changes ever made to byte-match-era sources for H4 (all anchor-token-ne
     without an OS menu bar. A new file added to microfx/src needs a `cmake -B build-sdl`
     reconfigure — the CMake GLOB_RECURSE is evaluated at configure time (symptom: the new TU's
     symbols link-fail as "Undefined" even though the file compiles).
+18. **Defer presents; flush them inside clock() (v81 — the GOAL-0 batching fix).** Presenting
+    per screen-DC write (the original MfxPresentOnScreenWrite) makes EVERY handler visibly step
+    through its draws — each present blocks ~vsync on macOS's window-surface path, so a handler
+    with hundreds of primitives stalls input for seconds (the inventory-scrollbar ~2s stall was
+    one instance; auditing call sites for MfxTouchHold/Release could never cover them all). The
+    structural fix exploits that the game's mid-handler animations ALL pace themselves with
+    `clock()` busy-waits (ScrollZoneTransition `clock()+50`, IACT CMD_WaitTicks, palette
+    flashes) and clock() is already shimmed (mfx_clock): a screen write now only marks the
+    frame dirty (g_bPresentPending); the pending present is flushed (a) once per pump
+    iteration, (b) per MfxIdle in modal GetMessage loops, and (c) inside mfx_clock via
+    MfxSetClockHook, throttled to YODA_PRESENT_MS (default 8ms; 0 = legacy per-write). Draw
+    storms thus collapse to ONE present per pump tick, while busy-wait animations still present
+    per frame — the loop polls clock() right after each frame's last blit, so the flush shows
+    the COMPLETED frame within one poll. Palette writes (MfxPalToDib) also fire MfxTouch now —
+    hardware-palette Win95 showed AnimatePalette immediately, and the clock-flush makes the
+    busy-waited palette flashes actually visible. Headless is untouched by construction: only
+    CWinThread::Run registers the hooks, so harness digests can't move. The existing
+    Hold/Release sites stay (they also batch the overlay-recomposite cost, which still fires
+    per write).
 
 ## What runs vs what's stubbed (v74)
 

@@ -890,6 +890,10 @@ static void MfxPalToDib(HPALETTE hPal, HDC hdc, UINT iStart, UINT nCount)
         pDst[i].rgbBlue     = pSrc[i].peBlue;
         pDst[i].rgbReserved = 0;
     }
+    // a palette write changes what's on screen without touching pixels — on hardware-palette
+    // Win95 it shows immediately, so fire the hooks like any other screen-DC write (palette
+    // flash effects busy-wait on clock() and rely on the pump's clock-hook flush)
+    MfxTouch(hdc);
 }
 
 HPALETTE CreatePalette(const LOGPALETTE *plpal)

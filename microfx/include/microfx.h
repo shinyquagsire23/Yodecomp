@@ -23,11 +23,18 @@ int MfxGetDCDib(HDC hdc, MFXDIB *pOut);
 // Write hdc's selected DIB as an 8-bit indexed .bmp (palette included). 1 on success.
 int MfxWriteDibBMP(HDC hdc, const char *pszPath);
 
-// Present-on-screen-write hook: after any BitBlt whose destination is hdcScreen, gdi calls
-// pfn. The pump registers its presenter here so game code that animates the screen inside a
-// single handler (clock() busy-wait loops) is shown per frame, matching Win32's immediate
-// screen-DC visibility. Pass (0, 0) to unregister.
+// Present-on-screen-write hook: after any primitive whose destination is hdcScreen, gdi calls
+// pfn. The pump registers a dirty-marker here (presents are deferred and flushed per pump
+// iteration / via the clock hook below) so game code that animates the screen inside a single
+// handler (clock() busy-wait loops) is shown per frame, matching Win32's immediate screen-DC
+// visibility, without paying a full window present per primitive. Pass (0, 0) to unregister.
 void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
+
+// Clock hook: mfx_clock() (the game's clock(), afxwin.h tail #define) calls pfn on every poll.
+// The pump registers its throttled present-flush here — busy-wait animation loops poll clock()
+// right after each frame's draws, so a deferred present still reaches the window mid-handler.
+// Pass 0 to unregister.
+void MfxSetClockHook(void (*pfn)(void));
 
 // Overlay hook: fired BEFORE the present hook on every screen-DC write — the window layer
 // re-composites visible child controls over the view (they're not separate surfaces here).

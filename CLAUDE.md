@@ -229,7 +229,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-10 v80 tail — H4 M5 CORE + CFileDialog + perf fixes done; FIRST: audit MfxTouchHold/Release batching coverage (GOAL 0, user playtest finding); then visible menu bar + Indy playtest; anchor untouched)
+### ⏭ NEXT SESSION PICKUP (2026-07-10 v81 — GOAL-0 batching fix DONE structurally (deferred presents + clock-hook flush, lesson 18); FIRST: user playtest it + re-eval YODA_ACCEL; then visible menu bar + Indy playtest; anchor untouched)
 
 **▶ v80 this session (H4 M5, ZERO src/ edits — all microfx/): CDialog::DoModal is REAL.**
 New `microfx/src/app/mfxdlg.cpp`: parses an RT_DIALOG template (MfxFindResourceData(5) serves
@@ -255,30 +255,21 @@ by the delta); a new microfx/src file needs a `cmake -B build-sdl` reconfigure (
 SetScrollRange (user-confirmed vs original): Difficulty 1-100 continuous, WorldSize 1-3 snaps to
 Small/Med/Large — the integer thumb math reflects both, no special-casing.
 
-**▶ GOAL 0 — FIRST THING NEXT SESSION: audit MfxTouchHold/Release batching coverage.**
-User playtest of `YODA_ACCEL=1` (2026-07-10): "a smidge faster" but you can still see every
-draw step for everything in MFC as it's happening — i.e. the inventory-scrollbar fix
-(mfxctl.cpp, batching the 3 WM_VSCROLL sends) was ONE call site, not the general fix. Something
-is still presenting per-primitive instead of per-handler across (probably) most/all of the UI,
-not just the scrollbar. `YODA_ACCEL` being only "a smidge" faster is consistent with this: a
-cheaper present still costs something when called hundreds of times per interaction, so the
-GPU-texture path can't fully hide an unbatched call site the way one Hold/Release fix could.
-Concretely: grep every `MfxSendMsg`/`::SendMessage`-into-a-game-handler call site (mfxwnd.cpp,
-mfxctl.cpp, mfxdlg.cpp, the WM_COMMAND dispatch in mfxpump.cpp's CWinThread::Run) and check each
-one is wrapped in `MfxTouchHold()`/`MfxTouchRelease(MfxScreenDC())` the way the scrollbar fix and
-`MfxPaintChildren` (mfxwnd.cpp:61) already are — OR consider a MORE STRUCTURAL fix: wrap Hold/
-Release around the ENTIRE per-iteration dispatch batch in the main pump loop (`MfxPumpTimers` +
-message-queue drain + `MfxPaintIfDirty`, mfxpump.cpp's `CWinThread::Run` while loop) so a whole
-tick's worth of game-driven drawing collapses to ONE present regardless of how many individual
-handlers fire within it, rather than auditing call sites one at a time. Watch for the tension
-with `MfxPresentOnScreenWrite` (mfxpump.cpp) — it exists specifically so mid-handler animations
-(scroll transitions, the X-Wing STUP flight) present WHILE busy-waiting inside a single handler,
-so a blanket "batch the whole tick" fix must not break those (they may need to stay outside any
-new outer Hold, or the busy-wait loops need their own inner Hold/Release around each step so
-the animation still visibly progresses frame-by-frame instead of freezing to one final frame).
-`YODA_ACCEL=1` is otherwise confirmed working (renders correctly, "smidge faster") — first
-LIVE-window confirmation it has, worth promoting towards default once this batching issue is
-resolved and speed is re-evaluated with it fixed.
+**▶ GOAL 0 — ✅ RESOLVED STRUCTURALLY v81 (2026-07-10): deferred presents + clock-hook flush.**
+Root cause confirmed: EVERY GDI primitive fires MfxTouch → the present hook → a full window
+present (~vsync each on macOS) — per-call-site Hold/Release audits could never cover it. Fix
+(microfx-only, ZERO src/ edits — docs/phase-h4-sdl.md lesson 18): `MfxPresentOnScreenWrite`
+now just sets a dirty flag; the pending present flushes (a) once per pump iteration, (b) per
+MfxIdle in modal GetMessage loops, (c) inside `mfx_clock()` via new `MfxSetClockHook`
+(mfxcore.cpp), throttled to `YODA_PRESENT_MS` (default 8ms; 0 = legacy per-write). The
+MfxPresentOnScreenWrite tension resolves itself: ALL mid-handler animations pace with clock()
+busy-waits, so they flush per completed frame through the clock hook while ordinary handler
+draw storms collapse to ONE present per tick. Bonus: MfxPalToDib now fires MfxTouch, so
+busy-waited palette flashes present mid-handler (Win95-faithful). Verified: build-sdl clean,
+worldgen_smoke/game_walk/dlg_smoke green, live boot through intro (X-Wing flight = clock-flush
+path) to Dagobah bubble, screenshot faithful. NEEDS USER PLAYTEST: overall snappiness, scroll
+transitions / intro flight still animate (not frozen to final frame), then RE-EVAL
+`YODA_ACCEL=1` for promotion to default now that presents are per-tick.
 
 **▶ GOAL 2 — H4 next (the main thread):**
 - **save/load CFileDialog** — DONE this session (mfxdlg.cpp, zero src/ edits): SDL has no native
@@ -309,10 +300,10 @@ resolved and speed is re-evaluated with it fixed.
   unbatched BitBlts → many full-window presents, each ~vsync-cost on macOS's window-surface
   path). Fixed this session (mfxctl.cpp Hold/Release around the 3 WM_VSCROLL sends). User then
   live-tested `YODA_ACCEL=1`: "a smidge faster" but per-primitive draw stepping is still visible
-  elsewhere — this ONE call site wasn't the whole story → **see GOAL 0 above, now the top
-  pickup item.**
-- Perf note (fine to ignore): scripted intro flights present per BitBlt (~55% CPU during busy-wait
-  IACTs). If it bothers: rate-limit the present hook (~8ms), keep BitBlt immediate for transitions.
+  elsewhere — this ONE call site wasn't the whole story → **fixed structurally in v81 (GOAL 0
+  above); the old Hold/Release sites stay (they still batch the per-write overlay recomposite).**
+- Perf note: the v81 clock-hook flush also throttles intro-flight presents to 8ms intervals
+  (was: per BitBlt, ~55% CPU); the busy-wait spin itself remains (faithful timing).
 
 **▶ GOAL 1 — Indy (after M5 or user-led):** ⏳ INDY×SDL in-game playtest (`YodaIndy/yoda_sdl`,
 rebuilt v79 — the .res pipeline now feeds it Indy resources incl. Indy cursors/strings); then
