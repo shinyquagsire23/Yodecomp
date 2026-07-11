@@ -261,8 +261,9 @@ void CString::ReleaseBuffer(int nNewLength)
     }
 }
 
-// default LoadString hook — the res/ module (M4) provides the real one reading the string table
-BOOL MfxLoadString(UINT nID, CString& str)
+// default LoadString hook — res/mfxres.cpp provides the real one (string table from the
+// embedded .res); this weak fallback keeps hypothetical res-less builds linking
+__attribute__((weak)) BOOL MfxLoadString(UINT nID, CString& str)
 {
     char buf[32];
     snprintf(buf, sizeof buf, "[string %u]", nID);

@@ -452,6 +452,8 @@ HCURSOR  LoadCursorA(HINSTANCE hInst, LPCSTR name);
 #define LoadCursor LoadCursorA
 HICON    LoadIconA(HINSTANCE hInst, LPCSTR name);
 #define LoadIcon LoadIconA
+HBITMAP  LoadBitmapA(HINSTANCE hInst, LPCSTR name);
+// (no LoadBitmap alias macro — it would rename CBitmap::LoadBitmap in afxwin.h)
 int      ShowCursor(BOOL bShow);
 BOOL     GetCursorPos(LPPOINT lpPoint);
 SHORT    GetAsyncKeyState(int vKey);

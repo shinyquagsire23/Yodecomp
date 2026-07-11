@@ -426,9 +426,8 @@ extern "C" {
 
 int      GetSystemMetrics(int) { return 0; }
 // GetSysColor is REAL as of M4 — gdi/mfxgdi.cpp (Win95 scheme; feeds sysPalette[1..3]).
-HCURSOR  SetCursor(HCURSOR h) { return h; }
-HCURSOR  LoadCursorA(HINSTANCE, LPCSTR) { return 0; }
-HICON    LoadIconA(HINSTANCE, LPCSTR) { return 0; }
+// LoadCursorA/LoadIconA/LoadBitmapA are REAL as of M4 — res/mfxres.cpp (embedded .res).
+// SetCursor is REAL as of M4 — mfxwnd.cpp (stores the current cursor; the pump applies it).
 int      ShowCursor(BOOL) { return 0; }
 // GetCursorPos / GetAsyncKeyState / SetTimer / KillTimer / SendMessageA / PostMessageA are
 // REAL as of M2 (mfxwnd.cpp — pump-fed state, timer table, message-map dispatch).
@@ -459,7 +458,7 @@ BOOL     GetScrollRange(HWND, int, LPINT lpMin, LPINT lpMax)
     { if (lpMin) *lpMin = 0; if (lpMax) *lpMax = 0; return TRUE; }
 BOOL     SetScrollRange(HWND, int, int, int, BOOL) { return TRUE; }
 BOOL     ShowScrollBar(HWND, int, BOOL) { return TRUE; }
-BOOL     DrawIcon(HDC, int, int, HICON) { return TRUE; }
+// DrawIcon is REAL as of M4 — gdi/mfxgdi.cpp (res/ image draw w/ palette mapping).
 // InvalidateRect / UpdateWindow / RedrawWindow are REAL as of M2 (mfxwnd.cpp dirty flag).
 HWND     GetParent(HWND) { return 0; }
 void     FatalAppExitA(UINT, LPCSTR msg)

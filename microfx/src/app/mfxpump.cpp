@@ -95,6 +95,61 @@ static void MfxPresentOnScreenWrite(void)
     if (g_pMfxPresentWin) MfxPresent(g_pMfxPresentWin);
 }
 
+// ── cursors (M4): apply the game's SetCursor through SDL ────────────────────────────────────
+// The game drives cursor choice via WM_SETCURSOR → CDeskcppView::OnSetCursor → ::SetCursor
+// (11 directional/interaction .res cursors + IDC_ARROW + hide-during-drag NULL). We render
+// them as HARDWARE cursors (SDL_CreateColorCursor, scaled by the window scale). NOTE for the
+// possible DS port: keep this the only cursor surface — a software path can be added behind
+// a build option later without touching gdi/ (the game never draws the pointer itself).
+static SDL_Cursor *MfxMakeSdlCursor(const MFXIMG *pImg, int nScale)
+{
+    if (pImg->nSysCursor)
+        return SDL_CreateSystemCursor(pImg->nSysCursor == 32514 ? SDL_SYSTEM_CURSOR_WAIT
+                                                                : SDL_SYSTEM_CURSOR_ARROW);
+    int w = pImg->nWidth * nScale, h = pImg->nHeight * nScale;
+    SDL_Surface *pSurf = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
+    if (!pSurf) return 0;
+    Uint32 *pPix = (Uint32 *)pSurf->pixels;
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x++) {
+            size_t n = (size_t)(y / nScale) * pImg->nWidth + (x / nScale);
+            Uint32 v = 0;
+            if (!pImg->pMask || !pImg->pMask[n]) {
+                const RGBQUAD *pQ = &pImg->pPal[pImg->pIdx[n]];
+                v = 0xff000000u | ((Uint32)pQ->rgbRed << 16) |
+                    ((Uint32)pQ->rgbGreen << 8) | pQ->rgbBlue;
+            }
+            pPix[(size_t)y * (pSurf->pitch / 4) + x] = v;
+        }
+    SDL_Cursor *pCur = SDL_CreateColorCursor(pSurf, pImg->xHot * nScale, pImg->yHot * nScale);
+    SDL_FreeSurface(pSurf);
+    return pCur;
+}
+
+static void MfxApplyCursor(int nScale)
+{
+    static HCURSOR hLast = (HCURSOR)(ULONG_PTR)-1;
+    static struct { HCURSOR h; SDL_Cursor *p; } aCache[24];
+    static int nCache = 0;
+    if (g_mfxCursor == hLast) return;
+    hLast = g_mfxCursor;
+    if (!g_mfxCursor) {                              // SetCursor(NULL) = hide (drag mode)
+        SDL_ShowCursor(SDL_DISABLE);
+        return;
+    }
+    SDL_Cursor *pCur = 0;
+    for (int i = 0; i < nCache; i++)
+        if (aCache[i].h == g_mfxCursor) { pCur = aCache[i].p; break; }
+    if (!pCur) {
+        MFXIMG img;
+        if (!MfxGetImage(g_mfxCursor, &img)) { SDL_ShowCursor(SDL_ENABLE); return; }
+        pCur = MfxMakeSdlCursor(&img, nScale);
+        if (pCur && nCache < 24) { aCache[nCache].h = g_mfxCursor; aCache[nCache].p = pCur; nCache++; }
+    }
+    if (pCur) SDL_SetCursor(pCur);
+    SDL_ShowCursor(SDL_ENABLE);
+}
+
 int CWinThread::Run()
 {
     HWND hRoot = MfxRootWnd();
@@ -175,6 +230,10 @@ int CWinThread::Run()
             case SDL_MOUSEMOTION: {
                 int x = ev.motion.x / nScale, y = ev.motion.y / nScale;
                 g_mfxCursorPos.x = x; g_mfxCursorPos.y = y;
+                // Win32 sends WM_SETCURSOR ahead of the move — CDeskcppView::OnSetCursor
+                // picks the directional/interaction cursor (SetCursor → g_mfxCursor).
+                MfxSendMsg(hView, WM_SETCURSOR, (WPARAM)hView,
+                           MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
                 MfxSendMsg(hMouseTarget, WM_MOUSEMOVE, MfxMouseFlags(), MAKELPARAM(x, y));
                 break;
             }
@@ -201,6 +260,7 @@ int CWinThread::Run()
         if (g_mfxQuit) break;
         MfxPumpTimers();                       // WM_TIMER 0x1d1d → OnTimer → the game tick
         MfxPaintIfDirty();                     // WM_PAINT → CView::OnPaint → OnDraw
+        MfxApplyCursor(nScale);                // SetCursor state → SDL hardware cursor
         MfxPresent(pWin);                      // screen DIB → SDL window
 
         // debug oracle: YODA_AUTOKEY=<startms>:<vk>:<durms> holds a virtual key over the

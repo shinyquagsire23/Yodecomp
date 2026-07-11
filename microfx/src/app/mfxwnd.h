@@ -37,5 +37,6 @@ extern BYTE  g_mfxKeyState[256];  // 0x80 = down, indexed by VK
 extern POINT g_mfxCursorPos;      // last mouse position, client coords
 extern HWND  g_mfxCapture;
 extern HWND  g_mfxFocus;
+extern HCURSOR g_mfxCursor;       // last SetCursor() — the pump applies it (SDL cursor)
 
 #endif

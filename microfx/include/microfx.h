@@ -29,6 +29,24 @@ int MfxWriteDibBMP(HDC hdc, const char *pszPath);
 // screen-DC visibility. Pass (0, 0) to unregister.
 void MfxSetScreenWriteHook(HDC hdcScreen, void (*pfn)(void));
 
+// ── M4 resources: decoded image view of an HICON/HCURSOR/resource-bitmap handle ─────────────
+// (res/mfxres.cpp decodes the .res blob into MfxImg objects; gdi/mfxgdi.cpp draws them.)
+typedef struct MFXIMG {
+    int                  nWidth;
+    int                  nHeight;
+    int                  xHot, yHot;      // cursors; 0 for icons/bitmaps
+    int                  nSysCursor;      // != 0: a system cursor (IDC_* id), no pixels
+    const unsigned char *pIdx;            // color-table indices, top-down, pitch == nWidth
+    const unsigned char *pMask;           // 1 = transparent (0 for resource bitmaps)
+    const RGBQUAD       *pPal;            // the image's OWN color table
+} MFXIMG;
+
+// Decode handle → image view. Returns 1 if the handle is a res/ image object.
+int MfxGetImage(const void *hImg, MFXIMG *pOut);
+
+// Draw an image into a DC with per-pixel color mapping into the DC palette (mask honored).
+void MfxDrawImage(HDC hdc, int x, int y, const MFXIMG *pImg);
+
 } // extern "C"
 
 #endif

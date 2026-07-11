@@ -639,6 +639,37 @@ BOOL Polygon(HDC hdc, const POINT *apt, int n)
     return TRUE;
 }
 
+// Images from the res/ loader (icons/cursors/bitmap-button faces): draw with per-pixel
+// mapping of the image's OWN color table into the DC palette, honoring the AND mask.
+// Tiny surfaces (16x16/32x32) — the per-pixel MfxMapColor cost is irrelevant.
+void MfxDrawImage(HDC hdc, int x, int y, const MFXIMG *pImg)
+{
+    if (!MfxIsDc(hdc) || !hdc->hDib || !pImg || !pImg->pIdx) return;
+    HBITMAP__ *pDib = hdc->hDib;
+    BYTE aMap[256];
+    memset(aMap, 0xff, sizeof aMap);                // lazily-mapped color cache
+    for (int row = 0; row < pImg->nHeight; row++)
+        for (int col = 0; col < pImg->nWidth; col++) {
+            size_t n = (size_t)row * pImg->nWidth + col;
+            if (pImg->pMask && pImg->pMask[n]) continue;
+            BYTE ix = pImg->pIdx[n];
+            if (aMap[ix] == 0xff) {
+                const RGBQUAD *pQ = &pImg->pPal[ix];
+                aMap[ix] = MfxMapColor(hdc, RGB(pQ->rgbRed, pQ->rgbGreen, pQ->rgbBlue));
+            }
+            MfxPutPixel(pDib, x + col, y + row, aMap[ix]);
+        }
+    MfxTouch(hdc);
+}
+
+BOOL DrawIcon(HDC hdc, int x, int y, HICON hIcon)
+{
+    MFXIMG img;
+    if (!MfxGetImage(hIcon, &img)) return FALSE;
+    MfxDrawImage(hdc, x, y, &img);
+    return TRUE;
+}
+
 // Pie: fill the elliptical sector swept COUNTERCLOCKWISE (in y-up math terms, GDI default
 // arc direction) from the (x1,y1) radial to the (x2,y2) radial. Coincident radials = the
 // full ellipse (the health dial's "full disc" first call). Pen == brush color in every game

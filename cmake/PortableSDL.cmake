@@ -48,9 +48,45 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   )
 endif()
 
+# ── resources: the SAME .res blob the WIN32 link consumes, embedded as a C array ─────────────
+# (M4: microfx/src/res/mfxres.cpp parses it at runtime — icons/cursors/strings/bitmaps.)
+set(_tools "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+set(_res_bin "${CMAKE_CURRENT_BINARY_DIR}/yoda.res")
+set(_orig_exe "${CMAKE_CURRENT_SOURCE_DIR}/YodaDemo/YodaDemo.exe")
+if(NOT EXISTS "${_orig_exe}")
+  message(FATAL_ERROR "Cannot find the original binary at ${_orig_exe} (resource base).")
+endif()
+if(YODA_GAME STREQUAL "INDY")
+  set(_indy_exe "${CMAKE_CURRENT_SOURCE_DIR}/INDYDESK/DESKADV.EXE")
+  add_custom_command(
+    OUTPUT  "${_res_bin}"
+    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res_bin}" --indy "${_indy_exe}"
+    DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_indy_exe}"
+    COMMENT "build Indy resources (Yoda base + Indy icon/title/About -> yoda.res)" VERBATIM)
+elseif(YODA_VARIANT STREQUAL "FULL")
+  set(_full_exe "${CMAKE_CURRENT_SOURCE_DIR}/Yoda Stories/Yodesk.exe")
+  add_custom_command(
+    OUTPUT  "${_res_bin}"
+    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res_bin}" --full "${_full_exe}"
+    DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_full_exe}"
+    COMMENT "build full-Yoda resources (Yoda base + retail About -> yoda.res)" VERBATIM)
+else()
+  add_custom_command(
+    OUTPUT  "${_res_bin}"
+    COMMAND python3 "${_tools}/extract_res.py" "${_orig_exe}" "${_res_bin}"
+    DEPENDS "${_tools}/extract_res.py" "${_orig_exe}"
+    COMMENT "extract resources (.rsrc -> yoda.res)" VERBATIM)
+endif()
+set(_res_c "${CMAKE_CURRENT_BINARY_DIR}/mfxres_blob.c")
+add_custom_command(
+  OUTPUT  "${_res_c}"
+  COMMAND python3 "${_tools}/bin2c.py" "${_res_bin}" "${_res_c}" g_mfxResBlob
+  DEPENDS "${_tools}/bin2c.py" "${_res_bin}"
+  COMMENT "embed yoda.res -> mfxres_blob.c" VERBATIM)
+
 # ── microfx: the MFC/Win32 subset library ────────────────────────────────────────────────────
 file(GLOB_RECURSE _mfx_srcs "${_mfx}/src/*.cpp")
-add_library(microfx STATIC ${_mfx_srcs})
+add_library(microfx STATIC ${_mfx_srcs} "${_res_c}")
 target_include_directories(microfx PUBLIC "${_mfx}/include")
 # SDL2 becomes REQUIRED at M1 (gdi/) — keep M0 (core/) buildable without it.
 find_package(SDL2 QUIET)

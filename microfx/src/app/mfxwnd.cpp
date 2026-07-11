@@ -24,6 +24,7 @@ BYTE  g_mfxKeyState[256];
 POINT g_mfxCursorPos;
 HWND  g_mfxCapture = 0;
 HWND  g_mfxFocus = 0;
+HCURSOR g_mfxCursor = 0;
 
 static HWND g_hRoot = 0;
 static HDC  g_hScreenDC = 0;
@@ -276,6 +277,8 @@ SHORT GetAsyncKeyState(int vKey)
     { return (vKey >= 0 && vKey < 256 && (g_mfxKeyState[vKey] & 0x80)) ? (SHORT)0x8000 : 0; }
 
 BOOL GetCursorPos(LPPOINT p) { if (p) *p = g_mfxCursorPos; return TRUE; }
+
+HCURSOR SetCursor(HCURSOR h) { HCURSOR hOld = g_mfxCursor; g_mfxCursor = h; return hOld; }
 
 HWND SetCapture(HWND h)   { HWND hOld = g_mfxCapture; g_mfxCapture = h; return hOld; }
 BOOL ReleaseCapture(void) { g_mfxCapture = 0; return TRUE; }
