@@ -282,6 +282,9 @@ if(EMSCRIPTEN)
       "-sASYNCIFY=1" "-sASYNCIFY_STACK_SIZE=1048576"
       "-sALLOW_MEMORY_GROWTH=1" "-sSTACK_SIZE=2097152" "-sEXIT_RUNTIME=1"
       "SHELL:--shell-file ${_mfx}/web/mfx_shell.html")   # no branding / console textarea
+    # emcc bakes the shell + pre-js into yoda.html/js at LINK time — make edits relink
+    set_property(TARGET yoda APPEND PROPERTY LINK_DEPENDS
+      "${_mfx}/web/mfx_shell.html" "${_mfx}/web/mfx_asset_picker.pre.js")
     # Two asset modes (user-set 2026-07-11):
     #   YODA_WASM_PRELOAD=ON  (default) — DTA/INI/sfx baked into yoda.data: self-contained page
     #                         for automation (tools/wasm_boottest.js) and local testing.
