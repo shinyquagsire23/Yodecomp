@@ -28,6 +28,12 @@ build-indy/
 build-demo/
 build-sdl/
 build-sdl-indy/
+build-wasm-deploy-demo/
+build-wasm-deploy-demodata/
+build-wasm-deploy-full/
+build-wasm-deploy-indy/
+build-wasm-pick/
+build-wasm/
 mfx_smoke.tmp
 tmp/
 *.exe
