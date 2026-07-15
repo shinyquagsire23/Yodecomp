@@ -8,7 +8,8 @@
 #include <afxwin.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <filesystem>   // portable temp dir (was POSIX mkdtemp + /tmp)
+#include <string>
 
 int MfxFileDialogScan(const char *pszDir, const char *pszExt, CString aNames[], int nMax);
 int MfxFileDialogBuildRows(int bOpenFileDialog, const CString &strDefault,
@@ -24,8 +25,12 @@ enum { ID_NEW = 90, ID_ROW0 = 100 };
 
 int main()
 {
-    char szDir[] = "/tmp/dlg_smoke_XXXXXX";
-    CHECK(mkdtemp(szDir) != 0);
+    std::error_code ec;
+    std::filesystem::path dir = std::filesystem::temp_directory_path(ec) / "dlg_smoke_test";
+    std::filesystem::remove_all(dir, ec);                 // clean any prior run
+    CHECK(std::filesystem::create_directories(dir, ec));
+    const std::string strDir = dir.string();
+    const char *szDir = strDir.c_str();
 
     // an empty save dir: Load finds nothing, Save offers only the "(new)" row
     {

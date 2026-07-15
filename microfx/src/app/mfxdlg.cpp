@@ -20,8 +20,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <strings.h>
-#include <dirent.h>
+#ifdef _WIN32
+#define strcasecmp _stricmp   // MSVC spelling (declared in <string.h> above)
+#else
+#include <strings.h>          // strcasecmp
+#endif
+#include <filesystem>         // portable directory listing (replaces POSIX <dirent.h>)
 
 // SDL3 native file picker (mfxplat.h contract); SDL2/null/DS return -1 → custom picker fallback.
 extern "C" int MfxPlatShowFileDialog(int, const char *, const char *, const char *, char *, int);
@@ -573,17 +577,16 @@ int CDialog::DoModal()
 int MfxFileDialogScan(const char *pszDir, const char *pszExt, CString aNames[], int nMax)
 {
     int nCount = 0;
-    DIR *pDir = opendir(pszDir && *pszDir ? pszDir : ".");
-    if (!pDir) return 0;
     size_t nExtLen = strlen(pszExt);
-    struct dirent *pEnt;
-    while (nCount < nMax && (pEnt = readdir(pDir)) != 0) {
-        size_t nLen = strlen(pEnt->d_name);
-        if (nLen <= nExtLen + 1 || pEnt->d_name[nLen - nExtLen - 1] != '.') continue;
-        if (strcasecmp(pEnt->d_name + nLen - nExtLen, pszExt) != 0) continue;
-        aNames[nCount++] = pEnt->d_name;
+    std::error_code ec;
+    std::filesystem::directory_iterator it(pszDir && *pszDir ? pszDir : ".", ec), end;
+    for (; !ec && it != end && nCount < nMax; it.increment(ec)) {
+        const std::string strName = it->path().filename().string();
+        size_t nLen = strName.size();
+        if (nLen <= nExtLen + 1 || strName[nLen - nExtLen - 1] != '.') continue;
+        if (strcasecmp(strName.c_str() + nLen - nExtLen, pszExt) != 0) continue;
+        aNames[nCount++] = strName.c_str();
     }
-    closedir(pDir);
     return nCount;
 }
 
@@ -642,7 +645,8 @@ int CFileDialog::DoModal()
     // was never going to exist — used for BOTH the row-list scan and the resolved save path
     // below, so Save and Load always agree on the same real directory.
     const char *pszDir = (m_ofn.lpstrInitialDir && *m_ofn.lpstrInitialDir) ? m_ofn.lpstrInitialDir : ".";
-    if (DIR *pProbe = opendir(pszDir)) closedir(pProbe); else pszDir = ".";
+    std::error_code ecDir;
+    if (!std::filesystem::is_directory(pszDir, ecDir)) pszDir = ".";
     const char *pszExt = m_ofn.lpstrDefExt ? (const char *)m_ofn.lpstrDefExt : "wld";
 
     enum { MAX_FOUND = 8, ID_NEW = 90, ID_ROW0 = 100 };

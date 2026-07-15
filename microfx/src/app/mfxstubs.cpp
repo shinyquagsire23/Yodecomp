@@ -7,6 +7,8 @@
 #include <ctype.h>             // tolower (INI profile lookup)
 #ifdef __APPLE__
 #include <mach-o/dyld.h>       // _NSGetExecutablePath (GetModuleFileNameA)
+#elif defined(_WIN32)
+#include <stdlib.h>            // _get_pgmptr — the real exe path (no windows.h, no self-recursion)
 #else
 #include <unistd.h>            // readlink /proc/self/exe
 #endif
@@ -514,6 +516,15 @@ DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
     uint32_t nBuf = sizeof(szBuf);
     if (_NSGetExecutablePath(szBuf, &nBuf) != 0)
         szBuf[0] = 0;
+#elif defined(_WIN32)
+    // MSVC CRT holds the program path in _pgmptr (backslash-separated — CFile::Open normalizes it).
+    // Using _get_pgmptr avoids calling the real kernel32 GetModuleFileNameA, which this very
+    // function shadows.
+    char* pszPgm = 0;
+    if (_get_pgmptr(&pszPgm) == 0 && pszPgm) {
+        strncpy(szBuf, pszPgm, sizeof(szBuf) - 1);
+        szBuf[sizeof(szBuf) - 1] = 0;
+    } else szBuf[0] = 0;
 #else
     ssize_t n = readlink("/proc/self/exe", szBuf, sizeof(szBuf) - 1);
     if (n > 0) szBuf[n] = 0; else szBuf[0] = 0;

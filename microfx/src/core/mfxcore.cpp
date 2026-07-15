@@ -4,6 +4,8 @@
 #include <afxwin.h>
 #include <ctype.h>
 #include <time.h>
+#include <chrono>       // portable monotonic clock (was POSIX clock_gettime)
+#include <thread>       // portable sleep (was POSIX nanosleep)
 
 // ── CRuntimeClass / CObject ──────────────────────────────────────────────────────────────────
 CObject* CRuntimeClass::CreateObject()
@@ -262,7 +264,10 @@ void CString::ReleaseBuffer(int nNewLength)
 }
 
 // default LoadString hook — res/mfxres.cpp provides the real one (string table from the
-// embedded .res); this weak fallback keeps hypothetical res-less builds linking
+// embedded .res); this weak fallback keeps hypothetical res-less builds linking.
+// MSVC has no weak symbols; there mfxres.cpp's definition is the sole one (it is always pulled
+// in to satisfy any MfxLoadString reference), so the fallback is simply omitted.
+#ifndef _MSC_VER
 __attribute__((weak)) BOOL MfxLoadString(UINT nID, CString& str)
 {
     char buf[32];
@@ -270,6 +275,7 @@ __attribute__((weak)) BOOL MfxLoadString(UINT nID, CString& str)
     str = buf;
     return FALSE;
 }
+#endif
 
 // ── CFile ────────────────────────────────────────────────────────────────────────────────────
 CFile::CFile(LPCSTR pszFileName, UINT nOpenFlags) : m_pStream(0)
@@ -565,11 +571,15 @@ int wsprintfA(LPSTR buf, LPCSTR fmt, ...)
     return n;
 }
 
+static long long mfx_monotonic_ms(void)
+{
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
 DWORD GetTickCount(void)
 {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (DWORD)(ts.tv_sec * 1000u + ts.tv_nsec / 1000000u);
+    return (DWORD)mfx_monotonic_ms();
 }
 
 // game TUs' clock() remaps here (afxwin.h tail #define) — Win32 CRT semantics:
@@ -583,17 +593,12 @@ extern "C" void MfxSetClockHook(void (*pfn)(void)) { g_pfnMfxClockHook = pfn; }
 clock_t mfx_clock(void)
 {
     if (g_pfnMfxClockHook) g_pfnMfxClockHook();
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (clock_t)(ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+    return (clock_t)mfx_monotonic_ms();
 }
 
 void Sleep(DWORD ms)
 {
-    struct timespec ts;
-    ts.tv_sec = ms / 1000;
-    ts.tv_nsec = (long)(ms % 1000) * 1000000L;
-    nanosleep(&ts, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
 DWORD GetLastError(void) { return 0; }

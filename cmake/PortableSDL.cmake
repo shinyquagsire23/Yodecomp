@@ -48,6 +48,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   )
 endif()
 
+# Force-load a whole static archive into a target (so every game<->microfx symbol is link-checked,
+# and message-map/DYNCREATE self-registration objects that nothing references directly survive).
+# The flag is compiler/linker-specific: ld64 (Apple), MSVC link.exe, and GNU-style ld/lld differ.
+function(mfx_force_load tgt archive)
+  if(APPLE)
+    target_link_options(${tgt} PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:${archive}>")
+  elseif(MSVC)
+    target_link_options(${tgt} PRIVATE "/WHOLEARCHIVE:$<TARGET_FILE:${archive}>")
+  else()  # GNU ld / lld / emscripten wasm-ld
+    target_link_options(${tgt} PRIVATE
+      "SHELL:-Wl,--whole-archive $<TARGET_FILE:${archive}> -Wl,--no-whole-archive")
+  endif()
+endfunction()
+
 # ── resources: the SAME .res blob the WIN32 link consumes, embedded as a C array ─────────────
 # (M4: microfx/src/res/mfxres.cpp parses it at runtime — icons/cursors/strings/bitmaps.)
 set(_tools "${CMAKE_CURRENT_SOURCE_DIR}/tools")
@@ -205,12 +219,7 @@ target_link_libraries(yoda_game PUBLIC microfx)   # propagates microfx/include (
 add_executable(worldgen_smoke "${_mfx}/harness/worldgen_smoke.cpp")
 target_include_directories(worldgen_smoke PRIVATE "${_src}")
 target_link_libraries(worldgen_smoke PRIVATE yoda_game)
-if(APPLE)
-  target_link_options(worldgen_smoke PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
-else()
-  target_link_options(worldgen_smoke PRIVATE
-    "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
-endif()
+mfx_force_load(worldgen_smoke yoda_game)
 
 # ── M5 tail oracle: CFileDialog scan/build-rows/resolve unit test (no game bootstrap needed) ──
 add_executable(dlg_smoke "${_mfx}/harness/dlg_smoke.cpp")
@@ -220,34 +229,43 @@ target_link_libraries(dlg_smoke PRIVATE microfx)
 add_executable(zone_view "${_mfx}/harness/zone_view.cpp")
 target_include_directories(zone_view PRIVATE "${_src}")
 target_link_libraries(zone_view PRIVATE yoda_game)
-if(APPLE)
-  target_link_options(zone_view PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
-else()
-  target_link_options(zone_view PRIVATE
-    "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
-endif()
+mfx_force_load(zone_view yoda_game)
 
 # ── M2 oracle: headless walk harness (drives the dispatch/timer layer, no window) ───────────
 add_executable(game_walk "${_mfx}/harness/game_walk.cpp")
 target_include_directories(game_walk PRIVATE "${_src}")
 target_link_libraries(game_walk PRIVATE yoda_game)
-if(APPLE)
-  target_link_options(game_walk PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
-else()
-  target_link_options(game_walk PRIVATE
-    "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
-endif()
+mfx_force_load(game_walk yoda_game)
 
 # ── M2: the game itself — real entry point + the platform pump (needs a video backend) ──────
 if(NOT _mfx_video STREQUAL "null")
   add_executable(yoda "${_mfx}/harness/yoda_main.cpp")
   target_include_directories(yoda PRIVATE "${_src}")
   target_link_libraries(yoda PRIVATE yoda_game)
-  if(APPLE)
-    target_link_options(yoda PRIVATE "SHELL:-Wl,-force_load,$<TARGET_FILE:yoda_game>")
-  else()
-    target_link_options(yoda PRIVATE
-      "SHELL:-Wl,--whole-archive $<TARGET_FILE:yoda_game> -Wl,--no-whole-archive")
+  mfx_force_load(yoda yoda_game)
+
+  # ── convenience: `cmake --build build-sdl --target run` (native, mirrors run_sdl.sh) ─────────
+  # The engine derives its data directory from GetModuleFileName (the binary's own folder), so we
+  # stage the freshly built `yoda` into the run folder that holds this config's game data and
+  # launch it there. The run folder (game data — DTA/DAW + sfx/) is user-supplied; see BUILDING.md.
+  if(NOT EMSCRIPTEN)
+    if(YODA_GAME STREQUAL "INDY")
+      set(_run_dir "${CMAKE_CURRENT_SOURCE_DIR}/YodaIndy")
+    elseif(YODA_VARIANT STREQUAL "FULL")
+      set(_run_dir "${CMAKE_CURRENT_SOURCE_DIR}/YodaFull")
+    else()
+      set(_run_dir "${CMAKE_CURRENT_SOURCE_DIR}/YodaDemo")
+    endif()
+    add_custom_target(run
+      DEPENDS yoda
+      # Preserve the platform executable suffix (yoda.exe on Windows) — the game reads its data
+      # from the binary's own folder, so copy it into the run folder next to the DTA/sfx.
+      COMMAND "${CMAKE_COMMAND}" -E copy
+              "$<TARGET_FILE:yoda>" "${_run_dir}/$<TARGET_FILE_NAME:yoda>"
+      COMMAND "${_run_dir}/$<TARGET_FILE_NAME:yoda>"
+      WORKING_DIRECTORY "${_run_dir}"
+      USES_TERMINAL
+      COMMENT "run the native SDL yoda from ${_run_dir}")
   endif()
 endif()
 

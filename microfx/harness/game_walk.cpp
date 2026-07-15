@@ -13,7 +13,8 @@
 #include "Worldgen.h"    // CDeskcppDoc facade: nFrameMode, playerX/playerY
 #include "../src/app/mfxwnd.h"   // the pump internals — this harness IS a headless pump
 #include <stdlib.h>
-#include <unistd.h>
+#include <thread>       // portable sleep (was POSIX usleep)
+#include <chrono>
 
 static CDeskcppDoc *g_pDoc;
 static CDeskcppView *g_pGameView;
@@ -25,7 +26,7 @@ static void Pump(int nIters)
     for (int i = 0; i < nIters; i++) {
         MfxPumpTimers();
         MfxPaintIfDirty();
-        usleep(10000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
@@ -47,7 +48,7 @@ static void HoldKey(int vk, int nIters)
         if (i == 20) TraceView("mid-hold");
         MfxPumpTimers();
         MfxPaintIfDirty();
-        usleep(10000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     g_mfxKeyState[vk] &= (BYTE)~0x80;
     MfxSendMsg(g_hView, WM_KEYUP, (WPARAM)vk, 1);

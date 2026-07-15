@@ -6,7 +6,7 @@ AKA, let's see how well Claude can decompile Yoda Stories with the right encoura
 
 ## Current Progress
 
-Claude has successfully transcribed 100% of the engine into idiomatic C++, and is able to build an EXE from source (see `build_run.sh`). Claude took a break from bytematching because it was spinning its wheels too much; is is currently porting the game to SDL via `microfx`, a slot-in replacement for MFC and portions of GDI. `microfx` allows the original window code and game logic to retain the ability to be bytematched and stay in its original form with zero platform-specific ifdefs.
+Claude has successfully transcribed 100% of the engine into idiomatic C++, and is able to build an EXE from source (see `build_run_demo.sh`). **To build it yourself — WIN32/MFC, native SDL, or WASM — and to find out which game assets and toolchain you need to supply, see [`BUILDING.md`](BUILDING.md).** Claude took a break from bytematching because it was spinning its wheels too much; is is currently porting the game to SDL via `microfx`, a slot-in replacement for MFC and portions of GDI. `microfx` allows the original window code and game logic to retain the ability to be bytematched and stay in its original form with zero platform-specific ifdefs.
 
 ## Methodology
 

@@ -44,6 +44,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef _WIN32
+#define strcasecmp _stricmp   // MSVC spelling (declared in <string.h>); mac/Linux get the BSD name
+#endif
 
 static bool s_bSndLog;
 #define SNDLOG(args) do { if (s_bSndLog) { fprintf args; fflush(stderr); } } while (0)
