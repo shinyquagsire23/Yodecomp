@@ -123,14 +123,39 @@ Config axes:
 The build auto-selects a backend from what CMake finds: **SDL3** preferred (add `SDL3_mixer` for
 full audio incl. MIDI), then SDL2, else a silent `null` backend. Details: `docs/phase-h4-sdl.md`.
 
-**Visual Studio / MSVC:** the SDL build uses your host compiler, so it works with the Visual
-Studio generator too — point CMake at an SDL3 install (e.g. via vcpkg or `-DCMAKE_PREFIX_PATH`).
-VS is a *multi-config* generator, so pass `--config` when building:
+### CMake presets (Visual Studio, VS Code, CLI)
+
+`CMakePresets.json` at the repo root defines the configs so you don't have to remember the `-D`
+flags. `cmake --list-presets` shows:
+
+| Preset | Config | Notes |
+|---|---|---|
+| **`sdl-demo`** | SDL · Yoda demo | **default** (listed first) |
+| `sdl-full` | SDL · retail Yoda | needs `YodaFull/` + `Yoda Stories/Yodesk.exe` |
+| `sdl-indy` | SDL · Indiana Jones | needs `YodaIndy/` + `INDYDESK/DESKADV.EXE` |
+| `vc42` | WIN32/MFC anchor | wine-wrapped Visual C++ 4.2 (macOS/Linux) — see below |
+
+From the CLI:
 ```sh
-cmake -B build-sdl -DYODA_PLATFORM=SDL -DYODA_VARIANT=FULL
-cmake --build build-sdl --config Release --target run
+cmake --preset sdl-demo             # configure -> build-sdl-demo/
+cmake --build --preset sdl-demo     # build -> build-sdl-demo/yoda
 ```
-(The executable suffix — `yoda.exe` on Windows — is handled automatically.)
+
+**Visual Studio:** open the repo folder (*File → Open → Folder*, or `File → Open → CMake` on the
+root `CMakeLists.txt`). VS reads `CMakePresets.json` and lists the four presets in the
+**Configuration** dropdown; it selects `sdl-demo` by default. Pick `sdl-full` / `sdl-indy` /
+`vc42` there to switch. The SDL presets use the **Ninja** generator (bundled with VS's *C++ CMake
+tools* component) and are single-config `Release`. They inherit the MSVC dev environment via the
+preset's `architecture` block (`"strategy": "external"` — the CMakePresets equivalent of the older
+`CMakeSettings.json` `inheritEnvironments: msvc_x64_x64`); it defaults to **x64**. For an ARM64
+host/target, change `architecture.value` to `arm64` in `CMakePresets.json` (or add per-arch
+presets). Note VS prefers `CMakePresets.json` over `CMakeSettings.json` when both exist, so the
+presets — not a settings file — are the place to adjust this.
+
+Point CMake at an SDL3 install (e.g. vcpkg, or `-DCMAKE_PREFIX_PATH` — set it in a local
+`CMakeUserPresets.json` to keep it out of the tree). The `vc42` preset is the wine-wrapped Visual
+C++ 4.2 anchor build (macOS/Linux); it's selectable in the dropdown for completeness but does not
+build under native Windows VS (its `cl`/`link` are bash wrappers around wine).
 
 The `microfx` shim is written to compile under MSVC (POSIX/GNU calls are behind portable C++17 or
 `_WIN32` guards). It's built + run regularly on clang/macOS; native-Windows link/runtime hasn't

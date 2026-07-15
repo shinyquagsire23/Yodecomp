@@ -28,6 +28,10 @@ build-indy/
 build-demo/
 build-sdl/
 build-sdl-indy/
+# CMakePresets.json binaryDirs (build-${presetName})
+build-sdl-demo/
+build-sdl-full/
+build-vc42/
 build-wasm-deploy-demo/
 build-wasm-deploy-demodata/
 build-wasm-deploy-full/

@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "sdl-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "architecture": { "value": "x64", "strategy": "external" },
+      "cacheVariables": {
+        "YODA_PLATFORM": "SDL",
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "sdl-demo",
+      "displayName": "SDL — Yoda Stories Demo (default)",
+      "description": "Portable SDL3 build, Yoda Stories demo data. Host compiler + SDL3; runs on macOS/Linux/Windows.",
+      "inherits": "sdl-base",
+      "cacheVariables": {
+        "YODA_GAME": "YODA",
+        "YODA_VARIANT": "DEMO"
+      }
+    },
+    {
+      "name": "sdl-full",
+      "displayName": "SDL — Yoda Stories (retail full)",
+      "description": "Portable SDL3 build, retail full Yoda Stories (needs YodaFull/ + Yoda Stories/Yodesk.exe).",
+      "inherits": "sdl-base",
+      "cacheVariables": {
+        "YODA_GAME": "YODA",
+        "YODA_VARIANT": "FULL"
+      }
+    },
+    {
+      "name": "sdl-indy",
+      "displayName": "SDL — Indiana Jones' Desktop Adventures",
+      "description": "Portable SDL3 build, Indiana Jones (needs YodaIndy/ + INDYDESK/DESKADV.EXE).",
+      "inherits": "sdl-base",
+      "cacheVariables": {
+        "YODA_GAME": "INDY",
+        "YODA_VARIANT": "DEMO"
+      }
+    },
+    {
+      "name": "vc42",
+      "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor",
+      "description": "Original 1997 codegen via the wine-wrapped Visual C++ 4.2 toolchain (macOS/Linux). Not a native-VS build; needs toolchain/vc42/ + wine — see BUILDING.md.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "cacheVariables": {
+        "YODA_PLATFORM": "WIN32",
+        "YODA_GAME": "YODA",
+        "YODA_VARIANT": "DEMO",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/toolchain/vc42.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "sdl-demo", "displayName": "SDL — Yoda Stories Demo (default)", "configurePreset": "sdl-demo" },
+    { "name": "sdl-full", "displayName": "SDL — Yoda Stories (retail full)", "configurePreset": "sdl-full" },
+    { "name": "sdl-indy", "displayName": "SDL — Indiana Jones' Desktop Adventures", "configurePreset": "sdl-indy" },
+    { "name": "vc42", "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor", "configurePreset": "vc42" }
+  ]
+}
