@@ -152,14 +152,26 @@ host/target, change `architecture.value` to `arm64` in `CMakePresets.json` (or a
 presets). Note VS prefers `CMakePresets.json` over `CMakeSettings.json` when both exist, so the
 presets — not a settings file — are the place to adjust this.
 
-Point CMake at an SDL3 install (e.g. vcpkg, or `-DCMAKE_PREFIX_PATH` — set it in a local
-`CMakeUserPresets.json` to keep it out of the tree). The `vc42` preset is the wine-wrapped Visual
+**SDL3 on Windows.** You must point CMake at an SDL3 install, or CMake falls back to the silent
+`null` backend — in which case the playable **`yoda` target is not built** (only the headless test
+harnesses are), and it won't appear in VS's *Startup Item* dropdown (CMake prints a `WARNING`
+saying so). The easiest route is [vcpkg](https://vcpkg.io):
+```sh
+vcpkg install sdl3 sdl3-mixer          # sdl3-mixer optional — adds MIDI / full audio
+```
+then add the vcpkg toolchain to the SDL presets' `cacheVariables` (or a local
+`CMakeUserPresets.json`, which VS also reads and which stays out of the tree):
+```json
+"CMAKE_TOOLCHAIN_FILE": "C:/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake"
+```
+(or configure with `-DCMAKE_PREFIX_PATH=<your SDL3 install>`). Once SDL3 is found, `yoda`
+builds and becomes selectable as the Startup Item. The `vc42` preset is the wine-wrapped Visual
 C++ 4.2 anchor build (macOS/Linux); it's selectable in the dropdown for completeness but does not
 build under native Windows VS (its `cl`/`link` are bash wrappers around wine).
 
 The `microfx` shim is written to compile under MSVC (POSIX/GNU calls are behind portable C++17 or
-`_WIN32` guards). It's built + run regularly on clang/macOS; native-Windows link/runtime hasn't
-been smoke-tested yet, so treat MSVC as "should build, please report issues."
+`_WIN32` guards). It's built + run regularly on clang/macOS; native-Windows compile is now being
+smoke-tested (Visual Studio 2022) — report any remaining issues.
 
 ---
 

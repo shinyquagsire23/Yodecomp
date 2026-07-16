@@ -281,6 +281,16 @@ if(NOT _mfx_video STREQUAL "null")
       USES_TERMINAL
       COMMENT "run the native SDL yoda from ${_run_dir}")
   endif()
+elseif(NOT EMSCRIPTEN)
+  # No SDL was found, so the playable `yoda` executable is NOT created (the null backend has no
+  # window) — only the headless test harnesses build. In Visual Studio this shows up as "yoda has
+  # no Startup Item". Install SDL3 and point CMake at it to get a runnable target:
+  #   • vcpkg:  vcpkg install sdl3   +   -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake
+  #   • or:     -DCMAKE_PREFIX_PATH=<your SDL3 install>   (add SDL3_mixer for MIDI/full audio)
+  message(WARNING
+    "microfx: no SDL found -> video backend is 'null', so the playable 'yoda' target is NOT "
+    "built (only the test harnesses). Install SDL3 and set CMAKE_PREFIX_PATH (or use the vcpkg "
+    "toolchain) to get a runnable 'yoda' — see BUILDING.md 'CMake presets (Visual Studio ...)'.")
 endif()
 
 # ── WASM tail: per-target emscripten link config ─────────────────────────────────────────────

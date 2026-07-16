@@ -653,4 +653,14 @@ void     _makepath(char* path, const char* drive, const char* dir, const char* f
 } // extern "C"
 #endif
 
+// POSIX env-var helpers the test harnesses (worldgen_smoke / zone_view / game_walk) use to pin
+// YODA_SEED / YODA_PLANET. MSVC's ucrt has no setenv/unsetenv — map them onto _putenv_s
+// (value "" removes the variable on Windows). Windows-only: POSIX hosts declare these in
+// <stdlib.h>; C++-only since the harnesses are C++ (skipped by the C TUs that include this).
+#if defined(_WIN32) && defined(__cplusplus)
+#include <stdlib.h>
+inline int setenv(const char* name, const char* value, int /*overwrite*/) { return _putenv_s(name, value); }
+inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
+#endif
+
 #endif // MICROFX_WINDOWS_H
