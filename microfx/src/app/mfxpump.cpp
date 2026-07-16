@@ -192,7 +192,15 @@ static void MfxPumpPlatEvents(void)
         // other mouse event gets ev.y shifted back into game-DC space, unmodified from here on.
         if (ev.nType == MFXPLAT_EV_MOUSEMOVE || ev.nType == MFXPLAT_EV_LDOWN ||
             ev.nType == MFXPLAT_EV_LUP || ev.nType == MFXPLAT_EV_RDOWN || ev.nType == MFXPLAT_EV_RUP) {
-            if (ev.y < MFX_MENUBAR_H) {
+            // A drag that began in the game area (a button is down and no menu popup is up) owns
+            // the pointer the Win32 way — a captured window receives every move and the final
+            // button-up regardless of position. So its events must reach the game even when the
+            // pointer wanders up into, or the release lands in, the menu-bar band. Divert to the
+            // bar ONLY when no such drag is in flight; otherwise a vertical drag up into the strip
+            // strands the button down forever — the up matches neither sub-case below and is eaten
+            // by the `continue`. Platform-neutral (native has the same latent swallow).
+            int bGameDrag = (g_nMouseBtns & (MK_LBUTTON | MK_RBUTTON)) && !MfxMenuActive();
+            if (ev.y < MFX_MENUBAR_H && !bGameDrag) {
                 if (ev.nType == MFXPLAT_EV_MOUSEMOVE) {
                     g_bMenuBarHover = 1;          // over the bar → MfxApplyCursor shows the OS arrow
                     MfxMenuHandleMouse(WM_MOUSEMOVE, ev.x, ev.y);

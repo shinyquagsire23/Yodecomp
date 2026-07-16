@@ -198,6 +198,13 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
     static char s_szTextPend[32];
     static int  s_nTextPend = 0;
 
+#ifdef __EMSCRIPTEN__
+    // last delivered pointer position (post-scale, whole-window space) + outstanding button
+    // state — used to synthesize the button-up that a wasm drag leaving the canvas never sends.
+    static int s_lastX = 0, s_lastY = 0;
+    static int s_bLBtnDown = 0, s_bRBtnDown = 0;
+#endif
+
     pEv->nType = MFXPLAT_EV_NONE;
     pEv->nVk = pEv->nChar = pEv->x = pEv->y = 0;
 
@@ -212,6 +219,43 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
         })) {
         pEv->nType = MFXPLAT_EV_QUIT;
         return 1;
+    }
+
+    // Stuck-mouse fix: SDL3's emscripten backend listens for mouse events on the canvas, and
+    // SDL_CaptureMouse does not reliably retarget the browser under wasm. So a press that starts
+    // on the canvas and releases elsewhere on the page fires `mouseup` on the page — SDL never
+    // sees it and the game is left with the button stuck down (walk/drag/capture never ends).
+    // Install (once) a window-level mouseup listener that records releases occurring OFF the
+    // canvas, and synthesize the matching up here. Releases over the canvas reach SDL normally
+    // and are ignored by the handler, so there's no double delivery; blur covers a release after
+    // the tab loses focus (its mouseup is delivered to no one).
+    {
+        static int s_bUpHookInstalled = 0;
+        if (!s_bUpHookInstalled) {
+            s_bUpHookInstalled = 1;
+            EM_ASM({
+                window.__mfxUpBits = 0;   // bit0 = left released off-canvas, bit1 = right
+                window.addEventListener('mouseup', function (e) {
+                    var cv = Module['canvas'];
+                    if (cv && e.target === cv) return;    // over canvas → SDL delivers it
+                    window.__mfxUpBits |= (e.button === 2) ? 2 : 1;
+                }, true);
+                window.addEventListener('blur', function () { window.__mfxUpBits |= 3; });
+            });
+        }
+        int bits = EM_ASM_INT({ var b = window.__mfxUpBits | 0; window.__mfxUpBits = 0; return b; });
+        if ((bits & 1) && s_bLBtnDown) {
+            s_bLBtnDown = 0;
+            if (!s_bRBtnDown) SDL_CaptureMouse(false);
+            pEv->nType = MFXPLAT_EV_LUP; pEv->x = s_lastX; pEv->y = s_lastY;
+            return 1;
+        }
+        if ((bits & 2) && s_bRBtnDown) {
+            s_bRBtnDown = 0;
+            if (!s_bLBtnDown) SDL_CaptureMouse(false);
+            pEv->nType = MFXPLAT_EV_RUP; pEv->x = s_lastX; pEv->y = s_lastY;
+            return 1;
+        }
     }
 #endif
 
@@ -268,16 +312,27 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
             pEv->nType = MFXPLAT_EV_MOUSEMOVE;
             pEv->x = (int)ev.motion.x / s_nScale;
             pEv->y = (int)ev.motion.y / s_nScale;
+#ifdef __EMSCRIPTEN__
+            s_lastX = pEv->x; s_lastY = pEv->y;
+#endif
             return 1;
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_BUTTON_UP: {
             int bDown = (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
-            if (ev.button.button == SDL_BUTTON_LEFT)
+            int bLeft = (ev.button.button == SDL_BUTTON_LEFT);
+            if (bLeft)
                 pEv->nType = bDown ? MFXPLAT_EV_LDOWN : MFXPLAT_EV_LUP;
             else if (ev.button.button == SDL_BUTTON_RIGHT)
                 pEv->nType = bDown ? MFXPLAT_EV_RDOWN : MFXPLAT_EV_RUP;
             else
                 break;                              // other buttons: keep polling
+#ifdef __EMSCRIPTEN__
+            // A release delivered here happened over the canvas; if the off-canvas hook above
+            // already synthesized the up (button flag cleared), swallow this duplicate.
+            if (!bDown && (bLeft ? !s_bLBtnDown : !s_bRBtnDown))
+                break;
+            if (bLeft) s_bLBtnDown = bDown; else s_bRBtnDown = bDown;
+#endif
             // Capture the pointer for the duration of a drag so motion + the button-up keep
             // arriving even when the drag leaves the window (else a release outside strands the
             // game in its capture/walk state — most visible under wasm, where the browser stops
@@ -288,6 +343,9 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
                 SDL_CaptureMouse(false);
             pEv->x = (int)ev.button.x / s_nScale;
             pEv->y = (int)ev.button.y / s_nScale;
+#ifdef __EMSCRIPTEN__
+            s_lastX = pEv->x; s_lastY = pEv->y;
+#endif
             return 1;
         }
         }
