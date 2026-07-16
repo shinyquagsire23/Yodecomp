@@ -3,6 +3,7 @@
   "name": "yodecomp",
   "version-string": "0.1.0",
   "description": "LucasArts Desktop Adventures (Yoda Stories / Indiana Jones) decompilation + portable SDL3 engine (microfx).",
+  "builtin-baseline": "e8709ee8703328fe121eab33cda73a406a7626b7",
   "dependencies": [
     "sdl3",
     "sdl3-mixer"

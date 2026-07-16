@@ -566,6 +566,7 @@ void _makepath(char* path, const char* drive, const char* dir, const char* fname
 }
 #endif // !_WIN32 (host _splitpath/_makepath)
 
+#ifndef _WIN32   // Windows: use the real user32 wsprintfA export (avoids LNK2005)
 int wsprintfA(LPSTR buf, LPCSTR fmt, ...)
 {
     va_list ap;
@@ -574,6 +575,7 @@ int wsprintfA(LPSTR buf, LPCSTR fmt, ...)
     va_end(ap);
     return n;
 }
+#endif
 
 static long long mfx_monotonic_ms(void)
 {
@@ -581,10 +583,12 @@ static long long mfx_monotonic_ms(void)
     return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
 }
 
+#ifndef _WIN32   // Windows: use the real kernel32 GetTickCount export (avoids LNK2005)
 DWORD GetTickCount(void)
 {
     return (DWORD)mfx_monotonic_ms();
 }
+#endif
 
 // game TUs' clock() remaps here (afxwin.h tail #define) — Win32 CRT semantics:
 // WALL time, CLOCKS_PER_SEC==1000. The game busy-waits on differences only.
@@ -600,10 +604,12 @@ clock_t mfx_clock(void)
     return (clock_t)mfx_monotonic_ms();
 }
 
+#ifndef _WIN32   // Windows: use the real kernel32 Sleep export (avoids LNK2005)
 void Sleep(DWORD ms)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
+#endif
 
 #ifndef _WIN32
 DWORD GetLastError(void) { return 0; }   // Windows: use the real kernel32 export (avoids LNK2005)

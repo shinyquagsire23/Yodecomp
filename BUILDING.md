@@ -134,6 +134,7 @@ flags. `cmake --list-presets` shows:
 | `sdl-full` | SDL · retail Yoda | needs `YodaFull/` + `Yoda Stories/Yodesk.exe` |
 | `sdl-indy` | SDL · Indiana Jones | needs `YodaIndy/` + `INDYDESK/DESKADV.EXE` |
 | `vc42` | WIN32/MFC anchor | wine-wrapped Visual C++ 4.2 (macOS/Linux) — see below |
+| `vs-sdl-demo` / `vs-sdl-full` / `vs-sdl-indy` | SDL + vcpkg | **Windows/VS only** — same as `sdl-*` but adds the vcpkg toolchain so SDL3 auto-installs (see *SDL3 on Windows*). Hidden on macOS/Linux. |
 
 From the CLI:
 ```sh
@@ -142,9 +143,11 @@ cmake --build --preset sdl-demo     # build -> build-sdl-demo/yoda
 ```
 
 **Visual Studio:** open the repo folder (*File → Open → Folder*, or `File → Open → CMake` on the
-root `CMakeLists.txt`). VS reads `CMakePresets.json` and lists the four presets in the
-**Configuration** dropdown; it selects `sdl-demo` by default. Pick `sdl-full` / `sdl-indy` /
-`vc42` there to switch. The SDL presets use the **Ninja** generator (bundled with VS's *C++ CMake
+root `CMakeLists.txt`). VS reads `CMakePresets.json` and lists the presets in the
+**Configuration** dropdown. On Windows, pick one of the **`vs-sdl-*`** presets — they add the
+vcpkg toolchain so SDL3 installs automatically (the plain `sdl-*` presets carry **no** toolchain
+and will fall back to the `null` backend on a machine without a system SDL3). Use `vs-sdl-full` /
+`vs-sdl-indy` for the other games. The SDL presets use the **Ninja** generator (bundled with VS's *C++ CMake
 tools* component) and are single-config `Release`. They inherit the MSVC dev environment via the
 preset's `architecture` block (`"strategy": "external"` — the CMakePresets equivalent of the older
 `CMakeSettings.json` `inheritEnvironments: msvc_x64_x64`); it defaults to **x64**. For an ARM64
@@ -159,16 +162,33 @@ saying exactly this).
 
 The repo ships a **`vcpkg.json`** manifest declaring SDL3 (+ `sdl3-mixer` for MIDI / full audio),
 so the easiest path is [vcpkg](https://vcpkg.io): Visual Studio 2022 detects the manifest and
-**installs the dependencies automatically** on the first CMake configure — provided the build uses
-the vcpkg toolchain. VS's bundled vcpkg sets `VCPKG_ROOT`; add its toolchain to the SDL presets'
-`cacheVariables` (or a local `CMakeUserPresets.json`, which VS also reads and which stays out of
-the tree):
+**installs the dependencies automatically** on the first CMake configure — *but only when the build
+uses the vcpkg toolchain.* This is the usual reason "vcpkg.json does nothing": the plain `sdl-*`
+presets set no toolchain, so manifest mode never activates. The **`vs-sdl-*`** presets fix that —
+they add:
 ```json
 "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
 ```
+so vcpkg runs at configure time and installs SDL3 into `vcpkg_installed/`. This needs **`VCPKG_ROOT`
+to be set** — VS 2022's bundled vcpkg normally sets it, but if configure fails with
+`.../scripts/buildsystems/vcpkg.cmake` **not found** (i.e. it expanded to an empty path), set it
+yourself: `setx VCPKG_ROOT "C:\path\to\vcpkg"` (or the bundled
+`"%ProgramFiles%\Microsoft Visual Studio\2022\<edition>\VC\vcpkg"`), then reopen VS. Verify with
+`echo %VCPKG_ROOT%` in the VS *Developer Command Prompt*.
+
+`vcpkg.json` pins a **`builtin-baseline`** (a vcpkg registry commit — the default version floor;
+manifest mode errors out `requires a manifest with a specified baseline` without one). It's the
+`2026.06.01` release commit — the first that carries the **`sdl3-mixer`** port (added 2026-06-05),
+so an older baseline fails with `the baseline does not contain an entry for port sdl3-mixer`. Your
+vcpkg clone must therefore be **at least 2026.06.01**; if a `vcpkg` older than that can't find the
+pinned commit at all (`baseline ... was not found`), update it (`git -C %VCPKG_ROOT% pull`) — or
+re-pin to your own instance's HEAD with `vcpkg x-update-baseline` from the repo root, though a
+pre-2026-06 vcpkg won't have `sdl3-mixer` and you'd need to drop it from `dependencies` (the build
+falls back to the SFX-only `sdl3stream` audio backend).
+
 (Prefer to manage SDL yourself? `vcpkg install sdl3 sdl3-mixer` in classic mode, or just
-`-DCMAKE_PREFIX_PATH=<your SDL3 install>`.) Once SDL3 is found, `yoda` builds and becomes
-selectable as the Startup Item.
+`-DCMAKE_PREFIX_PATH=<your SDL3 install>` on a plain `sdl-*` preset.) Once SDL3 is found, `yoda`
+builds and becomes selectable as the Startup Item.
 
 The `vc42` preset is the wine-wrapped Visual C++ 4.2 anchor build (macOS/Linux); it's selectable
 in the dropdown for completeness but does not build under native Windows VS (its `cl`/`link` are

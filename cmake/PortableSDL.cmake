@@ -258,6 +258,15 @@ if(NOT _mfx_video STREQUAL "null")
   target_link_libraries(yoda PRIVATE yoda_game)
   mfx_force_load(yoda yoda_game)
 
+  # Native Windows: link as a GUI-subsystem app so no empty console window pops up alongside the
+  # game (the default console subsystem allocates one; the SDL build prints nothing to it). The
+  # harness keeps its plain main(), so point the entry at mainCRTStartup (the CRT bootstrap that
+  # calls main) instead of WinMainCRTStartup. YODA_DEBUG builds keep the console so stderr/asserts
+  # stay visible.
+  if(MSVC AND NOT YODA_DEBUG)
+    target_link_options(yoda PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
+  endif()
+
   # ── convenience: `cmake --build build-sdl --target run` (native, mirrors run_sdl.sh) ─────────
   # The engine derives its data directory from GetModuleFileName (the binary's own folder), so we
   # stage the freshly built `yoda` into the run folder that holds this config's game data and

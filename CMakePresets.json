@@ -55,12 +55,43 @@
         "YODA_VARIANT": "DEMO",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/toolchain/vc42.cmake"
       }
+    },
+    {
+      "name": "windows-vcpkg",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "vs-sdl-demo",
+      "displayName": "SDL — Yoda Stories Demo (Windows / vcpkg)",
+      "description": "Windows/Visual Studio build. Uses vcpkg (VCPKG_ROOT) to auto-install SDL3 + sdl3-mixer from vcpkg.json.",
+      "inherits": [ "sdl-demo", "windows-vcpkg" ],
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "vs-sdl-full",
+      "displayName": "SDL — Yoda Stories retail full (Windows / vcpkg)",
+      "description": "Windows/Visual Studio build, retail full Yoda. Uses vcpkg (VCPKG_ROOT) to auto-install SDL3 + sdl3-mixer.",
+      "inherits": [ "sdl-full", "windows-vcpkg" ],
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "vs-sdl-indy",
+      "displayName": "SDL — Indiana Jones (Windows / vcpkg)",
+      "description": "Windows/Visual Studio build, Indiana Jones. Uses vcpkg (VCPKG_ROOT) to auto-install SDL3 + sdl3-mixer.",
+      "inherits": [ "sdl-indy", "windows-vcpkg" ],
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
     }
   ],
   "buildPresets": [
     { "name": "sdl-demo", "displayName": "SDL — Yoda Stories Demo (default)", "configurePreset": "sdl-demo" },
     { "name": "sdl-full", "displayName": "SDL — Yoda Stories (retail full)", "configurePreset": "sdl-full" },
     { "name": "sdl-indy", "displayName": "SDL — Indiana Jones' Desktop Adventures", "configurePreset": "sdl-indy" },
-    { "name": "vc42", "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor", "configurePreset": "vc42" }
+    { "name": "vc42", "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor", "configurePreset": "vc42" },
+    { "name": "vs-sdl-demo", "displayName": "SDL — Yoda Stories Demo (Windows / vcpkg)", "configurePreset": "vs-sdl-demo" },
+    { "name": "vs-sdl-full", "displayName": "SDL — Yoda Stories retail full (Windows / vcpkg)", "configurePreset": "vs-sdl-full" },
+    { "name": "vs-sdl-indy", "displayName": "SDL — Indiana Jones (Windows / vcpkg)", "configurePreset": "vs-sdl-indy" }
   ]
 }
