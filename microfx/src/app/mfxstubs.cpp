@@ -146,8 +146,8 @@ CClientDC::CClientDC(CWnd* pWnd) : m_pWnd(pWnd) { m_hDC = ::GetDC(pWnd ? pWnd->m
 CClientDC::~CClientDC() { ::ReleaseDC(m_pWnd ? m_pWnd->m_hWnd : 0, m_hDC); m_hDC = 0; }
 
 // ── doc / view / frame / dialog / app / thread ───────────────────────────────────────────────
-CRuntimeClass CDocument::classCDocument = { "CDocument", sizeof(CDocument), 0xFFFF, 0, &CObject::classCObject };
-CRuntimeClass* CDocument::GetRuntimeClass() const { return &CDocument::classCDocument; }
+const CRuntimeClass CDocument::classCDocument = { "CDocument", sizeof(CDocument), 0xFFFF, 0, &CObject::classCObject };
+CRuntimeClass* CDocument::GetRuntimeClass() const { return RUNTIME_CLASS(CDocument); }
 CDocument::CDocument() : m_bModified(FALSE), m_pOnlyView(0) {}
 CDocument::~CDocument() {}
 BOOL CDocument::OnNewDocument() { DeleteContents(); m_strPathName.Empty(); m_bModified = FALSE; return TRUE; }
@@ -190,8 +190,8 @@ void CDocument::AddView(CView* pView) { m_pOnlyView = pView; if (pView) pView->m
 BEGIN_MESSAGE_MAP(CDocument, CCmdTarget)
 END_MESSAGE_MAP()
 
-CRuntimeClass CView::classCView = { "CView", sizeof(CView), 0xFFFF, 0, &CObject::classCObject };
-CRuntimeClass* CView::GetRuntimeClass() const { return &CView::classCView; }
+const CRuntimeClass CView::classCView = { "CView", sizeof(CView), 0xFFFF, 0, &CObject::classCObject };
+CRuntimeClass* CView::GetRuntimeClass() const { return RUNTIME_CLASS(CView); }
 CView::CView() : m_pDocument(0) {}
 CView::~CView() {}
 void CView::OnInitialUpdate() { OnUpdate(0, 0, 0); }
@@ -202,8 +202,8 @@ BEGIN_MESSAGE_MAP(CView, CWnd)
 END_MESSAGE_MAP()
 
 const RECT CFrameWnd::rectDefault = { 0, 0, 640, 480 };
-CRuntimeClass CFrameWnd::classCFrameWnd = { "CFrameWnd", sizeof(CFrameWnd), 0xFFFF, CFrameWnd::CreateObject, &CObject::classCObject };
-CRuntimeClass* CFrameWnd::GetRuntimeClass() const { return &CFrameWnd::classCFrameWnd; }
+const CRuntimeClass CFrameWnd::classCFrameWnd = { "CFrameWnd", sizeof(CFrameWnd), 0xFFFF, CFrameWnd::CreateObject, &CObject::classCObject };
+CRuntimeClass* CFrameWnd::GetRuntimeClass() const { return RUNTIME_CLASS(CFrameWnd); }
 CObject* CFrameWnd::CreateObject() { return new CFrameWnd; }
 CFrameWnd::CFrameWnd() : m_pViewActive(0), m_bAutoMenuEnable(TRUE) {}
 CFrameWnd::~CFrameWnd() {}
@@ -543,6 +543,12 @@ DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
     lpFilename[nSize - 1] = 0;
     return (DWORD)strlen(lpFilename);
 }
+// Event/thread API. On real Windows these collide with the kernel32.lib exports (LNK2005), so
+// let kernel32 provide them there — it's behavior-neutral: AfxBeginThread is a no-thread object
+// (the music-pump proc is never started), so nothing ever waits on / signals the event, and the
+// Suspend/Resume calls target a null CWinThread::m_hThread. Off-Windows (no kernel32) these no-op
+// stubs let the Win32-shaped game source link. (CreateEvent's counterpart is CreateEventA.)
+#ifndef _WIN32
 HANDLE   CreateEventA(void*, BOOL, BOOL, LPCSTR) { return (HANDLE)1; }
 BOOL     SetEvent(HANDLE) { return TRUE; }
 BOOL     ResetEvent(HANDLE) { return TRUE; }
@@ -550,6 +556,7 @@ DWORD    WaitForSingleObject(HANDLE, DWORD) { return WAIT_OBJECT_0; }
 DWORD    ResumeThread(HANDLE) { return 0; }
 DWORD    SuspendThread(HANDLE) { return 0; }
 BOOL     CloseHandle(HANDLE) { return TRUE; }
+#endif
 
 // WAVMIX32 + PlaySound/mciSendString live in snd/mfxsnd.cpp as of M3 (SDL2_mixer backend,
 // with built-in silent stubs when SDL2_mixer is absent).

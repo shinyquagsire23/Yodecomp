@@ -605,7 +605,9 @@ void Sleep(DWORD ms)
     std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
-DWORD GetLastError(void) { return 0; }
+#ifndef _WIN32
+DWORD GetLastError(void) { return 0; }   // Windows: use the real kernel32 export (avoids LNK2005)
+#endif
 
 } // extern "C"
 
@@ -669,12 +671,14 @@ BOOL CCmdTarget::OnCmdMsg(UINT, int, void*, void*) { return FALSE; }
 void CCmdTarget::BeginWaitCursor() {}
 void CCmdTarget::EndWaitCursor() {}
 
-// ── wasm32 time wrappers (GOAL 4) ────────────────────────────────────────────────────────────
+// ── portable time wrappers (GOAL 4) ──────────────────────────────────────────────────────────
 // The game-header shim (src/Worldgen.h / src/MainFrm.h tails) renames the byte-matched TUs'
-// 1997 CRT decls `long time(long*)` / `double difftime(long,long)` to these, because
-// emscripten's time_t is 64-bit on wasm32. Seconds-since-epoch fits 32 bits until 2038 —
-// exactly the original engine's own horizon.
-#ifdef __EMSCRIPTEN__
+// 1997 CRT decls `long time(long*)` / `double difftime(long,long)` to these on hosts where
+// time_t is 64-bit but `long` is not (emscripten wasm32 AND modern MSVC ucrt on Windows).
+// Seconds-since-epoch fits 32 bits until 2038 — exactly the original engine's own horizon.
+// Must match the header shim's activation condition or the calls go unresolved at link.
+#if defined(__EMSCRIPTEN__) || defined(_WIN32)
+#include <time.h>
 extern "C" long mfx_time32(long *pOut)
 {
     long t = (long)time(0);

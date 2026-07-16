@@ -101,9 +101,12 @@ struct CRuntimeClass
 };
 #define RUNTIME_CLASS(class_name) ((CRuntimeClass*)(&class_name::class##class_name))
 
+// classXxx is `const` to match real MFC (and the game's own `static const CRuntimeClass`
+// forward-decls in Deskcpp.cpp): MSVC encodes const into the symbol name, so a const decl vs a
+// non-const definition would not link (clang's Itanium mangling ignores it, hence it built there).
 #define DECLARE_DYNAMIC(class_name) \
 public: \
-    static CRuntimeClass class##class_name; \
+    static const CRuntimeClass class##class_name; \
     virtual CRuntimeClass* GetRuntimeClass() const;
 
 #define DECLARE_DYNCREATE(class_name) \
@@ -111,7 +114,7 @@ public: \
     static CObject* CreateObject();
 
 #define IMPLEMENT_RUNTIMECLASS(class_name, base_class_name, wSchema, pfnNew) \
-    CRuntimeClass class_name::class##class_name = { \
+    const CRuntimeClass class_name::class##class_name = { \
         #class_name, sizeof(class_name), wSchema, pfnNew, \
         RUNTIME_CLASS(base_class_name) }; \
     CRuntimeClass* class_name::GetRuntimeClass() const \
