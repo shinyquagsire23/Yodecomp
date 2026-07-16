@@ -26,6 +26,7 @@ POINT g_mfxCursorPos;
 HWND  g_mfxCapture = 0;
 HWND  g_mfxFocus = 0;
 HCURSOR g_mfxCursor = 0;
+int   g_mfxModalDepth = 0;
 
 static HWND g_hRoot = 0;
 static HDC  g_hScreenDC = 0;
@@ -290,6 +291,13 @@ int MfxNextDueTimer(MSG *pMsg)
     DWORD now = GetTickCount();
     for (int i = 0; i < 16; i++) {
         if (!g_aTimers[i].bUsed || (LONG)(now - g_aTimers[i].nNext) < 0) continue;
+        // Freeze the game-loop heartbeat (0x1d1d → CDeskcppView::OnTimer) while a microfx modal is
+        // up: Win32 modals deactivate+pause the frame, so its OnTimer no-ops. Without this the tick
+        // runs behind the dialog and can spawn a speech-bubble (TextDialog::Run) NESTED inside the
+        // modal loop — that game loop then becomes the active message drainer and mis-dispatches the
+        // dialog's own button WM_COMMAND to the window proc (a no-op) → the dialog can't be closed.
+        // Left un-advanced (no nNext bump) so the game resumes on the very next tick after the modal.
+        if (g_mfxModalDepth > 0 && g_aTimers[i].nId == 0x1d1d) continue;
         g_aTimers[i].nNext = now + g_aTimers[i].nElapse;   // coalesce missed ticks (Win32-like)
         pMsg->hwnd = g_aTimers[i].hWnd;
         pMsg->message = WM_TIMER;

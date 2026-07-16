@@ -187,6 +187,12 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
                 pEv->nType = bDown ? MFXPLAT_EV_RDOWN : MFXPLAT_EV_RUP;
             else
                 break;                              // other buttons: keep polling
+            // capture the pointer across a drag so motion + button-up keep arriving even outside
+            // the window (a release outside would otherwise strand the game's capture/walk state)
+            if (bDown)
+                SDL_CaptureMouse(SDL_TRUE);
+            else if (!(SDL_GetMouseState(0, 0) & (SDL_BUTTON(SDL_BUTTON_LEFT) | SDL_BUTTON(SDL_BUTTON_RIGHT))))
+                SDL_CaptureMouse(SDL_FALSE);
             pEv->x = ev.button.x / s_nScale;
             pEv->y = ev.button.y / s_nScale;
             return 1;

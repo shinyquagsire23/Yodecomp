@@ -6519,7 +6519,7 @@ void CDeskcppView::OnMouseMove(UINT nFlags, CPoint point)
         rcOuter.left = rcCell.left - 8;
         rcOuter.right = rcCell.right + 8;
         rcOuter.top = rcCell.top - 8;
-        rcOuter.bottom = rcCell.bottom + 8;
+        rcOuter.bottom = rcCell.bottom + 8; YODA_SIC_FIX(nMoveDX = (x < rcInner.left) ? -1 : (x >= rcInner.right) ? 1 : 0; nMoveDY = (y < rcInner.top) ? -1 : (y >= rcInner.bottom) ? 1 : 0; return;)  /* YODA_BUGFIX: one clean 8-way partition around rcInner replaces the 3 nested shells below, whose per-shell corners each drop a 1px cardinal/'+' crack into the diagonal (cursor+facing flicker). Same '+' dead-zone (rcInner); returns before the original shells run. Anchor: YODA_SIC_FIX()->empty, tokens identical. */
         if (::PtInRect(&rcOuter, *pMouse))
         {
             if (!::PtInRect(&rcInner, *pMouse))

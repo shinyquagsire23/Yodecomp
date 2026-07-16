@@ -278,6 +278,14 @@ extern "C" int MfxPlatPollEvent(MFXPLATEVENT *pEv)
                 pEv->nType = bDown ? MFXPLAT_EV_RDOWN : MFXPLAT_EV_RUP;
             else
                 break;                              // other buttons: keep polling
+            // Capture the pointer for the duration of a drag so motion + the button-up keep
+            // arriving even when the drag leaves the window (else a release outside strands the
+            // game in its capture/walk state — most visible under wasm, where the browser stops
+            // delivering events past the canvas edge). Release capture once no button remains down.
+            if (bDown)
+                SDL_CaptureMouse(true);
+            else if (!(SDL_GetMouseState(0, 0) & (SDL_BUTTON_LMASK | SDL_BUTTON_RMASK)))
+                SDL_CaptureMouse(false);
             pEv->x = (int)ev.button.x / s_nScale;
             pEv->y = (int)ev.button.y / s_nScale;
             return 1;
@@ -364,20 +372,28 @@ extern "C" void MfxPlatPresent(const MFXDIB *pDib, int xCur, int yCur)
     }
     SDL_Surface *pWinSurf = SDL_GetWindowSurface(s_pWin);
     if (pWinSurf) {
-        int nScale = 1;
         if (pWinSurf->w == pSrc->w && pWinSurf->h == pSrc->h)
             SDL_BlitSurface(pSrc, 0, pWinSurf, 0);
-        else {
-            SDL_BlitSurfaceScaled(pSrc, 0, pWinSurf, 0,   // integer window scale (YODA_SCALE)
+        else
+            SDL_BlitSurfaceScaled(pSrc, 0, pWinSurf, 0,   // scale to fill the window backing
                                   SDL_SCALEMODE_NEAREST);
-            nScale = pSrc->w ? pWinSurf->w / pSrc->w : 1;
-            if (nScale < 1) nScale = 1;
-        }
-        // software cursor: composite over the scaled frame (hardware path leaves this 0)
+        // software cursor: composite over the scaled frame (hardware path leaves this 0).
+        // Map the game-space hotspot (xCur,yCur) to window-surface PIXELS. The mouse path
+        // converts events → game via s_nScale, so the inverse is xCur*s_nScale (in SDL window
+        // "event" units), then ×pixel-density to reach surface pixels (Retina backings are a
+        // higher resolution than the event/point space). Do NOT use pWinSurf->w/pSrc->w: pSrc is
+        // the 4-byte-row-aligned composed DIB (padded past the true game width, e.g. 525→528) and
+        // an integer divide truncates a ~2× window (1050/528) to 1 — the cursor drifted to ~half
+        // position, worse the further from the origin (the reported "DPI-offset" bug).
         if (s_pCursorSurf) {
+            int wPt = pWinSurf->w, hPt = pWinSurf->h;
+            SDL_GetWindowSize(s_pWin, &wPt, &hPt);        // window size in event/point space
+            double densX = wPt > 0 ? (double)pWinSurf->w / wPt : 1.0;
+            double densY = hPt > 0 ? (double)pWinSurf->h / hPt : 1.0;
             SDL_Rect rcDst;
-            rcDst.x = (xCur - s_xHot) * nScale;
-            rcDst.y = (yCur - s_yHot) * nScale;
+            // hotspot in surface px, minus the hotspot's offset within the (s_nScale-sized) image
+            rcDst.x = (int)(xCur * s_nScale * densX + 0.5) - s_xHot * s_nScale;
+            rcDst.y = (int)(yCur * s_nScale * densY + 0.5) - s_yHot * s_nScale;
             rcDst.w = s_pCursorSurf->w; rcDst.h = s_pCursorSurf->h;
             SDL_BlitSurface(s_pCursorSurf, 0, pWinSurf, &rcDst);
         }

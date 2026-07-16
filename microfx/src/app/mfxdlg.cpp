@@ -538,6 +538,7 @@ int CDialog::DoModal()
 
     // modal loop over the shared queue (Win32-shaped; headless GetMessageA returns 0 → auto-cancel)
     m_nModalResult = -1;
+    g_mfxModalDepth++;                     // OS arrow + no game WM_SETCURSOR while the dialog is up
     while (m_nModalResult == -1) {
         MSG msg;
         if (!GetMessageA(&msg, 0, 0, 0)) { m_nModalResult = IDCANCEL; break; }
@@ -551,6 +552,7 @@ int CDialog::DoModal()
             continue;
         DispatchMessageA(&msg);
     }
+    g_mfxModalDepth--;
 
     // teardown: destroy controls + frame + dialog, delete C++ objects, free fonts, repaint view
     for (int i = nItems - 1; i >= 0; i--) {
@@ -732,6 +734,7 @@ int CFileDialog::DoModal()
 
     UINT nChosenId = 0;
     m_nModalResult = -1;
+    g_mfxModalDepth++;                     // OS arrow + no game WM_SETCURSOR while the dialog is up
     while (m_nModalResult == -1) {
         MSG msg;
         if (!GetMessageA(&msg, 0, 0, 0)) { m_nModalResult = IDCANCEL; break; }
@@ -752,6 +755,7 @@ int CFileDialog::DoModal()
             continue;
         DispatchMessageA(&msg);
     }
+    g_mfxModalDepth--;
 
     for (int i = nItems - 1; i >= 0; i--) {
         if (MfxIsWnd(aItems[i]->m_hWnd)) ::DestroyWindow(aItems[i]->m_hWnd);
@@ -901,6 +905,7 @@ extern "C" int MfxShowMessageBox(const char *pszText, const char *pszCaption, un
     if (const char *pszShot = getenv("YODA_DLGSHOT")) MfxWriteDibBMP(MfxScreenDC(), pszShot);
 
     int nResult = -1;
+    g_mfxModalDepth++;                     // OS arrow + no game WM_SETCURSOR while the box is up
     while (nResult == -1) {
         MSG msg;
         if (!GetMessageA(&msg, 0, 0, 0)) { nResult = nQuitAnswer; break; }
@@ -922,6 +927,7 @@ extern "C" int MfxShowMessageBox(const char *pszText, const char *pszCaption, un
             continue;
         DispatchMessageA(&msg);
     }
+    g_mfxModalDepth--;
 
     for (int i = nItems - 1; i >= 0; i--) {
         if (MfxIsWnd(aItems[i]->m_hWnd)) ::DestroyWindow(aItems[i]->m_hWnd);

@@ -986,6 +986,9 @@ public:
     virtual BOOL OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext* pContext);
     afx_msg int OnCreate(LPCREATESTRUCT lpcs);   // real MFC: chains to OnCreateClient (the game's
                                                  // CMainFrame::OnCreate calls this explicitly)
+    afx_msg void OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized);  // real MFC: notifies the
+                                                 // active view (OnActivateView) — CMainFrame::OnActivate
+                                                 // chains here, which is how CDeskcppView::bViewActive is set
     CView* GetActiveView() const { return m_pViewActive; }
     void SetActiveView(CView* pViewNew, BOOL bNotify = TRUE) { m_pViewActive = pViewNew; }
     CDocument* GetActiveDocument();

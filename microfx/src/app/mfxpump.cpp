@@ -26,6 +26,12 @@ static DWORD MfxRunMs(void) { return GetTickCount() - g_tMfxRunStart; }
 // the DOWN message already carries its button, the UP message no longer does)
 static UINT g_nMouseBtns = 0;
 
+// 1 while the pointer sits over the menu-bar chrome strip; combined with MfxMenuActive() (a popup
+// tracking) it makes MfxApplyCursor force the OS arrow — the game's image cursor (directional/wand)
+// must not bleed onto the menu bar or an open popup (real Win32 shows the arrow while a menu owns
+// the pointer). Set/cleared from the pump's mouse-move routing below.
+static int g_bMenuBarHover = 0;
+
 static UINT MfxMouseFlags(void)
 {
     UINT nFlags = g_nMouseBtns;
@@ -127,10 +133,20 @@ static void MfxFlushPendingPresent(void)
 // cursor is displayed (software composite vs hardware) is the backend's business.
 static void MfxApplyCursor(void)
 {
+    // The menu bar / an open popup owns the pointer → show the OS arrow, never the game's image
+    // cursor (which the game keeps set while its own logic is idle). Folded into the change-cache
+    // key so a hover on/off the bar re-applies even when g_mfxCursor itself hasn't changed.
+    int bMenuArrow = g_bMenuBarHover || MfxMenuActive() || g_mfxModalDepth > 0;
     static HCURSOR hLast = (HCURSOR)(ULONG_PTR)-1;
-    if (g_mfxCursor == hLast && g_mfxCursorEverSet) return;
+    static int bLastMenuArrow = -1;
+    if (g_mfxCursor == hLast && bMenuArrow == bLastMenuArrow && g_mfxCursorEverSet) return;
     hLast = g_mfxCursor;
+    bLastMenuArrow = bMenuArrow;
 
+    if (bMenuArrow) {                                // menu owns the pointer: OS arrow
+        MfxPlatSetCursor(MFXPLAT_CURSOR_SYSTEM, 0, 0, 0, 0);
+        return;
+    }
     if (!g_mfxCursorEverSet) {                       // boot: class arrow (the OS one)
         MfxPlatSetCursor(MFXPLAT_CURSOR_SYSTEM, 0, 0, 0, 0);
         return;
@@ -177,10 +193,14 @@ static void MfxPumpPlatEvents(void)
         if (ev.nType == MFXPLAT_EV_MOUSEMOVE || ev.nType == MFXPLAT_EV_LDOWN ||
             ev.nType == MFXPLAT_EV_LUP || ev.nType == MFXPLAT_EV_RDOWN || ev.nType == MFXPLAT_EV_RUP) {
             if (ev.y < MFX_MENUBAR_H) {
-                if (ev.nType == MFXPLAT_EV_MOUSEMOVE) MfxMenuHandleMouse(WM_MOUSEMOVE, ev.x, ev.y);
+                if (ev.nType == MFXPLAT_EV_MOUSEMOVE) {
+                    g_bMenuBarHover = 1;          // over the bar → MfxApplyCursor shows the OS arrow
+                    MfxMenuHandleMouse(WM_MOUSEMOVE, ev.x, ev.y);
+                }
                 else if (ev.nType == MFXPLAT_EV_LDOWN) MfxMenuHandleMouse(WM_LBUTTONDOWN, ev.x, ev.y);
                 continue;
             }
+            if (ev.nType == MFXPLAT_EV_MOUSEMOVE) g_bMenuBarHover = 0;   // back in the game area
             ev.y -= MFX_MENUBAR_H;
         }
         switch (ev.nType) {
@@ -197,6 +217,21 @@ static void MfxPumpPlatEvents(void)
             MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_ACTIVE, 0), 0);
             break;
         case MFXPLAT_EV_UNFOCUS:
+            // A drag that leaves the window and releases outside never delivers its button-up
+            // (most visible under wasm: the browser stops sending events past the canvas edge),
+            // so the game would stay stuck in its walk/inventory-drag capture. Synthesize the
+            // release for any button still down before deactivating, at the last known position.
+            if (g_nMouseBtns & (MK_LBUTTON | MK_RBUTTON)) {
+                HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(g_mfxCursorPos);
+                if (!hTarget) hTarget = hView;
+                LPARAM lPos = MAKELPARAM(g_mfxCursorPos.x, g_mfxCursorPos.y);
+                if (g_nMouseBtns & MK_LBUTTON) {
+                    g_nMouseBtns &= ~(UINT)MK_LBUTTON;
+                    MfxQueueInput(hTarget, WM_LBUTTONUP, MfxMouseFlags(), lPos);
+                }
+                if (g_nMouseBtns & MK_RBUTTON)
+                    g_nMouseBtns &= ~(UINT)MK_RBUTTON;   // no WM_RBUTTONUP handler; just clear state
+            }
             MfxSendMsg(hFrame, WM_ACTIVATE, MAKELONG(WA_INACTIVE, 0), 0);
             break;
         case MFXPLAT_EV_KEYDOWN:
@@ -223,10 +258,15 @@ static void MfxPumpPlatEvents(void)
             break;
         case MFXPLAT_EV_MOUSEMOVE: {
             g_mfxCursorPos.x = ev.x; g_mfxCursorPos.y = ev.y;
-            // Win32 sends WM_SETCURSOR ahead of the move — CDeskcppView::OnSetCursor
-            // picks the directional/interaction cursor (SetCursor → g_mfxCursor).
-            MfxSendMsg(hView, WM_SETCURSOR, (WPARAM)hView,
-                       MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+            // Win32 sends WM_SETCURSOR ahead of the move — CDeskcppView::OnSetCursor picks the
+            // directional/interaction cursor (SetCursor → g_mfxCursor). Only do this while the game
+            // actually owns the pointer: during a modal dialog or an open menu the game must NOT
+            // process WM_SETCURSOR — it would re-show its image cursor and, worse, repaint the game
+            // area right over the dialog (the game doesn't tick during a modal, so this synchronous
+            // send is the only thing that would). MfxApplyCursor shows the OS arrow in those states.
+            if (g_mfxModalDepth == 0 && !MfxMenuActive())
+                MfxSendMsg(hView, WM_SETCURSOR, (WPARAM)hView,
+                           MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
             HWND hTarget = g_mfxCapture ? g_mfxCapture : MfxWndFromPoint(g_mfxCursorPos);
             MfxQueueInput(hTarget ? hTarget : hView, WM_MOUSEMOVE,
                           MfxMouseFlags(), MAKELPARAM(ev.x, ev.y));

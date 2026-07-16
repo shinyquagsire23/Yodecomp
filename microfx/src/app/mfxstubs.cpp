@@ -210,6 +210,16 @@ CFrameWnd::~CFrameWnd() {}
 // LoadFrame / OnCreate / OnCreateClient are REAL as of M2 (mfxwnd.cpp).
 CDocument* CFrameWnd::GetActiveDocument()
     { return m_pViewActive ? m_pViewActive->GetDocument() : 0; }
+// real MFC CFrameWnd::OnActivate notifies the active view so it can track focus. The game's
+// CMainFrame::OnActivate chains here explicitly; CDeskcppView::OnActivateView flips bViewActive,
+// which OnSetCursor gates on (without this the directional/interaction cursors never show — the
+// WM_SETCURSOR handler bails to Default() while bViewActive stays 0).
+void CFrameWnd::OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized)
+{
+    if (m_pViewActive)
+        m_pViewActive->OnActivateView(nState != WA_INACTIVE, m_pViewActive, m_pViewActive);
+    CWnd::OnActivate(nState, pWndOther, bMinimized);
+}
 BEGIN_MESSAGE_MAP(CFrameWnd, CWnd)
 END_MESSAGE_MAP()
 
