@@ -36,6 +36,14 @@ set_property(CACHE YODA_GAME     PROPERTY STRINGS YODA INDY)
 set_property(CACHE YODA_VARIANT  PROPERTY STRINGS DEMO FULL)
 set_property(CACHE YODA_PLATFORM PROPERTY STRINGS WIN32 SDL)
 
+# ── locate a Python 3 interpreter (portable across hosts) ─────────────────────────────────────
+# The resource pipeline (extract_res.py / make_res.py / bin2c.py) is plain Python. Use the
+# interpreter CMake finds rather than a hardcoded `python3` — on Windows the executable is
+# `python` (or the `py` launcher), not `python3`, so a literal `python3` breaks native VS/MSVC
+# builds. Found once here (before the SDL branch), so the included PortableSDL.cmake inherits it.
+# Interpreter-only: no compiler needed, so this is fine under `project(... LANGUAGES NONE)`.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 # ── H4 portable target: a completely separate build path (host compiler + SDL2 + microfx) ────
 # The SDL config never touches the wine/VC4.2 toolchain: configure WITHOUT
 # -DCMAKE_TOOLCHAIN_FILE, e.g.  cmake -B build-sdl -DYODA_PLATFORM=SDL && cmake --build build-sdl
@@ -181,7 +189,7 @@ if(YODA_GAME STREQUAL "INDY")
   endif()
   add_custom_command(
     OUTPUT  "${_res}"
-    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --indy "${_indy_exe}"
+    COMMAND "${Python3_EXECUTABLE}" "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --indy "${_indy_exe}"
     DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_indy_exe}"
     COMMENT "build Indy resources (Yoda base + Indy icon/title/About -> yoda.res)"
     VERBATIM)
@@ -194,14 +202,14 @@ elseif(YODA_VARIANT STREQUAL "FULL")
   endif()
   add_custom_command(
     OUTPUT  "${_res}"
-    COMMAND python3 "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --full "${_full_exe}"
+    COMMAND "${Python3_EXECUTABLE}" "${_tools}/make_res.py" "${_orig_exe}" "${_res}" --full "${_full_exe}"
     DEPENDS "${_tools}/make_res.py" "${_tools}/reslib.py" "${_orig_exe}" "${_full_exe}"
     COMMENT "build full-Yoda resources (Yoda base + retail About -> yoda.res)"
     VERBATIM)
 else()
   add_custom_command(
     OUTPUT  "${_res}"
-    COMMAND python3 "${_tools}/extract_res.py" "${_orig_exe}" "${_res}"
+    COMMAND "${Python3_EXECUTABLE}" "${_tools}/extract_res.py" "${_orig_exe}" "${_res}"
     DEPENDS "${_tools}/extract_res.py" "${_orig_exe}"
     COMMENT "extract resources (.rsrc -> yoda.res)"
     VERBATIM)
