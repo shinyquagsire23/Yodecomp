@@ -267,6 +267,16 @@ if(NOT _mfx_video STREQUAL "null")
     target_link_options(yoda PRIVATE /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)
   endif()
 
+  # Native Windows: embed real PE resources so Explorer / the taskbar show the game's app icon.
+  # yoda.res is the same linkable Win32 .res the WIN32/MFC build consumes (extract_res.py, or
+  # make_res.py with the icon overridden per game), passed straight to link.exe as an external
+  # object. The runtime still reads resources from the C-array blob (mfxres.cpp) — this is purely
+  # the on-disk exe icon. (Not on WASM: yoda.html has its own favicon path.)
+  if(MSVC)
+    set_source_files_properties("${_res_bin}" PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
+    target_sources(yoda PRIVATE "${_res_bin}")
+  endif()
+
   # ── convenience: `cmake --build build-sdl --target run` (native, mirrors run_sdl.sh) ─────────
   # The engine derives its data directory from GetModuleFileName (the binary's own folder), so we
   # stage the freshly built `yoda` into the run folder that holds this config's game data and
