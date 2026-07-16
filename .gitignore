@@ -42,6 +42,9 @@ mfx_smoke.tmp
 tmp/
 *.exe
 
+# vcpkg manifest-mode install tree (populated by VS / vcpkg from vcpkg.json)
+vcpkg_installed/
+
 # macOS
 .DS_Store
 

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+  "name": "yodecomp",
+  "version-string": "0.1.0",
+  "description": "LucasArts Desktop Adventures (Yoda Stories / Indiana Jones) decompilation + portable SDL3 engine (microfx).",
+  "dependencies": [
+    "sdl3",
+    "sdl3-mixer"
+  ]
+}
