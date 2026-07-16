@@ -523,6 +523,9 @@ BOOL IntersectRect(LPRECT dst, const RECT* a, const RECT* b)
     return TRUE;
 }
 
+// On real Windows the ucrt provides _splitpath/_makepath — defining our own would collide at
+// link (and the decls are suppressed in windows.h to dodge C2375). Only implement them off-Windows.
+#ifndef _WIN32
 void _splitpath(const char* path, char* drive, char* dir, char* fname, char* ext)
 {
     if (drive) drive[0] = 0;                      // no drive letters on POSIX hosts
@@ -561,6 +564,7 @@ void _makepath(char* path, const char* drive, const char* dir, const char* fname
         strcat(path, ext);
     }
 }
+#endif // !_WIN32 (host _splitpath/_makepath)
 
 int wsprintfA(LPSTR buf, LPCSTR fmt, ...)
 {

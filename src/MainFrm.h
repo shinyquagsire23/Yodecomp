@@ -248,13 +248,13 @@ protected:
 
 #endif
 
-// ── wasm32 time shim (GOAL 4; identical copy in Worldgen.h — keep synced) ───────────────────
-// Emscripten's time_t is 64-bit, but byte-matched TUs re-declare the 1997 CRT signatures
-// (`extern "C" long time(long*)` — Score.cpp/MainFrm.cpp), which agreed with Win32 AND with
-// 64-bit-long desktop hosts by luck. Redirect the NAMES (decls and calls alike) to 32-bit
-// wrappers in microfx (mfxcore.cpp). Token-neutral for every non-wasm build; <time.h> lands
-// first so the real 64-bit decls exist un-renamed (its include guard defuses later includes).
-#if defined(__EMSCRIPTEN__) && !defined(MFX_TIME32_SHIM)
+// ── portable time shim (GOAL 4; identical copy in Worldgen.h — keep synced) ─────────────────
+// The 1997 CRT signatures the byte-matched TUs re-declare (`extern "C" long time(long*)` —
+// Score.cpp/MainFrm.cpp) match VC4.2 + 64-bit-long desktop hosts by luck, but clash with the
+// 64-bit time_t of Emscripten AND modern MSVC ucrt. On those (portable builds only — the
+// YODA_PORTABLE gate keeps the anchor's tokens intact) redirect the NAMES to 32-bit wrappers
+// in microfx (mfxcore.cpp); <time.h> lands first so the real decls exist un-renamed.
+#if defined(YODA_PORTABLE) && (defined(__EMSCRIPTEN__) || defined(_WIN32)) && !defined(MFX_TIME32_SHIM)
 #define MFX_TIME32_SHIM
 #include <time.h>
 extern "C" long   mfx_time32(long *);

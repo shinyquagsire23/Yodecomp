@@ -48,6 +48,20 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
   )
 endif()
 
+# Native MSVC (Visual Studio) portability flags for the microfx MFC subset:
+#   /vmg  — MFC-style message maps reinterpret-cast between unrelated pointer-to-member types
+#           (e.g. `void (AppWnd::*)(UINT)` -> AFX_PMSG = `void (CCmdTarget::*)(void)`). MSVC's
+#           default /vmb (inference-based) representation rejects that cast with C2440; /vmg
+#           forces the general representation so the cast is valid — the same pointer-to-member
+#           model real MFC is built with. Applied to every microfx + game TU for a consistent ABI.
+if(MSVC)
+  add_compile_options(/vmg)
+  # The 1997 game code calls the classic CRT (strcpy/sprintf/_splitpath/…); silence ucrt's
+  # C4996 "this function may be unsafe" / POSIX-name deprecation so the port build isn't buried
+  # in warnings. (Off-Windows compilers don't have these; see the Clang|GNU block above.)
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
+endif()
+
 # Force-load a whole static archive into a target (so every game<->microfx symbol is link-checked,
 # and message-map/DYNCREATE self-registration objects that nothing references directly survive).
 # The flag is compiler/linker-specific: ld64 (Apple), MSVC link.exe, and GNU-style ld/lld differ.

@@ -641,9 +641,13 @@ int      lstrlenA(LPCSTR s);
 #define lstrcat lstrcatA
 #define lstrlen lstrlenA
 
-// MSVC CRT path helpers the game calls (host libc has no equivalents)
+// MSVC CRT path helpers the game calls (host libc has no equivalents). On real Windows the
+// ucrt <stdlib.h> already declares these (with dllimport linkage), so redeclaring them trips
+// C2375 "redefinition; different linkage" — only provide our own off-Windows.
+#ifndef _WIN32
 void     _splitpath(const char* path, char* drive, char* dir, char* fname, char* ext);
 void     _makepath(char* path, const char* drive, const char* dir, const char* fname, const char* ext);
+#endif
 
 #ifdef __cplusplus
 } // extern "C"
