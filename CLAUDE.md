@@ -305,10 +305,25 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-11 v88 — ⭐ GOAL 4 WASM PORT: CORE SHIPPED in one
-session, USER-TESTED in Chrome AND Firefox ("actually looking pretty good"). Both v88 user
-requests landed same-session: real audio (was perma-muted) + the two asset modes. v87/v86
-detail condensed → PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-07-16 v91 — self-contained macOS `.app` packaging landed;
+v88 WASM core still the headline GOAL-4 work below. v87/v86 detail condensed → PLAN_COMPLETED.md ⏮.)
+
+**▶ v91 (2026-07-16) — ✅ self-contained macOS `.app` build (all cmake/tools; anchor & game TUs
+UNTOUCHED — no src/ edits, no anchor-oracle run needed).** THE footgun (OpenJKDF2 lineage):
+Homebrew ships SDL3 **dylib-only**, so a normal build bakes `/opt/homebrew` linkage that breaks on
+other Macs. New `YODA_SDL_FETCH=ON` (cmake/PortableSDL.cmake) FetchContent-builds **SDL3 3.4.12 +
+SDL3_mixer 3.2.4 STATIC from source** (`SDL_SHARED OFF`+`BUILD_SHARED_LIBS OFF`+`SDLMIXER_VENDORED
+ON`, heavy codecs OFF) → `otool -L` shows ONLY `/usr/lib/*` + system frameworks. The `app` target
+(`tools/make_macos_app.sh`, APPLE-guarded) assembles `<AppName>.app` and **fails the build** on any
+non-system dylib (the otool gate). Assets stage into `Contents/MacOS/` (= `_NSGetExecutablePath`
+data dir; zero code change): DTA/DAW + `sfx/` [Yoda] or loose `*.WAV` [Indy] + starter `yoda.INI`.
+Icon = game's GROUP_ICON 2 via `tools/make_icns.py` (decodes the 32×32 DIB, **nearest-neighbour**
+upscale — sips interpolation ghosted the light icon, user-flagged). Presets
+`macos-app-{demo,full,indy}` (build the `app` target). Build+boot USER-CONFIRMED (Yoda-full .app
+opens, plays); crisp icon confirmed. ⚠ writable state (INI/saves) still lives in the bundle → fine
+locally, NOT read-only `/Applications` — the deferred **InstallHelper/XDG pass** (OpenJKDF2-style,
+writable state → `~/Library`/`$XDG_*`) is the natural next step the user already flagged. Docs:
+BUILDING.md "Build: macOS `.app` bundle"; memory [[h4-microfx]] v91.
 
 **▶ v88 — ✅ WASM port core (GOAL 4).** Full recipe + architecture facts live in the "WASM
 build/debug" section above — the load-bearing findings:

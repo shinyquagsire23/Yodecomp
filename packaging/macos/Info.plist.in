@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Templated by cmake/PortableSDL.cmake (configure_file). Per-game values come from the
+     YODA_APP_* variables set there; do not hand-edit the generated copy in the .app. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>@YODA_APP_NAME@</string>
+	<key>CFBundleDisplayName</key>
+	<string>@YODA_APP_NAME@</string>
+	<key>CFBundleExecutable</key>
+	<string>@YODA_APP_EXE@</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>@YODA_APP_BUNDLE_ID@</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@YODA_APP_VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@YODA_APP_VERSION@</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Reverse-engineered from LucasArts' Desktop Adventures engine. Game data not included.</string>
+</dict>
+</plist>

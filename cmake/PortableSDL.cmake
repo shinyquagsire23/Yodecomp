@@ -134,7 +134,52 @@ list(FILTER _mfx_srcs EXCLUDE REGEX "/src/platform/")
 # Run / GetMessageA / DoModal own the thread) is solved with ASYNCIFY: every blocking wait
 # already funnels through MfxPlatDelay(), which the sdl3 backend routes to emscripten_sleep()
 # under __EMSCRIPTEN__ — the browser gets control at every wait with NO game-code restructuring.
-if(NOT EMSCRIPTEN)
+# ── SDL source: system (find_package) vs. built-from-source-static (FetchContent) ────────────
+# Default = find_package: fast dev iteration against a system SDL (e.g. Homebrew's dylibs).
+# YODA_SDL_FETCH=ON builds SDL3 (+SDL3_mixer) STATICALLY from source, so the resulting binary
+# links no external dylib — the requirement for a self-contained, redistributable macOS .app
+# (Homebrew ships SDL3 dylib-only, so its build would bake /opt/homebrew paths that break on any
+# machine without Homebrew). The macos-app flow below turns this ON; see BUILDING.md.
+option(YODA_SDL_FETCH "Build SDL3 (+SDL3_mixer) statically from source (FetchContent)" OFF)
+if(NOT EMSCRIPTEN AND YODA_SDL_FETCH)
+  include(FetchContent)
+  # Pin the EXACT versions microfx was developed against (Homebrew: SDL3 3.4.12 / mixer 3.2.4).
+  # SDL3: static only — SDL3::SDL3 then aliases the static lib and carries the required Apple
+  # frameworks (Cocoa/Metal/CoreAudio/…) as usage requirements, so linking it is self-contained.
+  set(SDL_SHARED     OFF CACHE BOOL "" FORCE)
+  set(SDL_STATIC     ON  CACHE BOOL "" FORCE)
+  set(SDL_TEST       OFF CACHE BOOL "" FORCE)
+  set(SDL_INSTALL    OFF CACHE BOOL "" FORCE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)   # forces SDL3_mixer static too
+  FetchContent_Declare(SDL3
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+    GIT_TAG release-3.4.12 GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(SDL3)
+  # SDL3_mixer: VENDORED so decoders build from bundled source (never link Homebrew codec
+  # dylibs → otool-clean). We only need WAV (always built in) + MIDI (Indy); disable the heavy
+  # optional codecs to keep the archive lean. MIDI uses the vendored timidity synth, not
+  # FluidSynth (which would pull a system dylib).
+  set(SDLMIXER_VENDORED         ON  CACHE BOOL "" FORCE)
+  set(SDLMIXER_SAMPLES          OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_INSTALL          OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_FLAC             OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_GME              OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MOD              OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MP3              OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_OPUS             OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_VORBIS           OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_WAVPACK          OFF CACHE BOOL "" FORCE)
+  set(SDLMIXER_MIDI             ON  CACHE BOOL "" FORCE)
+  set(SDLMIXER_MIDI_TIMIDITY    ON  CACHE BOOL "" FORCE)
+  set(SDLMIXER_MIDI_FLUIDSYNTH  OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(SDL3_mixer
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL_mixer.git
+    GIT_TAG release-3.2.4 GIT_SHALLOW TRUE)
+  FetchContent_MakeAvailable(SDL3_mixer)
+  set(SDL3_FOUND TRUE)
+  set(SDL3_mixer_FOUND TRUE)
+  message(STATUS "microfx: SDL3 3.4.12 + SDL3_mixer 3.2.4 built STATIC from source (FetchContent)")
+elseif(NOT EMSCRIPTEN)
   find_package(SDL3 QUIET CONFIG)
   find_package(SDL3_mixer QUIET CONFIG)
   find_package(SDL2 QUIET)
@@ -299,6 +344,59 @@ if(NOT _mfx_video STREQUAL "null")
       WORKING_DIRECTORY "${_run_dir}"
       USES_TERMINAL
       COMMENT "run the native SDL yoda from ${_run_dir}")
+  endif()
+
+  # ── macOS: a self-contained .app bundle (statically linked + otool-verified) ─────────────────
+  # `cmake --build build-macos-app --target app` -> "<AppName>.app" in the build tree. Requires the
+  # static-SDL build (YODA_SDL_FETCH=ON): the assembly script's otool gate FAILS the build if the
+  # binary links any non-system library. Game data is baked into the bundle for now (user-owned
+  # assets); a later InstallHelper/XDG pass will move writable state out of the .app (CLAUDE.md).
+  if(APPLE AND NOT EMSCRIPTEN)
+    if(YODA_GAME STREQUAL "INDY")
+      set(YODA_APP_NAME "Indiana Jones' Desktop Adventures")
+      set(YODA_APP_BUNDLE_ID "org.yodecomp.indy")
+      set(_app_icon_exe "${CMAKE_CURRENT_SOURCE_DIR}/INDYDESK/DESKADV.EXE")
+      set(_app_icon_args --indy "${_app_icon_exe}")
+      set(_app_data "${_run_dir}/DESKTOP.DAW")
+      set(_app_dataname "DESKTOP.DAW")
+      set(_app_sfx "-")
+      set(_app_wavdir "${_run_dir}")            # Indy sfx are loose *.WAV in the data folder
+    else()
+      set(YODA_APP_NAME "Yoda Stories")
+      set(YODA_APP_BUNDLE_ID "org.yodecomp.yoda")
+      set(_app_icon_exe "${_orig_exe}")         # YodaDemo.exe holds Yoda's app icon (demo + full)
+      set(_app_icon_args "")
+      if(YODA_VARIANT STREQUAL "FULL")
+        set(_app_data "${_run_dir}/YODESK.DTA")
+        set(_app_dataname "YODESK.DTA")
+      else()
+        set(_app_data "${_run_dir}/YodaDemo.dta")
+        set(_app_dataname "YODADEMO.DTA")       # engine opens the uppercase name
+      endif()
+      set(_app_sfx "${_run_dir}/sfx")
+      set(_app_wavdir "-")
+    endif()
+    set(YODA_APP_EXE "yoda")
+    set(YODA_APP_VERSION "1.0")
+    set(_app_bundle "${CMAKE_CURRENT_BINARY_DIR}/${YODA_APP_NAME}.app")
+    set(_app_plist  "${CMAKE_CURRENT_BINARY_DIR}/Info.plist")
+    set(_app_icns   "${CMAKE_CURRENT_BINARY_DIR}/AppIcon.icns")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/packaging/macos/Info.plist.in" "${_app_plist}" @ONLY)
+
+    add_custom_command(OUTPUT "${_app_icns}"
+      COMMAND "${Python3_EXECUTABLE}" "${_tools}/make_icns.py" "${_app_icon_exe}" "${_app_icns}" ${_app_icon_args}
+      DEPENDS "${_tools}/make_icns.py" "${_tools}/reslib.py" "${_tools}/make_res.py" "${_app_icon_exe}"
+      COMMENT "make AppIcon.icns from ${_app_icon_exe}" VERBATIM)
+
+    add_custom_target(app
+      DEPENDS yoda "${_app_icns}"
+      COMMAND bash "${_tools}/make_macos_app.sh"
+              --app "${_app_bundle}" --bin "$<TARGET_FILE:yoda>"
+              --plist "${_app_plist}" --icns "${_app_icns}"
+              --data "${_app_data}" --dataname "${_app_dataname}"
+              --sfx "${_app_sfx}" --wavdir "${_app_wavdir}"
+      USES_TERMINAL VERBATIM
+      COMMENT "assemble the self-contained macOS .app -> ${_app_bundle}")
   endif()
 elseif(NOT EMSCRIPTEN)
   # No SDL was found, so the playable `yoda` executable is NOT created (the null backend has no

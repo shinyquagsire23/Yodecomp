@@ -44,6 +44,30 @@
       }
     },
     {
+      "name": "macos-app-base",
+      "hidden": true,
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "cacheVariables": { "YODA_SDL_FETCH": "ON" }
+    },
+    {
+      "name": "macos-app-demo",
+      "displayName": "macOS .app — Yoda Stories Demo (static)",
+      "description": "Self-contained macOS .app, Yoda demo. Static SDL3 (FetchContent); build the 'app' target.",
+      "inherits": [ "sdl-demo", "macos-app-base" ]
+    },
+    {
+      "name": "macos-app-full",
+      "displayName": "macOS .app — Yoda Stories retail full (static)",
+      "description": "Self-contained macOS .app, retail full Yoda. Static SDL3 (FetchContent); build the 'app' target.",
+      "inherits": [ "sdl-full", "macos-app-base" ]
+    },
+    {
+      "name": "macos-app-indy",
+      "displayName": "macOS .app — Indiana Jones (static)",
+      "description": "Self-contained macOS .app, Indiana Jones. Static SDL3 (FetchContent); build the 'app' target.",
+      "inherits": [ "sdl-indy", "macos-app-base" ]
+    },
+    {
       "name": "vc42",
       "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor",
       "description": "Original 1997 codegen via the wine-wrapped Visual C++ 4.2 toolchain (macOS/Linux). Not a native-VS build; needs toolchain/vc42/ + wine — see BUILDING.md.",
@@ -89,6 +113,9 @@
     { "name": "sdl-demo", "displayName": "SDL — Yoda Stories Demo (default)", "configurePreset": "sdl-demo" },
     { "name": "sdl-full", "displayName": "SDL — Yoda Stories (retail full)", "configurePreset": "sdl-full" },
     { "name": "sdl-indy", "displayName": "SDL — Indiana Jones' Desktop Adventures", "configurePreset": "sdl-indy" },
+    { "name": "macos-app-demo", "displayName": "macOS .app — Yoda Stories Demo (static)", "configurePreset": "macos-app-demo", "targets": [ "app" ] },
+    { "name": "macos-app-full", "displayName": "macOS .app — Yoda Stories retail full (static)", "configurePreset": "macos-app-full", "targets": [ "app" ] },
+    { "name": "macos-app-indy", "displayName": "macOS .app — Indiana Jones (static)", "configurePreset": "macos-app-indy", "targets": [ "app" ] },
     { "name": "vc42", "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor", "configurePreset": "vc42" },
     { "name": "vs-sdl-demo", "displayName": "SDL — Yoda Stories Demo (Windows / vcpkg)", "configurePreset": "vs-sdl-demo" },
     { "name": "vs-sdl-full", "displayName": "SDL — Yoda Stories retail full (Windows / vcpkg)", "configurePreset": "vs-sdl-full" },

@@ -31,6 +31,10 @@ build-sdl-indy/
 # CMakePresets.json binaryDirs (build-${presetName})
 build-sdl-demo/
 build-sdl-full/
+build-macos-app/
+build-macos-app-demo/
+build-macos-app-full/
+build-macos-app-indy/
 build-vc42/
 build-wasm-deploy-demo/
 build-wasm-deploy-demodata/

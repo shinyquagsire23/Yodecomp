@@ -119,9 +119,45 @@ Config axes:
 | `YODA_PLATFORM` | `WIN32` / `SDL` | `WIN32` | `SDL` selects this portable build |
 | `YODA_GAME` | `YODA` / `INDY` | `YODA` | — |
 | `YODA_VARIANT` | `DEMO` / `FULL` | `DEMO` | — |
+| `YODA_SDL_FETCH` | `ON` / `OFF` | `OFF` | build SDL3 + SDL3_mixer **statically** from source (FetchContent) instead of `find_package` — required for the redistributable macOS `.app` (see below) |
 
 The build auto-selects a backend from what CMake finds: **SDL3** preferred (add `SDL3_mixer` for
 full audio incl. MIDI), then SDL2, else a silent `null` backend. Details: `docs/phase-h4-sdl.md`.
+
+## Build: macOS `.app` bundle (self-contained)
+
+A double-clickable, **self-contained** `Yoda Stories.app` — no Homebrew, no external dylibs. The
+one requirement is that SDL is linked **statically**: Homebrew ships SDL3 dylib-only, so a normal
+build bakes `/opt/homebrew/...` paths that break on any other Mac. `YODA_SDL_FETCH=ON` builds
+SDL3 3.4.12 + SDL3_mixer 3.2.4 from source as static archives (first configure clones them;
+first build adds ~1 min to compile SDL). The presets set this for you:
+
+```sh
+cmake --preset macos-app-full          # configure -> build-macos-app-full/
+cmake --build --preset macos-app-full  # -> "build-macos-app-full/Yoda Stories.app"
+# or: macos-app-demo / macos-app-indy
+open "build-macos-app-full/Yoda Stories.app"
+```
+
+The `app` target (`cmake --build <dir> --target app`) assembles the bundle and then **verifies**
+it with `otool -L` — the build **fails** if the binary links anything outside `/usr/lib` +
+`/System/Library/Frameworks` (e.g. a stray Homebrew dylib). Confirm by hand any time:
+
+```sh
+otool -L "build-macos-app-full/Yoda Stories.app/Contents/MacOS/yoda"   # only /usr/lib + frameworks
+```
+
+The app icon (`Contents/Resources/AppIcon.icns`) is the game's own `IDR_MAINFRAME` icon, extracted
+from the exe and upscaled nearest-neighbour so the pixel art stays crisp (`tools/make_icns.py`);
+`Info.plist` is templated per game from `packaging/macos/Info.plist.in`.
+
+> **Assets & writable state (for now):** the game data (DTA/DAW + `sfx/` + a starter `yoda.INI`) is
+> baked into `Contents/MacOS/` next to the binary — that's where the engine looks (its data dir is
+> `_NSGetExecutablePath`'s folder). The game also *writes* `yoda.INI` / saves there, so this works
+> for a locally-built `.app` but not one installed read-only under `/Applications`. A later
+> InstallHelper/XDG pass (à la OpenJKDF2) will move writable state to `~/Library`/`$XDG_*` and keep
+> only read-only assets in the bundle. macOS caches app icons aggressively — if the Dock/Finder
+> shows a stale icon after a rebuild, log out/in or `killall Dock Finder`.
 
 ### CMake presets (Visual Studio, VS Code, CLI)
 
