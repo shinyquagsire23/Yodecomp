@@ -579,7 +579,11 @@ void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
     Zone *z = zoneObjects[zoneId];
     f->Write(&zoneId, 2);
     int full = bFull;
+#ifdef GAME_INDY
+    { short sfull = (short)full; f->Write(&sfull, 2); }   // retail Indy full-flag is 16-bit
+#else
     f->Write(&full, 4);
+#endif
     z->WriteSavedState(f, full);
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
@@ -604,7 +608,11 @@ void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
         short child = o->arg;      // cached in a callee-saved reg across the Read calls
         if (o->type == 9 && child >= 0) {
             f->Read(&savedId, 2);
+#ifdef GAME_INDY
+            { short sfull; f->Read(&sfull, 2); savedFull = sfull; }   // retail Indy full-flag is 16-bit
+#else
             f->Read(&savedFull, 4);
+#endif
             if (savedId != child)
                 return;
             LoadZoneRecursive(f, child, savedFull);

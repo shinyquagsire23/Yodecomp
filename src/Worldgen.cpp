@@ -5449,6 +5449,9 @@ void CDeskcppDoc::OnSaveWorld()
             pView->bBusy = 0;
             return;
         }
+#ifdef GAME_INDY
+        IndyWriteWorldState(pFile);   // retail INDYSAV44 16-bit format (Worldgen.cpp tail)
+#else
         pFile->Write("YODASAV44", 9);
         pFile->Write(&worldSeed, 4);
         pFile->Write(&currentPlanet, 4);
@@ -5674,6 +5677,7 @@ void CDeskcppDoc::OnSaveWorld()
         pFile->Write(&nSum, 2);
         pFile->Write(&nCurrentGoalItem, 4);
         pFile->Write(&goalItemTileId, 4);
+#endif // GAME_INDY (OnSaveWorld body)
         pFile->Close();
         if (pFile != NULL)
             delete pFile;
@@ -5801,7 +5805,11 @@ void CDeskcppDoc::OnLoadWorld()
         char buf[10];
         pFile->Read(buf, 9);
         buf[9] = 0;
+#ifdef GAME_INDY
+        if (strcmp(buf, "INDYSAV44") != 0)
+#else
         if (strcmp(buf, "YODASAV44") != 0)
+#endif
         {
             if (pDlg != NULL)
                 delete pDlg;
@@ -5811,6 +5819,11 @@ void CDeskcppDoc::OnLoadWorld()
             g_bReplayMode = 0;
             return;
         }
+#ifdef GAME_INDY
+        IndyReadWorldState(pFile);   // retail INDYSAV44 16-bit format (Worldgen.cpp tail)
+        int i, j;                    // the common post-load below reuses these (the #else body
+        short nCount;                // declares its own copies inside its Yoda-format reads)
+#else
         pFile->Read(&worldSeed, 4);
         pFile->Read(&currentPlanet, 4);
         pFile->Read(&bQuestCellsResident, 4);
@@ -6058,6 +6071,7 @@ void CDeskcppDoc::OnLoadWorld()
         }
         pFile->Read(&nCurrentGoalItem, 4);
         pFile->Read(&goalItemTileId, 4);
+#endif // GAME_INDY (OnLoadWorld body)
         pFile->Close();
         if (pFile != NULL)
             delete pFile;
@@ -10492,6 +10506,157 @@ void CDeskcppDoc::IndySavePlacedZoneList()
             } while (k < rem);
             pApp->WriteProfileString("GameData", key, line);
         }
+    }
+}
+
+// ── retail Indy (INDYSAV44) save-state serialization ────────────────────────────────────────
+// The real 16-bit DESKADV .sav format (reader IndyLoadWorldState 1010:b890 / its writer mirror).
+// Differs structurally from Yoda's YODASAV44: header = seed only (no planet, no bQuestCellsResident);
+// ONE quest-item list (not A+B); ONE 10x10 cell grid of 9 shorts each (no 2x2 quest block, no backup
+// pass); one sentinel-terminated zone-recursive block; a compact doc tail with no weaponState and no
+// goal-item pair. Every scalar is 2 bytes except worldSeed and the elapsed-time value. Field map from
+// DESKADV (docs/phase-h3-indy.md "INDYSAV44"). Called from OnSaveWorld/OnLoadWorld under GAME_INDY;
+// the Yoda path is the byte-match anchor default. The per-zone state records (state/objects/entities/
+// scripts) go through Save/LoadZoneRecursive -> Zone::Write/ReadSavedState, which carry their own
+// GAME_INDY 16-bit branch.
+void CDeskcppDoc::IndyWriteWorldState(CFile *pFile)
+{
+    short s;
+    int i, j;
+    pFile->Write("INDYSAV44", 9);
+    pFile->Write(&worldSeed, 4);                        // long — 4 bytes
+    short nCount = (short)questItemsA.GetSize();         // ONE quest-item list
+    pFile->Write(&nCount, 2);
+    for (i = 0; i < nCount; i++) { s = questItemsA.GetAt(i); pFile->Write(&s, 2); }
+    for (i = 0; i < 100; i++) {                          // single resident 10x10 grid, 9 shorts/cell
+        MapZone *pCell = &mapGrid[i];
+        s = (short)pCell->cellItemC;      pFile->Write(&s, 2);
+        s = (short)pCell->cellQuestSlot5; pFile->Write(&s, 2);
+        s = (short)pCell->cellQuestSlot6; pFile->Write(&s, 2);
+        s = (short)pCell->id;             pFile->Write(&s, 2);
+        s = (short)pCell->cellQuestSlot0; pFile->Write(&s, 2);
+        s = (short)pCell->cellQuestSlot1; pFile->Write(&s, 2);
+        s = (short)pCell->cellItemA;      pFile->Write(&s, 2);
+        s = (short)pCell->cellItemB;      pFile->Write(&s, 2);
+        s = (short)pCell->zoneType;       pFile->Write(&s, 2);
+    }
+    for (i = 0; i < 10; i++)                             // one sentinel-terminated zone-recursive block
+        for (j = 0; j < 10; j++) {
+            MapZone *pCell = &mapGrid[i * 10 + j];
+            if (pCell->id >= 0) {
+                s = (short)i; pFile->Write(&s, 2);
+                s = (short)j; pFile->Write(&s, 2);
+                SaveZoneRecursive(pFile, pCell->id, pCell->flagSolved);
+            }
+        }
+    s = -1; pFile->Write(&s, 2); pFile->Write(&s, 2);
+    short nInv = (short)inventory.GetSize();             // inventory: count + tile ids
+    pFile->Write(&nInv, 2);
+    for (i = 0; i < nInv; i++) {
+        s = (short)FindTile(((InvItem *)inventory.GetAt(i))->pTile);
+        pFile->Write(&s, 2);
+    }
+    s = (short)GetZoneIndex(currentZone); pFile->Write(&s, 2);   // doc tail (all 2B but elapsed)
+    s = (short)playerX; pFile->Write(&s, 2);
+    s = (short)playerY; pFile->Write(&s, 2);
+    short nWeapon = -1;                                  // weapon index only (no ammo / no weaponState)
+    if (currentWeapon != NULL) {
+        short nCh = (short)characters.GetSize();
+        for (i = 0; i < nCh; i++)
+            if ((Character *)characters.GetAt(i) == currentWeapon) { nWeapon = (short)i; break; }
+    }
+    pFile->Write(&nWeapon, 2);
+    s = (short)cameraX;    pFile->Write(&s, 2);
+    s = (short)cameraY;    pFile->Write(&s, 2);
+    s = (short)healthLo;   pFile->Write(&s, 2);
+    s = (short)healthHi;   pFile->Write(&s, 2);
+    s = (short)difficulty; pFile->Write(&s, 2);
+    int nElapsed = (int)difftime(timeBase, time(NULL)); pFile->Write(&nElapsed, 4);
+    s = (short)totalZones; pFile->Write(&s, 2);
+    short nCnt2 = (short)unk248.GetSize();               // checksum word-array: count + sum
+    pFile->Write(&nCnt2, 2);
+    short nSum = 0;
+    for (i = 0; i < nCnt2; i++) nSum += unk248.GetAt(i);
+    pFile->Write(&nSum, 2);
+}
+
+void CDeskcppDoc::IndyReadWorldState(CFile *pFile)
+{
+    short s;
+    int i;
+    pFile->Read(&worldSeed, 4);
+    bStartingGame = 1;
+    StartGame(0, 1);                                     // regenerate the world from the seed
+    gameState = 0;
+    abortFrame = 0;
+    short nCount;
+    pFile->Read(&nCount, 2);
+    questItemsA.SetSize(0, -1);
+    questItemsA.SetSize(nCount, -1);
+    for (i = 0; i < nCount; i++) {
+        unsigned short v; pFile->Read(&v, 2);
+        questItemsA.SetAt(i, v);
+        if (nCount - i == 1) {
+            nCurrentGoalItem = (short)v;
+            startItem = ((Puzzle *)puzzles.GetAt((short)v))->itemA;
+        }
+    }
+    for (i = 0; i < 100; i++) {                          // single 10x10 grid, 9 shorts/cell
+        MapZone *pCell = &mapGrid[i];
+        pFile->Read(&s, 2); pCell->cellItemC      = s;
+        pFile->Read(&s, 2); pCell->cellQuestSlot5 = s;
+        pFile->Read(&s, 2); pCell->cellQuestSlot6 = s;
+        pFile->Read(&s, 2); pCell->id             = s;
+        pFile->Read(&s, 2); pCell->cellQuestSlot0 = s;
+        pFile->Read(&s, 2); pCell->cellQuestSlot1 = s;
+        pFile->Read(&s, 2); pCell->cellItemA      = s;
+        pFile->Read(&s, 2); pCell->cellItemB      = s;
+        pFile->Read(&s, 2); pCell->zoneType       = s;
+        if (pCell->id >= 0)
+            apZoneGrid[i] = (Zone *)zones.GetAt(pCell->id);
+    }
+    for (;;) {                                           // sentinel-terminated zone-recursive block
+        short x, y;
+        pFile->Read(&x, 2); pFile->Read(&y, 2);
+        if (x == -1 && y == -1) break;
+        short id, nArg;
+        pFile->Read(&id, 2); pFile->Read(&nArg, 2);
+        LoadZoneRecursive(pFile, id, nArg);
+    }
+    int nInv = inventory.GetSize();                      // inventory: free + reload
+    for (i = 0; i < nInv; i++) { InvItem *p = (InvItem *)inventory.GetAt(i); if (p != NULL) delete p; }
+    inventory.SetSize(0, -1);
+    pFile->Read(&nCount, 2);
+    for (i = 0; i < nCount; i++) {
+        short nTile; pFile->Read(&nTile, 2);
+        Tile *pTile = (Tile *)tiles.GetAt(nTile);
+        InvItem *pNew = new InvItem;
+        pNew->pTile = pTile;
+        pNew->name = pTile->name;
+        inventory.SetAtGrow(inventory.GetSize(), pNew);
+    }
+    POSITION pos = GetFirstViewPosition();               // doc tail
+    CDeskcppView *pView = (pos != NULL) ? (CDeskcppView *)GetNextView(pos) : NULL;
+    pFile->Read(&s, 2);
+    if (pView != NULL) { pView->nTargetZoneId = s; pView->nTransitionStep = 0; }
+    pFile->Read(&s, 2); playerX = s;
+    pFile->Read(&s, 2); playerY = s;
+    pFile->Read(&s, 2);
+    currentWeapon = (s < 0) ? NULL : (Character *)characters.GetAt(s);   // index only, no ammo
+    pFile->Read(&s, 2); cameraX    = s;
+    pFile->Read(&s, 2); cameraY    = s;
+    pFile->Read(&s, 2); healthLo   = s;
+    pFile->Read(&s, 2); healthHi   = s;
+    pFile->Read(&s, 2); difficulty = s;
+    int nElapsed; pFile->Read(&nElapsed, 4); timeBase = time(NULL) - nElapsed;
+    pFile->Read(&s, 2); totalZones = s;
+    unk248.SetSize(0, -1);
+    short nCnt2, nSum;
+    pFile->Read(&nCnt2, 2); pFile->Read(&nSum, 2);
+    if (nCnt2 > 0 && nSum > 0) {
+        short nAvg = nSum / nCnt2;
+        unk248.SetSize(nCnt2, -1);
+        for (i = 0; i < nCnt2; i++) unk248.SetAt(i, nAvg);
     }
 }
 

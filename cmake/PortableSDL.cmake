@@ -299,6 +299,12 @@ target_include_directories(worldgen_smoke PRIVATE "${_src}")
 target_link_libraries(worldgen_smoke PRIVATE yoda_game)
 mfx_force_load(worldgen_smoke yoda_game)
 
+# ── INDYSAV44 save/load round-trip oracle (GAME_INDY) ──
+add_executable(save_smoke "${_mfx}/harness/save_smoke.cpp")
+target_include_directories(save_smoke PRIVATE "${_src}")
+target_link_libraries(save_smoke PRIVATE yoda_game)
+mfx_force_load(save_smoke yoda_game)
+
 # ── M5 tail oracle: CFileDialog scan/build-rows/resolve unit test (no game bootstrap needed) ──
 add_executable(dlg_smoke "${_mfx}/harness/dlg_smoke.cpp")
 target_link_libraries(dlg_smoke PRIVATE microfx)

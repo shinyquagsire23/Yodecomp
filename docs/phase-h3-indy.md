@@ -723,3 +723,25 @@ saves won't load (none exist on disk). REMAINING for full retail INDYSAV44 compa
 → "INDYSAV44", recursive full-flag 2B (SaveZoneRecursive/LoadZoneRecursive + main-reader nArg), and
 the 16-bit main-serialize (quest-cell 9-short record + doc tail) — Part-3 struct RE in progress
 (MapZone/CDeskcppDoc offset→name).
+
+### v93 FINAL — Issue B DONE: full retail INDYSAV44 read+write
+
+Our GAME_INDY build now reads AND writes the real retail Indy save format (magic "INDYSAV44").
+New GAME_INDY-only methods `CDeskcppDoc::IndyWriteWorldState` / `IndyReadWorldState` (Worldgen.cpp
+tail) implement the full 16-bit main-serialize per the DESKADV spec: seed(4) only header (no
+planet/bQuestCellsResident); ONE quest-item list; ONE 10x10 grid of 9 shorts/cell in order
+[cellItemC,cellQuestSlot5,cellQuestSlot6,id,cellQuestSlot0,cellQuestSlot1,cellItemA,cellItemB,
+zoneType]; ONE sentinel-terminated zone-recursive block; inventory count(2)+ids; compact doc tail
+[zoneIdx,playerX,playerY,weaponIdx,cameraX,cameraY,health,maxHealth,difficulty](2 each)+
+elapsed(4)+totalZones(2)+checksum(count2,sum2) — NO weaponState, NO goal-item pair. OnSaveWorld/
+OnLoadWorld get a minimal `#ifdef GAME_INDY` branch to these (magic check accepts "INDYSAV44");
+SaveZoneRecursive/LoadZoneRecursive full-flag narrowed to 2B for Indy. Per-zone state records go
+through the v93 Zone::Write/ReadSavedState 16-bit branch (issue A). ⭐ VERIFIED: new `save_smoke`
+harness (microfx/harness + PortableSDL.cmake) drives IndyWriteWorldState→IndyReadWorldState and
+confirms round-trip across seeds 1/42/7 — playerX/playerY/health/difficulty/seed/totalZones all
+survive (tail scalars surviving ⇒ the WHOLE file incl. every zone-state/script record stayed
+cursor-aligned), no crash, ~3.5KB saves (vs Yoda ~14-90KB — the compact 16-bit format). Anchor
+re-verified: 211 exact, bugscan 0/0, vt 10 CLEAN, msg 11 CLEAN, link 0 unresolved. ⚠ MEDIUM-confidence
+fields (cell item/slot identities, single quest-list semantics, totalZones=doc+0x48) round-trip fine
+for OUR saves (self-consistent) but reading a REAL retail Indy .sav is the remaining validation — no
+retail .sav on hand to test. Docs: the two agent specs are condensed above under "INDYSAV44".

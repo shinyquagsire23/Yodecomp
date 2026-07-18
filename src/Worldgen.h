@@ -323,6 +323,10 @@ public:
     unsigned short GetZoneCell(int x, int y);            // 0x00401a80 (scorers TU)
     void SaveZoneRecursive(CFile *pFile, short zoneId, int bFull); // 0x004033b0 (GameData TU)
     void LoadZoneRecursive(CFile *pFile, short zoneId, int nArg); // 0x00403450 (GameData TU)
+#ifdef GAME_INDY
+    void IndyWriteWorldState(CFile *pFile);  // retail INDYSAV44 .sav writer (Worldgen.cpp tail)
+    void IndyReadWorldState(CFile *pFile);   // retail INDYSAV44 .sav reader (Worldgen.cpp tail)
+#endif
     int  StartGame(unsigned int nSeed, int bSkipGenerate); // 0x004037a0 (GameData TU)
     int  FindTile(void *pTile);                          // 0x00403aa0 (GameData TU)
     unsigned char GetExitDirections();                   // 0x004032c0 (GameData TU)
