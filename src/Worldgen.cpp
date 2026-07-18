@@ -5069,7 +5069,14 @@ int CDeskcppDoc::GetZoneIndex(Zone *pZone)
 // rectUnk3274's origin. UI tile slots 1..15 fall back to slot 0 when unset.
 void CDeskcppDoc::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
 {
+#ifdef GAME_INDY
+    // Indy's locator draw (DESKADV FUN_1010_bb60) differs: it fills the canvas with palette index
+    // 0x4c (its map-background colour) and draws NO per-cell background tile — empty cells simply
+    // show the fill. Yoda instead fills 0 and blits tile 0x344 under every cell. GAME_INDY-only.
+    pCanvas->Fill(0x4c);
+#else
     pCanvas->Fill(0);
+#endif
     for (short i = 1; i < 16; i++)
     {
         if (apUiTiles[i] == NULL)
@@ -5084,8 +5091,10 @@ void CDeskcppDoc::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
         short destX = 4;
         do
         {
+#ifndef GAME_INDY
             Tile *pTile = GetTileData(0x344);
             pCanvas->BlitFast(pTile->pixels, 0x1c, 0x1c, 0x20, destX, destY);
+#endif
             short nIcon = (short)GetLocatorIconMaybe(x, nY, bAlt);
             if (nIcon >= 0)
             {

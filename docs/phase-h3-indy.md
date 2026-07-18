@@ -633,3 +633,39 @@ GAME_INDY→0x78.
 **Gotcha:** `mmsystem.h` defines `PlaySound`→`PlaySoundA` — `#undef PlaySound` after including it.
 CMake links `winmm.lib` (all extended configs; unreferenced elsewhere). Anchor: 211 exact, link
 0/0/exit0, bugscan 0/0/0 after all edits. USER-CONFIRMED: theme MIDI audibly plays on launch.
+
+## v93 (2026-07-18) — locator/overview MAP tiles fixed (user: "map tiles handled differently")
+
+**Symptom:** the L-key locator/overview map rendered garbage in Indy — random terrain/object tiles
+(stone walls, foliage, a treasure chest, even a character portrait) instead of map-cell icons.
+
+**Root cause:** `CacheUiTilePtrsMaybe` (DeskcppDoc.cpp, YODA 0x41a5d0) hardcodes the 20 UI/locator
+tile catalog indices **817–837** — valid in Yoda's ~2128-tile catalog (demo 2128 / full 2123, nearly
+identical) but WRONG for Indy's **1144-tile** DESKTOP.DAW, where those indices land on ordinary
+terrain/object tiles. (Tile counts measured directly: TILE chunk len / 0x404.)
+
+**Ground truth — `IndyCacheSpecialTilePtrsMaybe` (DESKADV 1010:42be):** caches 20 far-ptr (4-byte)
+tile entries from the tile array (`doc+0x60`) into `doc+0x340..+0x38c`; **index = srcOffset/4**.
+Recovered Indy indices (slot→idx): 0=377 1=375 2=363 3=364 4=365 5=366 6=367 7=371 8=373 9=369
+10=368 11=372 12=374 13=370 14=376 15=639 16=408 17=1138 18=1131 19=1139. Slots **2–14 are a
+contiguous locator-icon block whose deltas are BYTE-FOR-BYTE identical to Yoda's 817-based block**
+(strong cross-validation of the slot mapping); slots 0,15–19 are the separate player-marker / cursor /
+arrow specials at Indy-specific positions. Rendered from the DAW with `indy_palette` these are exactly
+a coherent map-icon set (map-cell bg + circle / puzzle-piece / door-arch / edge+corner markers /
+filled-star "you are here" [slot 15] / red-X / hollow-star / 4-way travel crosses).
+
+**Second delta — `IndyDrawLocatorMap` (DESKADV 1010:bb60, ≡ DrawLocatorMap 0x423df0):** Indy fills the
+canvas with palette index **0x4c** (its olive map-bg colour, `Canvas::Fill` = FUN_1010_11be) and draws
+**NO per-cell background tile**; Yoda instead fills 0 and blits tile **0x344** under every cell (its
+"blank map cell" graphic). Empty Indy cells therefore just show the 0x4c fill.
+
+**Icon SELECTION unchanged:** `IndyGetLocatorIcon` (1010:402e) has the same zone-type→slot switch and
+same 0..0x13 / −1 returns as our byte-matched `GetLocatorIconMaybe` — so no selector work needed, only
+the tile-index resolution + fill/bg.
+
+**Fix (both GAME_INDY-guarded, anchor fall-through = original Yoda):** DeskcppDoc.cpp
+`CacheUiTilePtrsMaybe` #ifdef branch with the Indy indices; Worldgen.cpp `DrawLocatorMap` fills 0x4c and
+`#ifndef GAME_INDY`-skips the 0x344 bg blit. Verified by rendering the recovered tiles from DESKTOP.DAW
+(new = coherent icons, old 817–837 = terrain garbage). Anchor re-oracled: 211 exact / 99.17 %, bugscan
+0 HIGH/0 SHIFT, vt 10 CLEAN, msg 11 CLEAN. Indy SDL build compiles clean. NOT yet live-screenshot in the
+running map (opening the overview needs the locator item in inventory) — tile-render proof stands in.

@@ -351,6 +351,34 @@ unsigned int CDeskcppDoc::GetLocatorIconMaybe(int x, int y, int bAlt)
 // Caches the fixed UI tile pointers (locator icons, arrows, cursor) out of the tile array.
 void CDeskcppDoc::CacheUiTilePtrsMaybe()
 {
+#ifdef GAME_INDY
+    // Indy's locator/UI tiles live at DIFFERENT catalog indices — DESKTOP.DAW has only 1144 tiles
+    // vs Yoda's ~2128, so the Yoda constants below (817-837) read wrong graphics. Exact indices
+    // from DESKADV IndyCacheSpecialTilePtrsMaybe (1010:42be): each slot loads tile[srcOffset/4]
+    // (tile ptrs are 4 bytes) into doc+0x340..+0x38c. Slots 2-14 are the contiguous locator-icon
+    // block (byte-for-byte the same deltas as Yoda's 817-based block); 0 and 15-19 are the
+    // separate player-marker / cursor / arrow specials at Indy-specific positions. GAME_INDY-only.
+    apUiTiles[0]  = (Tile *)tiles[377];
+    apUiTiles[1]  = (Tile *)tiles[375];
+    apUiTiles[2]  = (Tile *)tiles[363];
+    apUiTiles[3]  = (Tile *)tiles[364];
+    apUiTiles[4]  = (Tile *)tiles[365];
+    apUiTiles[5]  = (Tile *)tiles[366];
+    apUiTiles[6]  = (Tile *)tiles[367];
+    apUiTiles[7]  = (Tile *)tiles[371];
+    apUiTiles[8]  = (Tile *)tiles[373];
+    apUiTiles[9]  = (Tile *)tiles[369];
+    apUiTiles[10] = (Tile *)tiles[368];
+    apUiTiles[11] = (Tile *)tiles[372];
+    apUiTiles[12] = (Tile *)tiles[374];
+    apUiTiles[13] = (Tile *)tiles[370];
+    apUiTiles[14] = (Tile *)tiles[376];
+    apUiTiles[15] = (Tile *)tiles[639];
+    apUiTiles[16] = (Tile *)tiles[408];
+    apUiTiles[17] = (Tile *)tiles[1138];
+    apUiTiles[18] = (Tile *)tiles[1131];
+    apUiTiles[19] = (Tile *)tiles[1139];
+#else
     apUiTiles[0]  = (Tile *)tiles[832];
     apUiTiles[1]  = (Tile *)tiles[829];
     apUiTiles[2]  = (Tile *)tiles[817];
@@ -371,6 +399,7 @@ void CDeskcppDoc::CacheUiTilePtrsMaybe()
     apUiTiles[17] = (Tile *)tiles[835];
     apUiTiles[18] = (Tile *)tiles[834];
     apUiTiles[19] = (Tile *)tiles[833];
+#endif
 }
 
 // FUNCTION: YODA 0x0041a6d0  [EFFECTIVE MATCH: DIFF(50) at exact length, 138/138 insns —
