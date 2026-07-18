@@ -252,8 +252,15 @@ extern "C" int MfxPlatShowFileDialog(int bOpen, const char *pszDir, const char *
                                      const char *pszDef, char *pszOut, int nOutSize)
 {
     if (!s_pWin) return -1;
-#ifdef __EMSCRIPTEN__
-    return -1;      // no native picker in a browser → CFileDialog's in-window row-list fallback
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    // No usable native picker here → CFileDialog's in-window row-list fallback.
+    //  · browser: SDL3 has no picker.
+    //  · Android: SDL3's picker uses the Storage Access Framework, which pre-creates the chosen
+    //    file (0 bytes) and hands back a content:// URI — NOT a filesystem path our fopen-based
+    //    CFile can open, so every save produced an empty file + a write error. The in-window
+    //    picker instead resolves a real path in the app's writable internal storage (MfxAndroidDataDir),
+    //    where saves also persist and Load can find them.
+    return -1;
 #else
     char szDesc[64];
     snprintf(szDesc, sizeof szDesc, "%s files",

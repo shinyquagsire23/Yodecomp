@@ -29,6 +29,9 @@
 
 // SDL3 native file picker (mfxplat.h contract); SDL2/null/DS return -1 → custom picker fallback.
 extern "C" int MfxPlatShowFileDialog(int, const char *, const char *, const char *, char *, int);
+#ifdef __ANDROID__
+extern "C" const char *MfxAndroidDataDir(void);   // app's writable internal storage (mfxplat_sdl3.cpp)
+#endif
 
 extern "C" const unsigned char *MfxFindResourceData(unsigned nType, unsigned nId, unsigned *pnSize);
 #define RT_DIALOG_ID 5
@@ -485,7 +488,13 @@ int CDialog::DoModal()
 
     // controls (EX items: helpID(4)+exStyle(4)+style(4), coords, then a DWORD id)
     for (int i = 0; i < hdr.nCtrl && nItems < 40; i++) {
-        p = (const BYTE *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
+        // Each DLGITEMTEMPLATE starts on a DWORD boundary measured from the TEMPLATE start (pT),
+        // not from p's absolute address. Align on the pT-relative offset so the parse is correct
+        // regardless of where the embedded .res blob lands in memory. (Aligning the absolute
+        // address only works when pT itself is 4-aligned — true on some link layouts, but on
+        // Android the blob base isn't, which shifted every control read → wrong ids/classes:
+        // empty dialogs and a GetDlgItem() miss that crashed the slider dialogs.)
+        p = pT + (((size_t)(p - pT) + 3) & ~(size_t)3);
         DWORD cst;
         if (bEx) { cst = MfxRdD(p + 8); p += 12; }
         else     { cst = MfxRdD(p);     p += 8;  }  // style(4) + ext(4)
@@ -649,6 +658,12 @@ int CFileDialog::DoModal()
     const char *pszDir = (m_ofn.lpstrInitialDir && *m_ofn.lpstrInitialDir) ? m_ofn.lpstrInitialDir : ".";
     std::error_code ecDir;
     if (!std::filesystem::is_directory(pszDir, ecDir)) pszDir = ".";
+#ifdef __ANDROID__
+    // On Android the process cwd (".") is "/", which is not writable — root the picker at the app's
+    // private internal storage instead (the writable, persistent dir the APK's assets extract into,
+    // and what GetModuleFileNameA reports as the game's data dir), so Save/Load agree with the loader.
+    if (!strcmp(pszDir, ".")) { const char *pD = MfxAndroidDataDir(); if (pD && *pD) pszDir = pD; }
+#endif
     const char *pszExt = m_ofn.lpstrDefExt ? (const char *)m_ofn.lpstrDefExt : "wld";
 
     enum { MAX_FOUND = 8, ID_NEW = 90, ID_ROW0 = 100 };

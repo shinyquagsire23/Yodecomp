@@ -244,6 +244,23 @@ Per-bug status table: docs/engine-bugs.md.
   `ndkVersion` is passed to gradle so AGP strips the lib. ⚠ **cursor scale**: on Android the soft
   cursor composites in the renderer's game-pixel LOGICAL space, so it uses `MfxCursorScale()`==1
   (not s_nScale — that double-scaled it: the "2× position and size" bug).
+- **⭐ Modal dialogs on Android (v92 fix — two bugs, ONE was shared root cause; all in `mfxdlg.cpp`,
+  device-verified on an AYN Thor):** (1) **empty About + slider-dialog SIGSEGV.** `CDialog::DoModal`'s
+  DLGTEMPLATE parser DWORD-aligned each control entry off `p`'s ABSOLUTE address; the spec aligns
+  relative to the TEMPLATE start. It only worked where the embedded `.res` blob happened to land
+  4-aligned (desktop/wasm link layouts); Android's blob base isn't, so every control read shifted →
+  wrong ids/classes → controls never created. Symptom pair: template dialogs render frame+caption
+  only (About was empty) AND `GetDlgItem(0x67)` returned NULL → `DifficultyDlg::OnInitDialog`'s
+  `pCtrl->m_hWnd` null-derefed at +0x10 (Combat Difficulty/Game Speed/World Control all crashed). Fix:
+  `p = pT + (((size_t)(p - pT) + 3) & ~3)` — identical output when pT is 4-aligned, so no desktop
+  change. (2) **save = 0-byte file + write error.** SDL3's Android file picker uses the Storage
+  Access Framework: it PRE-CREATES the chosen file (0 bytes) and hands back a `content://` URI, which
+  the engine's `fopen`-based `CFile` can't open. Fix: `MfxPlatShowFileDialog` returns -1 on
+  `__ANDROID__` (like `__EMSCRIPTEN__`) → CFileDialog's in-window row-list picker, rooted at
+  `MfxAndroidDataDir()` (writable internal storage where assets extract + saves persist; cwd "." is
+  "/" and unwritable). Save writes a real .wld and Load lists it. ⚠ `fprintf(stderr)` is INVISIBLE on
+  Android — SDL doesn't redirect stdio to logcat; use `SDL_Log`/`__android_log_print`, or read the
+  native crash via `adb logcat | grep DEBUG` (the tombstone backtrace names the crashing function).
 - **Game controller (all SDL3 platforms, not just Android — `mfxplat_sdl3.cpp`):** `SDL_INIT_GAMEPAD`;
   both sticks + D-pad → 8-way movement mapped to the game's own arrow/diagonal VKs (a held direction
   is auto-repeated every ~33ms since the game needs a fresh WM_KEYDOWN per tick to keep walking);
