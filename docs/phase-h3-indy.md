@@ -669,3 +669,57 @@ the tile-index resolution + fill/bg.
 (new = coherent icons, old 817–837 = terrain garbage). Anchor re-oracled: 211 exact / 99.17 %, bugscan
 0 HIGH/0 SHIFT, vt 10 CLEAN, msg 11 CLEAN. Indy SDL build compiles clean. NOT yet live-screenshot in the
 running map (opening the overview needs the locator item in inventory) — tile-render proof stands in.
+
+## v93 tail — save/load investigation (Indy scripts): TWO distinct issues
+
+**Issue A (user-reported): loading an Indy save deserializes scripts wrong.** Established: the
+user's save is OUR OWN format — there are NO Indy `.wld` files anywhere, our reader
+(Worldgen.cpp:5804) hard-requires magic `"YODASAV44"` and rejects everything else with
+AfxMessageBox(0xe008), and our writer (5452) also stamps `"YODASAV44"` in the Yoda 32-bit layout
+with no GAME_INDY branch. So the file was ACCEPTED ⇒ our format ⇒ self-consistent ⇒ scripts
+*should* round-trip (write N doneFlags, read N doneFlags; the entity/object reads consume exactly
+what was written, so the cursor reaches the script list at the right offset regardless of struct
+sizes). Load flow: read magic/seed/planet → **StartGame(0,1) REGENERATES via IndyGenerate** → read
+questItems/mapGrid → LoadZoneRecursive→ReadSavedState overlays doneFlags onto the regenerated
+zones. LEADING HYPOTHESIS (needs the exact symptom to confirm): IndyGenerate re-run at load is not
+bit-identical to the original generation (cf. the known unseeded-rand planet re-pick), so saved zone
+state doesn't map onto regenerated zones (LoadZoneRecursive's `savedId!=child` early-out, or a
+script-count mismatch). Alt: entity-count drift (save-time LIVE count vs regenerated count) →
+`entities[i]` OOB (ReadSavedState does NOT grow entities, unlike objects) → corruption. PENDING: the
+precise user symptom (events replay? crash? corrupt world?) to pick the branch.
+
+**Issue B (found while investigating A — SEPARATE, real, latent): retail Indy `.sav` files can't be
+loaded at all.** Agent RE (read twin FUN_1010_1dd4, write twin FUN_1010_2108, both disassembled
+byte-by-byte): retail Indy's save is magic `"INDYSAV44"` (string @1010:d7c8) in a **uniformly 16-bit
+format** — every count/flag Yoda writes as 4-byte `int` is 2 bytes, and fields are dropped: zone
+header = 4 shorts (tempVar/randVar/doorReturnX/Y, NO globalVar/planet) = 8B vs our 20B; activatedFlag
+2B; ZoneObj = state(2)+arg(2) only (4B vs our 12B); MapEntity = 16 contiguous shorts ent+0x4..+0x22
+(32B, no waypoints/unk60, vs our 92B); each doneFlag 2B; LoadZoneRecursive child `savedFull` is 2B.
+Struct OFFSETS are shared (type@4/state@8/x@0xa/y@0xc/arg@0xe) so a fix is serialization-width only,
+not struct redef. worldSeed/currentPlanet stay 4-byte (`long`) even in 16-bit Indy. Fix shape (all
+GAME_INDY-guarded, line-neutral) if we want retail-save compat: 16-bit branches in Zone::Read/Write
+SavedState (Iact.cpp), LoadZoneRecursive/SaveZoneRecursive child header (WorldgenHelpers.cpp), and
+Serialize magic `"INDYSAV44"` + 16-bit quest-cell/MapZone grid (Worldgen.cpp). DESKADV twins:
+IndyLoadWorldState 1010:b890, reader FUN_1010_1dd4, writer FUN_1010_2108, LoadZoneRecursive twin
+FUN_1020_0af0. NOTE: implementing B also changes what WE write — either re-stamp our saves INDYSAV44
+16-bit (breaks existing our-format saves) or keep writing YODASAV44 and ALSO accept INDYSAV44 on read.
+
+### v93 UPDATE — Issue A fix IMPLEMENTED (zone-state 16-bit field-set)
+
+Implemented Parts 1 (Zone::ReadSavedState/WriteSavedState, Iact.cpp) of the Indy save spec as
+GAME_INDY branches (`#ifdef GAME_INDY … return; #endif` at the top of each; anchor fall-through
+100% untouched — 211 exact re-verified). The Indy zone-state record now matches retail
+FUN_1010_1dd4/2108: 2-byte fields; zone header = tempVar/randVar/doorReturnX/doorReturnY only (NO
+globalVar/planet); each ZoneObj = state+arg only (NO type/x/y); each MapEntity = its first 16 fields
+only (charId,x,y,damageTaken,active,unk10,bulletX,bulletY,aiStepCounter,unk18,bRetreating,unk20,
+bulletDX,bulletDY,bulletStep,seqIdx — NO waypoints/item/unk2c/bRefreshFrame/numItems/timer/wanderDir/
+unk60); doneFlags 2B. This stops the loader OVERWRITING regenerated per-object type/x/y and zone
+globalVar with stale saved values — the "loads OK, specific scripts broken" cause. Write/read are
+exact mirrors ⇒ self-consistent round-trip (proven by construction; user to confirm the script
+behaviour in playtest — headless save→load automation blocked by the SDL file-picker). Kept
+YODASAV44 magic + 32-bit main-serialize for now (a self-consistent hybrid); the recursive
+header full-flag + main-serialize stay 32-bit until Part 3 lands. Existing 32-bit-zone-state Indy
+saves won't load (none exist on disk). REMAINING for full retail INDYSAV44 compat (issue B): magic
+→ "INDYSAV44", recursive full-flag 2B (SaveZoneRecursive/LoadZoneRecursive + main-reader nArg), and
+the 16-bit main-serialize (quest-cell 9-short record + doc tail) — Part-3 struct RE in progress
+(MapZone/CDeskcppDoc offset→name).

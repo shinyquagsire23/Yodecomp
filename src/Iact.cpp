@@ -61,6 +61,66 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
     int count;
     int i;
 
+#ifdef GAME_INDY
+    // Retail Indy (DESKADV FUN_1010_1dd4) stores the per-zone saved state in its native 16-bit
+    // layout: every field our 32-bit code declares `int` is 2 bytes, and several fields are
+    // DROPPED entirely — the zone header omits globalVar/planet, each ZoneObj saves only
+    // state+arg (NOT type/x/y), and each MapEntity is only its first 16 fields (no waypoints/
+    // item/timers). Reading the Yoda 32-bit layout (the code below) mis-restored those dropped
+    // fields — overwriting regenerated per-object type/x/y and zone globalVar with stale values,
+    // which is what broke specific scripts on load. GAME_INDY-only; anchor path is untouched.
+    {
+        short s16;
+        if (bFull) {
+            pFile->Read(&s16, 2); tempVar     = s16;
+            pFile->Read(&s16, 2); randVar     = s16;
+            pFile->Read(&s16, 2); doorReturnX = s16;
+            pFile->Read(&s16, 2); doorReturnY = s16;
+            for (i = 0; i < width; i++)
+                pFile->Read(&tiles[i * 54], height * 6);
+        }
+        pFile->Read(&s16, 2); activatedFlag = s16;
+        pFile->Read(&s16, 2); count = s16;
+        int n = objects.GetSize();
+        for (i = 0; i < count - n; i++) {
+            ZoneObj *o = new ZoneObj;
+            objects.SetAtGrow(objects.GetSize(), o);
+        }
+        for (i = 0; i < count; i++) {
+            ZoneObj *o = (ZoneObj *)objects[i];
+            pFile->Read(&o->state, 2);
+            pFile->Read(&o->arg, 2);
+        }
+        if (bFull) {
+            pFile->Read(&s16, 2); count = s16;
+            for (i = 0; i < count; i++) {
+                MapEntity *e = (MapEntity *)entities[i];
+                pFile->Read(&e->charId, 2);
+                pFile->Read(&e->x, 2);
+                pFile->Read(&e->y, 2);
+                pFile->Read(&e->damageTaken, 2);
+                pFile->Read(&s16, 2); e->active      = s16;
+                pFile->Read(&e->unk10, 2);
+                pFile->Read(&e->bulletX, 2);
+                pFile->Read(&e->bulletY, 2);
+                pFile->Read(&e->aiStepCounter, 2);
+                pFile->Read(&s16, 2); e->unk18       = s16;
+                pFile->Read(&s16, 2); e->bRetreating = s16;
+                pFile->Read(&s16, 2); e->unk20       = s16;
+                pFile->Read(&e->bulletDX, 2);
+                pFile->Read(&e->bulletDY, 2);
+                pFile->Read(&e->bulletStep, 2);
+                pFile->Read(&e->seqIdx, 2);
+            }
+            pFile->Read(&s16, 2); count = s16;
+            for (i = 0; i < count; i++) {
+                pFile->Read(&s16, 2);
+                ((IactScript *)iactScripts[i])->doneFlag = s16;
+            }
+        }
+    }
+    return;
+#endif
     if (bFull) {
         pFile->Read(&tempVar, 4);
         pFile->Read(&randVar, 4);
@@ -137,6 +197,61 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
     int count;
     int i;
 
+#ifdef GAME_INDY
+    // Mirror of the GAME_INDY branch in ReadSavedState — writes the retail Indy 16-bit record
+    // (DESKADV FUN_1010_2108): 2-byte fields, no globalVar/planet, ZoneObj = state+arg only,
+    // MapEntity = first 16 fields only. Keeps our Indy save/load self-consistent and stops us
+    // persisting the fields that clobbered regenerated state on load.
+    {
+        short s16;
+        if (bFull) {
+            s16 = (short)tempVar;     pFile->Write(&s16, 2);
+            s16 = (short)randVar;     pFile->Write(&s16, 2);
+            s16 = (short)doorReturnX; pFile->Write(&s16, 2);
+            s16 = (short)doorReturnY; pFile->Write(&s16, 2);
+            for (i = 0; i < width; i++)
+                pFile->Write(&tiles[i * 54], height * 6);
+        }
+        s16 = (short)activatedFlag;  pFile->Write(&s16, 2);
+        s16 = (short)objects.GetSize(); pFile->Write(&s16, 2);
+        count = objects.GetSize();
+        for (i = 0; i < count; i++) {
+            ZoneObj *o = (ZoneObj *)objects[i];
+            pFile->Write(&o->state, 2);
+            pFile->Write(&o->arg, 2);
+        }
+        if (bFull) {
+            s16 = (short)entities.GetSize(); pFile->Write(&s16, 2);
+            count = entities.GetSize();
+            for (i = 0; i < count; i++) {
+                MapEntity *e = (MapEntity *)entities[i];
+                pFile->Write(&e->charId, 2);
+                pFile->Write(&e->x, 2);
+                pFile->Write(&e->y, 2);
+                pFile->Write(&e->damageTaken, 2);
+                s16 = (short)e->active;      pFile->Write(&s16, 2);
+                pFile->Write(&e->unk10, 2);
+                pFile->Write(&e->bulletX, 2);
+                pFile->Write(&e->bulletY, 2);
+                pFile->Write(&e->aiStepCounter, 2);
+                s16 = (short)e->unk18;       pFile->Write(&s16, 2);
+                s16 = (short)e->bRetreating; pFile->Write(&s16, 2);
+                s16 = (short)e->unk20;       pFile->Write(&s16, 2);
+                pFile->Write(&e->bulletDX, 2);
+                pFile->Write(&e->bulletDY, 2);
+                pFile->Write(&e->bulletStep, 2);
+                pFile->Write(&e->seqIdx, 2);
+            }
+            s16 = (short)iactScripts.GetSize(); pFile->Write(&s16, 2);
+            count = iactScripts.GetSize();
+            for (i = 0; i < count; i++) {
+                s16 = (short)((IactScript *)iactScripts[i])->doneFlag;
+                pFile->Write(&s16, 2);
+            }
+        }
+    }
+    return;
+#endif
     if (bFull) {
         pFile->Write(&tempVar, 4);
         pFile->Write(&randVar, 4);
