@@ -7461,6 +7461,9 @@ void CDeskcppView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         }
         else if (pWorld->nFrameMode == 9 && nPickupTileId >= 0 && bBusy == 0)
         {
+#ifdef YODA_BUGFIX
+pickup_item:
+#endif
             AddItemToInv((Tile *)pWorld->tiles.GetAt(nPickupTileId));
             short w = pWorld->mapGrid[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
             if (w >= 0 && (int)w == nPickupTileId)
@@ -7476,6 +7479,15 @@ void CDeskcppView::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
             bMouseCaptured = 0;
         }
         break;
+#ifdef YODA_BUGFIX
+    // Added: Also pick up items with return key
+    case VK_RETURN:
+        if (pWorld->nFrameMode == 9 && nPickupTileId >= 0 && bBusy == 0)
+        {
+            goto pickup_item;
+        }
+        break;
+#endif
     case VK_PRIOR:      // 0x21
     case VK_NEXT:       // 0x22
     case VK_END:        // 0x23
@@ -8369,6 +8381,10 @@ int TextDialog::Run()
             {
             case VK_RETURN:
             case VK_ESCAPE:
+#ifdef YODA_BUGFIX
+            case VK_SPACE:
+            case VK_SHIFT:
+#endif
                 pParentView->bDialogClickDismissMaybe = 1;
                 pParentView->bDialogCloseClicked = 1;
                 break;
