@@ -42,6 +42,9 @@ build-wasm-deploy-full/
 build-wasm-deploy-indy/
 build-wasm-pick/
 build-wasm/
+build-android-demo/
+build-android-full/
+build-android-indy/
 mfx_smoke.tmp
 tmp/
 *.exe

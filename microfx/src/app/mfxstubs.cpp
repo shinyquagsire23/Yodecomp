@@ -506,6 +506,10 @@ int      GetDeviceCaps(HDC, int index)
 
 DWORD    GetVersion(void) { return 0xC3B60004; }   // report Win95 (4.0 build 950)
 HINSTANCE GetModuleHandleA(LPCSTR) { return 0; }
+
+#if defined(__ANDROID__)
+extern "C" const char *MfxAndroidDataDir(void);    // microfx/src/platform/mfxplat_sdl3.cpp
+#endif
 DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
 {
     // real exe path, '/'-separated; the game derives its data-file directory from this
@@ -535,6 +539,20 @@ DWORD    GetModuleFileNameA(HINSTANCE, LPSTR lpFilename, DWORD nSize)
         strncpy(szBuf, pszPgm, sizeof(szBuf) - 1);
         szBuf[sizeof(szBuf) - 1] = 0;
     } else szBuf[0] = 0;
+#elif defined(__ANDROID__)
+    // No conventional exe path on Android: the game's data lives in the app's private internal
+    // storage, where the APK's baked assets are extracted on first launch. The SDL3 backend owns
+    // that directory (and the extraction) — report "<internalStorage>/yoda" so the game's own
+    // _splitpath/_makepath derive the data dir as that folder (INI = <dir>/yoda.INI, data files =
+    // <dir>/<GAME>.DTA — the trailing '\\'-appended name is normalized to '/' by CFile::Open).
+    {
+        const char *pszDir = MfxAndroidDataDir();
+        strncpy(szBuf, (pszDir && *pszDir) ? pszDir : "/", sizeof(szBuf) - 8);
+        szBuf[sizeof(szBuf) - 8] = 0;
+        size_t nLen = strlen(szBuf);
+        if (nLen == 0 || szBuf[nLen - 1] != '/') strcat(szBuf, "/");
+        strcat(szBuf, "yoda");
+    }
 #else
     ssize_t n = readlink("/proc/self/exe", szBuf, sizeof(szBuf) - 1);
     if (n > 0) szBuf[n] = 0; else szBuf[0] = 0;

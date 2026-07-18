@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- app_name is overwritten per game by tools/android_apk.sh. -->
+    <string name="app_name">Yodecomp</string>
+</resources>

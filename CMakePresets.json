@@ -68,6 +68,41 @@
       "inherits": [ "sdl-indy", "macos-app-base" ]
     },
     {
+      "name": "android-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-${presetName}",
+      "toolchainFile": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+      "cacheVariables": {
+        "YODA_PLATFORM": "SDL",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ANDROID_ABI": "arm64-v8a",
+        "ANDROID_PLATFORM": "android-28",
+        "YODA_ANDROID_EXTRA_ABIS": "x86_64"
+      }
+    },
+    {
+      "name": "android-demo",
+      "displayName": "Android — Yoda Stories Demo (.apk)",
+      "description": "Android APK, Yoda demo. Needs ANDROID_NDK_HOME + SDK; build the 'apk' target. Static SDL3 in one libmain.so; assets baked from YodaDemo/.",
+      "inherits": "android-base",
+      "cacheVariables": { "YODA_GAME": "YODA", "YODA_VARIANT": "DEMO" }
+    },
+    {
+      "name": "android-full",
+      "displayName": "Android — Yoda Stories retail full (.apk)",
+      "description": "Android APK, retail full Yoda (needs YodaFull/). Build the 'apk' target.",
+      "inherits": "android-base",
+      "cacheVariables": { "YODA_GAME": "YODA", "YODA_VARIANT": "FULL" }
+    },
+    {
+      "name": "android-indy",
+      "displayName": "Android — Indiana Jones (.apk)",
+      "description": "Android APK, Indiana Jones (needs YodaIndy/). Build the 'apk' target.",
+      "inherits": "android-base",
+      "cacheVariables": { "YODA_GAME": "INDY", "YODA_VARIANT": "DEMO" }
+    },
+    {
       "name": "vc42",
       "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor",
       "description": "Original 1997 codegen via the wine-wrapped Visual C++ 4.2 toolchain (macOS/Linux). Not a native-VS build; needs toolchain/vc42/ + wine — see BUILDING.md.",
@@ -116,6 +151,9 @@
     { "name": "macos-app-demo", "displayName": "macOS .app — Yoda Stories Demo (static)", "configurePreset": "macos-app-demo", "targets": [ "app" ] },
     { "name": "macos-app-full", "displayName": "macOS .app — Yoda Stories retail full (static)", "configurePreset": "macos-app-full", "targets": [ "app" ] },
     { "name": "macos-app-indy", "displayName": "macOS .app — Indiana Jones (static)", "configurePreset": "macos-app-indy", "targets": [ "app" ] },
+    { "name": "android-demo", "displayName": "Android — Yoda Stories Demo (.apk)", "configurePreset": "android-demo", "targets": [ "apk" ] },
+    { "name": "android-full", "displayName": "Android — Yoda Stories retail full (.apk)", "configurePreset": "android-full", "targets": [ "apk" ] },
+    { "name": "android-indy", "displayName": "Android — Indiana Jones (.apk)", "configurePreset": "android-indy", "targets": [ "apk" ] },
     { "name": "vc42", "displayName": "VC++ 4.2 — WIN32/MFC byte-match anchor", "configurePreset": "vc42" },
     { "name": "vs-sdl-demo", "displayName": "SDL — Yoda Stories Demo (Windows / vcpkg)", "configurePreset": "vs-sdl-demo" },
     { "name": "vs-sdl-full", "displayName": "SDL — Yoda Stories retail full (Windows / vcpkg)", "configurePreset": "vs-sdl-full" },

@@ -298,6 +298,55 @@ See `docs/cmake-build.md` for why this build is custom-command based rather than
 MSVC ruleset.
 </details>
 
+## Build: Android `.apk` (touch)
+
+A native Android build of the same SDL3/microfx engine — touch-enabled, with on-screen **Push/Pull**
+(Shift) and **Attack** (Space) buttons you can hold with multitouch while tapping the map to walk.
+A physical keyboard/mouse/**game controller** also works if one is attached.
+
+**Controls:**
+- **Touch** — tap/drag the map to walk & interact; two on-screen buttons (bottom-right cluster):
+  **Attack** (◆, = Space) and **Push/Pull** (⇕, = Shift), holdable together with multitouch.
+- **Game controller** — left/right sticks + D-pad → move (8-way); **A** = Attack, **B** = Push/Pull,
+  **X** = Enter (dismiss dialogs/speech), **Select** = Locator map (L).
+- The on-screen buttons **follow the active input**: shown while you're using touch, hidden as soon
+  as you use a keyboard, mouse, or controller, and shown again on the next touch.
+
+**The whole thing is one CMake target.** Unlike the classic "build the `.so`, then hand-copy libs
+into `jniLibs/`, then run gradle" dance, `cmake --build … --target apk` does everything: it
+cross-compiles a **single** `libmain.so` (SDL3 + SDL3_mixer are static-linked in — no loose
+`libSDL3.so`), builds any sibling ABIs, stages the libs + baked game assets + the version-matched
+SDL Java + launcher icons into a build copy of `packaging/android/`, and drives `gradlew` to a
+signed-debug `.apk`. Gradle is only a packager here (no `externalNativeBuild`).
+
+### Prerequisites
+- The **Android NDK** (`ANDROID_NDK_HOME` set — e.g. `~/Library/Android/sdk/ndk/25.2.9519653`) and
+  **SDK** (`ANDROID_HOME`, with platform `android-34` + build-tools `34.x`).
+- A JDK 17+ (`JAVA_HOME`). Gradle 8.7 / AGP 8.4 are fetched by the wrapper on first build.
+
+### Build
+```sh
+export ANDROID_NDK_HOME=~/Library/Android/sdk/ndk/25.2.9519653
+cmake --preset android-demo             # configure (clones + builds static SDL3 — first time is slow)
+cmake --build --preset android-demo     # -> build-android-demo/Yoda Stories (Demo).apk
+# or: android-full / android-indy
+```
+The presets build **arm64-v8a + x86_64** (phones/tablets + the Android Studio emulator). Change the
+ABI set with `-DANDROID_ABI=<primary>` (this tree) and `-DYODA_ANDROID_EXTRA_ABIS="<;-list>"`.
+
+Install + launch on a connected device/emulator:
+```sh
+cmake --build build-android-demo --target apk-install     # adb install -r + monkey-launch
+# or by hand:  adb install -r "build-android-demo/Yoda Stories (Demo).apk"
+```
+
+> **Assets & writable state:** the game data (DTA/DAW + `sfx/` + a starter `yoda.INI`) is baked into
+> the APK's `assets/` from the run folder (`YodaDemo/` etc.), listed in `assets/manifest.txt`, and
+> **extracted to the app's private internal storage on first launch** (`mfxplat_sdl3.cpp` →
+> `MfxAndroidDataDir`). That folder is the game's data dir, so writable state (INI/saves) lives there
+> too — reinstalling keeps it; "Clear data" forces a fresh extract. Copyrighted data never leaves
+> your machine (each game gets its own `applicationId`, so demo/full/Indy coexist on one device).
+
 <details>
 <summary><b>Providing the Visual C++ 4.2 toolchain (<code>toolchain/vc42/</code>)</b></summary>
 

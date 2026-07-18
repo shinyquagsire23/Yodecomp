@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'org.yodecomp.app'
+    compileSdk 34
+    // Match the NDK that cross-compiled libmain.so (passed by tools/android_apk.sh) so AGP strips
+    // it instead of warning [CXX1104] and packaging it unstripped.
+    ndkVersion project.findProperty('yodaNdkVersion') ?: '25.2.9519653'
+
+    defaultConfig {
+        // applicationId is injected per game by tools/android_apk.sh (-PyodaAppId); each game gets
+        // a distinct id so Yoda / Yoda-full / Indy can coexist on one device.
+        applicationId project.findProperty('yodaAppId') ?: 'org.yodecomp.yoda'
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+        // No externalNativeBuild: the .so's are cross-compiled by CMake and dropped into jniLibs
+        // (staged by tools/android_apk.sh). Gradle only packages them. ABIs present = what was staged.
+    }
+
+    // The staged jniLibs already contain per-arch libmain.so; keep them verbatim (no legacy
+    // packaging that could reject a static-SDL .so).
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+            assets.srcDirs  = ['src/main/assets']
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true          // extract .so on install (SDLActivity dlopen path)
+        }
+    }
+
+    buildTypes {
+        debug {
+            // debuggable, zero shrinking — this is the sideload/emulator artifact.
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    lint {
+        abortOnError false
+    }
+}

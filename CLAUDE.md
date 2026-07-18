@@ -83,6 +83,19 @@ Phase H (extension — functional correctness, not byte-matching) status:
    `OFF` (SHIPPABLE page, zero game data; `--pre-js` picker `microfx/web/mfx_asset_picker.pre.js`
    copies the user's folder into MEMFS pre-main). Remaining tails: INI/save persistence across
    reloads (IDBFS), Indy-wasm MIDI, user-found gameplay deltas. See "WASM build/debug" below.
+5. **⭐ Android port (user-set 2026-07-18) — ✅ CORE SHIPPED v92** (touch, emulator-tested):
+   `cmake --preset android-demo && cmake --build --preset android-demo` → one `.apk` (needs
+   `ANDROID_NDK_HOME` + SDK). Same "phone = just another SDL3 platform" story as wasm — the v82
+   backend split meant NO new backend file, just `#ifdef __ANDROID__` deltas in `mfxplat_sdl3.cpp`
+   (+ a data-dir branch in `mfxstubs.cpp`); anchor & game TUs untouched. Deliberately ONE CMake
+   target (user's ask, improving on OpenJKDF2's shell dance): SDL3+mixer **static-linked into a
+   single `libmain.so`** (`getLibraries()={"main"}`), and `--target apk` cross-compiles it, builds
+   sibling ABIs, stages libs+baked-assets+SDL-Java+icons into a build copy of `packaging/android/`,
+   and drives gradlew (a dumb packager — no externalNativeBuild). Touch: fullscreen letterbox
+   renderer, multitouch on-screen **Push/Pull (Shift)** + **Attack (Space)** buttons, tap=mouse
+   walk; APK assets extracted to internal storage on first launch (saves/INI persist there). See
+   "Android build/debug" below + BUILDING.md "Build: Android `.apk`". Tails: x86_64 second ABI
+   (building), Indy MIDI (timidity needs patches, like wasm), on-device playtest, icon/UX polish.
 
 ### H4 spec — Beyond Win95: portable SDL target via "microfx" (full design: docs/phase-h4-sdl.md)
 - **Strategy (user-set 2026-07-10): implement a source-compatible MFC SUBSET ("microfx"), not per-call
@@ -186,6 +199,57 @@ Per-bug status table: docs/engine-bugs.md.
   wasm32 `long`=32-bit but emscripten `time_t`=64-bit → the 1997 `long time(long*)` decls in
   Score/MainFrm are renamed to `mfx_time32` wrappers by the `MFX_TIME32_SHIM` tails of Worldgen.h/
   MainFrm.h (keep the two copies synced).
+
+### Android build/debug (GOAL 5 — v92)
+
+- **Build:** `export ANDROID_NDK_HOME=~/Library/Android/sdk/ndk/<ver>` then `cmake --preset
+  android-demo && cmake --build --preset android-demo` → `build-android-demo/<AppName>.apk`
+  (presets `android-{demo,full,indy}`, build the `apk` target). First configure clones + first
+  build compiles **static SDL3 3.4.12 + SDL3_mixer** per ABI (slow; arm64 cached after). The whole
+  flow is ONE CMake target — cmake/Android.cmake defines `main` (the single static `libmain.so`)
+  and the `apk` target that runs `tools/android_apk.sh` (stages a build copy of `packaging/android/`
+  + gradlew). `--target apk-install` also adb-installs + launches. Requires NDK+SDK (platform-34,
+  build-tools 34) and JDK 17+ (JDK 20 works; Gradle 8.7/AGP 8.4 fetched by the wrapper).
+- **Emulator oracle (debug WITHOUT a device — the counterpart to wasm's puppeteer):** this Mac has
+  AVD `Pixel_3a_API_33_arm64-v8a` (Apple-Silicon-native arm64 — boots the arm64 APK directly; the
+  x86_64 ABI is for Intel emulators). Recipe: `$SDK/emulator/emulator -avd Pixel_3a_API_33_arm64-v8a
+  -no-window -no-audio -no-snapshot -gpu swiftshader_indirect &`; `adb wait-for-device` +
+  poll `getprop sys.boot_completed`; `adb install -r "<apk>"`; `adb shell am start -n
+  <pkg>/org.yodecomp.app.GameActivity`; then **`adb exec-out screencap -p > shot.png`** (READ it as
+  an image — the game renders under swiftshader) and `adb shell input tap <x> <y>` to drive touch
+  (coords are DEVICE pixels; the emulator display is 2220×1080 landscape). `adb logcat | grep SDL`
+  shows `SDL_main from libmain.so` + `microfx: Android data dir = …` + `Low latency audio enabled`.
+  A one-time "Viewing full screen" SYSTEM toast may appear — tap "Got it"; it is NOT our app.
+  `GameActivity.java` forces true immersive fullscreen: ⭐ the load-bearing part is
+  `setDecorFitsSystemWindows(false)` (edge-to-edge LAYOUT) applied in **onCreate** — SDL's SurfaceView
+  is otherwise measured to the content area (screen MINUS nav bar, 2220×948) and STAYS there even once
+  the bars hide, so the letterbox is computed against the short surface → a navbar-sized dead strip
+  ("still cropping as if the navbar is there"). With edge-to-edge the surface is full-height from the
+  first frame (SDL logcat `Window size: 2220x1080`); bars hidden via `WindowInsetsController.hide`
+  (API30+) / deprecated immersive flags (28–29), cutout ALWAYS. Verify by grepping logcat for
+  `SDL.*Window size`. ⚠ emulator: a stray `input tap` off the game backgrounds it to the launcher —
+  force-stop + relaunch, minimal taps.
+- **Architecture facts / traps:** SDL3 is static in libmain (`getLibraries()={"main"}`); the entry
+  is `-include SDL3/SDL_main.h` renaming harness main()→SDL_main (SDL's Android JNI resolves it).
+  Data dir = `SDL_GetAndroidInternalStoragePath()` (`MfxAndroidDataDir` in mfxplat_sdl3.cpp);
+  GetModuleFileNameA reports `<internal>/yoda`; baked APK assets (in `assets/`, listed in
+  `manifest.txt`) EXTRACT to internal storage on first launch (skip-if-exists → INI/saves persist).
+  Present = fullscreen letterbox renderer, logical size adapts to the presented DIB; touch↔game via
+  `SDL_RenderCoordinatesFromWindow`. Touch: `SDL_HINT_TOUCH_MOUSE_EVENTS=0`, `MfxHandleFinger`
+  multitouch (mouse/Shift/Space finger roles), the two corner buttons (bottom-right cluster:
+  Attack ◆ = Space, Push/Pull ⇕ = Shift diagonally ↖ of it) synthesize VK_SHIFT/VK_SPACE (feed
+  `g_mfxKeyState` like hardware keys). The overlay is **input-modality adaptive** (`s_bTouchActive`):
+  shown on touch, hidden once a key/mouse/gamepad event arrives, re-shown on next touch. ⚠ do NOT
+  `SDL_StartTextInput` on Android (raises the soft keyboard over the game — guarded out).
+  `ndkVersion` is passed to gradle so AGP strips the lib. ⚠ **cursor scale**: on Android the soft
+  cursor composites in the renderer's game-pixel LOGICAL space, so it uses `MfxCursorScale()`==1
+  (not s_nScale — that double-scaled it: the "2× position and size" bug).
+- **Game controller (all SDL3 platforms, not just Android — `mfxplat_sdl3.cpp`):** `SDL_INIT_GAMEPAD`;
+  both sticks + D-pad → 8-way movement mapped to the game's own arrow/diagonal VKs (a held direction
+  is auto-repeated every ~33ms since the game needs a fresh WM_KEYDOWN per tick to keep walking);
+  A(South)=Space/Attack, B(East)=Shift/Push-Pull, X(West)=Enter/dismiss, Select(Back)='L'/Locator.
+  Synthesized transitions go through a small ring queue (`MfxPadPush`/`MfxPadPop`, drained at the
+  top of `MfxPlatPollEvent`).
 
 ## Reference binaries & key RE facts
 

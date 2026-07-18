@@ -31,6 +31,16 @@ if(YODA_BUGFIX)
   add_compile_definitions(YODA_BUGFIX)
 endif()
 
+# ── Android (GOAL 5): the NDK toolchain sets ANDROID/CMAKE_SYSTEM_NAME=Android. Force SDL to be
+# built static-from-source (there is no system SDL for the phone; it links into a single
+# libmain.so). __ANDROID__ is defined automatically by the NDK clang, so the microfx/game code
+# needs no extra define. The `apk` target (cmake/Android.cmake) can also build sibling ABIs.
+if(ANDROID)
+  set(YODA_SDL_FETCH ON CACHE BOOL "" FORCE)
+  set(YODA_ANDROID_EXTRA_ABIS "x86_64" CACHE STRING
+      "Additional ABIs the `apk` target also builds (semicolon list; primary = ANDROID_ABI)")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -271,6 +281,15 @@ endforeach()
 add_library(yoda_game STATIC ${_game_srcs})
 target_include_directories(yoda_game PRIVATE "${_src}")
 target_link_libraries(yoda_game PUBLIC microfx)   # propagates microfx/include (shadows <afxwin.h>)
+
+# ── Android: one static libmain.so + the single `apk` CMake target ────────────────────────────
+# All the desktop/wasm target machinery below is host/browser-specific; the phone gets its own
+# self-contained module (builds `main` as the shared lib SDLActivity dlopen()s, and defines the
+# one-command `apk` target that stages libs+assets+SDL-Java into the Gradle template and runs it).
+if(ANDROID)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Android.cmake")
+  return()
+endif()
 
 # ── M0 oracle: native worldgen smoke harness (no window, no SDL) ─────────────────────────────
 # Force-load the whole game archive so EVERY game↔microfx symbol reference is link-checked,
