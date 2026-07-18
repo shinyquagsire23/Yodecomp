@@ -443,3 +443,16 @@ extern "C" double mfx_difftime32(long, long);
 #define time     mfx_time32
 #define difftime mfx_difftime32
 #endif // MFX_TIME32_SHIM
+
+// ── locator/overview-map item tile id ───────────────────────────────────────────────────────
+// The catalog tile id of the "map/locator" quest item — inventory[0] must equal it for the
+// L-key/Select overview map to open. Yoda 0x1a5 vs Indy 0x1bb (DESKADV IndyPlacePuzzlesPass
+// 1010:9ebc queues item 0x1bb at quest order 1, the twin of Yoda WorldgenPlacePuzzles' 0x1a5).
+// Token-neutral macro: the anchor still sees the literal 0x1a5 (identical preprocessed tokens).
+#ifndef IDX_LOCATOR_ITEM
+#ifdef GAME_INDY
+#define IDX_LOCATOR_ITEM 0x1bb
+#else
+#define IDX_LOCATOR_ITEM 0x1a5
+#endif
+#endif

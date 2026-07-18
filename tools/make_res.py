@@ -24,11 +24,13 @@ from reslib import (pe_leaves, pe_leaf, ne_resources, patch_stringtable, parse_d
 IDR_MAINFRAME = 2
 IDD_ABOUTBOX = 100
 AFX_IDS_APP_TITLE = 0xE000       # 57344
+IDS_LEAVE_PROMPT  = 0xE01B       # ConfirmExit's AfxMessageBox — "Leave <app>?"
 INDY_ICON_ID = 901               # a free RT_ICON ordinal (Yoda uses 1..11)
 
 # Indy About text (verbatim from DESKADV.EXE's own DIALOG 100 / string table).
 INDY_TITLE = "Indiana Jones and his Desktop Adventures"
 INDY_APP_TITLE = "Desktop Adventures"        # doc-template title + AFX_IDS_APP_TITLE (real DESKADV title)
+INDY_LEAVE_PROMPT = "Leave Desktop Adventures?"  # verbatim from DESKADV.EXE (id 0xe01b twin)
 INDY_COPYRIGHT = "© 1996 LucasArts Entertainment Company"
 INDY_CREDITS = ("              The Desktop Adventures Team\n\n"
                 "        Hal Barwood    Wayne Cline\n"
@@ -129,6 +131,8 @@ def main():
                 lv = [t, n, l, patch_stringtable(d, IDR_MAINFRAME, INDY_APP_TITLE)]
             elif t == ('I', RT_STRING) and n == ('I', AFX_IDS_APP_TITLE // 16 + 1):
                 lv = [t, n, l, patch_stringtable(d, AFX_IDS_APP_TITLE % 16, INDY_APP_TITLE)]
+            elif t == ('I', RT_STRING) and n == ('I', IDS_LEAVE_PROMPT // 16 + 1):
+                lv = [t, n, l, patch_stringtable(d, IDS_LEAVE_PROMPT % 16, INDY_LEAVE_PROMPT)]
             elif t == ('I', RT_DIALOG) and n == ('I', IDD_ABOUTBOX):
                 lv = [t, n, l, indy_about(d)]
             elif t == ('I', RT_MENU) and n == ('I', IDR_MAINFRAME):

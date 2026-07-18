@@ -5546,7 +5546,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
             case ZONE_TYPE_ENEMY_TERRITORY:
                 if (bMapTeleportEnabled == 1
                     && ((InvItem *)pWorld->inventory.GetAt(0))->pTile
-                       == (Tile *)pWorld->tiles.GetAt(0x1a5))
+                       == (Tile *)pWorld->tiles.GetAt(IDX_LOCATOR_ITEM))
                 {
                     Zone *pZone = (Zone *)pWorld->zones.GetAt(
                         pWorld->mapGrid[gy * 10 + gx].id);
@@ -7150,7 +7150,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                         DrawGameArea(NULL);
                         if (pWorld->inventory.GetSize() > 0 &&
                             (pWorld->inventory.GetAt(0) == NULL ||
-                             pWorld->tiles.GetAt(0x1a5) == (CObject *)((InvItem *)pWorld->inventory.GetAt(0))->pTile))
+                             pWorld->tiles.GetAt(IDX_LOCATOR_ITEM) == (CObject *)((InvItem *)pWorld->inventory.GetAt(0))->pTile))
                         {
                             bMapTeleportEnabled = 1;
                             PlaySound(0x31);
@@ -7520,7 +7520,7 @@ pickup_item:
                 bMapTeleportEnabled = 0;
             }
             else if (pWorld->nFrameMode == 3 && bBusy == 0 && pWorld->inventory.GetSize() > 0 &&
-                     ((InvItem *)pWorld->inventory.GetAt(0))->pTile == (Tile *)pWorld->tiles.GetAt(0x1a5))
+                     ((InvItem *)pWorld->inventory.GetAt(0))->pTile == (Tile *)pWorld->tiles.GetAt(IDX_LOCATOR_ITEM))
             {
                 CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
                 CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
