@@ -78,6 +78,75 @@ beta / Q1-1996 MSDN Development Platform VC disc is ever sourced (BetaArchive), 
 proves the mixed-toolchain (interim-cl + 4.2 libs) theory. Until then the app-cl axis stays UNDETERMINED and the
 compiler lever is parked.
 
+## ⭐ v96 (2026-07-26) — HUNT RE-OPENED, then the discriminator FAILED (honestly): idiom test has NO POWER
+
+**Why re-opened:** the v95/v96 de-hex sweep proved the codegen dial is driven by state ENTIRELY OUTSIDE
+a function — an **empty** `#include` file rotates `Worldgen.cpp`; an `enum` at the tail of `DeskcppView.h`
+(which Worldgen.cpp never references) cost **6** byte-exact functions. v52b's "the 3 resist faithful
+source-steering" was therefore a search over a much smaller space than the real one: it tried only LOCAL
+levers (param order, decl order, scope brackets, body spelling), because nobody knew the ambient
+declaration environment was a lever at all. And all 3 of the 4.0-wins live in Worldgen — the most
+dial-sensitive TU we have.
+
+**The test that was run (new `tools/idiomscan.py`):** a different C2 build should change at least one
+INSTRUCTION-SELECTION idiom (switch lowering, div-by-constant magic multiply, inline memset thresholds,
+setcc-vs-branch, lea-vs-add) somewhere across dozens of functions; a different internal STATE never does.
+So classify every non-exact function by asmscore `align` (structure with registers normalized out),
+`reg_pen` (is the register difference one consistent bijection), and the MNEMONIC MULTISET delta.
+
+**Result vs our 4.2 — clean, and it is NOT evidence:**
+| class | meaning | n |
+|---|---|---|
+| A PURE-REGALLOC | align==0, mnemonics identical, reg_pen==0 | 1 |
+| B REGALLOC-MESSY | align==0, mnemonics identical, reg_pen>0 | 15 |
+| C SCHEDULED | mnemonics identical, align>0 (reordered) | 25 |
+| D SOURCE/IDIOM | mnemonic multisets differ (unfinished source) | 134 |
+
+⇒ **41 functions differ from the original by register allocation and/or scheduling ONLY** (identical
+instruction multisets; 16 of them perfectly aligned). That replaces the long-quoted "~48" estimate with a
+measured set. The other 134 are simply not-yet-faithful source — not a compiler question.
+**Among the 16 structurally-aligned functions: ZERO instruction-selection deltas.**
+
+**⚠ THE CALIBRATION KILLED THE INFERENCE.** Re-ran the same scan with the VC **4.0** backend
+(`toolchain/vc40mix/` = 4.0 BIN + 4.2 INCLUDE/LIB/MFC, reproducing the documented A/B; cl 10.00.5270):
+4.0 ALSO shows `align==0 with idiom-signal delta: 0`. Across the **173 functions non-exact under BOTH**
+backends, the idiom-signal delta differs on only **3**, and all three are trivial (one `lea`, one `test`).
+⇒ **MSVC's instruction selection is effectively FROZEN across the 4.x line; only the register allocator
+and scheduler changed.** So "our 4.2 output shows no idiom differences from the original" CANNOT
+distinguish same-compiler from a different-4.x-compiler. The premise the test rested on is false, for this
+compiler family. Recorded as a negative result — do not re-derive it.
+
+**⭐ BUT: the hunt's evidentiary base is WEAKER than this doc claims — the "3 VC4.0-wins" is now 2.**
+`DetonateAdjacentTiles` 0x428680 — "the observation that started it", the doc's *sharp case* — is **NO
+LONGER byte-exact under VC 4.0**. Verified today under BOTH 4.0 header sets:
+`align=0 reg_pen=4 identity_miss=60 byte_diff=60` (pure vc40) / `77` (vc40mix); insns 377/377 either way.
+`ParseZaux` 0x423110 and `ZoneHasIzxItemMaybe` 0x41bfa0 DO still go exact under 4.0, as documented.
+Our `Worldgen.cpp` source drifted since v52 (many sessions, incl. the de-hex sweep) and the 4.0 match went
+with it. That is exactly the fragility expected if the 4.0 "wins" are **coincidental allocator landings**
+rather than a compiler signature — a symmetric ESI/EDI tie-break has a real chance of matching by luck, so
+4.0 winning 2-3 of ~41 while LOSING 19 is an unremarkable tail, not a fingerprint.
+
+**Where that leaves the hypothesis (honest status):** interim-cl and the ambient-dial hypothesis are
+**observationally equivalent under static residual analysis** — both predict exactly "pure register-allocation
+residuals, no idiom differences". No amount of further disassembly comparison can separate them.
+The ONLY discriminator left is the **DIAL SWEEP**, and it is now well-motivated and cheap:
+- move the dial NEUTRALLY (append declarations to an already-included header's tail — zero token change
+  inside any function body, zero line change at EOF), K positions;
+- per position recompile just the ONE TU and asmscore the targets (not a full progress.py);
+- targets = the 16 `align==0` functions, especially the 2 surviving 4.0-wins.
+**If ANY dial position makes one of them exact under 4.2, the interim-cl hypothesis is unnecessary** and we
+gain functions. If a broad sweep never does while 4.0 hits them at dial position 0, that is a far stronger
+statement than v52b could make. Direct evidence the dial has this power: this session an enum in an
+unrelated header moved 6 functions across the exactness line, and **24 functions flip multiset-identity
+between the 4.0 and 4.2 backends**.
+
+**Reproduce:** `python3 tools/idiomscan.py --csv out.csv` (add `VCDIR=$PWD/toolchain/vc40mix` for the
+calibration). ⚠ `tools/idiomscan.py` must slice the original at OUR trimmed COMDAT length — do NOT use
+`toolchain/test/app_funcs.txt` extents as a byte-comparison basis (that table is for marker-coverage
+accounting and has bogus entries, e.g. 0x416620 listed as 1 byte; slicing to it decoded 0 instructions and
+fabricated a whole function of phantom "idiom delta"). The tool now ASSERTS that align==0 + equal
+instruction counts implies an empty mnemonic delta, so that class of bug fails loudly.
+
 **⛔ HUNT CLOSED (2026-07-08) — no obtainable interim compiler exists on ANY accessible source.** archive.org
 (public VC presses = 4.0/4.1/4.2, all tested; Jan-96 MSDN Level-2 = no VC) AND BetaArchive (user searched 4.0a /
 4.0 subscription / 4.1 beta → nothing) are both exhausted. The app-cl question (interim-cl mixed-toolchain vs
