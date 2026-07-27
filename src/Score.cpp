@@ -58,16 +58,16 @@ int CDeskcppDoc::CalcScoreFromCounter()
 {
     int v = counter;
     int r = 0;
-    if (v >= 0x5b && v <= 0x64) return 400;
-    if (v >= 0x51 && v <= 0x5a) return 0x168;
-    if (v >= 0x47 && v <= 0x50) return 0x140;
-    if (v >= 0x3d && v <= 0x46) return 0x118;
-    if (v >= 0x33 && v <= 0x3c) return 0xf0;
-    if (v >= 0x29 && v <= 0x32) return 200;
-    if (v >= 0x1f && v <= 0x28) return 0xa0;
-    if (v >= 0x15 && v <= 0x1e) return 0x78;
-    if (v >= 0x0b && v <= 0x14) return 0x50;
-    if (v >= 0    && v <= 0x0a) r = 0x28;
+    if (v >=  91 && v <= 100) return 400;
+    if (v >=  81 && v <=  90) return 360;
+    if (v >=  71 && v <=  80) return 320;
+    if (v >=  61 && v <=  70) return 280;
+    if (v >=  51 && v <=  60) return 240;
+    if (v >=  41 && v <=  50) return 200;
+    if (v >=  31 && v <=  40) return 160;
+    if (v >=  21 && v <=  30) return 120;
+    if (v >=  11 && v <=  20) return  80;
+    if (v >=   0 && v <=  10) r =  40;
     return r;
 }
 

@@ -79,7 +79,7 @@ BOOL CDeskcppApp::InitInstance()
     g_bReplayMode = 0;
     g_strReplayPath = "";
     CString strTitle;
-    strTitle.LoadString(0xe000);
+    strTitle.LoadString(IDS_APP_TITLE);
     if ((g_bInstanceChecked & 1) == 0) {
         g_bInstanceChecked |= 1;
         g_pExistingInstance = CWnd::FromHandle(::FindWindow(NULL, strTitle));
@@ -132,12 +132,12 @@ BOOL CDeskcppApp::InitInstance()
     DWORD dwVer = ::GetVersion();
     int nMajor = (BYTE)dwVer;
     int nMinor = (BYTE)(dwVer >> 8);
-    if (nMajor == 3 && nMinor < 0x14) {
-        m_nFrameDelay = 0x1e;
+    if (nMajor == 3 && nMinor < 20) {
+        m_nFrameDelay = 30;
         UINT bMusic = GetProfileInt("OPTIONS", "PlayMusic", -1);
         UINT bMidiLoad = GetProfileInt("OPTIONS", "MIDILoad", -1);
         if (bMusic == 1 && bMidiLoad == (UINT)-1) {
-            AfxMessageBox(4, 0, (UINT)-1);
+            AfxMessageBox(IDS_WARN_MIDI_DISABLED, 0, (UINT)-1);
             WriteProfileInt("OPTIONS", "PlayMusic", 0);
         }
         else if (bMidiLoad == 1) {
@@ -145,7 +145,7 @@ BOOL CDeskcppApp::InitInstance()
         }
     }
     else {
-        m_nFrameDelay = 0x28;
+        m_nFrameDelay = 40;
     }
 
     // asset directory = the exe's folder + YODADEMO.DTA
@@ -171,7 +171,7 @@ BOOL CDeskcppApp::InitInstance()
     short nBpp = (short)::GetDeviceCaps(hdc, BITSPIXEL);
     ::ReleaseDC(NULL, hdc);
     if (nBpp < 8) {
-        AfxMessageBox(0xe00a, 0, (UINT)-1);
+        AfxMessageBox(IDS_ERR_16_COLOR_VIDEO, 0, (UINT)-1);
         return FALSE;
     }
 

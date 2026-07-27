@@ -2717,3 +2717,125 @@ game — nFrameMode=0/bBusy=1 stuck on STUP). **Ctrl+D → F8 dialog:** macOS ea
 `YODA_KEYLOG=1` (sdl3 backend) logs key events. **Testing lesson (superseded in v87):** the game
 sits in a blocking GetMessageA modal loop from ~3s in, so main-loop-only debug oracles never fired
 once the intro started — v87's shared MfxDebugOracles fixed this.
+
+
+---
+
+### ⏮ v95 PICKUP (demoted 2026-07-26 by v96) (2026-07-26 v95 — READABILITY SWEEP, mostly done, tree GREEN.)
+
+**▶ GOAL (user-set 2026-07-26): de-hex the source.** Four asks, in the user's words:
+(a) decimal-ize hex values that don't make sense as hex — "mostly, coordinates";
+(b) where a hex value is really a *value domain*, make an **enum** instead of decimalizing;
+(c) make defines for the MFC/Win32 stuff that's written as raw hex;
+(d) make a define for **18 → Zone width/height**.
+Leave genuinely-hex things alone: DTA tile/item catalog ids, bitmasks, Canvas.cpp's MMX
+`_emit` opcode bytes, and `+0xNN` struct offsets in comments.
+
+**⚠ THE LESSON THIS SWEEP BOUGHT (new, load-bearing — add to the lessons list):**
+**Adding one more `#include` FILE to `Worldgen.cpp`'s chain costs a byte-exact function
+(211 → 210, `Worldgen.cpp` 34 → 33, −80 B) — and it does so EVEN WHEN THE INCLUDED FILE IS
+EMPTY.** Measured three ways (empty guard-only header; unmodified HEAD `Worldgen.cpp` +
+the include; include removed → 34 returns). So it is the *include itself*, not the macros,
+not the line count — same dial family as the afxcmn.h lesson (memory [[afxcmn-header-dial]]).
+⇒ **New shared constants must be APPENDED TO THE TAIL OF AN ALREADY-INCLUDED HEADER, never
+put in a new file.** A `src/Resource.h` was written and then deleted for exactly this reason;
+its body now lives in the **"═══ Resource ids ═══" block at the tail of
+`GameObjectClasses.h`** (which every hex-heavy TU already includes). Pure `#define` (never
+enum) for anything a byte-matched TU sees, so the token stream is untouched.
+TUs that can't see `GameObjectClasses.h` carry their own few ids at their header's tail:
+`Deskcpp.h` (IDS_APP_TITLE, IDS_ERR_16_COLOR_VIDEO), `TextDialog.h` (IDD_TEXT_ENTRY,
+IDC_TEXT_FIELD0..3), `MainFrm.h` (MAIN_WINDOW_WIDTH/HEIGHT 525×310).
+
+**▶ DONE (anchor re-verified 211 exact / 99.17 % after EVERY batch below — the tree is
+GREEN as left. NOT yet committed. Batches 1-4 from the v94 session are described in the
+⏮ block; v95 added batches 5-10):**
+1. **Zone geometry (ask d)** — `GameObjectClasses.h` head block: `ZONE_WIDTH/ZONE_HEIGHT 18`,
+   `ZONE_LAYERS`, `ZONE_CELL_COUNT`; applied across GameObjects/Iact/DeskcppView/Worldgen.
+2. **Pixel geometry** — `TILE_PIXEL_SIZE/COUNT`, `VIEW_TILES/VIEW_PIXEL_SIZE`,
+   `CANVAS_PIXEL_SIZE`, `VIEW_SCROLL_MAX`, `LOCATOR_CELL_SIZE/INSET`, `SCROLL_STEP_PIXELS`,
+   `SCROLL_WRAP_SRC`; HUD rect block in the `CDeskcppDoc` ctor fully decimalized.
+3. **Small TUs finished**: `Deskcpp.cpp`, `MainFrm.cpp`, `TextDialog.cpp`, `Score.cpp`.
+4. **Menu command ids** named + applied to both message maps.
+5. **String table recovered + named** (real strings via `tools/reslib.py`), AND ⭐ **applied at
+   all ~83 call sites** (`LoadString`/`AfxMessageBox`): DeskcppView 58, Worldgen 17,
+   WorldgenHelpers 5, DeskcppDoc 1, IactScript 2. Low-band ids 3/4/5/6 were recovered and
+   added (`IDS_CONFIRM_LOAD_WORLD`, `IDS_WARN_MIDI_DISABLED`, `IDS_ERR_OPEN_DTA`,
+   `IDS_ERR_DTA_SHARING`). Header tails got the ids their TU cannot otherwise see:
+   `IactScript.h` → `IDS_ERR_UNRECOVERABLE`; `Deskcpp.h` → `IDS_WARN_MIDI_DISABLED`.
+6. **MFC/Win32 flags named**: `MB_YESNO`/`MB_ICONSTOP`, `IDYES`/`IDOK` return compares,
+   `CFileDialog(FALSE|TRUE, …, OFN_EXPLORER|OFN_HIDEREADONLY|OFN_OVERWRITEPROMPT /
+   OFN_FILEMUSTEXIST|…)`, `m_ofn.Flags &= ~OFN_SHOWHELP`, `InvScrollBar::Create(WS_CHILD|
+   WS_VISIBLE|SBS_VERT, …, IDC_INV_SCROLLBAR)`, the 3 bubble `CBitmapButton::Create(WS_CHILD|
+   WS_VISIBLE|BS_OWNERDRAW, …, IDC_BUBBLE_*)`, `wndDialogText.Create(WS_CHILD|WS_VISIBLE|
+   ES_MULTILINE|ES_NOHIDESEL|ES_OEMCONVERT, …, IDC_BUBBLE_TEXT)`.
+7. **GDI named/decimalized**: `PATCOPY`, `COLOR_BTNFACE/BTNSHADOW/BTNHIGHLIGHT`,
+   `RDW_INVALIDATE|RDW_ERASE|RDW_UPDATENOW`, `RGB(255,255,255)`, health-dial
+   `RGB(255,255,0)/(0,255,0)/(255,0,0)`, `CLR_INVALID`, `GetPixel(…,312,284)`,
+   `TextOut(…,190,235)`, `SetPalette(0,256,…)` / `(160,86,…+160)` / `(10,5,…)` +
+   the matching `AnimatePalette` bands, `sysPalette[160]`.
+8. **Resources by id applied**: 10 `LoadCursor(MAKEINTRESOURCE(IDC_CURSOR_*))`,
+   8 `LoadIcon(MAKEINTRESOURCE(IDI_ARROW_*))`, `IDT_GAME_TICK`/`IDT_ANY`,
+   `CDialog(IDD_STATISTICS/DIFFICULTY/GAMESPEED/WORLDSIZE, …)`, `DDX_Text(…, IDC_STATS_*)`,
+   `GetDlgItem(IDC_*_SLIDER)`, `IDC_LOAD_PROGRESS`, progress `CRect(x+17,y+272,x+286,y+285)`.
+9. **VK codes**: the deferred-move `switch (nMoveCommand)` arms 0x21..0x28 →
+   `VK_PRIOR/NEXT/END/HOME/LEFT/UP/RIGHT/DOWN` (each confirmed by the dx/dy it sets).
+10. **Enums applied (ask b, the safe half)**: existing `ZoneType` across Worldgen's
+   `PlaceQuestNode`/`IndyPlaceQuestNode` args, `genZoneTypeScratch`, `mapGrid[].zoneType`,
+   `pZone->type` compares + the Indy populate switch arms, and DeskcppView's two zone-type
+   tests; existing `ZoneObjType` (`OBJ_LOCK`, `OBJ_TELEPORTER`); existing `TileFlags` for the
+   UNAMBIGUOUS masks only — `0xc0`→`TILE_WEAPON|TILE_ITEM`, `0x100080`→`TILE_LOCATOR|
+   TILE_ITEM`, `0x100000`→`TILE_LOCATOR`, `0x100081`→`TILE_LOCATOR|TILE_ITEM|
+   TILE_GAME_OBJECT`, and the `tflags & TILE_WEAPON / TILE_ITEM` categorizer.
+   `nFrameMode` 0xb/0xc/0xd/0xe decimalized to 11/12/13/14 everywhere (incl. the `case`
+   labels at DeskcppView.cpp 3493/3556/3557/3565/8049/8101).
+
+**▶ REMAINING (pick up here):**
+- ⭐ **`ArtooHint` enum — WRITTEN, THEN REVERTED UNVERIFIED (do this first).** The exact
+  enum body was appended to the tail of `src/DeskcppView.h` (just before the final `#endif`,
+  after the `PlaySoundData` block) and then backed out because the session ended before
+  `progress.py` could confirm it. **The mapping is fully recovered and correct** — it is
+  ClassifyTile's (0x0040fca0) result, a 1:1 index into the IDS_HINT_* table that OnDragItem's
+  switch consumes (both verified by reading the two switches side by side):
+  `-1 NONE, 0 ENEMY, 1 DARTH_VADER, 2 STORAGE_DEVICE, 4 DOOR, 5 CHARACTER, 6 YODA,
+  7 PUSH_PULL, 8 XWING, 9 VICTORY, 10 DEFEAT, 11 EWOK, 12 JAWA, 13 DROID, 14 LUKE,
+  15 TELEPORT_ACTIVE, 16 TELEPORT_IDLE, 17 MEDICAL_DROID, 18 WEAPON, 19/20 BEEP_1/BEEP_2`
+  (value 3 is never produced nor consumed — do not invent a name for it). Re-add as
+  `enum ArtooHint { ARTOO_HINT_* }`, **run `tools/progress.py` with the header change ALONE
+  first** (that isolates "enum tokens in a widely-included header" from the .cpp identifier
+  substitution), then apply at the two switches in `DeskcppView.cpp` (~4570-4630 producer,
+  ~4940-5030 consumer) and re-oracle. ⚠ if the header alone costs a function, fall back to
+  plain `#define`s — same reasoning as the Resource-ids block.
+- **`IactResult` enum** — the `result |=` mask bits in `Iact.cpp` (0x20 redraw / 0x80
+  full-redraw / 0x100 player / 0x200 game-over / 0x400 inventory / 0x800 zone-warp), already
+  documented in the `Iact.cpp:885` comment. Untouched this session.
+- **Ambiguous `TileFlags` masks deliberately LEFT RAW** (`& 0x10000`, `& 0x20000`,
+  `& 0x40000`, `& 0x60000`): bits 16-19 are GROUP-DEPENDENT ALIASES (WEAPON vs ITEM vs
+  CHARACTER subtypes), and the enum has TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY only as
+  COMMENTS, not enumerators. Naming them needs real RE (read the DTA group bit first) —
+  do not guess. `(tflags >> 16) & 0x10` in the Worldgen categorizer was also left alone
+  (rewriting the shift would change the byte-matched shape).
+- **Zone-catalog ids** `0x5d/0x5e/0x5f/0x60/0x217` (the fixed spaceport 2x2 at world-grid
+  cells 44/45/54/55): decided these are catalog ids (leave-hex family), but the READABLE
+  win is naming them — from the placement code 0x5e=NW, 0x5f=NE, 0x5d=SW, 0x60=SE and
+  0x217 substitutes for the NE quadrant in one variant. Add as `#define ZONE_SPACEPORT_*`
+  in the Resource-ids block if you want them.
+- **Leftover counters not yet done**: `mapGrid + 0x2c` → 44, `pFile->Read(buf, 0x10/0x18)`,
+  health-band thresholds `0x19/0x32/0x4b/0x64`, `nCode == 0x68`(104, a grid marker compared
+  beside decimal 1 and 300 — appears in Worldgen/WorldgenHelpers/DeskcppDoc, a value domain
+  worth a name), `DeskcppDoc.cpp`'s `return 0xffffffff` sentinels + sibling `0x11/0x10/0xe`
+  zone-state codes (enum territory, semantics not established), and `Canvas.cpp`'s
+  `biSize = 0x28` / `biClrUsed = 0x100` / `for (int i = 0x1a; …)`.
+- **Consider**: `WORLD_GRID_SIZE 10` for the pervasive `playerY * 10 + playerX` (user's call).
+- ⚠ **The other four oracles have NOT been re-run this session** — only `progress.py`
+  (211 exact / 99.17 %, green after every batch). Before committing, run `tools/link_exe.sh`,
+  `bugscan.py --all`, `vtcheck.py`, `msgcheck.py`.
+
+**▶ HOW TO WORK THIS SAFELY:** batch edits with a python script that asserts an exact
+occurrence COUNT per replacement (that caught two miscounts already), keep every edit
+LINE-COUNT-NEUTRAL in byte-matched TUs (lesson #23 — one multi-line reflow of
+`ShowTextDialog` had to be undone), then re-run `tools/progress.py` after each batch.
+If the count drops, bisect by restoring `git show HEAD:src/<TU>.cpp` and re-running —
+that isolates .cpp edits from header effects (and is how the include lesson above was found).
+⚠ `tools/verify.py`'s per-TU number is a LOWER BOUND and disagreed with `progress.py`
+(33 vs 34) — it made one bisect read as a false negative. Trust `progress.py`.
+

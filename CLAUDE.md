@@ -129,6 +129,26 @@ it adds a real short-circuiting guard term before the original condition ever ev
 docs/engine-bugs.md #16 (`ShowWinMessage`'s hardcoded tile ids OOB on Indy's smaller catalog) without
 touching a single original token or line count.
 
+⭐ **Named-constant DIALS (v95/v96, measured) — the three ways "just naming a magic number" costs
+byte-exactness.** All confirmed by A/B with `tools/progress.py`; none are theoretical:
+1. **A new `#include` FILE in a byte-matched TU's chain costs a function — even if the file is
+   EMPTY** (v95: `Worldgen.cpp` 34→33, −80 B). ⇒ new shared constants go at the **TAIL of an
+   ALREADY-INCLUDED header**, never in a new file. (Canonical home: the "═══ Resource ids ═══"
+   block at the tail of `GameObjectClasses.h`; TUs that can't see it carry their few ids at their
+   own header's tail — `Deskcpp.h`, `TextDialog.h`, `MainFrm.h`, `IactScript.h`, `DeskcppView.h`.)
+2. **An `enum` in a header a byte-matched TU can see is a dial input** (v96: `enum ArtooHint` at
+   `DeskcppView.h`'s tail cost **6** functions, 211→205 — it reaches `Worldgen.cpp`/
+   `WorldgenHelpers.cpp` via `Worldgen.h`). The same constants as `#define`s cost nothing.
+   ⇒ **pure `#define` for anything a byte-matched TU sees.** Enums are fine only in headers no
+   anchor TU includes. (Note this partially overrides the general "prefer enums" convention —
+   inside the anchor, defines win.)
+3. **`sizeof(T)` swapped in for the equivalent literal is a dial input too**, despite folding to
+   the same constant (v96: `h->biSize = sizeof(BITMAPINFOHEADER)` cost 1 function, `Canvas.cpp`
+   9→8). See the DIAL NOTE at `Canvas.cpp` EOF — the literal there is deliberate, not sloppy.
+⇒ And the anchor is **not the only oracle**: naming MFC/Win32 constants can break the portable
+build while `progress.py` stays green (v95 did exactly that — microfx lacked `CLR_INVALID`,
+`WS_MAXIMIZE`, `SM_CXDLGFRAME`, `ES_NOHIDESEL`, `OFN_EXPLORER`, …). Build `build-sdl` too.
+
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
@@ -388,7 +408,102 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
+### ⏭ NEXT SESSION PICKUP (2026-07-26 v96 — DE-HEX SWEEP CONTINUED; all 5 oracles GREEN, SDL builds fixed.)
+
+**▶ GOAL (unchanged, user-set 2026-07-26): de-hex the source.** (a) decimalize hex that isn't
+really hex — "mostly, coordinates"; (b) where a hex value is a *value domain*, make an enum;
+(c) defines for MFC/Win32 raw hex; (d) a define for 18 → Zone width/height. Leave genuinely-hex
+things alone: DTA tile/item catalog ids, bitmasks, Canvas.cpp's MMX `_emit` bytes, `+0xNN`
+struct-offset comments.
+
+**⚠⚠ TWO NEW DIAL LESSONS THIS SESSION (both MEASURED both ways — add to the lessons list):**
+1. **An `enum` in a header a byte-matched TU can see is a DIAL INPUT.** Spelling the recovered
+   Artoo hint table as `enum ArtooHint { … }` at the tail of `DeskcppView.h` cost **6 byte-exact
+   functions** (211 → 205; `Worldgen.cpp` 34→32, `WorldgenHelpers.cpp` 13→12) — DeskcppView.h
+   reaches those TUs via `Worldgen.h`. The IDENTICAL constants as plain `#define`s cost NOTHING.
+   ⇒ **every new named-constant block visible to a byte-matched TU must be `#define`, never
+   `enum`.** (Sibling of the v95 "one more #include FILE costs a function" lesson.) The user's
+   ask (b) for enums therefore has to be served by defines in this codebase's anchor TUs.
+2. **`sizeof(T)` substituted for the equivalent literal is ALSO a dial input**, even though it
+   folds to the same constant. `h->biSize = sizeof(BITMAPINFOHEADER)` (== 40) cost 1 function
+   (211 → 210, `Canvas.cpp` 9→8, −106 B); the bare `40` is free. Left as `40` with a **DIAL NOTE
+   appended at `Canvas.cpp` EOF** explaining that `sizeof(BITMAPINFOHEADER)` is near-certainly
+   what LucasArts wrote and should be restored once the dial is understood — user explicitly
+   asked for that note. Do NOT "clean up" that literal without re-running `tools/progress.py`.
+3. **The anchor is not the only oracle.** v95's batch-6/7 work named Win32 constants that
+   **microfx does not define**, silently breaking the SDL/portable build while `progress.py`
+   stayed green. ⇒ after any de-hex batch that introduces MFC/Win32 names, also
+   `cmake --build build-sdl` (and `build-sdl-indy`). Fixed this session by adding to
+   `microfx/include/windows.h`: `CLR_INVALID`, `WS_MINIMIZEBOX/MAXIMIZEBOX/MAXIMIZE/MINIMIZE`,
+   `WS_EX_CLIENTEDGE`, `SM_CXDLGFRAME/SM_CYDLGFRAME`, `ES_NOHIDESEL/ES_OEMCONVERT`,
+   `OFN_SHOWHELP/OFN_EXPLORER`.
+
+**▶ DONE THIS SESSION (anchor re-verified 211 exact / 99.17 % after EVERY batch; the other four
+oracles run at the end — link 0 unresolved/0 dup, bugscan 0 HIGH/0 SHIFT, vtcheck 10 CLEAN,
+msgcheck 11 CLEAN. `build-sdl` + `build-sdl-indy` both build; worldgen_smoke seeds 1/42/7 OK.
+NOT yet committed at time of writing.):**
+1. **`ArtooHint` — CLOSED.** Mapping re-verified by reading both switches (producer
+   `ClassifyTile` 0x0040fca0 incl. its `gameState==1 → 9` / `== -1 → 10` head, consumer
+   `OnDragItem` 0x004102d0). Applied as `ARTOO_HINT_*` **#defines** at `DeskcppView.h`'s tail
+   and at all 45 sites. Value 3 is neither produced nor consumed — left unnamed, as recorded.
+2. **`IactResult` — CLOSED.** `IACT_SOUND/TEXT/CAMERA/SPAWN/OBJECTS/TILES/ENTITIES/FULL_REDRAW/
+   PLAYER/GAME_OVER/INVENTORY/ZONE_WARP` + `IACT_ZONE_INVALID` (0x808) at `IactScript.h`'s tail
+   (seen by `Iact.cpp` directly and `DeskcppView.cpp` via `Worldgen.h`). Applied to all 27
+   `result |=` sites in Iact.cpp and all 13 `nMask &` tests in DeskcppView.cpp; the composite
+   `0x2a` is spelled `(IACT_TEXT | IACT_SPAWN | IACT_TILES)`.
+3. **Health-dial bands — CLOSED, and the pickup's location was WRONG:** they are in
+   **`Worldgen.cpp`** (the `nLo` needle-quadrant ladder ~7112-7127), not DeskcppView.cpp.
+   `0x19/0x32/0x4b/0x64` → `25/50/75/100` — note those same lines ALREADY spelled the paired
+   values in decimal (`gNeedleTable[25 - nLo]`), so this just makes them consistent. Also
+   `nDiff < 0x32` → `< 50` (difficulty midpoint) and `tries < 0x32` → `< 50` (retry counter).
+4. **Spaceport zone ids — CLOSED.** `ZONE_SPACEPORT_NW 0x5e / NE 0x5f / SW 0x5d / SE 0x60 /
+   ALT_NE 0x217` in the Resource-ids block of `GameObjectClasses.h`; applied at all 21 sites in
+   Worldgen.cpp (`Populate` 5-way variant switch **and** `RestoreRecords` 0x00426380 — the
+   pickup only knew about the first block; asserted counts caught the miss).
+5. **Leftover counters — CLOSED**: `mapGrid + 0x2c` → `+ 44` (both sites),
+   `pFile->Read(buf, 0x10/0x18)` → `16/24`, `GameObjects.cpp` `Read(name, 0x10)` → `16`,
+   `Canvas.cpp` `biClrUsed = 0x100` → `256`, `GetPaletteEntries(…, 0x100, …)` → `256`,
+   halftone swap loop `0x1a` → `26`, `biSize 0x28` → `40` (see lesson 2 above).
+6. **Plan codes in Worldgen.cpp**: `nCode == 1 || == 300 || == 0x68` →
+   `PLAN_PATH || PLAN_CORRIDOR || PLAN_WALL` (the enum already existed in `Worldgen.h`).
+
+**▶ REMAINING (pick up here):**
+- **`0x68` in `WorldgenHelpers.cpp` (6 sites) + `DeskcppDoc.cpp` (4 sites) — deliberately LEFT
+  RAW, and here is the trap:** neither TU can see `Worldgen.h`'s `enum PlanToken`, and adding a
+  same-named `#define PLAN_WALL 104` to a shared header would rewrite the ENUM DECLARATION
+  itself into `104 = 104` in any TU that sees both (`Worldgen.h` also pulls `DeskcppStub.h`) —
+  a hard compile error, the v85 "old macros ate the new defs" failure mode. Doing this properly
+  means RELOCATING PlanToken to a header all three TUs include (`MapZone.h` is the candidate),
+  which is itself an enum-in-header dial risk per lesson 1 — measure before believing. The sites
+  already carry naming comments, so this is polish, not confusion.
+- **Ambiguous `TileFlags` masks still RAW** (`& 0x10000`, `& 0x20000`, `& 0x40000`, `& 0x60000`):
+  bits 16-19 are GROUP-DEPENDENT ALIASES (WEAPON vs ITEM vs CHARACTER subtypes) and the enum has
+  TILE_PLAYER/ENEMY/FRIENDLY only as COMMENTS. Needs real RE (read the DTA group bit first) — do
+  not guess. `(tflags >> 16) & 0x10` in the Worldgen categorizer likewise left alone (rewriting
+  the shift changes the byte-matched shape).
+- **`DeskcppDoc.cpp`'s `return 0xffffffff` sentinels (2) + sibling `0x11/0x10/0xe` zone-state
+  codes** — enum territory, but the semantics are still not established. RE first.
+- **`WORLD_GRID_SIZE 10`** for the pervasive `y * 10 + x` — still the user's call (would touch a
+  very large number of byte-matched lines; measure on one TU first).
+- **The `Canvas::Canvas` sizeof dial hunt** — see the DIAL NOTE at `Canvas.cpp` EOF for the
+  levers not yet tried (asmscore.py the regressed function to see if it is local or a whole-TU
+  rotation).
+
+**▶ HOW TO WORK THIS SAFELY (validated again this session):** batch edits with a python script
+that **asserts an exact occurrence COUNT per replacement** — that caught a real miscount again
+(`mapGrid[44].id = 0x5e;` appears 3×, not 2×, because `RestoreRecords` re-tags the same cells) —
+and **assert the line count is unchanged** before writing, since line-count-neutrality is the
+lesson-#23 requirement in byte-matched TUs. Then re-run `tools/progress.py` after each batch;
+if the count drops, bisect by restoring `git show HEAD:src/<TU>.cpp`. ⚠ Do NOT start a
+`progress.py` run and then edit headers while it is in flight — that confounded the first
+ArtooHint measurement this session and cost a full re-run. ⚠ `tools/verify.py`'s per-TU number
+is a LOWER BOUND and disagrees with `progress.py` (33 vs 34) — trust `progress.py`.
+Comments are token-free but NOT line-free: same-line trailing comments and EOF appends are the
+safe shapes in a byte-matched TU.
+
+---
+
+### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 
 **▶ v93 (2026-07-18) — Indy playtest round (all GAME_INDY-guarded; anchor 211/99.17% + all
 oracles green after each; commits b86f62b/c1ea012/7fb50c0/c709aa6):**

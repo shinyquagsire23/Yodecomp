@@ -5,7 +5,7 @@
 // FUNCTION: YODA 0x00418dd0
 // FUNCTION: YODA 0x00418ed0  (??_GCTextDialog scalar-deleting dtor — implicit, member-dtors inlined)
 CTextDialog::CTextDialog(CWnd *pParent)
-    : CDialog(0xbf, pParent)
+    : CDialog(IDD_TEXT_ENTRY, pParent)
 {
     m_strField0 = "";
     m_strField1 = "";
@@ -16,10 +16,10 @@ CTextDialog::CTextDialog(CWnd *pParent)
 // FUNCTION: YODA 0x00418f90
 void CTextDialog::DoDataExchange(CDataExchange *pDX)
 {
-    DDX_Text(pDX, 0x7f, m_strField0);
-    DDX_Text(pDX, 0x78, m_strField1);
-    DDX_Text(pDX, 0x79, m_strField2);
-    DDX_Text(pDX, 0x75, m_strField3);
+    DDX_Text(pDX, IDC_TEXT_FIELD0, m_strField0);
+    DDX_Text(pDX, IDC_TEXT_FIELD1, m_strField1);
+    DDX_Text(pDX, IDC_TEXT_FIELD2, m_strField2);
+    DDX_Text(pDX, IDC_TEXT_FIELD3, m_strField3);
 }
 
 // FUNCTION: YODA 0x00418fd0  (GetMessageMap)

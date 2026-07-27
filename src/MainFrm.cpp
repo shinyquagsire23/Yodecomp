@@ -62,7 +62,7 @@ void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
         CFrameWnd::OnSysCommand(nID, lParam);
         return;
     case SC_CLOSE:
-        if (pView->pWorld->nFrameMode != 0xc) {
+        if (pView->pWorld->nFrameMode != 12) {
             pView->ConfirmExit();
             return;
         }
@@ -83,19 +83,19 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT &cs)
 {
     BOOL bRet = CFrameWnd::PreCreateWindow(cs);
     CRect rc;
-    rc.right = GetSystemMetrics(7) * 2 + 0x20d;
-    int cy = GetSystemMetrics(8) * 2 + 0x136;
-    cy += GetSystemMetrics(0xf);
-    rc.bottom = GetSystemMetrics(4) + cy;
+    rc.right = GetSystemMetrics(SM_CXDLGFRAME) * 2 + MAIN_WINDOW_WIDTH;
+    int cy = GetSystemMetrics(SM_CYDLGFRAME) * 2 + MAIN_WINDOW_HEIGHT;
+    cy += GetSystemMetrics(SM_CYMENU);
+    rc.bottom = GetSystemMetrics(SM_CYCAPTION) + cy;
     rc.top = 0;
     rc.left = 0;
-    int dx = GetSystemMetrics(0) / 2 - 0x106;
-    int dy = GetSystemMetrics(1) / 2 - 0x9b;
+    int dx = GetSystemMetrics(SM_CXSCREEN) / 2 - MAIN_WINDOW_WIDTH / 2;
+    int dy = GetSystemMetrics(SM_CYSCREEN) / 2 - MAIN_WINDOW_HEIGHT / 2;
     rc.OffsetRect(dx, dy);
     cs.x = rc.left;
     cs.y = rc.top;
-    cs.style = 0x110a0000;
-    cs.dwExStyle &= 0xfffffdff;
+    cs.style = WS_VISIBLE | WS_MAXIMIZE | WS_SYSMENU | WS_MINIMIZEBOX;   // 0x110a0000
+    cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
     cs.cx = rc.right - rc.left;
     cs.cy = rc.bottom - rc.top;
     return bRet;
@@ -105,9 +105,9 @@ BOOL CMainFrame::PreCreateWindow(CREATESTRUCT &cs)
 void CMainFrame::OnGetMinMaxInfo(MINMAXINFO *lpMMI)
 {
     Default();
-    lpMMI->ptMaxSize.x = 0x20d;
-    lpMMI->ptMaxSize.y = 0x136;
-    lpMMI->ptMaxSize.y = 0x136 + GetSystemMetrics(SM_CYCAPTION);
+    lpMMI->ptMaxSize.x = MAIN_WINDOW_WIDTH;
+    lpMMI->ptMaxSize.y = MAIN_WINDOW_HEIGHT;
+    lpMMI->ptMaxSize.y = MAIN_WINDOW_HEIGHT + GetSystemMetrics(SM_CYCAPTION);
     lpMMI->ptMaxSize.y += GetSystemMetrics(SM_CYMENU);
     lpMMI->ptMaxTrackSize.x = lpMMI->ptMaxSize.x;
     lpMMI->ptMaxTrackSize.y = lpMMI->ptMaxSize.y;
@@ -206,7 +206,7 @@ void CMainFrame::OnActivate(UINT nState, CWnd *pWndOther, BOOL bMinimized)
             pWorld->timeOffset += (int)difftime(pWorld->timeBase, time(NULL));
             switch (pView->pWorld->nFrameMode) {
             case 0: case 1: case 2: case 3: case 5:
-            case 6: case 7: case 8: case 9: case 0xb:
+            case 6: case 7: case 8: case 9: case 11:
                 m_nSavedFrameMode = pView->pWorld->nFrameMode;
                 pView->bDragActive = 0;
                 break;
@@ -255,7 +255,7 @@ void CMainFrame::OnShowWindow(BOOL bShow, UINT nStatus)
 BOOL CMainFrame::OnQueryEndSession()
 {
     CDeskcppView *pView = (CDeskcppView *)GetActiveView();
-    if (pView->pWorld->nFrameMode != 0xc)
+    if (pView->pWorld->nFrameMode != 12)
         pView->ConfirmExit();
     return FALSE;
 }

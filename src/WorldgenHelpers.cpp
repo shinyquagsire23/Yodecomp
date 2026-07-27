@@ -678,7 +678,7 @@ void CDeskcppDoc::OnUpdateLoadWorld(CCmdUI *pCmdUI)
 {
 #if defined(GAME_INDY) || defined(YODA_FULL)
     if (nFrameMode == 1 || nFrameMode == 4 || nFrameMode == 5 || nFrameMode == 6
-        || nFrameMode == 9 || nFrameMode == 0xb) { pCmdUI->Enable(0); return; }
+        || nFrameMode == 9 || nFrameMode == 11) { pCmdUI->Enable(0); return; }
 #endif
     DemoDisable(pCmdUI);
 }
@@ -693,7 +693,7 @@ void CDeskcppDoc::OnUpdateReplayStory(CCmdUI *pCmdUI)
     // player can trigger a re-entrant world regen while a textbox is open (the text drew over the
     // STUP graphic and it crashed on dialog exit). Demo path (DemoDisable -> Enable(0)) unaffected.
     if (nFrameMode == 1 || nFrameMode == 4 || nFrameMode == 5 || nFrameMode == 6
-        || nFrameMode == 9 || nFrameMode == 0xb) { pCmdUI->Enable(0); return; }
+        || nFrameMode == 9 || nFrameMode == 11) { pCmdUI->Enable(0); return; }
 #endif
     DemoDisable(pCmdUI);
 }
@@ -707,8 +707,8 @@ void CDeskcppDoc::OnReplayStory()
     int savedMode = nFrameMode;
     nFrameMode = 0;
     if (gameState == 0)
-        answer = AfxMessageBox(0xe009, 4, 0);
-    if (answer == 6) {
+        answer = AfxMessageBox(IDS_CONFIRM_REPLAY, MB_YESNO, 0);
+    if (answer == IDYES) {
         if (nCurrentGoalItem > 0) {
             nRequestedGoalItem = nCurrentGoalItem;
         }
@@ -724,7 +724,7 @@ void CDeskcppDoc::OnReplayStory()
                     nRequestedGoalItem = storyHistoryAlaska[n - 1];
                 }
                 else {
-                    AfxMessageBox(0xe01c, 0, -1);
+                    AfxMessageBox(IDS_ERR_NO_STORY_SAVED, 0, -1);
                     return;
                 }
             }
@@ -737,7 +737,7 @@ void CDeskcppDoc::OnReplayStory()
                     nRequestedGoalItem = storyHistoryNevada[n - 1];
                 }
                 else {
-                    AfxMessageBox(0xe01c, 0, -1);
+                    AfxMessageBox(IDS_ERR_NO_STORY_SAVED, 0, -1);
                     return;
                 }
                 break;
@@ -749,7 +749,7 @@ void CDeskcppDoc::OnReplayStory()
                     nRequestedGoalItem = storyHistoryAlaska[n - 1];
                 }
                 else {
-                    AfxMessageBox(0xe01c, 0, -1);
+                    AfxMessageBox(IDS_ERR_NO_STORY_SAVED, 0, -1);
                     return;
                 }
                 break;
@@ -761,7 +761,7 @@ void CDeskcppDoc::OnReplayStory()
                     nRequestedGoalItem = storyHistoryOregon[n - 1];
                 }
                 else {
-                    AfxMessageBox(0xe01c, 0, -1);
+                    AfxMessageBox(IDS_ERR_NO_STORY_SAVED, 0, -1);
                     return;
                 }
                 break;
@@ -776,7 +776,7 @@ void CDeskcppDoc::OnReplayStory()
         int ok = StartGame(Randomize(), 0);   // nested: the 0 is pushed before Randomize runs
         bStartingGame = 0;
         if (ok == 0) {
-            nFrameMode = 0xc;
+            nFrameMode = 12;
             return;
         }
 #ifndef GAME_INDY
@@ -925,7 +925,7 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
     }
     v->bBusy = 0;
     if (bSkipGenerate == 0)
-        nFrameMode = 0xb;
+        nFrameMode = 11;
     unk3378 = 0;
     unk2e60 = 0;
     return 1;
@@ -990,22 +990,22 @@ void CDeskcppDoc::RefreshZone()
                 do {
                     int t = (short)((Zone *)currentZone)->GetTile(cx, cy, 0);
                     if (t >= 0)
-                        pCanvas->BlitFast(tileArray[t]->pixels, 0x20, 0x20, 0x20, destX, destY);
+                        pCanvas->BlitFast(tileArray[t]->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY);
                     t = (short)((Zone *)currentZone)->GetTile(cx, cy, 1);
                     if (t >= 0) {
                         Tile *pt = tileArray[t];
                         if ((pt->flags & 1) != 0)
-                            pCanvas->BlitMasked((char *)pt->pixels, 0x20, 0x20, destX, destY, 0);
+                            pCanvas->BlitMasked((char *)pt->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY, 0);
                         else
-                            pCanvas->BlitFast(pt->pixels, 0x20, 0x20, 0x20, destX, destY);
+                            pCanvas->BlitFast(pt->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY);
                     }
                     t = (short)((Zone *)currentZone)->GetTile(cx, cy, 2);
                     if (t >= 0) {
                         Tile *pt = tileArray[t];
                         if ((pt->flags & 1) != 0)
-                            pCanvas->BlitMasked((char *)pt->pixels, 0x20, 0x20, destX, destY, 0);
+                            pCanvas->BlitMasked((char *)pt->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY, 0);
                         else
-                            pCanvas->BlitFast(pt->pixels, 0x20, 0x20, 0x20, destX, destY);
+                            pCanvas->BlitFast(pt->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY);
                     }
                     destX = destX + 0x20;
                     cx = cx + 1;

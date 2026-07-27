@@ -24,7 +24,7 @@ Canvas::Canvas(int width, int height)
     BITMAPINFOHEADER* h = &biHeader;
     biHeader.biCompression = 0;
     biHeader.biPlanes = 1;
-    h->biSize = 0x28;
+    h->biSize = 40;   // ⚠ almost certainly sizeof(BITMAPINFOHEADER) in the original — see the DIAL NOTE at EOF
     biHeader.biXPelsPerMeter = 0;
     biHeader.biYPelsPerMeter = 0;
     biHeader.biClrImportant = 0;
@@ -32,7 +32,7 @@ Canvas::Canvas(int width, int height)
     biHeader.biBitCount = 8;
     if (0 < height)
         biHeader.biHeight = -height;
-    biHeader.biClrUsed = 0x100;
+    biHeader.biClrUsed = 256;
     biHeader.biWidth = width;
     biHeader.biSizeImage = height * width;
     hdc = CreateCompatibleDC(0);
@@ -104,8 +104,8 @@ int Canvas::CreatePalette()
     hPalette = pal;
     if (pal != 0) {
         RGBQUAD* pe = palette;
-        GetPaletteEntries(pal, 0, 0x100, (LPPALETTEENTRY)pe);
-        for (int i = 0x1a; i != 0; i--) {
+        GetPaletteEntries(pal, 0, 256, (LPPALETTEENTRY)pe);
+        for (int i = 26; i != 0; i--) {
             BYTE t = pe->rgbBlue;
             pe->rgbBlue = pe->rgbRed;
             pe->rgbRed = t;
@@ -647,3 +647,22 @@ void Canvas::BlitMasked(char* src, unsigned short srcStride, short height,
     }
 #endif // YODA_PORTABLE
 }
+
+// ═══ DIAL NOTE: Canvas::Canvas `h->biSize` (v96, open) ══════════════════════════
+// The ctor's biSize is written as the bare literal 40 (was 0x28). The idiomatic 1997 spelling
+// -- and near-certainly what LucasArts actually wrote -- is:
+//
+//     h->biSize = sizeof(BITMAPINFOHEADER);
+//
+// It folds to the same constant 40, yet substituting it COSTS A BYTE-EXACT FUNCTION:
+// 211 -> 210, Canvas.cpp 9 -> 8 exact (-106 B). Measured both ways. So `sizeof` is a codegen-dial
+// input in this TU even though the emitted constant is identical -- same family as the
+// include-file and enum-in-header dials (see the v95/v96 lessons in CLAUDE.md).
+//
+// TO REVISIT: find the dial setting under which the `sizeof` spelling is byte-exact, then restore
+// it -- that is the more faithful source. Levers NOT yet tried for this specific site: identify
+// WHICH of Canvas.cpp's 9 exact functions regressed (asmscore.py the loser, to see whether the
+// damage is local to the ctor or a whole-TU rotation), and whether the sibling
+// `biHeader.biClrUsed = 256` / halftone `26` literals interact with it. Until then the literal
+// stands deliberately, and this note is the reason why -- do not "clean it up" without
+// re-running tools/progress.py.

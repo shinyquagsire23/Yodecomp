@@ -33,4 +33,10 @@ protected:
     DECLARE_MESSAGE_MAP()                                // 0x00419720
 };
 
+// Resource ids used by this TU (see the "Resource ids" block in GameObjectClasses.h,
+// which this TU does not include).
+#define IDS_APP_TITLE            0xe000  // "Yoda Stories"
+#define IDS_ERR_16_COLOR_VIDEO   0xe00a  // "...cannot run in 16-color video modes."
+#define IDS_WARN_MIDI_DISABLED   4       // "...difficulty playing music (MIDI files)..."
+
 #endif

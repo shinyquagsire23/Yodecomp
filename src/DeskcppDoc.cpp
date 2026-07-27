@@ -162,20 +162,20 @@ IMPLEMENT_DYNCREATE(CDeskcppDoc, CDocument)
 // 0xe141=ID_APP_EXIT, the 0x800x are this app's menu-command IDs), handlers matched by pfn address.
 // Referencing these here keeps them alive under /OPT:REF (they were dropped as unreferenced before).
 BEGIN_MESSAGE_MAP(CDeskcppDoc, CDocument)
-    ON_COMMAND(0x8000, OnToggleSound)
-    ON_UPDATE_COMMAND_UI(0x8000, OnUpdateToggleSound)
-    ON_COMMAND(0x8004, OnToggleMusic)
-    ON_UPDATE_COMMAND_UI(0x8004, OnUpdateToggleMusic)
-    ON_COMMAND(0x8008, OnNewWorld)
-    ON_COMMAND(0xe103, OnSaveWorld)                       // ID_FILE_SAVE
-    ON_COMMAND(0x800a, OnLoadWorld)
-    ON_COMMAND(0x800b, OnReplayStory)
-    ON_UPDATE_COMMAND_UI(0xe103, OnUpdateFileSave)        // ID_FILE_SAVE
-    ON_UPDATE_COMMAND_UI(0xe141, OnUpdateAppExit)         // ID_APP_EXIT
-    ON_UPDATE_COMMAND_UI(0x8001, OnUpdateHideMe)
-    ON_UPDATE_COMMAND_UI(0x8008, OnUpdateNewWorld)
-    ON_UPDATE_COMMAND_UI(0x800a, OnUpdateLoadWorld)
-    ON_UPDATE_COMMAND_UI(0x800b, OnUpdateReplayStory)
+    ON_COMMAND(ID_OPTIONS_SOUND, OnToggleSound)
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_SOUND, OnUpdateToggleSound)
+    ON_COMMAND(ID_OPTIONS_MUSIC, OnToggleMusic)
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_MUSIC, OnUpdateToggleMusic)
+    ON_COMMAND(ID_FILE_NEWWORLD, OnNewWorld)
+    ON_COMMAND(ID_FILE_SAVE, OnSaveWorld)
+    ON_COMMAND(ID_FILE_LOADWORLD, OnLoadWorld)
+    ON_COMMAND(ID_FILE_REPLAYSTORY, OnReplayStory)
+    ON_UPDATE_COMMAND_UI(ID_FILE_SAVE, OnUpdateFileSave)
+    ON_UPDATE_COMMAND_UI(ID_APP_EXIT, OnUpdateAppExit)
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_HIDEME, OnUpdateHideMe)
+    ON_UPDATE_COMMAND_UI(ID_FILE_NEWWORLD, OnUpdateNewWorld)
+    ON_UPDATE_COMMAND_UI(ID_FILE_LOADWORLD, OnUpdateLoadWorld)
+    ON_UPDATE_COMMAND_UI(ID_FILE_REPLAYSTORY, OnUpdateReplayStory)
 END_MESSAGE_MAP()
 
 // FUNCTION: YODA 0x00419f60
@@ -224,7 +224,7 @@ int CDeskcppDoc::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
         catch (CException *e) {                // hand-expanded CATCH_ALL(e)
             _afxExceptionLink.m_pException = e;
             THROW_LAST();
-            AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable — the rethrow above
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable — the rethrow above
             AfxAbort();                            //      makes the OOM dialog dead code
         }                                          //      (docs/engine-bugs.md #7)
         }              // closes the TRY macro's outer (link-scope) brace
@@ -235,7 +235,7 @@ int CDeskcppDoc::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
     for (i = 0; i < n; i++) {
         Tile *pTile = (Tile *)tiles[i];
         pFile->Read(&pTile->flags, 4);
-        pFile->Read(pTile->pixels, 0x400);
+        pFile->Read(pTile->pixels, TILE_PIXEL_COUNT);
     }
     return 1;
 }
@@ -420,25 +420,25 @@ void CDeskcppDoc::DrawPlayer()
 
         tileId = currentZone->GetTile(cx, cy, 0);
         if (tileId >= 0)
-            pCanvas->BlitFast(((Tile *)tiles[tileId])->pixels, 0x20, 0x20, 0x20, camX, camY);
+            pCanvas->BlitFast(((Tile *)tiles[tileId])->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY);
         tileId = currentZone->GetTile(cx, cy, 1);
         if (tileId >= 0) {
             pTile = (Tile *)tiles[tileId];
             if ((pTile->flags & 1) != 0)
-                pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, camX, camY, 0);
+                pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY, 0);
             else
-                pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, camX, camY);
+                pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY);
         }
         if (bHidePlayer == 0)
-            pCanvas->BlitMasked((char *)pPlayerFrameTile->pixels, 0x20, 0x20, camX, camY, 0);
+            pCanvas->BlitMasked((char *)pPlayerFrameTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY, 0);
         tileId = currentZone->GetTile(cx, cy, 2);
         if (tileId >= 0) {
             pTile = (Tile *)tiles[tileId];
             if ((pTile->flags & 1) != 0) {
-                pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, camX, camY, 0);
+                pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY, 0);
                 return;
             }
-            pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, camX, camY);
+            pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, camX, camY);
         }
     }
 }
@@ -459,8 +459,8 @@ CDeskcppDoc::CDeskcppDoc()
     bSkipNewWorldConfirm = 0;
     gameState = 0;
     nSoundEnabled = 1;
-    difficulty = 0x32;
-    counter = 0x32;
+    difficulty = 50;
+    counter = 50;
     abortFrame = 0;
     completionCount = 0;
     highScore = 0;
@@ -479,7 +479,7 @@ CDeskcppDoc::CDeskcppDoc()
     if (pApp != NULL) {
         nSoundEnabled = pApp->GetProfileInt("OPTIONS", "PlaySound", 1);
         nMusicEnabled = pApp->GetProfileInt("OPTIONS", "PlayMusic", 1);
-        difficulty = pApp->GetProfileInt("OPTIONS", "Difficulty", 0x32);
+        difficulty = pApp->GetProfileInt("OPTIONS", "Difficulty", 50);
         counter = difficulty;
         gameSpeed = pApp->GetProfileInt("OPTIONS", "GameSpeed", 0x8c);
         completionCount = pApp->GetProfileInt("OPTIONS", "Count", 0);
@@ -488,8 +488,8 @@ CDeskcppDoc::CDeskcppDoc()
         lastCount = pApp->GetProfileInt("OPTIONS", "LCount", 0);
         worldSize = pApp->GetProfileInt("OPTIONS", "WorldSize", 2);
         currentPlanet = pApp->GetProfileInt("OPTIONS", "Terrain", 1);
-        if (gameSpeed < 0x5f)
-            gameSpeed = 0x5f;
+        if (gameSpeed < 95)
+            gameSpeed = 95;
         if (gameSpeed > 0xb9)
             gameSpeed = 0xb9;
 #ifdef YODA_PORTABLE
@@ -552,25 +552,25 @@ CDeskcppDoc::CDeskcppDoc()
 #endif
     rectViewport.left = 8;
     rectViewport.top = 7;
-    rectViewport.right = 0x128;
+    rectViewport.right = 296;
 #ifndef YODA_FULL
     worldSize = 1;                        // demo hardcode: small world (full: keep the
                                           // registry-read WorldSize value, default 2)
 #endif
     rectInventory.top = 6;
-    rectViewport.bottom = 0x127;
-    rectInventory.left = 0x133;
-    rectInventory.bottom = 0xe6;
+    rectViewport.bottom = 295;
+    rectInventory.left = 307;
+    rectInventory.bottom = 230;
     rectInvScroll.top = 6;
-    rectInventory.right = 0x1e9;
-    rectInvScroll.left = 0x1f0;
-    rectInvScroll.bottom = 0xe6;
+    rectInventory.right = 489;
+    rectInvScroll.left = 496;
+    rectInvScroll.bottom = 230;
     rectWeaponBox.top = 252;
-    rectInvScroll.right = 0x200;
+    rectInvScroll.right = 512;
     rectWeaponBox.left = 400;
     rectWeaponBox.bottom = 284;
-    rectAmmoBar.top = 0xfc;
-    rectWeaponBox.right = 400+32;
+    rectAmmoBar.top = 252;
+    rectWeaponBox.right = 400 + TILE_PIXEL_SIZE;
 #ifdef GAME_INDY
     // Indy has no ammo bar (see DrawWeaponIcon), so it centers the weapon box over the whole
     // box+ammo region — 16px left of Yoda's box (onto where Yoda's ammo bar sat) and 4px down.
@@ -578,40 +578,40 @@ CDeskcppDoc::CDeskcppDoc()
     // bottom=0x120 (vs Yoda 0x190/0xfc/0x1b0/0x11c). GAME_INDY-guarded — Yoda anchor unaffected.
     rectWeaponBox.left = 384+8;
     rectWeaponBox.top = 252; // actually 256
-    rectWeaponBox.right = 384+32+8;
-    rectWeaponBox.bottom = 252+32; // actually 256+32
+    rectWeaponBox.right = 384 + TILE_PIXEL_SIZE + 8;
+    rectWeaponBox.bottom = 252 + TILE_PIXEL_SIZE; // actually 256+32
 #endif
-    rectAmmoBar.left = 0x180;
-    rectAmmoBar.right = 0x189;
-    rectAmmoBar.bottom = 0x11c;
-    rectHealthDial.bottom = 0x11c;
-    rectHealthDial.left = 0x1c9;
-    rectHealthDial.right = 0x1ea;
-    rectHealthDial.top = 0xfb;
-    rectArrowBox.left = 0x141;
+    rectAmmoBar.left = 384;
+    rectAmmoBar.right = 393;
+    rectAmmoBar.bottom = 284;
+    rectHealthDial.bottom = 284;
+    rectHealthDial.left = 457;
+    rectHealthDial.right = 490;
+    rectHealthDial.top = 251;
+    rectArrowBox.left = 321;
     nViewTop = 0;
     nViewLeft = 0;
-    nViewBottom = 0x120;
-    nViewRight = 0x120;
+    nViewBottom = VIEW_PIXEL_SIZE;
+    nViewRight = VIEW_PIXEL_SIZE;
     healthLo = 1;
     healthHi = 1;
-    rectArrowBox.top = 0xf6;
-    rectArrowBox.right = 0x169;
+    rectArrowBox.top = 246;
+    rectArrowBox.right = 361;
     nQueuedMoveDY = 0;
     nQueuedMoveDX = 0;
     pPlayerFrameTile = NULL;
     currentWeapon = NULL;
     bWorldReady = 0;
     bDtaLoaded = 0;
-    rectArrowBox.bottom = 0x11e;
+    rectArrowBox.bottom = 286;
     bStateFileLoaded = 0;
     scrollDirX = 0;
     scrollDirY = 0;
     unk3368 = 0;
     unk336c = 0;
     bHidePlayer = 0;
-    cameraX = 0x100;
-    cameraY = 0xc0;
+    cameraX = 256;
+    cameraY = 192;
     unk2e34 = -1;
     playerY = 0;
     playerX = 0;
@@ -873,7 +873,7 @@ BOOL CDeskcppDoc::OnNewDocument()
         pSysColorTable[0] = 0;
         pSysColorTable[1] = pSysColorTable[0];
         pSysColorTable[2] = pSysColorTable[1];
-        DWORD c = ::GetSysColor(0xf);
+        DWORD c = ::GetSysColor(COLOR_BTNFACE);
         BYTE b = (BYTE)c;
         sysPalette[1].peRed = b;
         pSysColorTable[6] = b;
@@ -882,7 +882,7 @@ BOOL CDeskcppDoc::OnNewDocument()
         pSysColorTable[5] = b;
         sysPalette[1].peBlue = (BYTE)(c >> 0x10);
         pSysColorTable[4] = (BYTE)(c >> 0x10);
-        c = ::GetSysColor(0x10);
+        c = ::GetSysColor(COLOR_BTNSHADOW);
         b = (BYTE)c;
         sysPalette[2].peRed = b;
         pSysColorTable[10] = b;
@@ -891,7 +891,7 @@ BOOL CDeskcppDoc::OnNewDocument()
         pSysColorTable[9] = b;
         sysPalette[2].peBlue = (BYTE)(c >> 0x10);
         pSysColorTable[8] = (BYTE)(c >> 0x10);
-        c = ::GetSysColor(0x14);
+        c = ::GetSysColor(COLOR_BTNHIGHLIGHT);
         WORD w = (WORD)c;
         sysPalette[3].peRed = (BYTE)w;
         pSysColorTable[0xe] = (BYTE)w;
@@ -899,7 +899,7 @@ BOOL CDeskcppDoc::OnNewDocument()
         sysPalette[3].peGreen = b;
         pSysColorTable[0xd] = b;
         sysPalette[3].peBlue = (BYTE)(c >> 0x10);
-        pSysColorTable[0xc] = (BYTE)(c >> 0x10);
+        pSysColorTable[12] = (BYTE)(c >> 0x10);
         sysPalette[0xff].peBlue = 0xff;
         sysPalette[0xff].peGreen = 0xff;
         sysPalette[0xff].peRed = 0xff;
@@ -928,12 +928,12 @@ BOOL CDeskcppDoc::OnNewDocument()
     if (pCanvas == NULL) {
         Canvas *pNew = NULL;
         TRY {
-            pNew = new Canvas(0x240, 0x240);
+            pNew = new Canvas(CANVAS_PIXEL_SIZE, CANVAS_PIXEL_SIZE);
         } END_TRY
         pCanvas = pNew;
     }
     if (pCanvas != NULL)
-        pCanvas->SetPalette(0, 0x100, (RGBQUAD *)pSysColorTable);
+        pCanvas->SetPalette(0, 256, (RGBQUAD *)pSysColorTable);
     YODA_SIC_FIX(if (pCanvas == NULL) BUGLOG(("sic#8 OnNewDocument: Canvas alloc failed, Clear() skipped\n")); else) pCanvas->Clear(); // sic: unguarded — crashes if the Canvas alloc failed
 
     Tile **p = apUiTiles;

@@ -1511,7 +1511,7 @@ void CDeskcppDoc::WorldgenCarveQuestPath(int nTier, int nBudget, short *paPlanGr
         }
         if (nBudget <= 0)
             bDone++;
-        if (nAttempts > 0x90)
+        if (nAttempts > 144)
             bDone++;
     } while (bDone == 0);
     *pnGoals = nGoals;
@@ -2560,14 +2560,14 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
         break;
     case 3:
     {
-        nT2Hi = 0xc;
+        nT2Hi = 12;
         nT2Lo = 6;
-        nT4Hi = 0xb;
-        nT3Hi = 0xc;
+        nT4Hi = 11;
+        nT3Hi = 12;
         nT3Lo = 6;
         nT4Lo = 6;
         nXtraLo = 4;
-        nXtraHi = 0xb;
+        nXtraHi = 11;
         break;
     }
     default:
@@ -2583,8 +2583,8 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     nPlaced = 4;
     aPlan[nSeedX + nSeedY * 10] = PLAN_START;
     int nBudget = rand() % (nT2Hi - nT2Lo + 1) + nT2Lo + maxSplits + maxGoals;
-    if (nBudget > 0xc)
-        nBudget = 0xc;
+    if (nBudget > 12)
+        nBudget = 12;
     WorldgenCarveQuestPath(2, nBudget, aPlan, maxGoals, &nGoals, maxSplits, &nSplits, &nPlaced);
     WorldgenCarveQuestPath(3, rand() % (nT3Hi - nT3Lo + 1) + nT3Lo, aPlan, maxGoals, &nGoals,
                            maxSplits, &nSplits, &nPlaced);
@@ -3039,20 +3039,20 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
                     }
                     else if (nType == 0x10)
                     {
-                        nZone = (short)PlaceQuestNode(0xf, nStep16, -1, nItemA, -1,
+                        nZone = (short)PlaceQuestNode(ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK, nStep16, -1, nItemA, -1,
                                                       (short)GetZoneGridOrder(i2, j2), 1);
                         if (nZone < 0)
                             goto fail_a;
-                        genZoneTypeScratch = 0xf;
+                        genZoneTypeScratch = ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK;
                         genCellQuestSlot0Scratch = nStepA - 1;
                     }
                     else
                     {
-                        nZone = (short)PlaceQuestNode(0x10, nStep16, -1, nItemA, -1,
+                        nZone = (short)PlaceQuestNode(ZONE_TYPE_FIND_USEFUL_DROP, nStep16, -1, nItemA, -1,
                                                       (short)GetZoneGridOrder(i2, j2), 1);
                         if (nZone < 0)
                             goto fail_a;
-                        genZoneTypeScratch = 0x10;
+                        genZoneTypeScratch = ZONE_TYPE_FIND_USEFUL_DROP;
                         genCellQuestSlot0Scratch = nStepA - 1;
                     }
                 }
@@ -3076,7 +3076,7 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
                     WorldgenPushZoneEntry((short)genCellItemAScratch,
                                           (short)GetZoneGridOrder(i2, j2));
                 nRetry++;
-            } while (nRetry < 0xc9);
+            } while (nRetry < 201);
         }
         if (bFoundStep == 0)
         {
@@ -3165,20 +3165,20 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
                         }
                         else if (nType == 0x10)
                         {
-                            nZone = (short)PlaceQuestNode(0xf, nStep16, -1, nItemA, -1,
+                            nZone = (short)PlaceQuestNode(ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK, nStep16, -1, nItemA, -1,
                                                           (short)GetZoneGridOrder(i2, j2), 0);
                             if (nZone < 0)
                                 goto fail_b;
-                            genZoneTypeScratch = 0xf;
+                            genZoneTypeScratch = ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK;
                             genCellQuestSlot0Scratch = nStepB - 1;
                         }
                         else
                         {
-                            nZone = (short)PlaceQuestNode(0x10, nStep16, -1, nItemA, -1,
+                            nZone = (short)PlaceQuestNode(ZONE_TYPE_FIND_USEFUL_DROP, nStep16, -1, nItemA, -1,
                                                           (short)GetZoneGridOrder(i2, j2), 0);
                             if (nZone < 0)
                                 goto fail_b;
-                            genZoneTypeScratch = 0x10;
+                            genZoneTypeScratch = ZONE_TYPE_FIND_USEFUL_DROP;
                             genCellQuestSlot0Scratch = nStepB - 1;
                         }
                     }
@@ -3196,7 +3196,7 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
                     mapGrid[nCell].field30 = 0;
                     apZoneGrid[nCell] = (Zone *)zones.GetAt(nZone);
                     mapGrid[nCell].id = (unsigned short)nZone;
-                } while (nRetry < 0xc9);
+                } while (nRetry < 201);
             }
             if (bFoundStep == 0)
             {
@@ -3234,7 +3234,7 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
                     switch (v)
                     {
                     case PLAN_START:
-                        nZone = (short)PlaceQuestNode(0xb, -1, -1, -1, -1,
+                        nZone = (short)PlaceQuestNode(ZONE_TYPE_MAP_START, -1, -1, -1, -1,
                                                       (short)GetZoneGridOrder(tx, ty), bFirst);
                         if (nZone >= 0)
                             mapGrid[ty * 10 + tx].zoneType = ZONE_TYPE_MAP_START;
@@ -3732,11 +3732,11 @@ int CDeskcppDoc::WorldgenPlacePuzzles(short *paPlanGrid)
             int nVal = pEntry->val;
             if (PlacePuzzle((short)nVal, paPlanGrid, &x, &y) != 1)
                 return 0;
-            int nZoneId = (short)PlaceQuestNode(0x11, -1, -1, pEntry->zoneId, -1, (short)nVal, 0);
+            int nZoneId = (short)PlaceQuestNode(ZONE_TYPE_FIND_USEFUL_BUILDING, -1, -1, pEntry->zoneId, -1, (short)nVal, 0);
             if (nZoneId < 0)
                 return 0;
             int nCell = y * 10 + x;
-            mapGrid[nCell].zoneType = 0x11;
+            mapGrid[nCell].zoneType = ZONE_TYPE_FIND_USEFUL_BUILDING;
             mapGrid[nCell].cellItemC = (short)genCellItemCScratch;
             apZoneGrid[nCell] = (Zone *)zones.GetAt(nZoneId);
             mapGrid[nCell].id = (short)nZoneId;
@@ -3770,10 +3770,10 @@ int CDeskcppDoc::WorldgenPlacePuzzles(short *paPlanGrid)
         for (x = 0; x < 10; x++)
         {
             int nCode = paPlanGrid[y * 10 + x];
-            if (nCode == 1 || nCode == 300 || nCode == 0x68)
+            if (nCode == PLAN_PATH || nCode == PLAN_CORRIDOR || nCode == PLAN_WALL)
             {
                 int nOrder = GetZoneGridOrder(x, y);
-                if (nCode == 0x68 || nOrder < 2)
+                if (nCode == PLAN_WALL || nOrder < 2)
                     genSkipTeleCheck = 1;
                 else
                     genSkipTeleCheck = 0;
@@ -3952,7 +3952,7 @@ int CDeskcppDoc::ParseChar(CFile *pFile)
             catch (CException *e) {                // hand-expanded CATCH_ALL(e)
                 _afxExceptionLink.m_pException = e;
                 THROW_LAST();
-                AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
                 AfxAbort();                            //      (docs/engine-bugs.md #7)
             }
             }              // closes the TRY macro's outer (link-scope) brace
@@ -4058,8 +4058,8 @@ int CDeskcppDoc::LoadWorld()
     int x = nViewLeft;
     int y = nViewTop;
     progress.Create(WS_CHILD | WS_VISIBLE,
-                    CRect(CPoint(x + 0x11, y + 0x110), CPoint(x + 0x11e, y + 0x11d)),
-                    AfxGetMainWnd(), 0x3e9);
+                    CRect(CPoint(x + 17, y + 272), CPoint(x + 286, y + 285)),
+                    AfxGetMainWnd(), IDC_LOAD_PROGRESS);
     progress.SetRange(0, 4);
     progress.SetStep(1);
 
@@ -4149,7 +4149,7 @@ int CDeskcppDoc::LoadWorld()
         {
             if (nLen != 0x200)
             {
-                AfxMessageBox(0xe003, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_DTA_VERSION, 0, (UINT)-1);
                 nDone++;
             }
         }
@@ -4239,17 +4239,17 @@ int CDeskcppDoc::Load()
         case CFileException::badSeek:
         case CFileException::hardIO:
         case CFileException::endOfFile:
-            AfxMessageBox(5, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_OPEN_DTA, 0, (UINT)-1);
             break;
         case CFileException::accessDenied:
         case CFileException::directoryFull:
         case CFileException::sharingViolation:
         case CFileException::lockViolation:
         case CFileException::diskFull:
-            AfxMessageBox(6, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_DTA_SHARING, 0, (UINT)-1);
             break;
         default:
-            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
             break;
         }
         AfxAbort();
@@ -4262,8 +4262,8 @@ int CDeskcppDoc::Load()
     int x = nViewLeft;
     int y = nViewTop;
     progress.Create(WS_CHILD | WS_VISIBLE,
-                    CRect(CPoint(x + 0x11, y + 0x110), CPoint(x + 0x11e, y + 0x11d)),
-                    AfxGetMainWnd(), 0x3e9);
+                    CRect(CPoint(x + 17, y + 272), CPoint(x + 286, y + 285)),
+                    AfxGetMainWnd(), IDC_LOAD_PROGRESS);
     progress.SetRange(0, 11);
     progress.SetStep(1);
     AfxGetApp()->DoWaitCursor(1);
@@ -4537,7 +4537,7 @@ int CDeskcppDoc::ParsePuz2(CFile *pFile)
             catch (CException *e) {                // hand-expanded CATCH_ALL(e)
                 _afxExceptionLink.m_pException = e;
                 THROW_LAST();
-                AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
                 AfxAbort();                            //      (docs/engine-bugs.md #7)
             }
             }              // closes the TRY macro's outer (link-scope) brace
@@ -4719,9 +4719,9 @@ int CDeskcppDoc::ParseTnam(CFile *pFile)
             char buf[24];
 #ifdef GAME_INDY
             buf[0x10] = 0;            // Indy tile names are 16 bytes (vs Yoda 24) — verified:
-            pFile->Read(buf, 0x10);   // 143 names align the DAW tail to ENDF
+            pFile->Read(buf, 16);   // 143 names align the DAW tail to ENDF
 #else
-            pFile->Read(buf, 0x18);
+            pFile->Read(buf, 24);
 #endif
             pTile->name = buf;
         }
@@ -4799,7 +4799,7 @@ int CDeskcppDoc::ParseActn(CFile *pFile)
                     catch (CException *e) {                // hand-expanded CATCH_ALL(e)
                         _afxExceptionLink.m_pException = e;
                         THROW_LAST();
-                        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                        AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
                         AfxAbort();                            //      (docs/engine-bugs.md #7)
                     }
                     }              // closes the TRY macro's outer (link-scope) brace
@@ -4849,7 +4849,7 @@ int CDeskcppDoc::ParseHtsp(CFile *pFile)
                     catch (CException *e) {                // hand-expanded CATCH_ALL(e)
                         _afxExceptionLink.m_pException = e;
                         THROW_LAST();
-                        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                        AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
                         AfxAbort();                            //      (docs/engine-bugs.md #7)
                     }
                     }              // closes the TRY macro's outer (link-scope) brace
@@ -4905,7 +4905,7 @@ void CDeskcppDoc::LoadWorldStateFile()
         {
             if (nLen != 0x200)
             {
-                AfxMessageBox(5, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_OPEN_DTA, 0, (UINT)-1);
                 nDone++;
             }
         }
@@ -4972,7 +4972,7 @@ void CDeskcppDoc::Serialize(CArchive &ar)
             {
                 if (nLen != 0x200)
                 {
-                    AfxMessageBox(5, 0, (UINT)-1);
+                    AfxMessageBox(IDS_ERR_OPEN_DTA, 0, (UINT)-1);
                     nDone++;
                 }
             }
@@ -5028,15 +5028,15 @@ void CDeskcppDoc::ReadStupCanvas(CFile *pFile)
 {
     if (pCanvas == NULL)
     {
-        pFile->Seek(0x14400, CFile::current);
+        pFile->Seek(VIEW_PIXEL_SIZE * VIEW_PIXEL_SIZE, CFile::current);
         return;
     }
-    int nRows = 0x120;
+    int nRows = VIEW_PIXEL_SIZE;
     char *pRow = (char *)pCanvas->GetData();
     do
     {
-        pFile->Read(pRow, 0x120);
-        pRow += 0x240;
+        pFile->Read(pRow, VIEW_PIXEL_SIZE);
+        pRow += CANVAS_PIXEL_SIZE;
         nRows--;
     } while (nRows != 0);
 }
@@ -5083,32 +5083,32 @@ void CDeskcppDoc::DrawLocatorMap(CDC *pDC, int bDrawPlayer, int bAlt)
             apUiTiles[i] = apUiTiles[0];
     }
     short y = 0;
-    short destY = 4;
+    short destY = LOCATOR_MAP_INSET;
     do
     {
         short x = 0;
         int nY = y;
-        short destX = 4;
+        short destX = LOCATOR_MAP_INSET;
         do
         {
 #ifndef GAME_INDY
             Tile *pTile = GetTileData(0x344);
-            pCanvas->BlitFast(pTile->pixels, 0x1c, 0x1c, 0x20, destX, destY);
+            pCanvas->BlitFast(pTile->pixels, LOCATOR_CELL_SIZE, LOCATOR_CELL_SIZE, TILE_PIXEL_SIZE, destX, destY);
 #endif
             short nIcon = (short)GetLocatorIconMaybe(x, nY, bAlt);
             if (nIcon >= 0)
             {
-                pCanvas->BlitFast(apUiTiles[nIcon]->pixels, 0x1c, 0x1c, 0x20, destX, destY);
+                pCanvas->BlitFast(apUiTiles[nIcon]->pixels, LOCATOR_CELL_SIZE, LOCATOR_CELL_SIZE, TILE_PIXEL_SIZE, destX, destY);
                 if (playerX == x && playerY == nY && bDrawPlayer != 0)
-                    pCanvas->BlitMasked((char *)apUiTiles[15]->pixels, 0x20, 0x20, destX, destY, 0);
+                    pCanvas->BlitMasked((char *)apUiTiles[15]->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY, 0);
             }
-            destX += 0x1c;
+            destX += LOCATOR_CELL_SIZE;
             x++;
         } while (x < 10);
-        destY += 0x1c;
+        destY += LOCATOR_CELL_SIZE;
         y++;
     } while (y < 10);
-    pCanvas->BitBlt(pDC, rectUnk3274.left, rectUnk3274.top, 0x120, 0x120, 0, 0);
+    pCanvas->BitBlt(pDC, rectUnk3274.left, rectUnk3274.top, VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, 0, 0);
 }
 
 // FUNCTION: YODA 0x00423f50
@@ -5117,26 +5117,26 @@ void CDeskcppDoc::UpdateCamera()
 {
     if (currentZone->width == 9)
     {
-        nViewRight = 0x120;
-        nViewBottom = 0x120;
+        nViewRight = VIEW_PIXEL_SIZE;
+        nViewBottom = VIEW_PIXEL_SIZE;
         nViewLeft = 0;
         nViewTop = 0;
         return;
     }
-    if (cameraX <= 0x80)
+    if (cameraX <= 128)
         nViewLeft = 0;
-    else if (cameraX > 0x1a0)
-        nViewLeft = 0x120;
+    else if (cameraX > 416)
+        nViewLeft = VIEW_SCROLL_MAX;
     else
-        nViewLeft = cameraX - 0x80;
-    if (cameraY <= 0x80)
+        nViewLeft = cameraX - 128;
+    if (cameraY <= 128)
         nViewTop = 0;
-    else if (cameraY > 0x1a0)
-        nViewTop = 0x120;
+    else if (cameraY > 416)
+        nViewTop = VIEW_SCROLL_MAX;
     else
-        nViewTop = cameraY - 0x80;
-    nViewRight = nViewLeft + 0x120;
-    nViewBottom = nViewTop + 0x120;
+        nViewTop = cameraY - 128;
+    nViewRight = nViewLeft + VIEW_PIXEL_SIZE;
+    nViewBottom = nViewTop + VIEW_PIXEL_SIZE;
 }
 
 // FUNCTION: YODA 0x00424010
@@ -5339,7 +5339,7 @@ unsigned int CDeskcppDoc::Randomize()
 }
 
 // FUNCTION: YODA 0x00424450
-// ON_COMMAND(0x8008 File>New World) [msgmap @0x44c330]: confirm via AfxMessageBox(0xE001
+// ON_COMMAND(0x8008 File>New World) [msgmap @0x44c330]: confirm via AfxMessageBox(IDS_CONFIRM_NEW_WORLD
 // "...Build a New World anyway?") unless a game is over/not started, then
 // StartGame(Randomize(), 0) under a wait cursor; on failure show the 0xE01E fatal string
 // and FatalAppExit.
@@ -5347,10 +5347,10 @@ void CDeskcppDoc::OnNewWorld()
 {
     int nAnswer;
     if (bSkipNewWorldConfirm == 0 && gameState == 0)
-        nAnswer = AfxMessageBox(0xe001, 4, 0);
+        nAnswer = AfxMessageBox(IDS_CONFIRM_NEW_WORLD, MB_YESNO, 0);
     else
-        nAnswer = 6;
-    if (nAnswer == 6)
+        nAnswer = IDYES;
+    if (nAnswer == IDYES)
     {
         unsigned int nSeed = Randomize();
         AfxGetApp()->DoWaitCursor(1);
@@ -5359,7 +5359,7 @@ void CDeskcppDoc::OnNewWorld()
         if (nRet == 0)
         {
             CString str;
-            str.LoadString(0xe01e);
+            str.LoadString(IDS_ERR_UNRECOVERABLE);
             nFrameMode = 12;
             OnCloseDocument();
             FatalAppExit(0, str);
@@ -5389,8 +5389,8 @@ void CDeskcppDoc::OnSaveWorld()
 {
     CString strPath;
     CString strFilter;
-    strFilter.LoadString(0xe006);
-    if (nFrameMode == 1 || nFrameMode == 7 || nFrameMode == 6 || nFrameMode == 0xb
+    strFilter.LoadString(IDS_FILTER_SAVE_WORLD);
+    if (nFrameMode == 1 || nFrameMode == 7 || nFrameMode == 6 || nFrameMode == 11
         || gameState != 0)
         return;
     int *pHealth = &healthLo;
@@ -5402,17 +5402,17 @@ void CDeskcppDoc::OnSaveWorld()
         pView = (CDeskcppView *)GetNextView(pos);
     int nSavedMode = nFrameMode;
     nFrameMode = 0;
-    CFileDialog *pDlg = new CFileDialog(0, "wld", "savegame", 0x80006, strFilter, (CWnd *)pView);
+    CFileDialog *pDlg = new CFileDialog(FALSE, "wld", "savegame", OFN_EXPLORER | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, strFilter, (CWnd *)pView);
     CString strTitle;
-    strTitle.LoadString(0xe032);
+    strTitle.LoadString(IDS_DEFAULT_SAVE_DIR);
     YODA_SIC_FIX(if (pDlg != NULL)) pDlg->m_ofn.lpstrInitialDir = lpszSaveDir; // sic: dereferences pDlg BEFORE the null
                                                      // check below (engine-bugs.md #13)
     if (pDlg == NULL)
     {
-        AfxMessageBox(9, 0, (UINT)-1);
+        AfxMessageBox(IDS_ERR_CANNOT_CREATE_FILE, 0, (UINT)-1);
         return;
     }
-    if (pDlg->DoModal() == 1)
+    if (pDlg->DoModal() == IDOK)
     {
         strPath = pDlg->GetPathName().GetBuffer(200);
         CFile *pFile = new CFile;
@@ -5432,15 +5432,15 @@ void CDeskcppDoc::OnSaveWorld()
             case CFileException::sharingViolation:
             case CFileException::lockViolation:
             case CFileException::endOfFile:
-                AfxMessageBox(9, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_CANNOT_CREATE_FILE, 0, (UINT)-1);
                 break;
             case CFileException::accessDenied:
             case CFileException::directoryFull:
             case CFileException::diskFull:
-                AfxMessageBox(7, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_DISK_FULL, 0, (UINT)-1);
                 break;
             default:
-                AfxMessageBox(9, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_CANNOT_CREATE_FILE, 0, (UINT)-1);
                 break;
             }
             if (pDlg != NULL)
@@ -5489,7 +5489,7 @@ void CDeskcppDoc::OnSaveWorld()
             {
                 MapZone *pCell;
                 if (bQuestCellsResident != 0)
-                    pCell = &mapGrid[i * 10 + j + 0x2c];
+                    pCell = &mapGrid[i * 10 + j + 44];
                 else
                     pCell = &mapScratch[i * 2 + j];
                 pFile->Write(&pCell->flagSolved, 4);
@@ -5725,22 +5725,22 @@ void CDeskcppDoc::OnLoadWorld()
     CFileDialog *pDlg = NULL;
     int nAnswer;
     if (gameState == 0 && g_bReplayMode == 0)
-        nAnswer = AfxMessageBox(3, 4, 0);
+        nAnswer = AfxMessageBox(IDS_CONFIRM_LOAD_WORLD, MB_YESNO, 0);
     else
-        nAnswer = 6;
-    if (nAnswer != 6)
+        nAnswer = IDYES;
+    if (nAnswer != IDYES)
         return;
     {
         CString strFilter;
-        strFilter.LoadString(0xe007);
+        strFilter.LoadString(IDS_FILTER_LOAD_WORLD);
         if (g_bReplayMode == 0)
         {
-            pDlg = new CFileDialog(1, "wld", "*.wld", 0x1006, strFilter, NULL);
+            pDlg = new CFileDialog(TRUE, "wld", "*.wld", OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, strFilter, NULL);
             YODA_SIC_FIX(if (pDlg != NULL)) pDlg->m_ofn.lpstrInitialDir = lpszSaveDir; // sic: dereferences pDlg BEFORE
             if (pDlg == NULL)                                //      the null check
                 return;
-            pDlg->m_ofn.Flags &= ~0x10;
-            if (pDlg->DoModal() == 1)
+            pDlg->m_ofn.Flags &= ~OFN_SHOWHELP;
+            if (pDlg->DoModal() == IDOK)
             {
                 strPath = pDlg->GetPathName().GetBuffer(200);
             }
@@ -5783,16 +5783,16 @@ void CDeskcppDoc::OnLoadWorld()
             case CFileException::sharingViolation:
             case CFileException::lockViolation:
             case CFileException::endOfFile:
-                AfxMessageBox(8, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_CANNOT_OPEN_FILE, 0, (UINT)-1);
                 break;
             case CFileException::accessDenied:
             case CFileException::invalidFile:
             case CFileException::directoryFull:
             case CFileException::diskFull:
-                AfxMessageBox(8, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_CANNOT_OPEN_FILE, 0, (UINT)-1);
                 break;
             default:
-                AfxMessageBox(8, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_CANNOT_OPEN_FILE, 0, (UINT)-1);
                 break;
             }
             if (pDlg != NULL)
@@ -5813,7 +5813,7 @@ void CDeskcppDoc::OnLoadWorld()
         {
             if (pDlg != NULL)
                 delete pDlg;
-            AfxMessageBox(0xe008, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_NOT_A_SAVED_WORLD, 0, (UINT)-1);
             nFrameMode = nSavedMode;
             pView->bBusy = 0;
             g_bReplayMode = 0;
@@ -5871,7 +5871,7 @@ void CDeskcppDoc::OnLoadWorld()
             } while (i < nCount);
         }
         i = 2;
-        MapZone *pGridQuest = mapGrid + 0x2c;
+        MapZone *pGridQuest = mapGrid + 44;
         MapZone *pScratch = mapScratch;
         do
         {
@@ -6009,7 +6009,7 @@ void CDeskcppDoc::OnLoadWorld()
                 catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
                     _afxExceptionLink.m_pException = e2;
                     THROW_LAST();
-                    AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: unreachable OOM dialog
+                    AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
                     AfxAbort();                            //      (docs/engine-bugs.md #7)
                 }
                 }              // closes the TRY macro's outer (link-scope) brace
@@ -6184,7 +6184,7 @@ void CDeskcppDoc::OnLoadWorld()
         abortFrame = 0;
         bWorldInvalid = 1;
         bWorldReadyMaybe = 1;
-        nFrameMode = 0xb;
+        nFrameMode = 11;
         bStartingGame = 0;
         nMapChangeReason = 0;
         g_bReplayMode = 0;
@@ -6214,60 +6214,60 @@ int CDeskcppDoc::Populate()
     switch (r)
     {
     case 0:
-        PlaceZone(0x5e, 0x30c);
-        mapGrid[44].zoneType = 0x10;
+        PlaceZone(ZONE_SPACEPORT_NW, 0x30c);
+        mapGrid[44].zoneType = ZONE_TYPE_FIND_USEFUL_DROP;
         mapGrid[44].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
-        mapGrid[44].id = 0x5e;
+        mapGrid[44].id = ZONE_SPACEPORT_NW;
         mapGrid[44].flagA = 0;
         mapGrid[44].flagSolved = 0;
         mapGrid[44].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
-        PlaceZoneObjectTiles(0x5e);
+        PlaceZoneObjectTiles(ZONE_SPACEPORT_NW);
         break;
     case 1:
-        PlaceZone(0x217, 0x30c);
-        mapGrid[45].zoneType = 0x10;
+        PlaceZone(ZONE_SPACEPORT_ALT_NE, 0x30c);
+        mapGrid[45].zoneType = ZONE_TYPE_FIND_USEFUL_DROP;
         mapGrid[45].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
-        mapGrid[45].id = 0x217;
+        mapGrid[45].id = ZONE_SPACEPORT_ALT_NE;
         mapGrid[45].flagA = 0;
         mapGrid[45].flagSolved = 0;
         mapGrid[45].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
-        PlaceZoneObjectTiles(0x217);
+        PlaceZoneObjectTiles(ZONE_SPACEPORT_ALT_NE);
         break;
     case 2:
-        PlaceZone(0x60, 0x30c);
-        mapGrid[55].zoneType = 0x10;
+        PlaceZone(ZONE_SPACEPORT_SE, 0x30c);
+        mapGrid[55].zoneType = ZONE_TYPE_FIND_USEFUL_DROP;
         mapGrid[55].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
-        mapGrid[55].id = 0x60;
+        mapGrid[55].id = ZONE_SPACEPORT_SE;
         mapGrid[55].flagA = 0;
         mapGrid[55].flagSolved = 0;
         mapGrid[55].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
-        PlaceZoneObjectTiles(0x60);
+        PlaceZoneObjectTiles(ZONE_SPACEPORT_SE);
         break;
     case 3:
-        PlaceZone(0x5d, 0x30c);
-        mapGrid[54].zoneType = 0x10;
+        PlaceZone(ZONE_SPACEPORT_SW, 0x30c);
+        mapGrid[54].zoneType = ZONE_TYPE_FIND_USEFUL_DROP;
         mapGrid[54].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
-        mapGrid[54].id = 0x5d;
+        mapGrid[54].id = ZONE_SPACEPORT_SW;
         mapGrid[54].flagA = 0;
         mapGrid[54].flagSolved = 0;
         mapGrid[54].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
-        PlaceZoneObjectTiles(0x5d);
+        PlaceZoneObjectTiles(ZONE_SPACEPORT_SW);
         break;
     case 4:
-        PlaceZone(0x217, 0x7f2);
-        mapGrid[45].zoneType = 0x10;
+        PlaceZone(ZONE_SPACEPORT_ALT_NE, 0x7f2);
+        mapGrid[45].zoneType = ZONE_TYPE_FIND_USEFUL_DROP;
         mapGrid[45].cellQuestSlot6 = (short)genCellQuestSlot6Scratch;
-        mapGrid[45].id = 0x217;
+        mapGrid[45].id = ZONE_SPACEPORT_ALT_NE;
         mapGrid[45].flagA = 0;
         mapGrid[45].flagSolved = 0;
         mapGrid[45].cellItemC = ((Puzzle *)puzzles.GetAt(questItemsB.GetAt(0)))->itemA;
-        PlaceZoneObjectTiles(0x217);
+        PlaceZoneObjectTiles(ZONE_SPACEPORT_ALT_NE);
         break;
     }
-    mapGrid[44].id = 0x5e;
-    mapGrid[45].id = 0x5f;
-    mapGrid[54].id = 0x5d;
-    mapGrid[55].id = 0x60;
+    mapGrid[44].id = ZONE_SPACEPORT_NW;
+    mapGrid[45].id = ZONE_SPACEPORT_NE;
+    mapGrid[54].id = ZONE_SPACEPORT_SW;
+    mapGrid[55].id = ZONE_SPACEPORT_SE;
     mapGrid[54].flagSolved = 0;
     pView->nTargetZoneId = 0;
     unk2e34 = 0;
@@ -6276,7 +6276,7 @@ int CDeskcppDoc::Populate()
     cameraY = 0x140;
     playerX = 4;
     playerY = 5;
-    nFrameMode = 0xb;
+    nFrameMode = 11;
     bQuestCellsResident = 1;
     BackupRecords();
     pView->bBusy = 0;
@@ -6410,7 +6410,7 @@ int CDeskcppDoc::PlaceZone(short zoneId, unsigned short tileId)
 // Restore the center 2x2 quest cells (44,45,54,55) from mapScratch, re-tagging their ids.
 void CDeskcppDoc::RestoreRecords()
 {
-    mapGrid[44].id = 0x5e;
+    mapGrid[44].id = ZONE_SPACEPORT_NW;
     mapGrid[44].cellQuestSlot0 = mapScratch[0].cellQuestSlot0;
     mapGrid[44].cellQuestSlot1 = mapScratch[0].cellQuestSlot1;
     mapGrid[44].zoneType = mapScratch[0].zoneType;
@@ -6425,7 +6425,7 @@ void CDeskcppDoc::RestoreRecords()
     mapGrid[44].flagC = mapScratch[0].flagC;
     mapGrid[44].flagD = mapScratch[0].flagD;
     mapGrid[44].field30 = mapScratch[0].field30;
-    mapGrid[45].id = 0x5f;
+    mapGrid[45].id = ZONE_SPACEPORT_NE;
     mapGrid[45].cellQuestSlot0 = mapScratch[1].cellQuestSlot0;
     mapGrid[45].cellQuestSlot1 = mapScratch[1].cellQuestSlot1;
     mapGrid[45].zoneType = mapScratch[1].zoneType;
@@ -6440,7 +6440,7 @@ void CDeskcppDoc::RestoreRecords()
     mapGrid[45].flagC = mapScratch[1].flagC;
     mapGrid[45].flagD = mapScratch[1].flagD;
     mapGrid[45].field30 = mapScratch[1].field30;
-    mapGrid[54].id = 0x5d;
+    mapGrid[54].id = ZONE_SPACEPORT_SW;
     mapGrid[54].cellQuestSlot0 = mapScratch[2].cellQuestSlot0;
     mapGrid[54].cellQuestSlot1 = mapScratch[2].cellQuestSlot1;
     mapGrid[54].zoneType = mapScratch[2].zoneType;
@@ -6455,7 +6455,7 @@ void CDeskcppDoc::RestoreRecords()
     mapGrid[54].flagC = mapScratch[2].flagC;
     mapGrid[54].flagD = mapScratch[2].flagD;
     mapGrid[54].field30 = mapScratch[2].field30;
-    mapGrid[55].id = 0x60;
+    mapGrid[55].id = ZONE_SPACEPORT_SE;
     mapGrid[55].cellQuestSlot0 = mapScratch[3].cellQuestSlot0;
     mapGrid[55].cellQuestSlot1 = mapScratch[3].cellQuestSlot1;
     mapGrid[55].zoneType = mapScratch[3].zoneType;
@@ -6577,7 +6577,7 @@ Zone *CDeskcppDoc::ReadZone(CFile *pFile, int idx)
     // planets). Each zone's objects (HTSP), aux (IZAX/ZAX2/ZAX4/ZAX3) and scripts (ACTN) are
     // separate GLOBAL chunks parsed after all zones and distributed back to zones — TODO H3.
     (void)idx;
-    Zone *pZone = new Zone(0x12, 0x12);
+    Zone *pZone = new Zone(ZONE_WIDTH, ZONE_HEIGHT);
     pZone->ReadIzon(pFile);      // ReadIzon is shared: same 8 header bytes + tiles for both games
     return pZone;
 #else
@@ -6606,7 +6606,7 @@ Zone *CDeskcppDoc::ReadZone(CFile *pFile, int idx)
     Zone *pZone;
     if (currentPlanet == nPlanet || bForce)
     {
-        pZone = new Zone(0x12, 0x12);
+        pZone = new Zone(ZONE_WIDTH, ZONE_HEIGHT);
         short nWidth;
         pFile->Read(&nWidth, 2);
         pZone->ReadIzon(pFile);
@@ -6660,17 +6660,17 @@ void CDeskcppView::OnInitialUpdate()
     if (bInitialized == 0)
     {
         AfxGetResourceHandle();
-        hCursor3 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6a));
-        hCursor9 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6b));
+        hCursor3 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_WEST));
+        hCursor9 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_EAST));
         hCursor = LoadCursor(NULL, IDC_ARROW);
-        hCursor2 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x71));
-        hCursor4 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x73));
-        hCursor5 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6c));
-        hCursor7 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x72));
-        hCursor8 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x74));
-        hCursor6 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x6d));
-        hCursor10 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0x76));
-        hCursor11 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc2));
+        hCursor2 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_NORTHWEST));
+        hCursor4 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_SOUTHWEST));
+        hCursor5 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_NORTH));
+        hCursor7 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_NORTHEAST));
+        hCursor8 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_SOUTHEAST));
+        hCursor6 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_SOUTH));
+        hCursor10 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_CENTER));
+        hCursor11 = LoadCursor(AfxGetResourceHandle(), MAKEINTRESOURCE(IDC_CURSOR_WAIT));
         unkB8_always1 = 1;
         nMoveDY = 0;
         nMoveDX = 0;
@@ -6692,24 +6692,24 @@ void CDeskcppView::OnInitialUpdate()
         }              // closes the try block the TRY macro opened
         catch (CException *e) {                // hand-expanded CATCH_ALL(e)
             _afxExceptionLink.m_pException = e;
-            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
             AfxAbort();
         }
         }              // closes the TRY macro's outer (link-scope) brace
-        nTimerId = ::SetTimer(m_hWnd, 0x1d1d, nGameSpeed, NULL);
+        nTimerId = ::SetTimer(m_hWnd, IDT_GAME_TICK, nGameSpeed, NULL);
         bInputLocked = 0;
         TRY {
-            pDragTileCanvas = new Canvas(0x20, 0x20);
+            pDragTileCanvas = new Canvas(TILE_PIXEL_SIZE, TILE_PIXEL_SIZE);
         }
         }              // closes the try block the TRY macro opened
         catch (CException *e2) {               // hand-expanded CATCH_ALL(e2)
             _afxExceptionLink.m_pException = e2;
-            AfxMessageBox(0xe01e, 0, (UINT)-1);
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
             AfxAbort();
         }
         }              // closes the TRY macro's outer (link-scope) brace
         if (pDragTileCanvas != NULL)
-            pDragTileCanvas->SetPalette(0, 0x100, (RGBQUAD *)pWorld->pSysColorTable);
+            pDragTileCanvas->SetPalette(0, 256, (RGBQUAD *)pWorld->pSysColorTable);
         WPARAM wFont = 0;
         nWalkFramePhase = 0;
         bMouseCaptured = 0;
@@ -6717,17 +6717,17 @@ void CDeskcppView::OnInitialUpdate()
         bInitialized++;
         bSkipEntryIactMaybe = 0;
         CRect rc(0, 0, 0, 0);
-        btnDialogClose.Create("", 0x5000000b, rc, this, 0x1389);
-        btnDialogDown.Create("", 0x5000000b, rc, this, 0x138a);
-        btnDialogUp.Create("", 0x5000000b, rc, this, 0x138b);
+        btnDialogClose.Create("", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, rc, this, IDC_BUBBLE_CLOSE);
+        btnDialogDown.Create("", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, rc, this, IDC_BUBBLE_DOWN);
+        btnDialogUp.Create("", WS_CHILD | WS_VISIBLE | BS_OWNERDRAW, rc, this, IDC_BUBBLE_UP);
         btnDialogClose.LoadBitmaps("CLOSEU", "CLOSED", "CLOSEF", "CLOSEX");
         btnDialogDown.LoadBitmaps("DNAU", "DNAD", "DNAF", "DNAX");
         btnDialogUp.LoadBitmaps("UPAU", "UPAD", "UPAF", "UPAX");
         btnDialogClose.ShowWindow(0);
         btnDialogDown.ShowWindow(0);
         btnDialogUp.ShowWindow(0);
-        CRect rcText(0, 0, 0x82, 0xd);
-        wndDialogText.Create(0x50000504, rcText, this, 0x138c);
+        CRect rcText(0, 0, 130, 13);
+        wndDialogText.Create(WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_NOHIDESEL | ES_OEMCONVERT, rcText, this, IDC_BUBBLE_TEXT);
         HFONT hFont = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, "MS Sans Serif");
         CFont *pFont = CFont::FromHandle(hFont);
         if (pFont != NULL)
@@ -6772,36 +6772,36 @@ void CDeskcppView::DrawDirectionArrows(CDC *pDC)
     ::FillRect(pDC->m_hDC, &rc, (HBRUSH)br.m_hObject);
     HICON hIcon;
     if ((nDirs & 1) == 0)
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xca));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_UP_OFF));
     else
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xcb));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_UP_ON));
     {
         int x = pWorld->rectArrowBox.left + 0xb;
         int y = pWorld->rectArrowBox.top;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 8) == 0)
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc6));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_LEFT_OFF));
     else
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc7));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_LEFT_ON));
     {
         int y = pWorld->rectArrowBox.top + 0xe;
         int x = pWorld->rectArrowBox.left - 3;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 2) == 0)
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc4));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_DOWN_OFF));
     else
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc5));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_DOWN_ON));
     {
         int y = pWorld->rectArrowBox.top + 0x1d;
         int x = pWorld->rectArrowBox.left + 0xb;
         ::DrawIcon(pDC->m_hDC, x, y, hIcon);
     }
     if ((nDirs & 4) == 0)
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc8));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_RIGHT_OFF));
     else
-        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(0xc9));
+        hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_RIGHT_ON));
     {
         int y = pWorld->rectArrowBox.top + 0xe;
         int x = pWorld->rectArrowBox.left + 0x1a;
@@ -7074,24 +7074,24 @@ void CDeskcppView::DrawHealthNeedle(CDC *pDC)
     int cy = pWorld->rectHealthDial.top - 1;
     if (pWorld->healthHi == 1)
     {
-        penA.Attach(::CreatePen(PS_SOLID, 1, 0xffff));
-        penB.Attach(::CreatePen(PS_SOLID, 1, 0xff00));
-        brA.Attach(::CreateSolidBrush(0xffff));
-        brB.Attach(::CreateSolidBrush(0xff00));
+        penA.Attach(::CreatePen(PS_SOLID, 1, RGB(255, 255, 0)));
+        penB.Attach(::CreatePen(PS_SOLID, 1, RGB(0, 255, 0)));
+        brA.Attach(::CreateSolidBrush(RGB(255, 255, 0)));
+        brB.Attach(::CreateSolidBrush(RGB(0, 255, 0)));
     }
     else if (pWorld->healthHi == 2)
     {
-        penA.Attach(::CreatePen(PS_SOLID, 1, 0xff));
-        penB.Attach(::CreatePen(PS_SOLID, 1, 0xffff));
-        brA.Attach(::CreateSolidBrush(0xff));
-        brB.Attach(::CreateSolidBrush(0xffff));
+        penA.Attach(::CreatePen(PS_SOLID, 1, RGB(255, 0, 0)));
+        penB.Attach(::CreatePen(PS_SOLID, 1, RGB(255, 255, 0)));
+        brA.Attach(::CreateSolidBrush(RGB(255, 0, 0)));
+        brB.Attach(::CreateSolidBrush(RGB(255, 255, 0)));
     }
     else if (pWorld->healthHi == 3)
     {
         penA.Attach(::CreatePen(PS_SOLID, 1, 0));
-        penB.Attach(::CreatePen(PS_SOLID, 1, 0xff));
+        penB.Attach(::CreatePen(PS_SOLID, 1, RGB(255, 0, 0)));
         brA.Attach(::CreateSolidBrush(0));
-        brB.Attach(::CreateSolidBrush(0xff));
+        brB.Attach(::CreateSolidBrush(RGB(255, 0, 0)));
     }
     int nLo = pWorld->healthLo;
     int cx2 = pWorld->rectHealthDial.left + 0x10;
@@ -7109,22 +7109,22 @@ void CDeskcppView::DrawHealthNeedle(CDC *pDC)
             xe = cx;
             ye = cy;
         }
-        else if (nLo > 0 && nLo < 0x19)
+        else if (nLo > 0 && nLo < 25)
         {
             xe = cx2 + gNeedleTable[nLo];
             ye = cy2 - gNeedleTable[25 - nLo];
         }
-        else if (nLo >= 0x19 && nLo < 0x32)
+        else if (nLo >= 25 && nLo < 50)
         {
             ye = cy2 + gNeedleTable[nLo - 25];
             xe = cx2 + gNeedleTable[50 - nLo];
         }
-        else if (nLo >= 0x32 && nLo < 0x4b)
+        else if (nLo >= 50 && nLo < 75)
         {
             xe = cx2 - gNeedleTable[nLo - 50];
             ye = cy2 + gNeedleTable[75 - nLo];
         }
-        else if (nLo >= 0x4b && nLo < 0x64)
+        else if (nLo >= 75 && nLo < 100)
         {
             xe = cx2 - gNeedleTable[100 - nLo];
             ye = cy2 - gNeedleTable[nLo - 75];
@@ -7195,7 +7195,7 @@ void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
     pW->equippedItem = (Tile *)pW->tiles.GetAt(pWeapon->frames[7]);
     int nDmg = pWeapon->damage;
     int nDiff = pWorld->difficulty;
-    if (nDiff < 0x32)
+    if (nDiff < 50)
         nDmg = (nDiff / -5 + 10) * nDmg;
     if (nDmg < 1)
         nDmg = 1;
@@ -7679,7 +7679,7 @@ void CDeskcppView::DrawWeaponBox(CDC *pDC)
         Tile *pTile = (Tile *)pWorld->tiles.GetAt(pWorld->currentWeapon->frames[7]);
         pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
             (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
-        pDragTileCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, 0, 0, 0);
+        pDragTileCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, 0, 0, 0);
     }
     else
     {
@@ -7800,11 +7800,11 @@ void CDeskcppView::BlitViewportDither()
                     pData[nOff + x] = 0;
                 prod += y;
                 x++;
-            } while (x < 0x240);
-            nOff += 0x240;
+            } while (x < CANVAS_PIXEL_SIZE);
+            nOff += CANVAS_PIXEL_SIZE;
             y++;
-        } while (nOff < 0x51000);
-        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, pWorld->nViewLeft, pWorld->nViewTop);
+        } while (nOff < CANVAS_PIXEL_SIZE * CANVAS_PIXEL_SIZE);
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, pWorld->nViewLeft, pWorld->nViewTop);
         pDC->SelectPalette(pOldPal, 0);
         ::ReleaseDC(m_hWnd, pDC->m_hDC);
     }
@@ -7849,7 +7849,7 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
                 i++;
             } while (i < nInv);
         }
-        if (bFound == 0 || (pTile->flags & 0x100000) == 0)
+        if (bFound == 0 || (pTile->flags & TILE_LOCATOR) == 0)
         {
             InvItem *pNew;
             TRY {
@@ -7858,13 +7858,13 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
             }              // closes the try block the TRY macro opened
             catch (CException *e) {                // hand-expanded CATCH_ALL(e)
                 _afxExceptionLink.m_pException = e;
-                AfxMessageBox(0xe01e, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
                 AfxAbort();
             }
             }              // closes the TRY macro's outer (link-scope) brace
             PlaySound(3);
             pNew->name = pTile->name;
-            if (pTile->flags == 0x100081)
+            if (pTile->flags == (TILE_LOCATOR | TILE_ITEM | TILE_GAME_OBJECT))
             {
                 pWorld->inventory.InsertAt(0, pNew, 1);
             }
@@ -8330,7 +8330,7 @@ int CDeskcppDoc::IndyPlaceItemOnLock(short itemId, short nQueueTag, int nZoneId)
         for (int i = 0; i < nObj; i++)
         {
             ZoneObj *pObj = (ZoneObj *)pZone->objects.GetAt(i);
-            if (pObj->type == 0xc)            // LOCK
+            if (pObj->type == OBJ_LOCK)       // LOCK
             {
                 WorldgenAddZoneEntry(itemId, nQueueTag);   // IndyAddPlacedItemEntry
                 genCellItemAScratch = itemId;              // doc+0x1f
@@ -8544,7 +8544,7 @@ int CDeskcppDoc::IndyPopulateTradeZone(short nQueueTag, int nStepSlot, int nZone
     if (nZoneId < 0)
         return 0;
     Zone *pZone = (Zone *)zones.GetAt(nZoneId);
-    if (pZone == NULL || pZone->type != 0xf || pZone->genCandidateB.GetSize() >= 1)
+    if (pZone == NULL || pZone->type != ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK || pZone->genCandidateB.GetSize() >= 1)
         return 0;
     short lockItem   = -1;
     short rewardItem = -1;
@@ -8587,7 +8587,7 @@ int CDeskcppDoc::IndyPopulateTransactionZone(short nQueueTag, int nStepSlot, int
     if (nZoneId < 0)
         return 0;
     Zone *pZone = (Zone *)zones.GetAt(nZoneId);
-    if (pZone == NULL || pZone->type != 0x10)
+    if (pZone == NULL || pZone->type != ZONE_TYPE_FIND_USEFUL_DROP)
         return 0;
     if (IndyCheckZoneItemsAvailable(nZoneId) == 0)
         return 0;
@@ -8735,9 +8735,9 @@ int CDeskcppDoc::IndyPopulateUsefulObjectZone(short nQueueTag, short a4, int nZo
     unsigned int category = 0;
     Tile *pTile = (Tile *)tiles.GetAt(a4);
     unsigned int tflags = pTile->flags;
-    if (tflags & 0x40)              category = 2;
+    if (tflags & TILE_WEAPON)       category = 2;
     else if ((tflags >> 16) & 0x10) category = 5;
-    else if (tflags & 0x80)         category = 0;   // else stays 0
+    else if (tflags & TILE_ITEM)    category = 0;   // else stays 0
     CWordArray hosts;
     int nObj = pZone->objects.GetSize();
     for (i = 0; i < nObj; i++)
@@ -8858,11 +8858,11 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
         switch (nNodeType)
         {
         case 1: case 2: case 3: case 4: case 5: case 6: case 7:
-        case 10: case 0xb: case 0xf: case 0x10:
+        case ZONE_TYPE_FINAL_ITEM: case ZONE_TYPE_MAP_START: case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK: case ZONE_TYPE_FIND_USEFUL_DROP:
             match = (pZone->type == nNodeType);
             break;
-        case 0x11:
-            match = (pZone->type == 0x11) || (pZone->type == 0x12);
+        case ZONE_TYPE_FIND_USEFUL_BUILDING:
+            match = (pZone->type == ZONE_TYPE_FIND_USEFUL_BUILDING) || (pZone->type == ZONE_TYPE_FIND_THE_FORCE);
             break;
         default:
             match = false;
@@ -8907,7 +8907,7 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
                     return nZoneId;             // DESKADV: object-less edge zone -> accept
                 bool hasTele = false;
                 for (int i = 0; i < nObj; i++)
-                    if (((ZoneObj *)pZone->objects.GetAt(i))->type == 0xd) { hasTele = true; break; }
+                    if (((ZoneObj *)pZone->objects.GetAt(i))->type == OBJ_TELEPORTER) { hasTele = true; break; }
                 if (hasTele)
                     return nZoneId;             // teleporter zone -> accept (intended; see NOTE)
             }
@@ -8944,16 +8944,16 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
                 }
             }
             break;
-        case 0xb:                               // start-terminal zone
+        case ZONE_TYPE_MAP_START:               // start-terminal zone
             // RESOLVED: DESKADV checks zone.type==0xb then `iVar1 = *(int*)(zone+6); if(iVar1==0)
             // return zone`.  zone+6 is the ZONE's claimed-flag (== our Zone.activatedFlag), NOT an
             // object field.  So: accept an unclaimed type-0xb zone (no populate — the start zone is
             // populated implicitly by the engine).
-            if (pZone->type == 0xb && pZone->activatedFlag == 0)
+            if (pZone->type == ZONE_TYPE_MAP_START && pZone->activatedFlag == 0)
                 return nZoneId;
             break;
-        case 0xf:                               // TRADE
-            if (pZone->type == 0xf &&
+        case ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK:    // TRADE
+            if (pZone->type == ZONE_TYPE_MAP_TO_ITEM_FOR_LOCK &&
                 IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
             {
                 int item = IndyPickUnplacedProvidedItem(a5reqItem2, nZoneId);
@@ -8974,8 +8974,8 @@ int CDeskcppDoc::IndyPlaceQuestNode(short nOrder, short a4reqItem, short a5reqIt
                 }
             }
             break;
-        case 0x10:                              // TRANSACTION
-            if (pZone->type == 0x10 &&
+        case ZONE_TYPE_FIND_USEFUL_DROP:        // TRANSACTION
+            if (pZone->type == ZONE_TYPE_FIND_USEFUL_DROP &&
                 IndyZoneRequiresItem(a4reqItem, (short)nZoneId) == 1)
             {
                 int item = IndyPickUnplacedProvidedItem(a5reqItem2, nZoneId);
@@ -9177,7 +9177,7 @@ void CDeskcppDoc::IndyCarveQuestPath(int *pnPlaced, int *pnSplits, int maxSplits
             }
         }
         if (nBudgetLeft < 1) bDone++;
-        if (nAttempts > 0x90) bDone++;
+        if (nAttempts > 144) bDone++;
     } while (bDone == 0);
 
     *pnGoals  = nGoals;
@@ -9503,7 +9503,7 @@ int CDeskcppDoc::IndyAssignQuestStepCells(short *paOrder, short *paPlan)
             if (nTarget <= nOrder) done++;
             if (tries > 200) done++;
             int col, row;
-            if (tries < 0x32)
+            if (tries < 50)
             {
                 col = rand() % 10;
                 if (col < 1 || col > 8) { row = rand() % 10; }
@@ -9643,11 +9643,11 @@ int CDeskcppDoc::IndyPlacePuzzlesPass(short *paPlan)
         int cy, cx;
         if (IndyPickCellForItemZone(&cy, &cx, paPlan, order) != 1)
             return 0;
-        int nZone = IndyPlaceQuestNode(-1, item, -1, 0x11);
+        int nZone = IndyPlaceQuestNode(-1, item, -1, ZONE_TYPE_FIND_USEFUL_BUILDING);
         if (nZone < 0)
             return 0;
         int cell = cy * 10 + cx;
-        mapGrid[cell].zoneType = 0x11;
+        mapGrid[cell].zoneType = ZONE_TYPE_FIND_USEFUL_BUILDING;
         mapGrid[cell].cellItemA = genCellItemBScratch;   // DESKADV cell+0x39c = doc+0x1d
         mapGrid[cell].id = (short)nZone;
         apZoneGrid[cell] = (Zone *)zones.GetAt(nZone);
@@ -9686,7 +9686,7 @@ int CDeskcppDoc::IndyPlacePuzzlesPass(short *paPlan)
                         int nObj = pZone->objects.GetSize();
                         bool hasTele = false;
                         for (int i = 0; i < nObj; i++)
-                            if (((ZoneObj *)pZone->objects.GetAt(i))->type == 0xd) { hasTele = true; break; }
+                            if (((ZoneObj *)pZone->objects.GetAt(i))->type == OBJ_TELEPORTER) { hasTele = true; break; }
                         if (hasTele) { nTeleZones++; teleRow = row; teleCol = col; }
                     }
                     mapGrid[cell].zoneType = 1;
@@ -10230,7 +10230,7 @@ int CDeskcppDoc::IndyGenerate(unsigned int nSeed)
                                                      // proven by the StartGame twin's cameraY=0;
                                                      // cameraX=0; UpdateCamera() sequence at
                                                      // 1020:0ed0 lines 64-66)
-            nFrameMode = 0xb;                        // DESKADV doc+0x4a = 0xb (== Yoda Populate)
+            nFrameMode = 11;                         // DESKADV doc+0x4a = 0xb (== Yoda Populate)
             // bWorldInvalid=1 routes the OnTimer case-0xb entry through ZoneTransitionStep, which
             // self-climbs step 0->10 to play mode (nFrameMode=3); case 0xb clears bWorldInvalid=0
             // when it completes. This is the CORRECT Indy path, not a workaround (v61):

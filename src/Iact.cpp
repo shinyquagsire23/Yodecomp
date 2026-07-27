@@ -610,7 +610,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                 case COND_BumpTile: {
                     int ty;
                     if (event != 2 || dx + x != pCond->args[0] || pCond->args[1] != (ty = y + dy)
-                        || tiles[(ty * 18 + dx + x) * 3 + 1] != pCond->args[2])
+                        || tiles[(ty * ZONE_WIDTH + dx + x) * ZONE_LAYERS + 1] != pCond->args[2])
                         matched = 0;
                     break; }
                 case COND_DragItem:
@@ -621,7 +621,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                         if (t == -1)
                             n = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemC;
                         else
-                            n = tiles[(y * 18 + x) * 3 + pCond->args[2]];
+                            n = tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS + pCond->args[2]];
                         if (n == t || t == -1) {
                             n = pCond->args[4];
                             if (n == -1)
@@ -638,7 +638,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                     break;
                 case COND_Walk:
                     if (event != 1 || pCond->args[0] != x || pCond->args[1] != y
-                        || tiles[(y * 18 + x) * 3] != pCond->args[2])
+                        || tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS] != pCond->args[2])
                         matched = 0;
                     break;
                 case COND_TempVarEq:
@@ -663,7 +663,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                     break;
                 case COND_CheckMapTile:
                 case COND_CheckMapTileVar:
-                    if (tiles[(pCond->args[2] * 18 + pCond->args[1]) * 3 + pCond->args[3]]
+                    if (tiles[(pCond->args[2] * ZONE_WIDTH + pCond->args[1]) * ZONE_LAYERS + pCond->args[3]]
                         != pCond->args[0])
                         matched = 0;
                     break;
@@ -752,7 +752,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                     if (event == 3 && pCond->args[0] == x && pCond->args[1] == y) {
                         int t;
                         int n;
-                        t = tiles[(y * 18 + x) * 3 + pCond->args[2]];
+                        t = tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS + pCond->args[2]];
                         if (pCond->args[3] == t || t == -1) {
                             n = pCond->args[4];
                             if (n == -1)
@@ -863,7 +863,7 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                 result |= IactRunCommands(idx, pDC, pWorld, pView);
         }
     }
-    if ((result & 0x808) == 0) {
+    if ((result & IACT_ZONE_INVALID) == 0) {
         pWorld->nFrameMode = savedMode;
         return result;
     }
@@ -917,7 +917,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
         switch (op) {
         case CMD_SetMapTile:
         case CMD_SetMapTileVar:
-            result |= 0x20;
+            result |= IACT_TILES;
             // sic: the original does NOT bounds-check this tile write (verified in the byte-matched
             // disasm), relying on valid script coords. Some Indy interior-zone SetMapTile commands
             // carry out-of-range coords (e.g. y=21087) that crash the raw store; the real Indy
@@ -925,38 +925,38 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             // original, anchor 211). TODO(indy): RE why Indy interior scripts have huge coords
             // (opcode semantics vs a script-keying/data quirk) for a true root-cause fix.
 #if defined(GAME_INDY) || defined(YODA_BUGFIX)
-            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
+            if ((unsigned)((pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]) < (unsigned)ZONE_CELL_COUNT)
 #endif
-            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = (short)pCmd->args[3]; YODA_SIC_FIX(else BUGLOG(("sic SetMapTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
+            tiles[(pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]] = (short)pCmd->args[3]; YODA_SIC_FIX(else BUGLOG(("sic SetMapTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
             break;
         case CMD_ClearTile:
-            result |= 0x20;
+            result |= IACT_TILES;
 #if defined(GAME_INDY) || defined(YODA_BUGFIX)
-            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) < 18u * 18 * 3)
+            if ((unsigned)((pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]) < (unsigned)ZONE_CELL_COUNT)
 #endif
-            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1; YODA_SIC_FIX(else BUGLOG(("sic ClearTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
+            tiles[(pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]] = -1; YODA_SIC_FIX(else BUGLOG(("sic ClearTile: OOB x=%d y=%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[2]));)
             break;
         case CMD_MoveMapTile: {
 #if defined(GAME_INDY) || defined(YODA_BUGFIX)
-            if ((unsigned)((pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]) >= 18u * 18 * 3
-                || (unsigned)((pCmd->args[4] * 18 + pCmd->args[3]) * 3 + pCmd->args[2]) >= 18u * 18 * 3)
+            if ((unsigned)((pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]) >= (unsigned)ZONE_CELL_COUNT
+                || (unsigned)((pCmd->args[4] * ZONE_WIDTH + pCmd->args[3]) * ZONE_LAYERS + pCmd->args[2]) >= (unsigned)ZONE_CELL_COUNT)
             {
-                YODA_SIC_FIX(BUGLOG(("sic MoveMapTile: OOB src=%d,%d dst=%d,%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[3], (int)pCmd->args[4], (int)pCmd->args[2]));) result |= 0x20;
+                YODA_SIC_FIX(BUGLOG(("sic MoveMapTile: OOB src=%d,%d dst=%d,%d layer=%d\n", (int)pCmd->args[0], (int)pCmd->args[1], (int)pCmd->args[3], (int)pCmd->args[4], (int)pCmd->args[2]));) result |= IACT_TILES;
                 break;
             }
 #endif
-            short t = tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]];
-            tiles[(pCmd->args[1] * 18 + pCmd->args[0]) * 3 + pCmd->args[2]] = -1;
-            result |= 0x20;
-            tiles[(pCmd->args[4] * 18 + pCmd->args[3]) * 3 + pCmd->args[2]] = t;
+            short t = tiles[(pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]];
+            tiles[(pCmd->args[1] * ZONE_WIDTH + pCmd->args[0]) * ZONE_LAYERS + pCmd->args[2]] = -1;
+            result |= IACT_TILES;
+            tiles[(pCmd->args[4] * ZONE_WIDTH + pCmd->args[3]) * ZONE_LAYERS + pCmd->args[2]] = t;
             break; }
         case CMD_DrawOverlayTile:
             if (pWorld->tileArray[pCmd->args[2]] != NULL) {
                 int x = pCmd->args[0] << 5;
                 int y = pCmd->args[1] << 5;
                 pWorld->pCanvas->BlitMasked((char *)pWorld->tileArray[pCmd->args[2]]->pixels,
-                                            0x20, 0x20, (short)x, (short)y, 0);
-                result |= 0x20;
+                                            TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, (short)x, (short)y, 0);
+                result |= IACT_TILES;
             }
             break;
         case CMD_SayText:
@@ -1010,7 +1010,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                     }
                 }
                 pView->ShowTextDialog(msg, textX, textY, 0);
-                result |= 2;
+                result |= IACT_TEXT;
             }
             break;
         case CMD_RedrawTile:
@@ -1023,7 +1023,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             break;
         case CMD_RenderChanges:
             pView->DrawGameArea(pDC);
-            result |= 0x80;
+            result |= IACT_FULL_REDRAW;
             break;
         case CMD_WaitTicks: {
             long t = clock();
@@ -1034,11 +1034,11 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
         case CMD_PlaySound:
             if (pView != NULL) {
                 pView->PlaySoundData(pCmd->args[0]);
-                result |= 1;
+                result |= IACT_SOUND;
             }
             break;
         case CMD_TransitionIn:
-            result |= 1;
+            result |= IACT_SOUND;
             break;
         case CMD_Random:
             randVar = rand() % pCmd->args[0] + 1;
@@ -1053,14 +1053,14 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             pWorld->bHidePlayer = 1;
             pView->RedrawPlayerCellMaybe();
             pView->DrawZoneCell((short)camCellX, (short)camCellY);
-            result |= 0x100;
+            result |= IACT_PLAYER;
             break;
         case CMD_LockCamera:
             pWorld->bHidePlayer = 0;
             pView->RedrawPlayerCellMaybe();
             pView->DrawZoneCell((short)camCellX, (short)camCellY);
             pWorld->DrawPlayer();
-            result |= 0x100;
+            result |= IACT_PLAYER;
             break;
         case CMD_SetPlayerPos:
             pView->DrawZoneCell((short)(pWorld->cameraX / 0x20), (short)(pWorld->cameraY / 0x20));
@@ -1087,7 +1087,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             }
             if (bCameraFree != 0)
                 pWorld->UpdateCamera();
-            result |= 4;
+            result |= IACT_CAMERA;
             if (pView->bIactZoneEntryMaybe != 0)
                 return result;
             break;
@@ -1132,7 +1132,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                     while (end > t)
                         t = clock();
                 }
-                result |= 4;
+                result |= IACT_CAMERA;
             } while (arrived == 0);
             pView->DrawGameArea(pDC);
             break; }
@@ -1144,13 +1144,13 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             int nObjs = objects.GetSize();
             if (t >= 0 && nObjs > t)
                 ((ZoneObj *)objects[t])->state = 1;
-            result |= 0x10;
+            result |= IACT_OBJECTS;
             break; }
         case CMD_HideObject: {
             int t = pCmd->args[0];
             int nObjs = objects.GetSize();
             if (t >= 0 && nObjs > t) {
-                result |= 0x10;
+                result |= IACT_OBJECTS;
                 ((ZoneObj *)objects[t])->state = 0;
             }
             break; }
@@ -1159,14 +1159,14 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             YODA_SIC_FIX(if (pCmd->args[0] < 0 || pCmd->args[0] >= entities.GetSize()) { BUGLOG(("sic#3 ShowEntity: OOB idx=%d (n=%d)\n", (int)pCmd->args[0], (int)entities.GetSize())); break; }) MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
             if (p != NULL) {
                 p->active = 1;
-                result |= 0x40;
+                result |= IACT_ENTITIES;
             }
             break; }
         case CMD_HideEntity: {
             YODA_SIC_FIX(if (pCmd->args[0] < 0 || pCmd->args[0] >= entities.GetSize()) { BUGLOG(("sic#3 HideEntity: OOB idx=%d (n=%d)\n", (int)pCmd->args[0], (int)entities.GetSize())); break; }) MapEntity *p = (MapEntity *)entities[pCmd->args[0]];
             if (p != NULL) {
                 p->active = 0;
-                result |= 0x40;
+                result |= IACT_ENTITIES;
             }
             break; }
         case CMD_ShowAllEntities: {
@@ -1174,7 +1174,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             for (int j = 0; j < nEnts; j++) {
                 MapEntity *p = (MapEntity *)entities[j];
                 if (p != NULL) {
-                    result |= 0x40;
+                    result |= IACT_ENTITIES;
                     p->active = 1;
                 }
             }
@@ -1186,7 +1186,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                 if (p != NULL)
                     p->active = 0;
             }
-            result |= 0x40;
+            result |= IACT_ENTITIES;
             break; }
         case CMD_SpawnItem:
             if (pWorld != NULL && pView != NULL) {
@@ -1200,7 +1200,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                 } else {
                     pView->nPickupTileId = pCmd->args[0];
                 }
-                result |= 8;
+                result |= IACT_SPAWN;
                 pView->pPickupObj = NULL;
                 pView->nTransitionStep = 0;
                 pView->bBlinkState = 0;
@@ -1210,7 +1210,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
         case CMD_AddItemToInv:
             if (pWorld != NULL && pCmd->args[0] >= 0 && pView != NULL) {
                 pView->AddItemToInv(pWorld->tileArray[pCmd->args[0]]);
-                result |= 0x400;
+                result |= IACT_INVENTORY;
             }
             break;
         case CMD_RemoveItemFromInv:
@@ -1218,13 +1218,13 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                 if (pCmd->args[0] >= 0) {
                     if (pView != NULL) {
                         pView->RemoveItem(pWorld->tileArray[pCmd->args[0]]);
-                        result |= 0x400;
+                        result |= IACT_INVENTORY;
                     }
                 } else {
                     short item = pWorld->zones[pWorld->playerY * 10 + pWorld->playerX].cellItemA;
                     if (YODA_SIC_FIX(pView != NULL &&) item >= 0 && pWorld->tileArray[item] != NULL) {
                         pView->RemoveItem(pWorld->tileArray[item]);
-                        result |= 0x400;
+                        result |= IACT_INVENTORY;
                     }
                 }
             }
@@ -1237,7 +1237,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             break;
         case CMD_WinGame:
             if (pWorld != NULL) {
-                result |= 0x200;
+                result |= IACT_GAME_OVER;
                 pWorld->abortFrame = 1;
             }
             break;
@@ -1245,7 +1245,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             if (pView != NULL) {
                 pView->AddHealth(-300);
                 if (pWorld != NULL) {
-                    result |= 0x200;
+                    result |= IACT_GAME_OVER;
                     pWorld->abortFrame = -1;
                 }
             }
@@ -1255,7 +1255,7 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
             pWorld->cameraY = pCmd->args[2] << 5;
             pView->nTargetZoneId = pCmd->args[0];
             pView->TransitionZoneScript(pCmd->args[3], pCmd->args[0]);
-            result |= 0x800;
+            result |= IACT_ZONE_WARP;
             break;
         case CMD_SetGlobalVar:
             globalVar = (short)pCmd->args[0];

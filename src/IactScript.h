@@ -131,4 +131,27 @@ public:                          // +0x00 CObject vtable (0x44bc68)
     void Read(CFile *pFile);                             // 0x004188d0
 };
 
+// Resource id used by this TU (see the "Resource ids" block in GameObjectClasses.h,
+// which this TU does not include).
+#define IDS_ERR_UNRECOVERABLE    0xe01e  // "An unrecoverable error has occured..."
+
+// ═══ IACT dirty-flags ═══════════════════════════════════════════════════════════════════
+// Zone::IactRunCommands (and Zone::IactRun, which ORs its scripts' results together) returns
+// this mask; callers in Iact.cpp / DeskcppView.cpp test it to decide what to redraw and
+// whether the zone changed underneath them. ⚠ the view truncates it to `unsigned short`.
+#define IACT_SOUND          0x001   // a sound was started
+#define IACT_TEXT           0x002   // SayText/ShowText put up a balloon
+#define IACT_CAMERA         0x004   // camera moved/locked/released
+#define IACT_SPAWN          0x008   // an entity was spawned
+#define IACT_OBJECTS        0x010   // zone objects changed
+#define IACT_TILES          0x020   // map tiles changed
+#define IACT_ENTITIES       0x040   // entity visibility changed
+#define IACT_FULL_REDRAW    0x080   // repaint everything
+#define IACT_PLAYER         0x100   // player moved/changed
+#define IACT_GAME_OVER      0x200   // win/lose fired
+#define IACT_INVENTORY      0x400   // inventory changed
+#define IACT_ZONE_WARP      0x800   // the zone itself was swapped out
+// The zone is gone from under the caller: nothing else in the mask can be trusted.
+#define IACT_ZONE_INVALID   (IACT_ZONE_WARP | IACT_SPAWN)   // 0x808
+
 #endif

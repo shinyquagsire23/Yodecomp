@@ -237,7 +237,7 @@ BEGIN_MESSAGE_MAP(CDeskcppView, CView)
     // v49: entry ORDER reconciled to the original AFX_MSGMAP_ENTRY array (msgcheck-verified) —
     // #11 WM_VSCROLL (was the ON_WM_HSCROLL bug), the difficulty ON_UPDATE moved after worldsize,
     // stats moved to the tail after WM_CHAR, and the dialog Up/Down buttons in original order.
-    ON_COMMAND(0x8001, OnCmdMinimize)                       // #0
+    ON_COMMAND(ID_OPTIONS_HIDEME, OnCmdMinimize)                       // #0
     ON_WM_LBUTTONDOWN()                                     // #1
     ON_WM_LBUTTONUP()                                       // #2
     ON_WM_SETCURSOR()                                       // #3
@@ -250,21 +250,21 @@ BEGIN_MESSAGE_MAP(CDeskcppView, CView)
     ON_WM_DESTROY()                                         // #10
     ON_WM_VSCROLL()                                         // #11 (inventory scrollbar is VERTICAL)
     ON_COMMAND(ID_APP_EXIT, OnAppExit)                      // #12
-    ON_COMMAND(0x8005, OnCmdDifficulty)                     // #13
-    ON_COMMAND(0x8002, OnTogglePause)                       // #14
-    ON_UPDATE_COMMAND_UI(0x8002, OnUpdatePauseUi)           // #15
-    ON_COMMAND(0x800c, OnCmdGameSpeed)                      // #16
-    ON_UPDATE_COMMAND_UI(0x800c, OnUpdateGameSpeedUi)       // #17
-    ON_COMMAND(0x800d, OnCmdWorldSizeMaybe)                 // #18
-    ON_UPDATE_COMMAND_UI(0x800d, OnUpdateWorldSizeUi)       // #19
-    ON_UPDATE_COMMAND_UI(0x8005, OnUpdateDifficultyUi)      // #20 (difficulty update trails, not paired)
-    ON_BN_CLICKED(0x1389, OnDialogCloseBtn)                 // #21
-    ON_BN_CLICKED(0x138b, OnDialogUpBtnNop)                 // #22
-    ON_BN_CLICKED(0x138a, OnDialogDownBtnNop)               // #23
+    ON_COMMAND(ID_OPTIONS_DIFFICULTY, OnCmdDifficulty)                     // #13
+    ON_COMMAND(ID_OPTIONS_PAUSE, OnTogglePause)                       // #14
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_PAUSE, OnUpdatePauseUi)           // #15
+    ON_COMMAND(ID_OPTIONS_GAMESPEED, OnCmdGameSpeed)                      // #16
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_GAMESPEED, OnUpdateGameSpeedUi)       // #17
+    ON_COMMAND(ID_OPTIONS_WORLDSIZE, OnCmdWorldSizeMaybe)                 // #18
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_WORLDSIZE, OnUpdateWorldSizeUi)       // #19
+    ON_UPDATE_COMMAND_UI(ID_OPTIONS_DIFFICULTY, OnUpdateDifficultyUi)      // #20 (difficulty update trails, not paired)
+    ON_BN_CLICKED(IDC_BUBBLE_CLOSE, OnDialogCloseBtn)                 // #21
+    ON_BN_CLICKED(IDC_BUBBLE_UP, OnDialogUpBtnNop)                 // #22
+    ON_BN_CLICKED(IDC_BUBBLE_DOWN, OnDialogDownBtnNop)               // #23
     ON_WM_CTLCOLOR()                                        // #24
     ON_WM_CHAR()                                            // #25
-    ON_COMMAND(0x800e, OnCmdStats)                          // #26
-    ON_UPDATE_COMMAND_UI(0x800e, OnUpdateStatsUi)           // #27
+    ON_COMMAND(ID_FILE_STATISTICS, OnCmdStats)                          // #26
+    ON_UPDATE_COMMAND_UI(ID_FILE_STATISTICS, OnUpdateStatsUi)           // #27
     //}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -295,7 +295,7 @@ UINT CDeskcppView::MusicThreadProcMaybe(void *pParam)
 // view, at World's inventory-scrollbar rect (@0x3294), control id 0x65.
 InvScrollBar::InvScrollBar(CDeskcppView *pView, RECT *pRect)
 {
-    Create(0x50000001, *pRect, pView, 0x65);
+    Create(WS_CHILD | WS_VISIBLE | SBS_VERT, *pRect, pView, IDC_INV_SCROLLBAR);
     ::SetScrollRange(m_hWnd, SB_CTL, 0, 1, FALSE);
     ::SetScrollPos(m_hWnd, SB_CTL, 0, FALSE);
     ::ShowScrollBar(m_hWnd, SB_CTL, TRUE);
@@ -507,7 +507,7 @@ void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
             catch (CException *e)
             {
                 _afxExceptionLink.m_pException = e;
-                AfxMessageBox(0xe01e, 0, (UINT)-1);
+                AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
                 THROW_LAST();
                 AfxAbort();                        // sic: dead code after THROW_LAST (#7)
             }
@@ -649,7 +649,7 @@ void CDeskcppView::OnDraw(CDC *pDC)
             srcX = pWorld->nViewLeft;
         }
         pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                                0x120, 0x120, srcX, srcY);
+                                VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, srcX, srcY);
         pDC->SelectPalette(pOldPalette, FALSE);
         if (pWorld != 0 && pWorld->bDtaLoaded == 0)
         {
@@ -659,7 +659,7 @@ void CDeskcppView::OnDraw(CDC *pDC)
             pWorld->bDtaLoaded++;
             if (pWorld->Load() == 0)
             {
-                AfxMessageBox(0xe01d, 0x10, (UINT)-1);
+                AfxMessageBox(IDS_ERR_OUT_OF_MEMORY, MB_ICONSTOP, (UINT)-1);
                 pWorld->OnCloseDocument();
                 AfxAbort();
             }
@@ -786,24 +786,24 @@ void CDeskcppView::DrawZoneCell(short x, short y)
     // layer 0 — opaque ground (tile id is a signed short: -1 = empty ⇒ movsx)
     pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 0));
     if (pTile != 0)
-        pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+        pWorld->pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy);
     // layer 1 — overlay
     pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 1));
     if (pTile != 0)
     {
         if (pTile->flags & 1)
-            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy, 0);
         else
-            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+            pWorld->pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy);
     }
     // layer 2 — overlay
     pTile = pWorld->GetTileData((short)pWorld->currentZone->GetTile(x, y, 2));
     if (pTile != 0)
     {
         if (pTile->flags & 1)
-            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy, 0);
         else
-            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+            pWorld->pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy);
     }
 }
 
@@ -872,7 +872,7 @@ void CDeskcppView::DrawWholeZone()
 // Returns 0 when trigger 5 at step 5 reported a warp (0x800) that trigger 4 hadn't
 // already claimed (caller restarts the transition); else 1.
 // The black source tile is a heap Tile allocated under TRY/CATCH_ALL every call —
-// the catch is the recurring dead OOM box (AfxMessageBox(0xe01e)+AfxAbort).
+// the catch is the recurring dead OOM box (AfxMessageBox(IDS_ERR_UNRECOVERABLE)+AfxAbort).
 // sic: engine-bugs.md #13 — step 10's nMask is READ UNINITIALIZED when its IactRun
 // is skipped (bSkipEntryIactMaybe set or world invalid): the &4 / &0x20 redraw
 // tests then act on stack garbage.
@@ -911,12 +911,12 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
     }              // closes the try block the TRY macro opened
     catch (CException *e) {                // hand-expanded CATCH_ALL(e)
         _afxExceptionLink.m_pException = e;
-        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: dead OOM dialog
+        AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: dead OOM dialog
         AfxAbort();                            //      (docs/engine-bugs.md #7)
     }
     }              // closes the TRY macro's outer (link-scope) brace
     unsigned char *pPixels = pTile->pixels;
-    memset(pPixels, 0, 0x400);
+    memset(pPixels, 0, TILE_PIXEL_COUNT);
     short nCellX = (short)pWorld->playerX;     // world-map grid coords; conditionally
     short nCellY = (short)pWorld->playerY;     // re-derived by step 5's grid search
     CDC *pDC = GetDC();
@@ -935,17 +935,17 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
             short cnt = n;
             do
             {
-                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx + i, sy);    // top
-                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx + i,
+                pWorld->pCanvas->BlitFast(pPixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx + i, sy);    // top
+                pWorld->pCanvas->BlitFast(pPixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx + i,
                                           span + sy);                                // bottom
-                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx, i + sy);    // left
-                pWorld->pCanvas->BlitFast(pPixels, 0x20, 0x20, 0x20, sx2, i + sy);   // right
+                pWorld->pCanvas->BlitFast(pPixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, i + sy);    // left
+                pWorld->pCanvas->BlitFast(pPixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx2, i + sy);   // right
                 i += 32;
                 cnt--;
             } while (cnt != 0);
         }
         pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                                0x120, 0x120, pWorld->nViewLeft, pWorld->nViewTop);
+                                VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, pWorld->nViewLeft, pWorld->nViewTop);
     }
     else if (nStep == 5)
     {
@@ -994,7 +994,7 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
         {
             nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
                                                                  pDC, pWorld, this);
-            if (nMask & 0x800)
+            if (nMask & IACT_ZONE_WARP)
                 bAborted = 1;
         }
         bIactZoneEntryMaybe = 1;
@@ -1002,12 +1002,12 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
             nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                   pDC, pWorld, this);
         bIactZoneEntryMaybe = 0;
-        if (nMask & 4)
+        if (nMask & IACT_CAMERA)
             pWorld->UpdateCamera();
-        if (nSavedMode != 0xb)
+        if (nSavedMode != 11)
             pWorld->nFrameMode = 6;
         else
-            pWorld->nFrameMode = 0xb;
+            pWorld->nFrameMode = 11;
         pWorld->currentZone->activatedFlag = 1;
         if (pWorld->bWorldInvalid == 0)
             DrawEntities();
@@ -1022,7 +1022,7 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
         if (nCellX >= 0 && nCellY >= 0)
 #endif
         pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
-        if (bAborted == 0 && (nMask & 0x800))
+        if (bAborted == 0 && (nMask & IACT_ZONE_WARP))
         {
             pDC->SelectPalette(pOldPal, 0);
             ReleaseDC(pDC);
@@ -1039,14 +1039,14 @@ int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
         if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
             nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                  pDC, pWorld, this); YODA_SIC_FIX(else BUGLOG(("sic#13 ZoneTransitionStep: entry IactRun skipped, mask defaulted to 0\n"));)
-        if (nMask & 4)
+        if (nMask & IACT_CAMERA)
             pWorld->UpdateCamera();
         bSkipEntryIactMaybe = 0;
-        if (nSavedMode != 0xb)
+        if (nSavedMode != 11)
             pWorld->nFrameMode = 6;
         else
             pWorld->nFrameMode = nSavedMode;
-        if (nMask & 0x20)
+        if (nMask & IACT_TILES)
             DrawWholeZone();
     }
     else
@@ -1099,11 +1099,11 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
     }              // closes the try block the TRY macro opened
     catch (CException *e) {                // hand-expanded CATCH_ALL(e)
         _afxExceptionLink.m_pException = e;
-        AfxMessageBox(0xe01e, 0, (UINT)-1);    // sic: dead OOM dialog
+        AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: dead OOM dialog
         AfxAbort();                            //      (docs/engine-bugs.md #7)
     }
     }              // closes the TRY macro's outer (link-scope) brace
-    memset(pTile->pixels, 0, 0x400);
+    memset(pTile->pixels, 0, TILE_PIXEL_COUNT);
     short nCellX = (short)pWorld->playerX;     // world-map grid coords; conditionally
     short nCellY = (short)pWorld->playerY;     // re-derived by step 5's grid search
     CDC *pDC = GetDC();
@@ -1157,7 +1157,7 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
             {
                 nMask = (unsigned short)pWorld->currentZone->IactRun(4, 0, 0, 0, 0, 0,
                                                                      pDC, pWorld, this);
-                if (nMask & 0x800)
+                if (nMask & IACT_ZONE_WARP)
                     bAborted = 1;
             }
             bIactZoneEntryMaybe = 1;
@@ -1165,7 +1165,7 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
                 nMask |= (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                       pDC, pWorld, this);
             bIactZoneEntryMaybe = 0;
-            if (nMask & 4)
+            if (nMask & IACT_CAMERA)
                 pWorld->UpdateCamera();
             nTransitionStep = -1;
             pWorld->currentZone->activatedFlag = 1;
@@ -1174,7 +1174,7 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
             DrawWholeZone();
             if (nCellY >= 0 && nCellX >= 0)
                 pWorld->mapGrid[nCellX + nCellY * 10].flagSolved = 1;
-            if (bAborted == 0 && (nMask & 0x800))
+            if (bAborted == 0 && (nMask & IACT_ZONE_WARP))
             {
                 pDC->SelectPalette(pOldPal, 0);
                 ReleaseDC(pDC);
@@ -1190,13 +1190,13 @@ int CDeskcppView::WorldEntryStepMaybe(short nZoneId, short nStep)
             if (bSkipEntryIactMaybe == 0 && pWorld->bWorldInvalid == 0)
                 nMask = (unsigned short)pWorld->currentZone->IactRun(5, 0, 0, 0, 0, 0,
                                                                      pDC, pWorld, this); YODA_SIC_FIX(else BUGLOG(("sic#13 OnTimer step10: entry IactRun skipped, mask defaulted to 0\n"));)
-            if (nMask & 4)
+            if (nMask & IACT_CAMERA)
                 pWorld->UpdateCamera();
             bSkipEntryIactMaybe = 0;
             pWorld->nFrameMode = 6;
             pWorld->nMapChangeReason = 1;
             nTransitionStep = 0;
-            if (nMask & 0x20)
+            if (nMask & IACT_TILES)
                 DrawWholeZone();
         }
         else
@@ -1250,14 +1250,14 @@ void CDeskcppView::DrawGameArea(CDC *pDC)
         pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     }
     int nMode = pWorld->nFrameMode;
-    COLORREF pixel = ::GetPixel(pDC->m_hDC, 0x138, 0x11c);
-    DWORD clr = ::GetSysColor(0xf);
-    if (pixel != 0xffffffff && clr != pixel)
-        ::RedrawWindow(m_hWnd, 0, 0, 0x105);
+    COLORREF pixel = ::GetPixel(pDC->m_hDC, 312, 284);
+    DWORD clr = ::GetSysColor(COLOR_BTNFACE);
+    if (pixel != CLR_INVALID && clr != pixel)
+        ::RedrawWindow(m_hWnd, 0, 0, RDW_INVALIDATE | RDW_ERASE | RDW_UPDATENOW);
     if ((nMode == 5 && bMapViewOpen != 0) || nMode == 7 || bMapViewOpen != 0)
-        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, 0, 0);
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, 0, 0);
     else
-        pWorld->pCanvas->BitBlt(pDC, 8, 7, 0x120, 0x120, pWorld->nViewLeft,
+        pWorld->pCanvas->BitBlt(pDC, 8, 7, VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, pWorld->nViewLeft,
                                 pWorld->nViewTop);
     if (pOldPal != 0)
     {
@@ -1290,10 +1290,10 @@ void CDeskcppView::BlitTile(short y, short x, int nUnused, Tile *pTile)
             short sy = y << 5;
             if (pTile->flags & 1)
             {
-                pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+                pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy, 0);
                 return;
             }
-            pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+            pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy);
         }
     }
 }
@@ -1316,7 +1316,7 @@ void CDeskcppView::DrawTileAt(short x, short y, short frame)
     Canvas *pCanvas = pWorld->pCanvas;
     if (pCanvas != 0)
     {
-        short *pCell = &pWorld->currentZone->tiles[(y * 18 + x) * 3];
+        short *pCell = &pWorld->currentZone->tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS];
         short w = pWorld->currentZone->width;
         if (x >= 0 && y >= 0 && w > x && w > y)
         {
@@ -1331,10 +1331,10 @@ void CDeskcppView::DrawTileAt(short x, short y, short frame)
                     {
                         Tile *pTile = (Tile *)pWorld->tiles.GetAt(*pCell);
                         if (pTile->flags & 1)
-                            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20,
+                            pWorld->pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE,
                                                         sx, sy, 0);
                         else
-                            pWorld->pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20,
+                            pWorld->pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE,
                                                       sx, sy);
                     }
                     pCell++;
@@ -1346,10 +1346,10 @@ void CDeskcppView::DrawTileAt(short x, short y, short frame)
                 Tile *pTile = (Tile *)pWorld->tiles.GetAt(pCell[frame]);
                 if (pTile->flags & 1)
                 {
-                    pCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, sx, sy, 0);
+                    pCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy, 0);
                     return;
                 }
-                pCanvas->BlitFast(pTile->pixels, 0x20, 0x20, 0x20, sx, sy);
+                pCanvas->BlitFast(pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, sx, sy);
             }
         }
     }
@@ -3173,7 +3173,7 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
 {
     if (pWorld->difficulty != pWorld->counter)
         pWorld->counter = (pWorld->difficulty + pWorld->counter) / 2;
-    if ((nIDEvent != 0xabcd && nTimerId != nIDEvent) || bBusy != 0)
+    if ((nIDEvent != IDT_ANY && nTimerId != nIDEvent) || bBusy != 0)
         return;
     if (bMouseCaptured != 0 && pWorld->nFrameMode == 3 && bMapAtCanvasOriginMaybe == 0)
         pWorld->nFrameMode = 2;
@@ -3211,7 +3211,7 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
             HDC hdc = ::GetDC(m_hWnd);
             CDC *pDC = CDC::FromHandle(hdc);
             CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-            SetTextColor(pWorld->pCanvas->hdc, 0xffffff);
+            SetTextColor(pWorld->pCanvas->hdc, RGB(255, 255, 255));
             int nOldBkMode = SetBkMode(pWorld->pCanvas->hdc, TRANSPARENT);
             pWorld->score = 0;
             pWorld->UpdateScore();
@@ -3228,7 +3228,7 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
             sprintf(szBuf, "%d", pWorld->score);
             HFONT hFont = CreateFont(-8, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, g_pszFontName);
             HGDIOBJ hOldFont = SelectObject(pWorld->pCanvas->hdc, hFont);
-            TextOut(pWorld->pCanvas->hdc, 0xbe, 0xeb, szBuf, strlen(szBuf));
+            TextOut(pWorld->pCanvas->hdc, 190, 235, szBuf, strlen(szBuf));
             SetBkMode(pWorld->pCanvas->hdc, nOldBkMode);
             DrawGameArea(pDC);
             DrawDirectionArrows(pDC);
@@ -3286,56 +3286,56 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
         {
             switch (nMoveCommand)
             {
-            case 0x21:
+            case VK_PRIOR:
                 nMoveDX = 1;
                 nMoveDY = -1;
                 bMouseCaptured = 0;
                 nMoveCommand = -1;
                 nMovePending = 0;
                 break;
-            case 0x22:
+            case VK_NEXT:
                 nMoveDX = 1;
                 nMoveDY = 1;
                 bMouseCaptured = 0;
                 nMoveCommand = -1;
                 nMovePending = 0;
                 break;
-            case 0x23:
+            case VK_END:
                 nMoveDX = -1;
                 nMoveDY = 1;
                 bMouseCaptured = 0;
                 nMoveCommand = -1;
                 nMovePending = 0;
                 break;
-            case 0x24:
+            case VK_HOME:
                 nMoveDX = -1;
                 nMoveDY = -1;
                 bMouseCaptured = 0;
                 nMovePending = 0;
                 nMoveCommand = -1;
                 break;
-            case 0x25:
+            case VK_LEFT:
                 nMoveDX = -1;
                 nMoveCommand = -1;
                 bMouseCaptured = 0;
                 nMovePending = 0;
                 nMoveDY = 0;
                 break;
-            case 0x26:
+            case VK_UP:
                 nMoveDX = 0;
                 nMoveDY = -1;
                 nMoveCommand = -1;
                 nMovePending = 0;
                 bMouseCaptured = 0;
                 break;
-            case 0x27:
+            case VK_RIGHT:
                 nMoveDX = 1;
                 nMoveDY = 0;
                 bMouseCaptured = 0;
                 nMoveCommand = -1;
                 nMovePending = 0;
                 break;
-            case 0x28:
+            case VK_DOWN:
                 nMoveDX = 0;
                 nMoveCommand = -1;
                 nMovePending = 0;
@@ -3366,7 +3366,7 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
         pWorld->currentZone->IactRun(1, pWorld->cameraX / 32, pWorld->cameraY / 32,
                                      0, 0, 0, NULL, pWorld, this);
         if (pWorld->currentZone->type == 6 || pWorld->currentZone->type == 7
-            || pWorld->currentZone->type == 0xb)
+            || pWorld->currentZone->type == ZONE_TYPE_MAP_START)
         {
             TriggerHotspotsMaybe();
         }
@@ -3490,7 +3490,7 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
             }
         }
         break;
-    case 0xb:
+    case 11:
         if (nTransitionStep == 0 && g_bReplayMode == 1)
         {
             pWorld->OnLoadWorld();
@@ -3553,16 +3553,16 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
             }
         }
         break;
-    case 0xc:
-    case 0xd:
+    case 12:
+    case 13:
         {
             CString strMsg;
             pWorld->OnCloseDocument();
-            strMsg.LoadString(0xe01e);
+            strMsg.LoadString(IDS_ERR_UNRECOVERABLE);
             FatalAppExit(0, strMsg);
         }
         break;
-    case 0xe:
+    case 14:
         bBusy = 1;
         if (bPauseOverlayDrawn == 0)
         {
@@ -4117,7 +4117,7 @@ void CDeskcppView::UpdateItemObjectsMaybe()
                             }
                             Tile *pTile = (Tile *)pWorld->tiles.GetAt(t);
                             unsigned int flags = pTile->flags;
-                            if ((flags & 0xc0) == 0)
+                            if ((flags & (TILE_WEAPON | TILE_ITEM)) == 0)
                             {
                                 bBusy = 0;
                                 return;
@@ -4165,7 +4165,7 @@ void CDeskcppView::UpdateItemObjectsMaybe()
                             if (t >= 0)
                             {
                                 Tile *pTile = (Tile *)pWorld->tiles.GetAt(t);
-                                if ((pTile->flags & 0x100080) != 0)
+                                if ((pTile->flags & (TILE_LOCATOR | TILE_ITEM)) != 0)
                                 {
                                     AddItemToInv(pTile);
                                     pWorld->currentZone->SetTile(pO->x, pO->y, 1, -1);
@@ -4250,18 +4250,18 @@ void CDeskcppView::DrawText(CDC *pDC)
         {
             pItem = (InvItem *)pWorld->inventory.GetAt(slot);
             pTile = pItem->pTile;
-            pDragTileCanvas->Fill((char)GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(0xf)));
+            pDragTileCanvas->Fill((char)GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_BTNFACE)));
             if (nDragSlot - i != nScroll)
-                pDragTileCanvas->BlitMasked((char *)pTile->pixels, 0x20, 0x20, 0, 0, 0);
+                pDragTileCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, 0, 0, 0);
         }
-        CBrush brush(GetSysColor(0xf));
+        CBrush brush(GetSysColor(COLOR_BTNFACE));
         CBrush *pOldBrush = pDC->SelectObject(&brush);
         rc.top = pWorld->rectUnk3284.top + y;
         rc.bottom = rc.top + 0x20;
         rc.left = pWorld->rectUnk3284.left;
         rc.right = rc.left + 0x20;
         if (nCount <= nScroll + i)
-            PatBlt(pDC->m_hDC, rc.left, rc.top, 0x20, 0x20, 0xf00021);
+            PatBlt(pDC->m_hDC, rc.left, rc.top, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, PATCOPY);
         pWorld->DrawRect(pDC, &rc, 1, 1);
         if (nScroll + i < nCount)
             pDragTileCanvas->BitBlt(pDC, rc.left + 1, rc.top + 1, 0x1e, 0x1e, 1, 1);
@@ -4269,7 +4269,7 @@ void CDeskcppView::DrawText(CDC *pDC)
         rc.right = pWorld->rectUnk3284.right;
         RECT rc2;
         CopyRect(&rc2, &rc);
-        PatBlt(pDC->m_hDC, rc2.left, rc2.top, rc2.right - rc2.left, rc2.bottom - rc2.top, 0xf00021);
+        PatBlt(pDC->m_hDC, rc2.left, rc2.top, rc2.right - rc2.left, rc2.bottom - rc2.top, PATCOPY);
         pDC->SelectObject(pOldBrush);
         pWorld->DrawRect(pDC, &rc, 1, 1);
         if (nScroll + i < nCount)
@@ -4374,7 +4374,7 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 pWorld->DrawPlayer();
                 DrawGameArea(NULL);
                 if (pWorld->gameState == 1)
-                    str.LoadString(0xe00b);
+                    str.LoadString(IDS_WELL_DONE);
                 ShowTextDialog(str, tx * 32 + 16, ty * 32 + 16, 0);
                 if (bDialogClickDismissMaybe == 0)
                 {
@@ -4435,7 +4435,7 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 pWorld->DrawPlayer();
                 DrawGameArea(NULL);
                 if (pWorld->gameState == 1)
-                    str.LoadString(0xe00b);
+                    str.LoadString(IDS_WELL_DONE);
                 ShowTextDialog(str, pWorld->cameraX + 16, pWorld->cameraY + 16, 0);
                 if (bDialogClickDismissMaybe == 0)
                 {
@@ -4540,85 +4540,85 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
 int CDeskcppView::ClassifyTile(int x, int y)
 {
     if (pWorld->gameState == 1)
-        return 9;
+        return ARTOO_HINT_VICTORY;
     if (pWorld->gameState == -1)
-        return 10;
+        return ARTOO_HINT_DEFEAT;
     if (bArtooBeepPending0Maybe != 0)
     {
         bArtooBeepPending0Maybe = 0;
-        return 0x13;
+        return ARTOO_HINT_BEEP_1;
     }
     if (bDropOnArtooMaybe != 0)
     {
         bDropOnArtooMaybe = 0;
-        return 0x13;
+        return ARTOO_HINT_BEEP_1;
     }
     if (bDraggedArtooBlockedMaybe != 0)
     {
         bDraggedArtooBlockedMaybe = 0;
-        return 0x14;
+        return ARTOO_HINT_BEEP_2;
     }
     if (bDropOutsideViewMaybe != 0)
     {
         bDropOutsideViewMaybe = 0;
-        return 0x13;
+        return ARTOO_HINT_BEEP_1;
     }
     if (pWorld->cameraX / 32 == x && pWorld->cameraY / 32 == y)
-        return 0xe;
+        return ARTOO_HINT_LUKE;
     int t = (short)pWorld->currentZone->GetTile(x, y, 1);
     if (t < 0)
     {
         int t0 = (short)pWorld->currentZone->GetTile(x, y, 0);
         if (t0 == 0x218)
-            return 0x10;
-        return t0 == 0x219 ? 0xf : -1;
+            return ARTOO_HINT_TELEPORT_IDLE;
+        return t0 == 0x219 ? ARTOO_HINT_TELEPORT_ACTIVE : ARTOO_HINT_NONE;
     }
     unsigned int flags = ((Tile *)pWorld->tiles.GetAt(t))->flags;
     if ((flags & 8) != 0)
-        return 7;
+        return ARTOO_HINT_PUSH_PULL;
     if (t <= 0 || t == 0x7f2)
-        return -1;
+        return ARTOO_HINT_NONE;
     switch (t)
     {
     case 0x30c:
-        return 6;
+        return ARTOO_HINT_YODA;
     case 0x200:
     case 0x201:
     case 0x202:
-        return 0x12;
+        return ARTOO_HINT_WEAPON;
     case 0x314:
     case 0x77c:
     case 0x77d:
     case 0x77e:
-        return 1;
+        return ARTOO_HINT_DARTH_VADER;
     case 0x310:
     case 0x58a:
     case 0x6e3:
     case 0x6e4:
-        return 0xc;
+        return ARTOO_HINT_JAWA;
     case 0x3b8:
     case 0x3b9:
     case 0x3ba:
     case 0x3bb:
-        return 8;
+        return ARTOO_HINT_XWING;
     case 0x31d:
-        return 0x11;
+        return ARTOO_HINT_MEDICAL_DROID;
     case 0x645:
     case 0x646:
     case 0x64f:
     case 0x650:
-        return 0xb;
+        return ARTOO_HINT_EWOK;
     case 0x6e8:
     case 0x6ee:
     case 0x6ef:
     case 0x6f0:
     case 0x6f1:
-        return 0xd;
+        return ARTOO_HINT_DROID;
     }
     if ((flags & 0x20000) != 0)
-        return 0;
+        return ARTOO_HINT_ENEMY;
     if ((flags & 0x40000) != 0)
-        return 5;
+        return ARTOO_HINT_CHARACTER;
     switch (t)
     {
     case 0x10:
@@ -4628,7 +4628,7 @@ int CDeskcppView::ClassifyTile(int x, int y)
     case 0x27c:
     case 0x48d:
     case 0x6e5:
-        return 2;
+        return ARTOO_HINT_STORAGE_DEVICE;
     }
     switch (t)
     {
@@ -4677,9 +4677,9 @@ int CDeskcppView::ClassifyTile(int x, int y)
     case 0x600:
     case 0x603:
     case 0x608:
-        return 4;
+        return ARTOO_HINT_DOOR;
     }
-    return -1;
+    return ARTOO_HINT_NONE;
 }
 
 // FUNCTION: YODA 0x004102d0
@@ -4941,89 +4941,89 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
         CString str;
         switch (ClassifyTile(tx, ty))
         {
-        case -1:
+        case ARTOO_HINT_NONE:
             // Artoo starts yapping about random things when dragged onto
             // something he can't help with — 5 rotating lines.
             switch (artooAnyhowHelpIdx)
             {
             case 0:
-                str.LoadString(0xe027);
+                str.LoadString(IDS_SMALLTALK_WALKING);
                 break;
             case 1:
-                str.LoadString(0xe028);
+                str.LoadString(IDS_SMALLTALK_FINDING);
                 break;
             case 2:
-                str.LoadString(0xe029);
+                str.LoadString(IDS_SMALLTALK_USING);
                 break;
             case 3:
-                str.LoadString(0xe02a);
+                str.LoadString(IDS_SMALLTALK_WEAPONS);
                 break;
             case 4:
-                str.LoadString(0xe02b);
+                str.LoadString(IDS_SMALLTALK_HEALTH);
                 break;
             }
             artooAnyhowHelpIdx = artooAnyhowHelpIdx + 1;
             if (artooAnyhowHelpIdx > 4)
                 artooAnyhowHelpIdx = 0;
             break;
-        case 0:
-            str.LoadString(0xe022);
+        case ARTOO_HINT_ENEMY:
+            str.LoadString(IDS_HINT_ENEMY);
             break;
-        case 1:
-            str.LoadString(0xe02c);
+        case ARTOO_HINT_DARTH_VADER:
+            str.LoadString(IDS_HINT_DARTH_VADER);
             break;
-        case 2:
-            str.LoadString(0xe020);
+        case ARTOO_HINT_STORAGE_DEVICE:
+            str.LoadString(IDS_HINT_STORAGE_DEVICE);
             break;
-        case 4:
-            str.LoadString(0xe023);
+        case ARTOO_HINT_DOOR:
+            str.LoadString(IDS_HINT_DOOR);
             break;
-        case 5:
-            str.LoadString(0xe025);
+        case ARTOO_HINT_CHARACTER:
+            str.LoadString(IDS_HINT_CHARACTER);
             break;
-        case 6:
-            str.LoadString(0xe026);
+        case ARTOO_HINT_YODA:
+            str.LoadString(IDS_HINT_YODA);
             break;
-        case 7:
-            str.LoadString(0xe024);
+        case ARTOO_HINT_PUSH_PULL:
+            str.LoadString(IDS_HINT_PUSH_PULL);
             break;
-        case 8:
-            str.LoadString(0xe021);
+        case ARTOO_HINT_XWING:
+            str.LoadString(IDS_HINT_XWING);
             break;
-        case 9:
-            str.LoadString(0xe02d);
+        case ARTOO_HINT_VICTORY:
+            str.LoadString(IDS_HINT_VICTORY);
             break;
-        case 10:
-            str.LoadString(0xe02e);
+        case ARTOO_HINT_DEFEAT:
+            str.LoadString(IDS_HINT_DEFEAT);
             break;
-        case 0xb:
-            str.LoadString(0xe02f);
+        case ARTOO_HINT_EWOK:
+            str.LoadString(IDS_HINT_EWOK);
             break;
-        case 0xc:
-            str.LoadString(0xe030);
+        case ARTOO_HINT_JAWA:
+            str.LoadString(IDS_HINT_JAWA);
             break;
-        case 0xd:
-            str.LoadString(0xe031);
+        case ARTOO_HINT_DROID:
+            str.LoadString(IDS_HINT_DROID);
             break;
-        case 0xe:
-            str.LoadString(0xe033);
+        case ARTOO_HINT_LUKE:
+            str.LoadString(IDS_HINT_LUKE);
             break;
-        case 0xf:
-            str.LoadString(0xe034);
+        case ARTOO_HINT_TELEPORT_ACTIVE:
+            str.LoadString(IDS_HINT_TELEPORT_ACTIVE);
             break;
-        case 0x10:
-            str.LoadString(0xe035);
+        case ARTOO_HINT_TELEPORT_IDLE:
+            str.LoadString(IDS_HINT_TELEPORT_IDLE);
             break;
-        case 0x11:
-            str.LoadString(0xe036);
+        case ARTOO_HINT_MEDICAL_DROID:
+            str.LoadString(IDS_HINT_MEDICAL_DROID);
             break;
-        case 0x12:
-            str.LoadString(0xe038);
+        case ARTOO_HINT_WEAPON:
+            str.LoadString(IDS_HINT_WEAPON);
             break;
-        case 0x13:
+        case ARTOO_HINT_BEEP_1:
             PlaySound(6);
             YODA_SIC_RETURN(BUGLOG(("sic#14 OnDragItem: Artoo case 0x13 — DC+palette released\n")); pDC->SelectPalette(pOldPal, 0); ReleaseDC(pDC);) // sic: leaks the DC + selected palette
-        case 0x14:
+        case ARTOO_HINT_BEEP_2:
             PlaySound(6);
             YODA_SIC_RETURN(BUGLOG(("sic#14 OnDragItem: Artoo case 0x14 — DC+palette released\n")); pDC->SelectPalette(pOldPal, 0); ReleaseDC(pDC);) // sic: leaks the DC + selected palette
         }
@@ -5190,7 +5190,7 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
             unsigned int nMask = pWorld->currentZone->IactRun(3, tx, ty, 0, 0, 0,
                                                               pDC, pWorld, this);
             int nZT = pWorld->currentZone->type;
-            if (nZT == 6 || nZT == 7 || nZT == 0xb)
+            if (nZT == ZONE_TYPE_FROM_ANOTHER_MAP || nZT == ZONE_TYPE_TO_ANOTHER_MAP || nZT == ZONE_TYPE_MAP_START)
                 TriggerHotspotsMaybe();
             if (nPrevMode == 4)
             {
@@ -5201,7 +5201,7 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
             {
                 pWorld->nFrameMode = nPrevMode;
             }
-            if (!(nMask & 1))
+            if (!(nMask & IACT_SOUND))
                 PlaySound(nSound);
         }
     }
@@ -5251,54 +5251,54 @@ void CDeskcppView::ScrollZoneTransition()
     unsigned int nMask = pWorld->currentZone->IactRun(4, -1, -1, -1, -1, -1, NULL, pWorld, this);
     if (pWorld->currentZone->activatedFlag == 0)
         DrawEntities();
-    if ((nMask & 0x20) != 0)
+    if ((nMask & IACT_TILES) != 0)
         DrawWholeZone();
     int n = 0;
-    int n2 = 0x10;
+    int n2 = SCROLL_STEP_PIXELS;
     do
     {
         if (pWorld->scrollDirX > 0)
         {
             ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                     0x120 - n2, 0x120, pDC->GetSafeHdc(),
-                     pWorld->rectUnk3274.left + 0x10, pWorld->rectUnk3274.top, SRCCOPY);
-            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left - n2 + 0x120,
-                                    pWorld->rectUnk3274.top, n2, 0x120, 0, pWorld->nViewTop);
+                     VIEW_PIXEL_SIZE - n2, VIEW_PIXEL_SIZE, pDC->GetSafeHdc(),
+                     pWorld->rectUnk3274.left + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top, SRCCOPY);
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left - n2 + VIEW_PIXEL_SIZE,
+                                    pWorld->rectUnk3274.top, n2, VIEW_PIXEL_SIZE, 0, pWorld->nViewTop);
         }
         else if (pWorld->scrollDirX < 0)
         {
             int e = pWorld->rectUnk3274.left + n;
-            ::BitBlt(pDC->m_hDC, e + 0x10, pWorld->rectUnk3274.top,
-                     0x110 - n, 0x120, pDC->GetSafeHdc(),
+            ::BitBlt(pDC->m_hDC, e + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top,
+                     VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, VIEW_PIXEL_SIZE, pDC->GetSafeHdc(),
                      e, pWorld->rectUnk3274.top, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                                    n + 0x10, 0x120, 0x22f - n, pWorld->nViewTop);
+                                    n + SCROLL_STEP_PIXELS, VIEW_PIXEL_SIZE, SCROLL_WRAP_SRC - n, pWorld->nViewTop);
         }
         else if (pWorld->scrollDirY < 0)
         {
             int e = pWorld->rectUnk3274.top + n;
-            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, e + 0x10,
-                     0x120, 0x110 - n, pDC->GetSafeHdc(),
+            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, e + SCROLL_STEP_PIXELS,
+                     VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, pDC->GetSafeHdc(),
                      pWorld->rectUnk3274.left, e, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                                    0x120, n + 0x10, pWorld->nViewLeft, 0x22f - n);
+                                    VIEW_PIXEL_SIZE, n + SCROLL_STEP_PIXELS, pWorld->nViewLeft, SCROLL_WRAP_SRC - n);
         }
         else if (pWorld->scrollDirY > 0)
         {
             ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                     0x120, 0x120 - n2, pDC->GetSafeHdc(),
-                     pWorld->rectUnk3274.left, pWorld->rectUnk3274.top + 0x10, SRCCOPY);
+                     VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - n2, pDC->GetSafeHdc(),
+                     pWorld->rectUnk3274.left, pWorld->rectUnk3274.top + SCROLL_STEP_PIXELS, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left,
-                                    pWorld->rectUnk3274.top - n2 + 0x120, 0x120, n2,
+                                    pWorld->rectUnk3274.top - n2 + VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, n2,
                                     pWorld->nViewLeft, 0);
         }
         long c = clock();
         long end = c + 50;
         while (c < end)
             c = clock();
-        n2 += 0x10;
-        n += 0x10;
-    } while (n2 <= 0x120);
+        n2 += SCROLL_STEP_PIXELS;
+        n += SCROLL_STEP_PIXELS;
+    } while (n2 <= VIEW_PIXEL_SIZE);
     pWorld->bHidePlayer = nOldHide;
     pWorld->currentZone->activatedFlag = 1;
     DrawWholeZone();
@@ -5480,7 +5480,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
         switch (pWorld->nMapChangeReason)
         {
         case 2:
-            if (nTransitionStep > 0x32
+            if (nTransitionStep > 50
                 && pWorld->GetZoneIndex(pWorld->pPendingZone) != 0x152)
             {
                 pWorld->currentZone = pWorld->pPendingZone;
@@ -5604,7 +5604,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                     CString str;
                     if (pWorld->mapGrid[gy * 10 + gx].flagA == 1)
                     {
-                        str.LoadString(0xe01a);
+                        str.LoadString(IDS_OPEN_SUFFIX);
                     }
                     else
                     {
@@ -5612,26 +5612,26 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                         if (w >= 0)
                         {
                             Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
-                            str.LoadString(0xe00e);
+                            str.LoadString(IDS_REQUIRES);
                             CString strKind;
                             if (pTile->flags & TILE_PUZZLE_ITEM_1)
                             {
-                                strKind.LoadString(0xe016);
+                                strKind.LoadString(IDS_HINT_A_TOOL);
                             }
                             else if (pTile->flags & TILE_PUZZLE_ITEM_2)
                             {
-                                strKind.LoadString(0xe017);
+                                strKind.LoadString(IDS_HINT_A_PART);
                             }
                             else if (pTile->flags & TILE_PUZZLE_ITEM_SEED_END)
                             {
-                                strKind.LoadString(0xe018);
+                                strKind.LoadString(IDS_HINT_A_VALUABLE);
                             }
                             else if (pTile->flags & TILE_KEYCARD)
                             {
                                 if (w == 0x213 || w == 0x285 || w == 0x43f || w == 0x433)
-                                    strKind.LoadString(0xe016);
+                                    strKind.LoadString(IDS_HINT_A_TOOL);
                                 else
-                                    strKind.LoadString(0xe019);
+                                    strKind.LoadString(IDS_HINT_A_KEY_CARD);
                             }
                             str += strKind;
                         }
@@ -5646,9 +5646,9 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                 {
                     CString str;
                     if (pWorld->mapGrid[gy * 10 + gx].flagB == 1)
-                        str.LoadString(0xe014);
+                        str.LoadString(IDS_YOU_WON);
                     else
-                        str.LoadString(0xe015);
+                        str.LoadString(IDS_HINT_UNKNOWN);
                     ShowTextDialog(str, nBalloonX, nBalloonY, 1);
                 }
                 bMouseCaptured = 0;
@@ -5658,7 +5658,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
             {
                 {
                     CString str;
-                    str.LoadString(0xe013);
+                    str.LoadString(IDS_SPACEPORT);
                     ShowTextDialog(str, nBalloonX, nBalloonY, 1);
                 }
                 bMouseCaptured = 0;
@@ -5671,7 +5671,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                     if (pWorld->mapGrid[gy * 10 + gx].flagA == 1
                         && pWorld->mapGrid[gy * 10 + gx].flagB == 1)
                     {
-                        str.LoadString(0xe00d);
+                        str.LoadString(IDS_SOLVED);
                     }
                     else
                     {
@@ -5679,26 +5679,26 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                         if (w >= 0)
                         {
                             Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
-                            str.LoadString(0xe00e);
+                            str.LoadString(IDS_REQUIRES);
                             CString strKind;
                             if (pTile->flags & TILE_PUZZLE_ITEM_1)
                             {
-                                strKind.LoadString(0xe016);
+                                strKind.LoadString(IDS_HINT_A_TOOL);
                             }
                             else if (pTile->flags & TILE_PUZZLE_ITEM_2)
                             {
-                                strKind.LoadString(0xe017);
+                                strKind.LoadString(IDS_HINT_A_PART);
                             }
                             else if (pTile->flags & TILE_PUZZLE_ITEM_SEED_END)
                             {
-                                strKind.LoadString(0xe018);
+                                strKind.LoadString(IDS_HINT_A_VALUABLE);
                             }
                             else if (pTile->flags & TILE_KEYCARD)
                             {
                                 if (w == 0x213 || w == 0x285 || w == 0x43f || w == 0x433)
-                                    strKind.LoadString(0xe016);
+                                    strKind.LoadString(IDS_HINT_A_TOOL);
                                 else
-                                    strKind.LoadString(0xe019);
+                                    strKind.LoadString(IDS_HINT_A_KEY_CARD);
                             }
                             str += strKind;
                         }
@@ -5717,11 +5717,11 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                     CString str;
                     if (pWorld->mapGrid[gy * 10 + gx].flagA == 1)
                     {
-                        str.LoadString(0xe00d);
+                        str.LoadString(IDS_SOLVED);
                     }
                     else
                     {
-                        str.LoadString(0xe00e);
+                        str.LoadString(IDS_REQUIRES);
                         str += pTile->name;
                         str += "...";
                     }
@@ -5736,7 +5736,7 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                     CString str;
                     if (pWorld->mapGrid[gy * 10 + gx].flagB == 1)
                     {
-                        str.LoadString(0xe00d);
+                        str.LoadString(IDS_SOLVED);
                     }
                     else
                     {
@@ -5744,19 +5744,19 @@ void CDeskcppView::OnLButtonDown(UINT nFlags, CPoint point)
                         if (w >= 0)
                         {
                             Tile *pTile = (Tile *)pWorld->tiles.GetAt(w);
-                            str.LoadString(0xe00f);
+                            str.LoadString(IDS_FIND);
                             CString strKind;
                             if (pTile->flags & TILE_LOCATOR)
                             {
-                                strKind.LoadString(0xe010);
+                                strKind.LoadString(IDS_HINT_A_MAP);
                             }
                             else if (pTile->flags & TILE_WEAPON)
                             {
-                                strKind.LoadString(0xe012);
+                                strKind.LoadString(IDS_HINT_THE_FORCE);
                             }
                             else if (pTile->flags & TILE_ITEM)
                             {
-                                strKind.LoadString(0xe011);
+                                strKind.LoadString(IDS_HINT_SOMETHING_USEFUL);
                             }
                             str += strKind;
                         }
@@ -5880,7 +5880,7 @@ void CDeskcppView::OnLButtonUp(UINT nFlags, CPoint point)
             nDragSlot = (short)nSlot;
             bDragActive = 1;
             draggedTile = pTile;
-            memcpy(pDragTileCanvas->GetData(), draggedTile->pixels, 0x400);
+            memcpy(pDragTileCanvas->GetData(), draggedTile->pixels, TILE_PIXEL_COUNT);
             if ((Tile *)pWorld->tiles.GetAt(0x202) == draggedTile)
                 PlaySound(0x21);
             if ((Tile *)pWorld->tiles.GetAt(0x31a) == draggedTile)
@@ -6214,7 +6214,7 @@ void CDeskcppView::UpdateDragCursor(int bClear)
     }              // closes the try block the TRY macro opened
     catch (CException *e) {                // hand-expanded CATCH_ALL(e)
         _afxExceptionLink.m_pException = e;
-        AfxMessageBox(0xe01e, 0, (UINT)-1);
+        AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);
         AfxAbort();
     }
     }              // closes the TRY macro's outer (link-scope) brace
@@ -6252,7 +6252,7 @@ void CDeskcppView::UpdateDragCursor(int bClear)
                 if (nBpp <= 8)
                 {
                     Canvas **ppCanvas = &pDragTileCanvas;
-                    (*ppCanvas)->SetPalette(0, 0x100, (RGBQUAD *)(*ppWorld)->pSysColorTable);
+                    (*ppCanvas)->SetPalette(0, 256, (RGBQUAD *)(*ppWorld)->pSysColorTable);
                     ::BitBlt(dcMem.m_hDC, 0, 0, 32, 32, pDC->m_hDC, cx, cy, SRCCOPY);
                     void *pData = (*ppCanvas)->GetData();
                     int nPP = nBpp / 8;
@@ -7186,7 +7186,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                 if ((pWorld->currentZone->type == 6 || pWorld->currentZone->type == 7 ||
                      pWorld->currentZone->type == 11) && TriggerHotspotsMaybe() == 1)
                     break;
-                if ((nMask & 0x2a) != 0)
+                if ((nMask & (IACT_TEXT | IACT_SPAWN | IACT_TILES)) != 0)
                 {
 #ifndef GAME_INDY
                     // Indy's bump handler (DESKADV FUN_1018_733e) has NO persistent text-lock
@@ -7197,7 +7197,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                     // the next user press, so the "home sweet home" text appears one step late and
                     // the door warp needs a back-and-forth. Skip it for Indy; fall through to the
                     // plain move-abort below (matches DESKADV). Yoda #else path = exact original.
-                    if ((nMask & 2) != 0 && (nMask & 0x808) == 0)
+                    if ((nMask & IACT_TEXT) != 0 && (nMask & IACT_ZONE_INVALID) == 0)
                     {
                         pWorld->nFrameMode = 3;
                         bMouseCaptured = 0;
@@ -7299,7 +7299,7 @@ void CDeskcppView::OnBumpTile(int dx, int dy)
                         DrawGameArea(NULL);
                     }
                 }
-                if (bPush || (nMask & 4) != 0)
+                if (bPush || (nMask & IACT_CAMERA) != 0)
                     break;
                 switch (pWorld->currentZone->IactProbeMove(cx, cy, dx2, dy2, (PTRINT)&pWorld->tiles, 0))
                 {
@@ -7591,7 +7591,7 @@ void CDeskcppView::CheckCheat()
     if (strcmp(str, strCheatBuffer) == 0)
     {
         str = "Invincible!";
-        ShowTextDialog(str, pWorld->playerX * 0x1c + 0x12, pWorld->playerY * 0x1c + 0x12, 1);
+        ShowTextDialog(str, pWorld->playerX * LOCATOR_CELL_SIZE + 18, pWorld->playerY * LOCATOR_CELL_SIZE + 18, 1);
         bInvincibleCheat = 1;
         strCheatBuffer = "";
         return;
@@ -7608,7 +7608,7 @@ void CDeskcppView::CheckCheat()
     AddItemToInv(pWorld->GetTileData(0x202));
     AddItemToInv(pWorld->GetTileData(0x202));
     str = "Super Jedi!";
-    ShowTextDialog(str, pWorld->playerX * 0x1c + 0x12, pWorld->playerY * 0x1c + 0x12, 1);
+    ShowTextDialog(str, pWorld->playerX * LOCATOR_CELL_SIZE + 18, pWorld->playerY * LOCATOR_CELL_SIZE + 18, 1);
     strCheatBuffer = "";
 }
 
@@ -7647,7 +7647,7 @@ void CDeskcppView::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
 // ---------------------------------------------------------------------------
 void CDeskcppView::OnDestroy()
 {
-    ::KillTimer(m_hWnd, 0x1d1d);
+    ::KillTimer(m_hWnd, IDT_GAME_TICK);
     if (pInvScrollBar != NULL)
         delete pInvScrollBar;
     pInvScrollBar = NULL;
@@ -7719,11 +7719,11 @@ void CDeskcppView::CyclePalette()
             pWorld->pSysColorTable[245] = pWorld->pSysColorTable[244];
             pWorld->pSysColorTable[244] = sc;
         }
-        pWorld->pCanvas->SetPalette(0xa0, 0x56, pWorld->pSysColorTable + 0xa0);
+        pWorld->pCanvas->SetPalette(160, 86, pWorld->pSysColorTable + 160);
         CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
         CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-        ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa0, 0x56,
-                         &pWorld->sysPalette[0xa0]);
+        ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86,
+                         &pWorld->sysPalette[160]);
         ::RealizePalette(pDC->m_hDC);
         pDC->SelectPalette(pOldPal, 0);
         ::ReleaseDC(m_hWnd, pDC->m_hDC);
@@ -7827,12 +7827,12 @@ void CDeskcppView::CyclePalette()
     pWorld->pSysColorTable[10] = savedColor;
     pWorld->sysPalette[10] = savedEntry;
     // push the two animated bands (10..14 and 0xa0..0xf5) to the DIB + screen palette
-    pWorld->pCanvas->SetPalette(0xa, 5, pWorld->pSysColorTable + 10);
-    pWorld->pCanvas->SetPalette(0xa0, 0x56, pWorld->pSysColorTable + 0xa0);
+    pWorld->pCanvas->SetPalette(10, 5, pWorld->pSysColorTable + 10);
+    pWorld->pCanvas->SetPalette(160, 86, pWorld->pSysColorTable + 160);
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa, 5, &pWorld->sysPalette[10]);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 0xa0, 0x56, &pWorld->sysPalette[0xa0]);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 10, 5, &pWorld->sysPalette[10]);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
     ::RealizePalette(pDC->m_hDC);
     pDC->SelectPalette(pOldPal, 0);
     ::ReleaseDC(m_hWnd, pDC->m_hDC);
@@ -7878,7 +7878,7 @@ void CDeskcppView::ConfirmExit()
         pWorld->nFrameMode = 3;
         DrawText(NULL);
     }
-    if (AfxMessageBox(0xe01b, MB_YESNO, 0) == IDYES)
+    if (AfxMessageBox(IDS_CONFIRM_EXIT, MB_YESNO, 0) == IDYES)
     {
         if (bDialogCloseClicked == 0)
         {
@@ -7914,7 +7914,7 @@ void CDeskcppView::OnAppExit()
         pWorld->nFrameMode = 3;
         DrawText(NULL);
     }
-    if (AfxMessageBox(0xe01b, MB_YESNO, 0) == IDYES)
+    if (AfxMessageBox(IDS_CONFIRM_EXIT, MB_YESNO, 0) == IDYES)
     {
         if (bDialogCloseClicked == 0)
         {
@@ -7948,7 +7948,7 @@ void CDeskcppView::OnCmdDifficulty()
     int nSavedMode = pWorld->nFrameMode;
     pWorld->nFrameMode = 0;
     dlg.m_nValue = pWorld->difficulty;
-    if (dlg.DoModal() == 1)
+    if (dlg.DoModal() == IDOK)
         pWorld->difficulty = dlg.m_nValue;
     pWorld->nFrameMode = nSavedMode;
     bBusy = 0;
@@ -8018,17 +8018,17 @@ void CDeskcppView::OnCmdGameSpeed()
         dlg.m_nValue = 1;
     if (dlg.m_nValue > 0x5a)
         dlg.m_nValue = 0x5a;
-    if (dlg.DoModal() == 1)
+    if (dlg.DoModal() == IDOK)
     {
         int nSpeed = 0xba - dlg.m_nValue;
         nGameSpeed = nSpeed;
         if (nSpeed > 0xb9)
             nGameSpeed = 0xb9;
-        if ((int)nGameSpeed < 0x60)
-            nGameSpeed = 0x60;
+        if ((int)nGameSpeed < 96)
+            nGameSpeed = 96;
         pWorld->gameSpeed = nGameSpeed;
-        ::KillTimer(m_hWnd, 0x1d1d);
-        nTimerId = ::SetTimer(m_hWnd, 0x1d1d, nGameSpeed, NULL);
+        ::KillTimer(m_hWnd, IDT_GAME_TICK);
+        nTimerId = ::SetTimer(m_hWnd, IDT_GAME_TICK, nGameSpeed, NULL);
     }
 }
 
@@ -8046,7 +8046,7 @@ void CDeskcppView::OnUpdateGameSpeedUi(CCmdUI *pCmdUI)
     case 5:
     case 6:
     case 8:
-    case 0xb:
+    case 11:
         pCmdUI->Enable(0);
         return;
     }
@@ -8065,7 +8065,7 @@ void CDeskcppView::OnCmdWorldSizeMaybe()
 {
     WorldSizeDlg dlg(this);
     dlg.m_nValue = pWorld->worldSize;
-    if (dlg.DoModal() == 1)
+    if (dlg.DoModal() == IDOK)
         pWorld->worldSize = dlg.m_nValue;
 }
 
@@ -8098,7 +8098,7 @@ void CDeskcppView::OnUpdateDifficultyUi(CCmdUI *pCmdUI)
     case 5:
     case 6:
     case 8:
-    case 0xb:
+    case 11:
         pCmdUI->Enable(0);
         return;
     }
@@ -8156,7 +8156,7 @@ void CDeskcppView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 // StatsDlg::StatsDlg — CDialog(template 0xe1); store the doc pointer and empty the 4
 // DDX strings (the //{{AFX_DATA_INIT block).
 // ---------------------------------------------------------------------------
-StatsDlg::StatsDlg(CWnd *pParent, CDeskcppDoc *pDoc) : CDialog(0xe1, pParent)
+StatsDlg::StatsDlg(CWnd *pParent, CDeskcppDoc *pDoc) : CDialog(IDD_STATISTICS, pParent)
 {
     pWorld = pDoc;
     //{{AFX_DATA_INIT(StatsDlg)
@@ -8179,10 +8179,10 @@ StatsDlg::StatsDlg(CWnd *pParent, CDeskcppDoc *pDoc) : CDialog(0xe1, pParent)
 void StatsDlg::DoDataExchange(CDataExchange *pDX)
 {
     //{{AFX_DATA_MAP(StatsDlg)
-    DDX_Text(pDX, 0x98, m_str0);
-    DDX_Text(pDX, 0x97, m_str1);
-    DDX_Text(pDX, 0x95, m_str2);
-    DDX_Text(pDX, 0x96, m_str3);
+    DDX_Text(pDX, IDC_STATS_LAST_COUNT, m_str0);
+    DDX_Text(pDX, IDC_STATS_COMPLETIONS, m_str1);
+    DDX_Text(pDX, IDC_STATS_HIGH_SCORE, m_str2);
+    DDX_Text(pDX, IDC_STATS_LAST_SCORE, m_str3);
     //}}AFX_DATA_MAP
 }
 
@@ -8676,7 +8676,7 @@ void TextDialog::Layout(int x, int y)
     {
         rectText.left = x + 0xf;
     }
-    rectText.top = y + 0xc;
+    rectText.top = y + 12;
     rectText.right = rectText.left + nTextW;
     rectText.bottom = rectText.top + nTextH;
 
@@ -8690,7 +8690,7 @@ void TextDialog::Layout(int x, int y)
     int bx = nBoxX;
     if (nMode == 0)
         bx -= pParentView->pWorld->nViewLeft;
-    if (bx < 0x90)
+    if (bx < 144)
     {
         point[1].x = nBoxX;
         point[0].x = nBoxX;
@@ -8753,7 +8753,7 @@ void TextDialog::Layout(int x, int y)
     pDC->SelectStockObject(BLACK_PEN);
 
     int t = rectText.bottom - 0xf;
-    int l = (rectText.left + nTextW) + 0xc;
+    int l = (rectText.left + nTextW) + 12;
     rectClose.left = l;
     rectClose.top = t;
     rectClose.right = l + 0x10;
@@ -8902,7 +8902,7 @@ void TextDialog::UpdateDialogButtons(int nUnused)
 // FUNCTION: YODA 0x00417e50
 // DifficultyDlg::DifficultyDlg — CDialog(template 0x6f).
 // ---------------------------------------------------------------------------
-DifficultyDlg::DifficultyDlg(CWnd *pParent) : CDialog(0x6f, pParent)
+DifficultyDlg::DifficultyDlg(CWnd *pParent) : CDialog(IDD_DIFFICULTY, pParent)
 {
 }
 
@@ -8931,7 +8931,7 @@ BOOL DifficultyDlg::OnInitDialog()
 {
     CDialog::OnInitDialog();
     CenterWindow();
-    CWnd *pCtrl = GetDlgItem(0x67);
+    CWnd *pCtrl = GetDlgItem(IDC_DIFFICULTY_SLIDER);
     ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 100, FALSE);
     ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
     return TRUE;
@@ -8940,7 +8940,7 @@ BOOL DifficultyDlg::OnInitDialog()
 // FUNCTION: YODA 0x00417fa0
 void DifficultyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
-    CWnd *pCtrl = GetDlgItem(0x67);
+    CWnd *pCtrl = GetDlgItem(IDC_DIFFICULTY_SLIDER);
     if (pCtrl == pScrollBar)
     {
         int nVal = m_nValue;
@@ -8998,7 +8998,7 @@ void DifficultyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 // FUNCTION: YODA 0x00418130
 // GameSpeedDlg::GameSpeedDlg — CDialog(template 0xd7).
 // ---------------------------------------------------------------------------
-GameSpeedDlg::GameSpeedDlg(CWnd *pParent) : CDialog(0xd7, pParent)
+GameSpeedDlg::GameSpeedDlg(CWnd *pParent) : CDialog(IDD_GAMESPEED, pParent)
 {
 }
 
@@ -9021,7 +9021,7 @@ BOOL GameSpeedDlg::OnInitDialog()
 {
     CDialog::OnInitDialog();
     CenterWindow();
-    CWnd *pCtrl = GetDlgItem(0x8f);
+    CWnd *pCtrl = GetDlgItem(IDC_GAMESPEED_SLIDER);
     ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 0x5a, FALSE);
     ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
     return TRUE;
@@ -9030,7 +9030,7 @@ BOOL GameSpeedDlg::OnInitDialog()
 // FUNCTION: YODA 0x00418280
 void GameSpeedDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
-    CWnd *pCtrl = GetDlgItem(0x8f);
+    CWnd *pCtrl = GetDlgItem(IDC_GAMESPEED_SLIDER);
     if (pCtrl == pScrollBar)
     {
         int nVal = m_nValue;
@@ -9088,7 +9088,7 @@ void GameSpeedDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 // FUNCTION: YODA 0x00418410
 // WorldSizeDlg::WorldSizeDlg — CDialog(template 0xda).
 // ---------------------------------------------------------------------------
-WorldSizeDlg::WorldSizeDlg(CWnd *pParent) : CDialog(0xda, pParent)
+WorldSizeDlg::WorldSizeDlg(CWnd *pParent) : CDialog(IDD_WORLDSIZE, pParent)
 {
 }
 
@@ -9111,7 +9111,7 @@ BOOL WorldSizeDlg::OnInitDialog()
 {
     CDialog::OnInitDialog();
     CenterWindow();
-    CWnd *pCtrl = GetDlgItem(0x90);
+    CWnd *pCtrl = GetDlgItem(IDC_WORLDSIZE_SLIDER);
     ::SetScrollRange(pCtrl->m_hWnd, SB_CTL, 1, 3, TRUE);
     ::SetScrollPos(pCtrl->m_hWnd, SB_CTL, m_nValue, TRUE);
     return TRUE;
@@ -9120,7 +9120,7 @@ BOOL WorldSizeDlg::OnInitDialog()
 // FUNCTION: YODA 0x00418560
 void WorldSizeDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
-    CWnd *pCtrl = GetDlgItem(0x90);
+    CWnd *pCtrl = GetDlgItem(IDC_WORLDSIZE_SLIDER);
     if (pCtrl == pScrollBar)
     {
         int nVal = m_nValue;

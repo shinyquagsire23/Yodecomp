@@ -262,3 +262,8 @@ extern "C" double mfx_difftime32(long, long);
 #define time     mfx_time32
 #define difftime mfx_difftime32
 #endif // MFX_TIME32_SHIM
+
+// The frame is a fixed-size window: this is the CLIENT size PreCreateWindow asks for
+// (borders/caption/menu are added on top) and the cap OnGetMinMaxInfo enforces.
+#define MAIN_WINDOW_WIDTH   525
+#define MAIN_WINDOW_HEIGHT  310

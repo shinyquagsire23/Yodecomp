@@ -11,6 +11,34 @@ class Character;
 class CDeskcppDoc;
 class CDeskcppView;
 
+// ── Zone grid geometry ───────────────────────────────────────────────────────
+// Every zone is a fixed 18x18 cell grid, 3 stacked tile layers deep (floor /
+// middle-colliding / above-player). The engine hardcodes these everywhere: the
+// Zone ctor's default args, the flat `tiles` array, and the `(y * 18 + x) * 3 +
+// layer` index arithmetic repeated across worldgen, IACT and the view.
+// #define (not enum) so the value is textual and adds no tokens to the
+// byte-matched anchor TUs.
+#define ZONE_WIDTH       18
+#define ZONE_HEIGHT      18
+#define ZONE_LAYERS      3
+#define ZONE_CELL_COUNT  (ZONE_WIDTH * ZONE_HEIGHT * ZONE_LAYERS)   // 972 shorts
+// Pixel geometry of one tile and of the 9x9-tile play area blitted to the canvas.
+#define TILE_PIXEL_SIZE  32                                   // tiles are 32x32 8bpp
+#define TILE_PIXEL_COUNT (TILE_PIXEL_SIZE * TILE_PIXEL_SIZE)  // 1024 bytes per tile
+#define VIEW_TILES       9                                    // play area is 9x9 tiles
+#define VIEW_PIXEL_SIZE  (VIEW_TILES * TILE_PIXEL_SIZE)       // 288 px square
+// The offscreen Canvas holds one WHOLE zone; the 288x288 view scrolls over it.
+#define CANVAS_PIXEL_SIZE (ZONE_WIDTH * TILE_PIXEL_SIZE)      // 576 px square (stride too)
+#define VIEW_SCROLL_MAX  (CANVAS_PIXEL_SIZE - VIEW_PIXEL_SIZE) // 288 — max camera offset
+// Overview ("locator") map: the 10x10 world grid drawn as 28px cells inset 4px into the
+// same 288x288 canvas, so a cell's centre is LOCATOR_MAP_INSET + LOCATOR_CELL_SIZE/2 == 18.
+#define LOCATOR_CELL_SIZE 28
+#define LOCATOR_MAP_INSET 4
+// Zone-to-zone scroll wipe: the view slides 16px per frame; the trailing strip is
+// re-read from the far edge of the canvas (576 - 16 - 1).
+#define SCROLL_STEP_PIXELS 16
+#define SCROLL_WRAP_SRC    (CANVAS_PIXEL_SIZE - SCROLL_STEP_PIXELS - 1)   // 559
+
 // PUZ2 record (0x2c). 5 CStrings + item ids.
 // Puzzle.nType — the puzzle's worldgen class (WorldgenSelectPuzzle maps zone types onto these:
 // ZONE_TYPE_FIND_USEFUL_DROP->TRANSACTION, MAP_TO_ITEM_FOR_LOCK->TRADE, FINAL_ITEM->GOAL_PRIZE,
@@ -181,7 +209,7 @@ enum ZoneType
 class Tile : public CObject
 {
 public:                              // +0x00 CObject vtable (0x44b190)
-    unsigned char pixels[0x400];     // +0x004  32x32 8-bpp
+    unsigned char pixels[TILE_PIXEL_COUNT]; // +0x004  32x32 8-bpp
     unsigned int  flags;             // +0x404  ctor: 0
     CString       name;              // +0x408  ctor: ""
 
@@ -212,9 +240,9 @@ class Zone : public CObject
 public:                              // +0x00 = CObject vtable
     int            type;             // +0x04  flags/areaType dword (== 8 => special/indoor)
     int            activatedFlag;    // +0x08
-    short          width;            // +0x0c  (18)
-    short          height;           // +0x0e  (18)
-    short          tiles[18 * 18 * 3];// +0x10  flat grid (0x798 bytes, ends +0x7a8)
+    short          width;            // +0x0c  (ZONE_WIDTH)
+    short          height;           // +0x0e  (ZONE_HEIGHT)
+    short          tiles[ZONE_CELL_COUNT];// +0x10  flat grid (0x798 bytes, ends +0x7a8)
     CObArray       objects;          // +0x7a8
     CObArray       iactScripts;      // +0x7bc
     CObArray       entities;         // +0x7d0
@@ -234,7 +262,7 @@ public:                              // +0x00 = CObject vtable
     short          globalVar;        // +0x844
     short          planet;           // +0x846  planet this zone belongs to (== World.currentPlanet)
 
-    Zone(short w = 18, short h = 18);                       // 0x00405150
+    Zone(short w = ZONE_WIDTH, short h = ZONE_HEIGHT);       // 0x00405150
     virtual ~Zone();                                        // 0x004054d0
     unsigned short GetTile(int x, int y, int layer);        // 0x00405430  MATCH
     void           SetTile(int x, int y, int layer, short val); // 0x00405480  MATCH
@@ -262,5 +290,158 @@ public:                              // +0x00 = CObject vtable
     unsigned int   IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
                                    CDeskcppView *pView);                               // 0x004070e0 (Iact .obj)
 };
+
+// ═══ Resource ids ════════════════════════════════════════════════════════════
+// Symbolic names for the resource / command / control ids the engine hardcodes as
+// raw hex. Recovered from YodaDemo.exe's .rsrc (string table dumped with
+// tools/reslib.py) and from each id's single use site; the numbers are the ORIGINAL
+// ones and must not be renumbered — our .res is built from Yoda's own .rsrc, so the
+// code depends on YodaDemo's integer ids (CLAUDE.md, tools/make_res.py).
+//
+// They live HERE, at the tail of an already-included header, rather than in a
+// Resource.h of their own: adding one more #include FILE to Worldgen.cpp's chain
+// costs a byte-exact function (measured — 211 -> 210, and it happens even when the
+// new file is empty, so it is the include itself, not the macros). Same dial family
+// as the afxcmn.h lesson. #define, not enum, so the token stream is untouched.
+
+// ── String table (the game's own strings live in MFC's 0xE000 band) ──────────
+// (IDS_APP_TITLE / IDS_ERR_16_COLOR_VIDEO live in Deskcpp.h — the app TU cannot see
+//  this header; the CTextDialog ids likewise live in TextDialog.h.)
+#define IDS_CONFIRM_NEW_WORLD    0xe001  // "...Build a New World anyway?"
+#define IDS_ERR_OPEN_DATA_FILE   0xe002  // "Couldn't open data file!"
+#define IDS_ERR_DTA_VERSION      0xe003  // "Wrong version DTA File!"
+#define IDS_LOADING_GAME_DATA    0xe004  // "Loading Game Data..."
+#define IDS_BUILDING_GAME_WORLD  0xe005  // "Building Game World..."
+#define IDS_FILTER_SAVE_WORLD    0xe006  // "World Files (*.wld) | *.wld"
+#define IDS_FILTER_LOAD_WORLD    0xe007  // "World Files (*.wld) | *.wld"
+#define IDS_ERR_NOT_A_SAVED_WORLD 0xe008 // "This file is not a Yoda Stories Saved World!"
+#define IDS_CONFIRM_REPLAY       0xe009  // "...Replay anyway?"
+#define IDS_WELL_DONE            0xe00b  // "Well done, Luke! "
+#define IDS_PUT_MARCUS_BACK      0xe00c
+#define IDS_SOLVED               0xe00d  // "...solved! "
+#define IDS_REQUIRES             0xe00e  // "requires "
+#define IDS_FIND                 0xe00f  // "find "
+#define IDS_HINT_A_MAP           0xe010  // "a map..."
+#define IDS_HINT_SOMETHING_USEFUL 0xe011 // "something useful..."
+#define IDS_HINT_THE_FORCE       0xe012  // "the Force..."
+#define IDS_SPACEPORT            0xe013  // "Spaceport"
+#define IDS_YOU_WON              0xe014  // "You've Won!"
+#define IDS_HINT_UNKNOWN         0xe015  // "unknown..."
+#define IDS_HINT_A_TOOL          0xe016  // "a tool..."
+#define IDS_HINT_A_PART          0xe017  // "a part..."
+#define IDS_HINT_A_VALUABLE      0xe018  // "a valuable..."
+#define IDS_HINT_A_KEY_CARD      0xe019  // "a key card..."
+#define IDS_OPEN_SUFFIX          0xe01a  // "...open! "
+#define IDS_CONFIRM_EXIT         0xe01b  // "Leave Yoda Stories?"  (Indy overrides this one)
+#define IDS_ERR_NO_STORY_SAVED   0xe01c  // "Sorry, there is no story saved to replay!"
+#define IDS_ERR_OUT_OF_MEMORY    0xe01d  // "There is not enough memory to run..."
+#define IDS_ERR_UNRECOVERABLE    0xe01e  // "An unrecoverable error has occured..."
+#define IDS_ENEMY_MILD_TEXT      0xe01f  // "Enemy mild text."
+
+// Artoo hint balloons, indexed by ClassifyTile()'s ArtooHint result.
+#define IDS_HINT_STORAGE_DEVICE  0xe020
+#define IDS_HINT_XWING           0xe021
+#define IDS_HINT_ENEMY           0xe022
+#define IDS_HINT_DOOR            0xe023
+#define IDS_HINT_PUSH_PULL       0xe024
+#define IDS_HINT_CHARACTER       0xe025
+#define IDS_HINT_YODA            0xe026
+#define IDS_SMALLTALK_WALKING    0xe027  // the 5 rotating "nothing special here" lines
+#define IDS_SMALLTALK_FINDING    0xe028
+#define IDS_SMALLTALK_USING      0xe029
+#define IDS_SMALLTALK_WEAPONS    0xe02a
+#define IDS_SMALLTALK_HEALTH     0xe02b
+#define IDS_SMALLTALK_COUNT      5
+#define IDS_HINT_DARTH_VADER     0xe02c
+#define IDS_HINT_VICTORY         0xe02d
+#define IDS_HINT_DEFEAT          0xe02e
+#define IDS_HINT_EWOK            0xe02f
+#define IDS_HINT_JAWA            0xe030
+#define IDS_HINT_DROID           0xe031
+#define IDS_DEFAULT_SAVE_DIR     0xe032  // "C:\\Yoda"
+#define IDS_HINT_LUKE            0xe033
+#define IDS_HINT_TELEPORT_ACTIVE 0xe034
+#define IDS_HINT_TELEPORT_IDLE   0xe035
+#define IDS_HINT_MEDICAL_DROID   0xe036
+#define IDS_HINT_WEAPON          0xe038
+
+// A few messages live in the low (non-AFX) string band.
+#define IDS_CONFIRM_LOAD_WORLD   3       // "...discard the current world. Load anyway?"
+#define IDS_WARN_MIDI_DISABLED   4       // "...difficulty playing music (MIDI files)..."
+#define IDS_ERR_OPEN_DTA         5       // "...could not open the data file YODESK.DTA."
+#define IDS_ERR_DTA_SHARING      6       // "A sharing violation occurred trying to open..."
+#define IDS_ERR_DISK_FULL        7       // "The disk you tried to write to is full..."
+#define IDS_ERR_CANNOT_OPEN_FILE 8       // "...unable to open the file you specified."
+#define IDS_ERR_CANNOT_CREATE_FILE 9     // "...unable to create the file you specified."
+
+// ── Menu command ids (the game's own 0x8000 band; ID_FILE_*/ID_APP_* come from afxres.h) ──
+#define ID_OPTIONS_SOUND         0x8000
+#define ID_OPTIONS_HIDEME        0x8001  // "Hide Me!" — minimise
+#define ID_OPTIONS_PAUSE         0x8002
+#define ID_OPTIONS_MUSIC         0x8004
+#define ID_OPTIONS_DIFFICULTY    0x8005
+#define ID_FILE_NEWWORLD         0x8008
+#define ID_FILE_LOADWORLD        0x800a
+#define ID_FILE_REPLAYSTORY      0x800b
+#define ID_OPTIONS_GAMESPEED     0x800c
+#define ID_OPTIONS_WORLDSIZE     0x800d
+#define ID_FILE_STATISTICS       0x800e
+
+// ── Dialog templates ────────────────────────────────────────────────────────
+#define IDD_DIFFICULTY           0x6f
+#define IDD_GAMESPEED            0xd7
+#define IDD_WORLDSIZE            0xda
+#define IDD_STATISTICS           0xe1
+
+// ── Control ids ─────────────────────────────────────────────────────────────
+#define IDC_INV_SCROLLBAR        0x65    // the inventory scrollbar the view creates
+#define IDC_DIFFICULTY_SLIDER    0x67
+#define IDC_GAMESPEED_SLIDER     0x8f
+#define IDC_WORLDSIZE_SLIDER     0x90
+#define IDC_STATS_HIGH_SCORE     0x95    // StatsDlg DDX fields
+#define IDC_STATS_LAST_SCORE     0x96
+#define IDC_STATS_COMPLETIONS    0x97
+#define IDC_STATS_LAST_COUNT     0x98
+#define IDC_LOAD_PROGRESS        0x3e9   // worldgen CProgressCtrl
+#define IDC_BUBBLE_CLOSE         0x1389  // speech-balloon CBitmapButtons + text CEdit
+#define IDC_BUBBLE_DOWN          0x138a
+#define IDC_BUBBLE_UP            0x138b
+#define IDC_BUBBLE_TEXT          0x138c
+
+// ── Cursors: the eight walk-direction cursors (picked by nMoveDX/nMoveDY) ────
+#define IDC_CURSOR_WEST          0x6a
+#define IDC_CURSOR_EAST          0x6b
+#define IDC_CURSOR_NORTH         0x6c
+#define IDC_CURSOR_SOUTH         0x6d
+#define IDC_CURSOR_NORTHWEST     0x71
+#define IDC_CURSOR_NORTHEAST     0x72
+#define IDC_CURSOR_SOUTHWEST     0x73
+#define IDC_CURSOR_SOUTHEAST     0x74
+#define IDC_CURSOR_CENTER        0x76    // no pending direction
+#define IDC_CURSOR_WAIT          0xc2    // shown while nFrameMode == 9 (script busy)
+
+// ── Icons: the four zone-exit arrows, dim + lit ──────────────────────────────
+#define IDI_ARROW_DOWN_OFF       0xc4
+#define IDI_ARROW_DOWN_ON        0xc5
+#define IDI_ARROW_LEFT_OFF       0xc6
+#define IDI_ARROW_LEFT_ON        0xc7
+#define IDI_ARROW_RIGHT_OFF      0xc8
+#define IDI_ARROW_RIGHT_ON       0xc9
+#define IDI_ARROW_UP_OFF         0xca
+#define IDI_ARROW_UP_ON          0xcb
+
+// ── Timers ──────────────────────────────────────────────────────────────────
+#define IDT_GAME_TICK            0x1d1d  // ::SetTimer id created in OnInitialUpdate
+#define IDT_ANY                  0xabcd  // OnTimer sentinel: run regardless of timer id
+
+// ── Fixed spaceport zones ───────────────────────────────────────────────────
+// DTA zone-catalog ids (hex by nature) for the 2x2 spaceport CDeskcppDoc::Populate always
+// stamps at world-grid cells 44/45/54/55 — i.e. rows 4-5, cols 4-5. Quadrant names are read
+// off those cell indices; ALT_NE substitutes for the NE quadrant in two of the five variants.
+#define ZONE_SPACEPORT_NW        0x5e   // cell 44
+#define ZONE_SPACEPORT_NE        0x5f   // cell 45
+#define ZONE_SPACEPORT_SW        0x5d   // cell 54
+#define ZONE_SPACEPORT_SE        0x60   // cell 55
+#define ZONE_SPACEPORT_ALT_NE    0x217  // cell 45, variants 1 and 4
 
 #endif

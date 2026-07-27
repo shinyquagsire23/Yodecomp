@@ -347,10 +347,17 @@ typedef struct tagOPENFILENAME {
 #define ES_MULTILINE 0x0004
 #define ES_READONLY  0x0800
 #define ES_LEFT      0x0000
+#define ES_NOHIDESEL 0x0100
+#define ES_OEMCONVERT 0x0400
 #define WS_CAPTION   0x00C00000
 #define WS_POPUP     0x80000000
 #define WS_DLGFRAME  0x00400000
 #define WS_SYSMENU   0x00080000
+#define WS_MINIMIZEBOX 0x00020000
+#define WS_MAXIMIZEBOX 0x00010000
+#define WS_MAXIMIZE  0x01000000
+#define WS_MINIMIZE  0x20000000
+#define WS_EX_CLIENTEDGE 0x00000200
 #define WM_INITDIALOG 0x0110
 // button styles (low nibble of a BUTTON control's style)
 #define BS_PUSHBUTTON    0x0000
@@ -396,6 +403,8 @@ typedef struct tagOPENFILENAME {
 #define BLACKNESS 0x00000042
 #define WHITENESS 0x00FF0062
 #define PATCOPY   0x00F00021
+// ::GetPixel failure sentinel (wingdi.h CLR_INVALID) — DrawHealthDial compares against it.
+#define CLR_INVALID 0xFFFFFFFF
 #define DIB_RGB_COLORS 0
 #define DIB_PAL_COLORS 1
 #define BI_RGB 0
@@ -442,6 +451,8 @@ typedef struct tagOPENFILENAME {
 #define SM_CYFULLSCREEN 17
 #define SM_CXFRAME  32
 #define SM_CYFRAME  33
+#define SM_CXDLGFRAME 7
+#define SM_CYDLGFRAME 8
 // stock cursors
 #define IDC_ARROW MAKEINTRESOURCE(32512)
 #define IDC_WAIT  MAKEINTRESOURCE(32514)
@@ -457,6 +468,8 @@ typedef struct tagOPENFILENAME {
 #define OFN_HIDEREADONLY     0x00000004
 #define OFN_FILEMUSTEXIST    0x00001000
 #define OFN_PATHMUSTEXIST    0x00000800
+#define OFN_SHOWHELP         0x00000010
+#define OFN_EXPLORER         0x00080000
 // RedrawWindow flags
 #define RDW_INVALIDATE 0x0001
 #define RDW_ERASE      0x0004

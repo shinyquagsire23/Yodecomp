@@ -359,4 +359,34 @@ void Indy_MidiStopAll();        // "stop <alias>" every opened sequencer (DESKAD
 #define PlaySoundData PlaySound
 #endif
 
+// ═══ Artoo hint classes ═══════════════════════════════════════════════════════════════════
+// ClassifyTile (0x0040fca0) returns one of these; OnDragItem (0x004102d0) switches on it to
+// pick the balloon string (IDS_HINT_* in GameObjectClasses.h — a 1:1 index into that table).
+// Value 3 is neither produced nor consumed.
+// ⚠ #define, NOT enum: spelling this as an `enum ArtooHint` here costs 6 byte-exact functions
+// (211 -> 205; Worldgen.cpp 34->32, WorldgenHelpers.cpp 13->12) — DeskcppView.h reaches those
+// byte-matched TUs through Worldgen.h, and the enum's tokens rotate their codegen dial.
+// Measured both ways, v96. Same hazard family as the Resource-ids block.
+#define ARTOO_HINT_NONE            (-1)  // no hint -> rotating small talk
+#define ARTOO_HINT_ENEMY             0
+#define ARTOO_HINT_DARTH_VADER       1
+#define ARTOO_HINT_STORAGE_DEVICE    2
+#define ARTOO_HINT_DOOR              4
+#define ARTOO_HINT_CHARACTER         5
+#define ARTOO_HINT_YODA              6
+#define ARTOO_HINT_PUSH_PULL         7
+#define ARTOO_HINT_XWING             8
+#define ARTOO_HINT_VICTORY           9
+#define ARTOO_HINT_DEFEAT           10
+#define ARTOO_HINT_EWOK             11
+#define ARTOO_HINT_JAWA             12
+#define ARTOO_HINT_DROID            13
+#define ARTOO_HINT_LUKE             14
+#define ARTOO_HINT_TELEPORT_ACTIVE  15
+#define ARTOO_HINT_TELEPORT_IDLE    16
+#define ARTOO_HINT_MEDICAL_DROID    17
+#define ARTOO_HINT_WEAPON           18
+#define ARTOO_HINT_BEEP_1           19   // one-shot beep, no balloon
+#define ARTOO_HINT_BEEP_2           20
+
 #endif

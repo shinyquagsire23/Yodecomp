@@ -23,4 +23,12 @@ protected:
     DECLARE_MESSAGE_MAP()                                // 0x00418fd0
 };
 
+// Resource ids for this dialog (see the "Resource ids" block in GameObjectClasses.h,
+// which this TU does not include).
+#define IDD_TEXT_ENTRY           0xbf
+#define IDC_TEXT_FIELD0          0x7f
+#define IDC_TEXT_FIELD1          0x78
+#define IDC_TEXT_FIELD2          0x79
+#define IDC_TEXT_FIELD3          0x75
+
 #endif

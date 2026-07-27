@@ -130,7 +130,7 @@ void Character::Read(CFile *pFile)
     short w1, w2, w3;
 
     pFile->Read(hdr, 8);
-    pFile->Read(name, 0x10);
+    pFile->Read(name, 16);
     pFile->Read(&w1, 2);
     pFile->Read(&w2, 2);
 #ifdef GAME_INDY
@@ -450,9 +450,9 @@ Zone::Zone(short w, short h)
     height = h;
     for (int i = 0; i < width; i++)
         for (int j = 0; j < height; j++) {
-            tiles[(i * 18 + j) * 3 + 0] = -1;
-            tiles[(i * 18 + j) * 3 + 1] = -1;
-            tiles[(i * 18 + j) * 3 + 2] = -1;
+            tiles[(i * ZONE_WIDTH + j) * ZONE_LAYERS + 0] = -1;
+            tiles[(i * ZONE_WIDTH + j) * ZONE_LAYERS + 1] = -1;
+            tiles[(i * ZONE_WIDTH + j) * ZONE_LAYERS + 2] = -1;
         }
     type = 1;
     tempVar = 0;
@@ -497,7 +497,7 @@ int Zone::GetEdgeCode(int x, int y)
 unsigned short Zone::GetTile(int x, int y, int layer)
 {
     if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
-        return (unsigned short)tiles[(y * 18 + x) * 3 + layer];
+        return (unsigned short)tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS + layer];
     return 0xffff;
 }
 
@@ -505,7 +505,7 @@ unsigned short Zone::GetTile(int x, int y, int layer)
 void Zone::SetTile(int x, int y, int layer, short val)
 {
     if (x >= 0 && y >= 0 && x < width && y < height && layer >= 0 && layer <= 2)
-        tiles[(y * 18 + x) * 3 + layer] = val;
+        tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS + layer] = val;
 }
 
 // FUNCTION: YODA 0x004054d0  [EFFECTIVE MATCH: DIFF(12) on 506 bytes -- pure ESI<->EDI reg-alloc

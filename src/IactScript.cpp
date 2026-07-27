@@ -173,7 +173,7 @@ void IactScript::Read(CFile *pFile)
         TRY {
             pCond = new IactCondition;
         } CATCH (CMemoryException, e) {
-            AfxMessageBox(0xe01e);      // app string 57374 (out-of-memory)
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE);      // app string 57374 (out-of-memory)
             AfxAbort();
         } END_CATCH
         if (pCond != NULL) {
@@ -189,7 +189,7 @@ void IactScript::Read(CFile *pFile)
         TRY {
             pCmd = new IactCommand;
         } CATCH (CMemoryException, e) {
-            AfxMessageBox(0xe01e);      // app string 57374 (out-of-memory)
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE);      // app string 57374 (out-of-memory)
             AfxAbort();
         } END_CATCH
         if (pCmd != NULL) {
