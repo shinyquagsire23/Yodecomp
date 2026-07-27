@@ -2188,6 +2188,15 @@ through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens
      slots or changes `sizeof`; (c) reordering/adding emitted function DEFINITIONS. Signature shape is
      load-bearing ONLY for methods the TU actually calls. Only REAL methods, never fake decls. Full
      write-up + the PHASE-DISPLACED convention in "Standing rules" (roadmap section, ⭐ THE TU-PHASE DIAL).
+     ⚠⚠ **PARTIALLY CONTRADICTED v96 — scope this to CLASS MEMBERS.** v36 tested an unreferenced
+     *member* declaration inside a class and found it byte-identical. v96 measured **FILE-SCOPE**
+     inert declarations (`struct S;` / `typedef int T;` / `extern int v;` / an `enum`) appended to a
+     header tail and they DO move the dial, hard: +7 file-scope symbols = 211 -> 215 project-wide,
+     and one 23-name `enum ArtooHint` cost 6 functions. An enum counts as tag + field count; an
+     empty enum body is free; identifier length is irrelevant (pure count); macros are free (never
+     enter the symbol table). ⇒ "inert decls do nothing" holds for MEMBERS, not for file scope.
+     ⚠ the member-vs-file-scope reconciliation is the LIKELY explanation but is NOT yet directly
+     A/B-tested — do that before relying on it (tools/dialsweep.py --header <h>).
   9. **Loop rotation:** a `for` with an early `return` does NOT rotate; write the
      `if (n > 0) { do {...} while (i < n); }` guard+do-while explicitly. `break`-form loops rotate.
      Hoist the count (`int n = arr.GetSize();`) or the strength-reduction to a walking pointer
@@ -2340,6 +2349,7 @@ through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens
      NOT a per-TU lever — the reg-coloring/jl-jg residuals need the G2 joint build. (GameData's emission
      order happens to already match its address order — 0 mismatches — yet Nevada still emits jl; that
      seals it: correct header + correct order + correct flags, still position-locked to the whole-image build.)
+  29. ⚠⚠ **OVER-GENERALIZED — see the v96 correction at the end of this entry.**
   29. **⭐ The reg-coloring residual class is INTRINSIC to (function body + its headers), NOT TU-position —
      and the emitted-COMDAT-SET is a DEAD lever (v39, corrects/bounds lesson #7).** Proven on the bellwether
      DetonateAdjacentTiles 0x428680 (align=0, the pure symmetric-register class) by FOUR experiments, ALL
@@ -2349,6 +2359,13 @@ through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens
      extract the function ALONE with just `#include "Worldgen.h"` and asmscore it: IDENTICAL score
      (total=1060, align=0, reg_pen=4, identity_miss=60) as in the full 95-func TU. So lesson #7's "context-
      sensitive, needs the whole TU" does NOT apply to this class — the score is fixed by the function's own
+     ⚠⚠ **v96 CORRECTION: true for DetonateAdjacentTiles, FALSE as a statement about the class.**
+     Detonate is genuinely dial-invariant — it never went exact once across ~70 probed dial positions,
+     independently corroborating this entry FOR THAT FUNCTION. But the class does not follow it: the
+     v96 sweep took 10 other stuck functions to exact purely by changing the header decl-set, incl.
+     both surviving "4.0-only" cases (ParseZaux 0x423110, ZoneHasIzxItemMaybe 0x41bfa0). Note this
+     entry already says "function body + ITS HEADERS" — the header term was the live one all along,
+     and v39 under-explored it. Fingerprints + method: docs/compiler-hunt.md v96, tools/dialsweep.py.
      IR + header decl-set, and neither preceding functions, emission order, nor the emitted-COMDAT set
      perturb it. ⇒ Worldgen's "over-emitted GDI-dtor COMDATs" cannot rotate its neighbors (the v38-pickup
      lever #1 is CLOSED), and ??_GCPalette was a lesson-#28 misattribution (correctly odr-emitted by the

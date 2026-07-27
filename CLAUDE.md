@@ -11,11 +11,21 @@ v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-match
 
 ## Where the project stands (2026-07-11, v87)
 
-Phases A–G (byte-matching YodaDemo.exe's app region) are **COMPLETE & PARKED**: **211 functions byte-exact /
-99.17 % coverage**, every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked
-image, all oracles green. The residual byte-identity gap is a compiler-intrinsic register-coloring wall —
-**do NOT re-chase it** (docs/compiler-hunt.md, docs/g2-layout.md; every lever proven dead — body, header,
-emission order, PCH, COMDAT set, compiler options: PLAN_COMPLETED.md lessons #26–#30).
+Phases A–G (byte-matching YodaDemo.exe's app region): **211 functions byte-exact / 99.17 % coverage**,
+every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
+oracles green.
+
+⭐ **RE-OPENED v96 (2026-07-26) — the "compiler wall" was WRONG; 211 is a plateau, not a ceiling.**
+The prior text here said the gap was "a compiler-intrinsic register-coloring wall — do NOT re-chase
+it, every lever proven dead". That is **retracted**. `tools/dialsweep.py` reaches **215 exact
+project-wide with FOUR GAINED AND ZERO LOST**, from nothing but 7 extra file-scope symbols visible
+through `Worldgen.h` — validated 4 ways (struct/typedef/extern/6-field-enum all land on exactly 215)
+plus a determinism repeat. Both surviving "only VC 4.0 can make these" functions (`ParseZaux`
+0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0) go byte-exact under **our own VC 4.2**, so the
+interim-compiler hypothesis is dead (docs/compiler-hunt.md v96). ⚠ the +7 is currently PLACEHOLDER
+declarations and is deliberately NOT committed as source — it is a **measurement** saying the
+original's headers carried ~7 more symbols than ours. The work is finding the real seven; **never
+pad to hit a number** (see "the dial is an instrument" below).
 
 Phase H (extension — functional correctness, not byte-matching) status:
 - **H1 CMake build** ✅ (docs/cmake-build.md) — config matrix `YODA_GAME`(YODA|INDY) × `YODA_VARIANT`(DEMO|FULL)
@@ -157,6 +167,26 @@ build while `progress.py` stays green (v95 did exactly that — microfx lacked `
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
+
+⚠ **211 is the CURRENT baseline, not the ceiling (v96).** It is the number to hold while the header
+set is what it is — a drop still means you broke something. But **215 is demonstrably reachable**
+with the same toolchain (see above), so when the real missing declarations are found this table
+re-baselines UPWARD. Re-baseline deliberately, with all five oracles re-run in the same pass —
+never let it drift.
+
+⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
+count is steerable by ambient declaration state, which means it can be *gamed*. Do not.
+- ✅ **Legitimate:** find a REAL missing declaration (a header the original included, an enum whose
+  true field count we mis-transcribed, a class we never modelled) and add it. Signature of a correct
+  fact: **gains with ZERO regressions** — the `afxcmn.h` pattern (v37: +3 TUs, no losses) and the v96
+  +4/−0 plateau. Such a change is justifiable on its own merits, dial or no dial.
+- ❌ **Forbidden:** adding filler declarations, padding an enum, or keeping a wrong field count
+  because it happens to score better. That encodes a NUMBER, not a fact, and poisons the source as a
+  reference. Every position in the v96 sweep that *traded* (+3/−3) is that kind of position — a trade
+  is the fingerprint of padding, a free gain is the fingerprint of truth.
+Use `tools/dialsweep.py` to MEASURE how many symbols are missing and which TUs see them, then go
+find them. See docs/compiler-hunt.md v96 for the mechanism (pure symbol count; identifier length
+irrelevant; enum = tag + field count; macros are free because they never enter the symbol table).
 
 ⚠ Objects live in **`build/`** (repo root), not next to sources: compile with
 `cd src && ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../build/<File>.obj <File>.cpp`.

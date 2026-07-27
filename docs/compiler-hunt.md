@@ -77,6 +77,9 @@ beta / Q1-1996 MSDN Development Platform VC disc is ever sourced (BetaArchive), 
 `VCDIR=<it> python3 tools/progress.py` — if it flips the 3 keeping the 19 (exact→214+), that's the app-cl and
 proves the mixed-toolchain (interim-cl + 4.2 libs) theory. Until then the app-cl axis stays UNDETERMINED and the
 compiler lever is parked.
+⚠ **v96: the app-cl axis is now effectively SETTLED as pure-4.2** — the 2 remaining discordant
+functions are 4.2-reachable via the declaration dial, so no mixed toolchain is required to explain
+the data. And "211 stands as the achievable exact count with our toolchain" is RETRACTED: 215.
 
 ## ⭐ v96 (2026-07-26) — HUNT RE-OPENED, then the discriminator FAILED (honestly): idiom test has NO POWER
 
@@ -147,7 +150,11 @@ accounting and has bogus entries, e.g. 0x416620 listed as 1 byte; slicing to it 
 fabricated a whole function of phantom "idiom delta"). The tool now ASSERTS that align==0 + equal
 instruction counts implies an empty mnemonic delta, so that class of bug fails loudly.
 
-**⛔ HUNT CLOSED (2026-07-08) — no obtainable interim compiler exists on ANY accessible source.** archive.org
+**⛔ HUNT CLOSED (2026-07-08) — no obtainable interim compiler exists on ANY accessible source.**
+⚠ **SUPERSEDED v96: closing it was right, but for the wrong reason — see the v96 section above.**
+No interim compiler is NEEDED. Both surviving 4.0-only functions go byte-exact under our own 4.2 at
+the right dial position, and 215 > 211 is reachable with zero regressions. Do not resume compiler
+hunting; DO resume the residual hunt, on the header/declaration axis. archive.org
 (public VC presses = 4.0/4.1/4.2, all tested; Jan-96 MSDN Level-2 = no VC) AND BetaArchive (user searched 4.0a /
 4.0 subscription / 4.1 beta → nothing) are both exhausted. The app-cl question (interim-cl mixed-toolchain vs
 pure-4.2 + 3 source-locked funcs) is therefore UNFALSIFIABLE with available artifacts — do NOT spend more time
