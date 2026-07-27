@@ -143,6 +143,47 @@ statement than v52b could make. Direct evidence the dial has this power: this se
 unrelated header moved 6 functions across the exactness line, and **24 functions flip multiset-identity
 between the 4.0 and 4.2 backends**.
 
+### v96b — LOCALIZED: the deficit is TWO TUs, and it points at `Worldgen.h`
+
+`tools/headersweep.py` sweeps EVERY shared header and compares reach fingerprints (a header only
+perturbs the TUs that transitively include it; the baseline is reused for the rest, so a position
+costs reach x ~8s instead of a 13-TU rebuild). n=1..10 plain symbols, project-wide:
+
+| header | reach | exact @ n=1..10 |
+|---|---|---|
+| **Worldgen.h** | 4 TUs | 210 209 211 213 210 **214 215 214** 214 211 |
+| **Deskcpp.h** | 6 TUs | 210 209 211 213 210 **214 215 214** 214 211 (IDENTICAL — its 2 extra TUs are inert) |
+| **TextDialog.h** | 2 TUs | 211 211 211 212 211 **213 213 213** 212 210 |
+| DeskcppView.h | 6 | always TRADES |
+| IactScript.h | 6 | always TRADES |
+| MapZone.h | 7 | trades |
+| GameObjectClasses.h | 8 | mostly LOSES |
+| Canvas.h | 8 | mostly LOSES |
+| DeskcppStub.h | 2 | no free gain; loses |
+
+**Decomposition by owning TU:**
+- `DeskcppView.cpp` is ~6-8 symbols short -> gains **0x40ebe0, 0x40fca0**
+- `Worldgen.cpp` is exactly **7** short -> gains **0x423110** (n>=3) and **0x41f830** (only at n=7)
+- **Every other TU is ALREADY at its correct dial position** — Iact, WorldgenHelpers, GameObjects,
+  IactScript, DeskcppDoc only ever LOSE when perturbed. This is a localized gap, not a codebase-wide
+  fudge factor, and it means most of our header state is already right.
+
+`TextDialog.h` is the clean control: it reaches DeskcppView but not Worldgen, and delivers exactly
+DeskcppView's two functions and neither of Worldgen's — the model behaves as predicted.
+
+⇒ **the missing symbols must be visible to DeskcppView.cpp AND Worldgen.cpp but NOT to
+Iact.cpp/WorldgenHelpers.cpp** (or those would regress). Exactly one header has that reach:
+**`Worldgen.h`**. ⚠ parsimonious, not unique — DeskcppView could need 6 from one place and Worldgen 7
+from another and they would overlap in this measurement.
+
+**NEXT (real RE, not sweeping):** inventory the ORIGINAL's file-scope globals in the worldgen
+`.data`/`.bss` region from Ghidra against the set we actually declare. `Worldgen.cpp` carries many
+(`genZoneTypeScratch`, `genSkipTeleCheck`, `genCellQuestSlot6Scratch`, ...); unmodelled ones are
+candidates backed by INDEPENDENT evidence — add them because they are real and let the dial move as a
+consequence. If that does not account for ~7, look at forward declarations and at enum FIELD COUNTS
+(an enum costs tag + fields, so a mis-transcribed enum is a quantified dial error; `TileFlags` carries
+TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY as COMMENTS rather than enumerators).
+
 **Reproduce:** `python3 tools/idiomscan.py --csv out.csv` (add `VCDIR=$PWD/toolchain/vc40mix` for the
 calibration). ⚠ `tools/idiomscan.py` must slice the original at OUR trimmed COMDAT length — do NOT use
 `toolchain/test/app_funcs.txt` extents as a byte-comparison basis (that table is for marker-coverage

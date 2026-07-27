@@ -438,98 +438,85 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-26 v96 — DE-HEX SWEEP CONTINUED; all 5 oracles GREEN, SDL builds fixed.)
+### ⏭ NEXT SESSION PICKUP (2026-07-26 v96 — DE-HEX SHIPPED **+ the byte-match hunt RE-OPENED and the "compiler wall" DISPROVED**. Tree GREEN + COMMITTED.)
 
-**▶ GOAL (unchanged, user-set 2026-07-26): de-hex the source.** (a) decimalize hex that isn't
-really hex — "mostly, coordinates"; (b) where a hex value is a *value domain*, make an enum;
-(c) defines for MFC/Win32 raw hex; (d) a define for 18 → Zone width/height. Leave genuinely-hex
-things alone: DTA tile/item catalog ids, bitmasks, Canvas.cpp's MMX `_emit` bytes, `+0xNN`
-struct-offset comments.
+**▶ WHAT HAPPENED.** Two halves. (1) finished the user's de-hex readability sweep; (2) that sweep's
+dial lessons made us re-open the parked compiler hunt — and **211 turned out to be a plateau, not a
+ceiling**. Commits: `b0d430a` de-hex · `fff083b` dial tools + 215 · `f747e02` prior retractions ·
+`2c9067f` headersweep localization. All 5 oracles green at commit time (211 exact / 99.17 %, link 0/0,
+bugscan 0 HIGH/0 SHIFT, vt 10 CLEAN, msg 11 CLEAN); `build-sdl` + `build-sdl-indy` build.
 
-**⚠⚠ TWO NEW DIAL LESSONS THIS SESSION (both MEASURED both ways — add to the lessons list):**
-1. **An `enum` in a header a byte-matched TU can see is a DIAL INPUT.** Spelling the recovered
-   Artoo hint table as `enum ArtooHint { … }` at the tail of `DeskcppView.h` cost **6 byte-exact
-   functions** (211 → 205; `Worldgen.cpp` 34→32, `WorldgenHelpers.cpp` 13→12) — DeskcppView.h
-   reaches those TUs via `Worldgen.h`. The IDENTICAL constants as plain `#define`s cost NOTHING.
-   ⇒ **every new named-constant block visible to a byte-matched TU must be `#define`, never
-   `enum`.** (Sibling of the v95 "one more #include FILE costs a function" lesson.) The user's
-   ask (b) for enums therefore has to be served by defines in this codebase's anchor TUs.
-2. **`sizeof(T)` substituted for the equivalent literal is ALSO a dial input**, even though it
-   folds to the same constant. `h->biSize = sizeof(BITMAPINFOHEADER)` (== 40) cost 1 function
-   (211 → 210, `Canvas.cpp` 9→8, −106 B); the bare `40` is free. Left as `40` with a **DIAL NOTE
-   appended at `Canvas.cpp` EOF** explaining that `sizeof(BITMAPINFOHEADER)` is near-certainly
-   what LucasArts wrote and should be restored once the dial is understood — user explicitly
-   asked for that note. Do NOT "clean up" that literal without re-running `tools/progress.py`.
-3. **The anchor is not the only oracle.** v95's batch-6/7 work named Win32 constants that
-   **microfx does not define**, silently breaking the SDL/portable build while `progress.py`
-   stayed green. ⇒ after any de-hex batch that introduces MFC/Win32 names, also
-   `cmake --build build-sdl` (and `build-sdl-indy`). Fixed this session by adding to
-   `microfx/include/windows.h`: `CLR_INVALID`, `WS_MINIMIZEBOX/MAXIMIZEBOX/MAXIMIZE/MINIMIZE`,
-   `WS_EX_CLIENTEDGE`, `SM_CXDLGFRAME/SM_CYDLGFRAME`, `ES_NOHIDESEL/ES_OEMCONVERT`,
-   `OFN_SHOWHELP/OFN_EXPLORER`.
+**▶ ⭐ THE HEADLINE — 215 > 211, with ZERO regressions.** `tools/dialsweep.py` reaches **215 exact
+project-wide, +4 gained / −0 lost**, from nothing but **7 extra file-scope symbols** through
+`Worldgen.h`. Plateau at 6/7/8 (214/215/214), not a knife-edge. Validated FOUR ways —
+`struct`/`typedef`/`extern`/one-6-field-`enum` all land on exactly 215 — plus a determinism repeat.
+⇒ **the interim-compiler hypothesis is DEAD.** Both surviving pillars of it go byte-exact under OUR
+VC 4.2 (`ParseZaux` 0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0), and the famous "3 VC 4.0 wins" was
+already only 2 — `DetonateAdjacentTiles` no longer reproduces under 4.0 at all (our source drifted
+since v52), exactly the fragility expected if those were coincidental allocator landings.
 
-**▶ DONE THIS SESSION (anchor re-verified 211 exact / 99.17 % after EVERY batch; the other four
-oracles run at the end — link 0 unresolved/0 dup, bugscan 0 HIGH/0 SHIFT, vtcheck 10 CLEAN,
-msgcheck 11 CLEAN. `build-sdl` + `build-sdl-indy` both build; worldgen_smoke seeds 1/42/7 OK.
-NOT yet committed at time of writing.):**
-1. **`ArtooHint` — CLOSED.** Mapping re-verified by reading both switches (producer
-   `ClassifyTile` 0x0040fca0 incl. its `gameState==1 → 9` / `== -1 → 10` head, consumer
-   `OnDragItem` 0x004102d0). Applied as `ARTOO_HINT_*` **#defines** at `DeskcppView.h`'s tail
-   and at all 45 sites. Value 3 is neither produced nor consumed — left unnamed, as recorded.
-2. **`IactResult` — CLOSED.** `IACT_SOUND/TEXT/CAMERA/SPAWN/OBJECTS/TILES/ENTITIES/FULL_REDRAW/
-   PLAYER/GAME_OVER/INVENTORY/ZONE_WARP` + `IACT_ZONE_INVALID` (0x808) at `IactScript.h`'s tail
-   (seen by `Iact.cpp` directly and `DeskcppView.cpp` via `Worldgen.h`). Applied to all 27
-   `result |=` sites in Iact.cpp and all 13 `nMask &` tests in DeskcppView.cpp; the composite
-   `0x2a` is spelled `(IACT_TEXT | IACT_SPAWN | IACT_TILES)`.
-3. **Health-dial bands — CLOSED, and the pickup's location was WRONG:** they are in
-   **`Worldgen.cpp`** (the `nLo` needle-quadrant ladder ~7112-7127), not DeskcppView.cpp.
-   `0x19/0x32/0x4b/0x64` → `25/50/75/100` — note those same lines ALREADY spelled the paired
-   values in decimal (`gNeedleTable[25 - nLo]`), so this just makes them consistent. Also
-   `nDiff < 0x32` → `< 50` (difficulty midpoint) and `tries < 0x32` → `< 50` (retry counter).
-4. **Spaceport zone ids — CLOSED.** `ZONE_SPACEPORT_NW 0x5e / NE 0x5f / SW 0x5d / SE 0x60 /
-   ALT_NE 0x217` in the Resource-ids block of `GameObjectClasses.h`; applied at all 21 sites in
-   Worldgen.cpp (`Populate` 5-way variant switch **and** `RestoreRecords` 0x00426380 — the
-   pickup only knew about the first block; asserted counts caught the miss).
-5. **Leftover counters — CLOSED**: `mapGrid + 0x2c` → `+ 44` (both sites),
-   `pFile->Read(buf, 0x10/0x18)` → `16/24`, `GameObjects.cpp` `Read(name, 0x10)` → `16`,
-   `Canvas.cpp` `biClrUsed = 0x100` → `256`, `GetPaletteEntries(…, 0x100, …)` → `256`,
-   halftone swap loop `0x1a` → `26`, `biSize 0x28` → `40` (see lesson 2 above).
-6. **Plan codes in Worldgen.cpp**: `nCode == 1 || == 300 || == 0x68` →
-   `PLAN_PATH || PLAN_CORRIDOR || PLAN_WALL` (the enum already existed in `Worldgen.h`).
+**▶ THE MECHANISM (all measured, `tools/enumfieldtest.py`).** The dial is a **pure file-scope SYMBOL
+COUNT**:
+- an `enum` costs **tag + field count** (11/11 positions match the plain-symbol curve); an EMPTY enum
+  body is free ⇒ **unused enumerators ARE dial-active**, and a mis-transcribed enum is a *quantified*
+  dial error;
+- **identifier LENGTH is irrelevant** (40-char vs 1-char names, identical) ⇒ it is a clean scalar, not
+  symbol-table bytes / hash occupancy — which is what makes it usable as an instrument;
+- **macros are FREE** (never enter the symbol table) — why our huge `#define` blocks cost nothing while
+  one 23-name `enum ArtooHint` cost 6 functions;
+- declaration KIND is irrelevant (struct == typedef == extern at every n).
+⚠ NOT everything is symbol count: an **empty include FILE** still costs a function (v95) and
+`sizeof(T)` for the literal costs one (v96) — at least three distinct mechanisms; don't over-unify.
 
-**▶ REMAINING (pick up here):**
-- **`0x68` in `WorldgenHelpers.cpp` (6 sites) + `DeskcppDoc.cpp` (4 sites) — deliberately LEFT
-  RAW, and here is the trap:** neither TU can see `Worldgen.h`'s `enum PlanToken`, and adding a
-  same-named `#define PLAN_WALL 104` to a shared header would rewrite the ENUM DECLARATION
-  itself into `104 = 104` in any TU that sees both (`Worldgen.h` also pulls `DeskcppStub.h`) —
-  a hard compile error, the v85 "old macros ate the new defs" failure mode. Doing this properly
-  means RELOCATING PlanToken to a header all three TUs include (`MapZone.h` is the candidate),
-  which is itself an enum-in-header dial risk per lesson 1 — measure before believing. The sites
-  already carry naming comments, so this is polish, not confusion.
-- **Ambiguous `TileFlags` masks still RAW** (`& 0x10000`, `& 0x20000`, `& 0x40000`, `& 0x60000`):
-  bits 16-19 are GROUP-DEPENDENT ALIASES (WEAPON vs ITEM vs CHARACTER subtypes) and the enum has
-  TILE_PLAYER/ENEMY/FRIENDLY only as COMMENTS. Needs real RE (read the DTA group bit first) — do
-  not guess. `(tflags >> 16) & 0x10` in the Worldgen categorizer likewise left alone (rewriting
-  the shift changes the byte-matched shape).
-- **`DeskcppDoc.cpp`'s `return 0xffffffff` sentinels (2) + sibling `0x11/0x10/0xe` zone-state
-  codes** — enum territory, but the semantics are still not established. RE first.
-- **`WORLD_GRID_SIZE 10`** for the pervasive `y * 10 + x` — still the user's call (would touch a
-  very large number of byte-matched lines; measure on one TU first).
-- **The `Canvas::Canvas` sizeof dial hunt** — see the DIAL NOTE at `Canvas.cpp` EOF for the
-  levers not yet tried (asmscore.py the regressed function to see if it is local or a whole-TU
-  rotation).
+**▶ ⭐ LOCALIZED (`tools/headersweep.py`) — the gap is TWO TUs, and it points at `Worldgen.h`.**
+- `DeskcppView.cpp` ~6-8 symbols short → gains 0x40ebe0, 0x40fca0
+- `Worldgen.cpp` exactly **7** short → gains 0x423110 (n≥3), 0x41f830 (only n=7)
+- **every other TU is ALREADY correct** — Iact/WorldgenHelpers/GameObjects/IactScript/DeskcppDoc only
+  ever LOSE when perturbed. Free gains appear ONLY in headers avoiding those TUs (`Worldgen.h`,
+  `Deskcpp.h` — identical curves, its 2 extra TUs inert — and `TextDialog.h`, the clean control that
+  delivers DeskcppView's two and neither of Worldgen's). Full table: docs/compiler-hunt.md v96b.
 
-**▶ HOW TO WORK THIS SAFELY (validated again this session):** batch edits with a python script
-that **asserts an exact occurrence COUNT per replacement** — that caught a real miscount again
-(`mapGrid[44].id = 0x5e;` appears 3×, not 2×, because `RestoreRecords` re-tags the same cells) —
-and **assert the line count is unchanged** before writing, since line-count-neutrality is the
-lesson-#23 requirement in byte-matched TUs. Then re-run `tools/progress.py` after each batch;
-if the count drops, bisect by restoring `git show HEAD:src/<TU>.cpp`. ⚠ Do NOT start a
-`progress.py` run and then edit headers while it is in flight — that confounded the first
-ArtooHint measurement this session and cost a full re-run. ⚠ `tools/verify.py`'s per-TU number
-is a LOWER BOUND and disagrees with `progress.py` (33 vs 34) — trust `progress.py`.
-Comments are token-free but NOT line-free: same-line trailing comments and EOF appends are the
-safe shapes in a byte-matched TU.
+**▶ ⛔ THE RULE THAT KEEPS THIS HONEST — the dial is an INSTRUMENT, not a knob.** Full statement in
+the 🛡 ANCHOR section. Short form: a **free gain (zero regressions)** is the fingerprint of a REAL
+missing fact (the `afxcmn.h` pattern); a **trade (+3/−3)** is the fingerprint of padding. **NEVER pad
+to a number** — the 215 is currently placeholder decls and is deliberately NOT committed as source.
+
+**▶ NEXT — pick up here (real RE, not sweeping):**
+1. ⭐ **Ghidra globals inventory.** List the ORIGINAL's file-scope globals in the worldgen `.data`/`.bss`
+   region and diff against what we actually declare. Unmodelled ones are candidates with INDEPENDENT
+   evidence — add them because they're REAL and let the dial move as a consequence. If that doesn't
+   account for ~7, try forward declarations, then enum FIELD COUNTS (`TileFlags` carries
+   TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY as COMMENTS, not enumerators — 3 of the 7 right there, and a
+   change we want on readability grounds anyway).
+2. **Member-vs-file-scope A/B — UNTESTED, and it narrows the search.** PLAN_COMPLETED #8 (v36) says an
+   unreferenced **member** decl is inert; v96 shows **file-scope** decls are not. That reconciliation is
+   my hypothesis only. If members really are inert, the missing 7 MUST be file-scope. Run it first.
+3. **Re-baseline the anchor** once real declarations land: 211 → 215+ in the oracle table, CLAUDE.md,
+   PLAN_COMPLETED, docs. Deliberate, all 5 oracles in one pass — never let it drift.
+4. **Reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41** functions differ
+   by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population, ~10 already
+   proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the small-`align` ones
+   are the cheap wins). **A hard core is dial-invariant** — `DetonateAdjacentTiles` never moved once
+   across ~70 positions, corroborating PLAN_COMPLETED #29 *for that function*.
+5. **De-hex leftovers** (all still valid): `0x68`→PLAN_WALL in WorldgenHelpers/DeskcppDoc (blocked — a
+   shared `#define PLAN_WALL` would rewrite Worldgen.h's enum declaration into `104 = 104`; needs the
+   enum relocated, itself a dial risk now measurable); ambiguous `TileFlags` bits 16-19 (need real RE);
+   DeskcppDoc's `0xffffffff` sentinels + `0x11/0x10/0xe` zone-state codes; `WORLD_GRID_SIZE 10` (user's
+   call); the `Canvas::Canvas` `sizeof` dial note at Canvas.cpp EOF.
+
+**▶ TOOLS ADDED (all committed, all restore headers via atexit+finally):** `tools/idiomscan.py`
+(classify residuals; ⚠ slice the original at OUR trimmed COMDAT length — `toolchain/test/app_funcs.txt`
+extents are for coverage accounting and have bogus entries, e.g. 0x416620 listed as 1 byte, which
+fabricated a whole function of phantom delta before the built-in assert caught it) · `tools/dialsweep.py`
+(`--all-tus` for project-wide) · `tools/enumfieldtest.py` (mechanism + determinism/name-length controls)
+· `tools/headersweep.py` (reach fingerprints) · `toolchain/vc40mix/` (4.0 BIN + 4.2 headers, the
+documented A/B config).
+
+**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
+atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
+while a `progress.py` is in flight: they fight over the header AND `build/*.obj` (this confounded the
+first ArtooHint measurement and cost a full re-run). Verify a clean tree with
+`git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
 
 ---
 
