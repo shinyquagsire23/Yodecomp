@@ -2856,3 +2856,55 @@ that isolates .cpp edits from header effects (and is how the include lesson abov
 ⚠ `tools/verify.py`'s per-TU number is a LOWER BOUND and disagreed with `progress.py`
 (33 vs 34) — it made one bisect read as a false negative. Trust `progress.py`.
 
+
+---
+
+### ⏮ PRIOR PICKUP (v95–v97 — the byte-match dial re-opened; 211 is a plateau, not a ceiling)
+
+**▶ v95/v96 (2026-07-19/26) — "the compiler wall" DISPROVED; an ambient-dial is real.**
+Re-opened the parked compiler-hunt after the de-hex sweep's dial lessons. **211 → 215 with +4
+gained / −0 lost** was reachable (`tools/dialsweep.py`), purely from **7 extra file-scope
+symbols through Worldgen.h**; validated 4 ways (struct/typedef/extern/6-field-enum all land
+215) + determinism. The two surviving "interim-cl" pillars (`ParseZaux` 0x423110,
+`ZoneHasIzxItemMaybe` 0x41bfa0) go byte-exact under OUR VC 4.2. Mechanism (all measured,
+`tools/enumfieldtest.py`): a PURE file-scope SYMBOL COUNT — enum = tag + field count,
+identifier LENGTH irrelevant, **macros are FREE** (never enter the symbol table), declaration
+KIND irrelevant. NOT everything is symbol count (empty include file still costs one; sizeof(T)
+for a literal costs one — at least 3 distinct mechanisms). ⚠ **the 215 was PLACEHOLDER decls,
+deliberately NOT committed source** — never pad to a number (`tools/dialsweep.py`, restored
+via atexit; ⚠ never run two sweeps concurrently — they fight over the header AND build/*.obj).
+`tools/headersweep.py` localized the gap: **DeskcppView.cpp ~6–8 short, Worldgen.cpp exactly 7
+short (0x423110 n≥3, 0x41f830 only n=7); every other TU already correct** (Iact/Helpers/
+Objects/IactScript/Doc only ever LOSE when perturbed). Use `tools/idiomscan.py` to classify
+residuals (⚠ slice original at OUR trimmed COMDAT length, not `toolchain/test/app_funcs.txt`).
+
+**▶ v97 (2026-07-26, this session) — pickup steps 1 & 2 EXECUTED; real RE artifacts shipped.**
+- **Member-vs-file-scope A/B — RESOLVED (was UNTESTED).** `tools/membertest.py` on Worldgen.cpp:
+  adding N members to an UNUSED struct (one constant tag) is **INERT** — exact stays flat at
+  +2 across n=1..12 (the +2 is the single struct TAG symbol, not the members); file-scope
+  externs move it, and **n=7 uniquely unlocks 0x41f830**. ⇒ **the missing symbols MUST be
+  file-scope** (or enum ENUMERATORS, which leak to the enclosing scope; struct members never
+  escape the class scope — that's why enums dial and members don't). This reconciles v36
+  #8 (member inert) with v96 (file-scope active).
+- **Ghidra globals inventory (pickup step 1) — done.** Enumerated all .data globals referenced
+  from the Worldgen TU (0x41c340–0x429000; no .bss — MSVC folded into .data). Result: every
+  named worldgen global was ALREADY modelled EXCEPT the **DTA/.wld record-type tag table
+  (0x00456890)**: 16×8 bytes `ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE PUZ2 SNDS CAUX CHWP
+  CHAR TNAM TILE STUP` + the `YODASAV44` save magic at 0x456910, which we'd transcribed as
+  inline `strcmp(tag,"...")` literals. **Added as `char g_aDtaRecordTags[16][8]`** at
+  **EOF of Worldgen.cpp** (unreferenced-but-faithful; wiring the strcmp sites deferred).
+- **Placement / lesson-#23 refinement (MEASURED):** the same table placed at TOP of
+  Worldgen.cpp (adds ~19 lines) **flips 0x41d8d0 OFF (34→33)**; placed at **EOF (line-neutral)
+  it is byte-exact-neutral (34/34, zero gain/loss)**. So the earlier 33-dip was a **#line
+  rotation artifact, NOT the +1 symbol**. EOF is the dial-safe home for any new real global.
+- **`TileFlags` +3 enumerators SHIPPED:** promoted the CHARACTER-subtype aliases
+  `TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY` (=1<<16/17/18, aliases of TILE_LIGHT_BLASTER/
+  HEAVY_BLASTER/LIGHTSABER) from comments to real enumerators in `GameObjectClasses.h`
+  (readability-motivated; pickup-sanctioned).
+- **Dial did NOT move to 215** — real additions (cpp-EOF array + shared-enum aliases) kept
+  **211 exact / 99.17%** and all 5 oracles green (bugscan 0/0, vt 10 CLEAN, msg 11 CLEAN,
+  link 0/0, build-sdl green). ⚠ IMPORTANT MODEL REFINEMENT: the "missing 7" is **not any 7
+  file-scope decls** — the +7 sweep was specific to that artificial extern pattern; real
+  additions did NOT reproduce it, so 0x41f830 remains gated on exactly matching the original's
+  ~7 symbols (unknowable from the binary alone; more RE or lucky reload needed, or accept 211
+  as the honest plateau per "never pad"). All changes commit-verified; anchor never dropped.

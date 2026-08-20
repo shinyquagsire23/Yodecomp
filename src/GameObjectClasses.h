@@ -151,6 +151,9 @@ enum TileFlags
     TILE_HEAVY_BLASTER              = 1 << 17, // TILE_PUZZLE_ITEM_1      // TILE_ENEMY
     TILE_LIGHTSABER                 = 1 << 18, // TILE_PUZZLE_ITEM_2      // TILE_FRIENDLY
     TILE_THE_FORCE                  = 1 << 19, // TILE_PUZZLE_ITEM_SEED_END
+    TILE_PLAYER                     = 1 << 16, // CHARACTER-subtype alias of TILE_LIGHT_BLASTER
+    TILE_ENEMY                      = 1 << 17, // CHARACTER-subtype alias of TILE_HEAVY_BLASTER
+    TILE_FRIENDLY                   = 1 << 18, // CHARACTER-subtype alias of TILE_LIGHTSABER
     TILE_LOCATOR                    = 1 << 20, // (ITEM group)
     TILE_HEALTH_PACK                = 1 << 22, // (ITEM group)
     TILE_KEYCARD                    = 1 << 16, // ITEM group: reusable key — OnDragItem does NOT

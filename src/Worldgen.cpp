@@ -10661,3 +10661,20 @@ void CDeskcppDoc::IndyReadWorldState(CFile *pFile)
 }
 
 #endif // GAME_INDY
+
+
+// ---- DTA/.wld record-type tag table (0x00456890) ----
+// The original engine's file-scope lookup table of the .dta/.wld binary record tags,
+// referenced by address throughout the Load/Save record dispatchers. We currently express
+// these same tags as inline strcmp(tag, "...") string literals in Load*/Save* (which
+// byte-match because relocations are masked), but the original carried them as ONE global.
+// Declared and kept faithful here (16 x 8-byte entries: 4-char tag + 4 pad, per the binary
+// layout). Deliberately at EOF so the extra lines cannot rotate the byte-matched functions'
+// #line provenance (dial lesson #23). Wire the strcmp call-sites to it when convenient.
+// 0x00456890: ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE PUZ2 SNDS CAUX CHWP CHAR TNAM TILE STUP
+char g_aDtaRecordTags[16][8] = {
+    {'E','N','D','F'}, {'A','C','T','N'}, {'H','T','S','P'}, {'Z','A','X','3'},
+    {'Z','A','X','2'}, {'Z','A','U','X'}, {'V','E','R','S'}, {'Z','O','N','E'},
+    {'P','U','Z','2'}, {'S','N','D','S'}, {'C','A','U','X'}, {'C','H','W','P'},
+    {'C','H','A','R'}, {'T','N','A','M'}, {'T','I','L','E'}, {'S','T','U','P'},
+};

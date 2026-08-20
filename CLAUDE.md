@@ -25,7 +25,7 @@ plus a determinism repeat. Both surviving "only VC 4.0 can make these" functions
 interim-compiler hypothesis is dead (docs/compiler-hunt.md v96). ⚠ the +7 is currently PLACEHOLDER
 declarations and is deliberately NOT committed as source — it is a **measurement** saying the
 original's headers carried ~7 more symbols than ours. The work is finding the real seven; **never
-pad to hit a number** (see "the dial is an instrument" below).
+pad to hit a number** (see "the dial is an instrument" below). **v97 (same day): the search is NARROWED — members are INERT (only file-scope symbols / enum ENUMERATORS dial; `tools/membertest.py`), and the Ghidra globals inventory found the one real unmodelled worldgen global = the DTA record-tag table (0x00456890, SHIPPED at EOF of Worldgen.cpp) + TileFlags TILE_PLAYER/ENEMY/FRIENDLY enumerators (SHIPPED). Real additions did NOT reproduce the +7 extern sweep → 211 is the honest plateau, 0x41f830 still gated on the exact ~7 (see ⏭ v97).**
 
 Phase H (extension — functional correctness, not byte-matching) status:
 - **H1 CMake build** ✅ (docs/cmake-build.md) — config matrix `YODA_GAME`(YODA|INDY) × `YODA_VARIANT`(DEMO|FULL)
@@ -438,7 +438,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-26 v96 — DE-HEX SHIPPED **+ the byte-match hunt RE-OPENED and the "compiler wall" DISPROVED**. Tree GREEN + COMMITTED.)
+### ⏭ NEXT SESSION PICKUP (2026-07-26 v97 — pickups 1&2 EXECUTED: member-vs-file-scope RESOLVED (members inert), Ghidra globals inventory DONE, real record-tag table + TileFlags enumerators SHIPPED; anchor held 211/99.17% + all 5 oracles; dial model refined — "~7" is file-scope/ENUM only and NOT any 7 decls. Tree GREEN + COMMITTED.)
 
 **▶ WHAT HAPPENED.** Two halves. (1) finished the user's de-hex readability sweep; (2) that sweep's
 dial lessons made us re-open the parked compiler hunt — and **211 turned out to be a plateau, not a
@@ -481,18 +481,35 @@ the 🛡 ANCHOR section. Short form: a **free gain (zero regressions)** is the f
 missing fact (the `afxcmn.h` pattern); a **trade (+3/−3)** is the fingerprint of padding. **NEVER pad
 to a number** — the 215 is currently placeholder decls and is deliberately NOT committed as source.
 
+**▶ v97 (2026-07-26, THIS session) — pickup steps 1 & 2 EXECUTED; real RE artifacts SHIPPED (all
+5 oracles green, anchor held 211/99.17 %, never dropped, build-sdl green).**
+- **⭐ Member-vs-file-scope A/B — RESOLVED** (`tools/membertest.py`, was UNTESTED): members are
+  **INERT** — a struct's N members don't dial (exact flat across n=1..12), only the single struct
+  TAG does; externs move it and **n=7 uniquely unlocks 0x41f830**. ⇒ the missing symbols MUST be
+  **file-scope or enum enumerators** (enumerators leak to enclosing scope; struct members never
+  escape the class scope). Reconciles v36 #8 with v96. **Tool kept: `tools/membertest.py`.**
+- **⭐ Ghidra globals inventory — DONE.** Only unmodelled REAL worldgen-TU global is the
+  **DTA/.wld record-tag table (0x00456890)**: 16×8 bytes `ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE
+  PUZ2 SNDS CAUX CHWP CHAR TNAM TILE STUP` (+`YODASAV44` magic at 0x456910) — we'd inlined them.
+  **SHIPPED `char g_aDtaRecordTags[16][8]` at EOF of Worldgen.cpp** (unreferenced-but-faithful;
+  wiring the strcmp sites deferred).
+- **Placement/#line refinement (MEASURED):** the table at TOP of Worldgen.cpp flips 0x41d8d0 OFF
+  (34→33); at **EOF (line-neutral) it is 34/34 zero-delta**. The 33-dip was #line rotation, NOT the
+  +1 symbol. ⇒ **EOF is the dial-safe home for any new real global** in a byte-matched TU.
+- **`TileFlags` +3 enumerators SHIPPED** (`TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY` =1<<16/17/18,
+  comments→enumerators, readability, pickup-sanctioned).
+- ⚠ **MODEL REFINEMENT: the "~7" is not any 7 file-scope decls.** Real additions (cpp-EOF array +
+  shared-enum aliases) did NOT reproduce the +7 extern sweep — **211 held, 0x41f830 STILL gated** on
+  exactly matching the original's ~7 symbols. Don't chase it with filler; 211 is the honest plateau.
+
 **▶ NEXT — pick up here (real RE, not sweeping):**
-1. ⭐ **Ghidra globals inventory.** List the ORIGINAL's file-scope globals in the worldgen `.data`/`.bss`
-   region and diff against what we actually declare. Unmodelled ones are candidates with INDEPENDENT
-   evidence — add them because they're REAL and let the dial move as a consequence. If that doesn't
-   account for ~7, try forward declarations, then enum FIELD COUNTS (`TileFlags` carries
-   TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY as COMMENTS, not enumerators — 3 of the 7 right there, and a
-   change we want on readability grounds anyway).
-2. **Member-vs-file-scope A/B — UNTESTED, and it narrows the search.** PLAN_COMPLETED #8 (v36) says an
-   unreferenced **member** decl is inert; v96 shows **file-scope** decls are not. That reconciliation is
-   my hypothesis only. If members really are inert, the missing 7 MUST be file-scope. Run it first.
-3. **Re-baseline the anchor** once real declarations land: 211 → 215+ in the oracle table, CLAUDE.md,
-   PLAN_COMPLETED, docs. Deliberate, all 5 oracles in one pass — never let it drift.
+1. **(DONE v97 — see above.)** Remaining honest open thread: wiring `g_aDtaRecordTags` into the ~50
+   `strcmp(tag, "…")` Load/Save sites (line/byte-neutral by construction — relocs masked; keep the
+   callsites' line counts stable). If the original's dispatcher was a table LOOP, reproduce that
+   shape from DESKADV/YodaDemo disasm rather than per-index guessing.
+2. **(DONE v97 — membertest settled it.)**
+3. **Re-baseline is a NO-OP for v97** (211 held; real change was dial-net-neutral). Do NOT re-baseline
+   upward unless a REAL missing decl lands with zero regressions AND raises the count — never pad.
 4. **Reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41** functions differ
    by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population, ~10 already
    proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the small-`align` ones
