@@ -9,9 +9,9 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87)
+## Where the project stands (2026-07-11, v87; byte count re-baselined 211→213 at v98)
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **211 functions byte-exact / 99.17 % coverage**,
+Phases A–G (byte-matching YodaDemo.exe's app region): **213 functions byte-exact / 99.17 % coverage** (v98: honest +2 from wiring the real DTA tag table — see v98 pickup),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
 oracles green.
 
@@ -162,17 +162,20 @@ build while `progress.py` stays green (v95 did exactly that — microfx lacked `
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **211 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **213 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **211 is the CURRENT baseline, not the ceiling (v96).** It is the number to hold while the header
-set is what it is — a drop still means you broke something. But **215 is demonstrably reachable**
-with the same toolchain (see above), so when the real missing declarations are found this table
-re-baselines UPWARD. Re-baseline deliberately, with all five oracles re-run in the same pass —
-never let it drift.
+⚠ **213 is the CURRENT baseline (re-baselined at v98 from 211, ALL five oracles re-run in the same
+pass).** It is the number to hold while the header set is what it is — a drop still means you broke
+something. The v98 rise was HONEST, not padded: wiring the original's real file-scope DTA tag table
+(g_aDtaRecordTags) into 37 Load*/Save* strcmp sites gained exactly 4 functions with only 2 lost to
+regalloc aftershock (net +2; the −2, ParseZaux 0x423110 + RemoveItem 0x429150, are byte-neutral
+semantic-equivalent regalloc variants — see v98 pickup ⏭ if you ever want ParseZaux back via a
+dial-sweep position). The project-wide per-TU count (all non-Worldgen TUs untouched) is the thing
+that must never drop. Re-baseline deliberately, never let it drift.
 
 ⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
 count is steerable by ambient declaration state, which means it can be *gamed*. Do not.
@@ -438,97 +441,72 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-26 v97 — pickups 1&2 EXECUTED: member-vs-file-scope RESOLVED (members inert), Ghidra globals inventory DONE, real record-tag table + TileFlags enumerators SHIPPED; anchor held 211/99.17% + all 5 oracles; dial model refined — "~7" is file-scope/ENUM only and NOT any 7 decls. Tree GREEN + COMMITTED.)
+### ⏭ NEXT SESSION PICKUP (2026-07-26 v98 — pickup #1 (tag-table wiring) EXECUTED → honest re-baseline 211→213; found + FIXED a pinned-seed worldgen retry spin; added the smoke-harness watchdog the user asked for. All 5 oracles GREEN on 213, build-sdl + build-sdl-indy green, save_smoke 1/42/7 + worldgen_smoke 1 + game_walk pass. Tree GREEN + COMMITTED b0ee41a. Old v97 dial-hunt log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT HAPPENED.** Two halves. (1) finished the user's de-hex readability sweep; (2) that sweep's
-dial lessons made us re-open the parked compiler hunt — and **211 turned out to be a plateau, not a
-ceiling**. Commits: `b0d430a` de-hex · `fff083b` dial tools + 215 · `f747e02` prior retractions ·
-`2c9067f` headersweep localization. All 5 oracles green at commit time (211 exact / 99.17 %, link 0/0,
-bugscan 0 HIGH/0 SHIFT, vt 10 CLEAN, msg 11 CLEAN); `build-sdl` + `build-sdl-indy` build.
+**▶ WHAT HAPPENED.** v98 executed pickup #1 (wiring the v97-shipped `g_aDtaRecordTags` table into the
+records) — that made the honest anchor count RISE **211 → 213**, so we re-baselined deliberately with
+all five oracles re-run in one pass. Along the way we tripped a real 100%-CPU infinite loop in
+`save_smoke 1` (fragile-seed worldgen retry × the YODA_DEBUG seed PIN) and FIXED it, plus shipped the
+smoke-harness WATCHDOG the user asked for. Commit `b0ee41a`; tree GREEN.
 
-**▶ ⭐ THE HEADLINE — 215 > 211, with ZERO regressions.** `tools/dialsweep.py` reaches **215 exact
-project-wide, +4 gained / −0 lost**, from nothing but **7 extra file-scope symbols** through
-`Worldgen.h`. Plateau at 6/7/8 (214/215/214), not a knife-edge. Validated FOUR ways —
-`struct`/`typedef`/`extern`/one-6-field-`enum` all land on exactly 215 — plus a determinism repeat.
-⇒ **the interim-compiler hypothesis is DEAD.** Both surviving pillars of it go byte-exact under OUR
-VC 4.2 (`ParseZaux` 0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0), and the famous "3 VC 4.0 wins" was
-already only 2 — `DetonateAdjacentTiles` no longer reproduces under 4.0 at all (our source drifted
-since v52), exactly the fragility expected if those were coincidental allocator landings.
+**▶ ⭐ PICKUP #1 — `g_aDtaRecordTags` is now WIRED, not dead, and the count legitimately rose to 213.**
+YodaDemo disasm settles the shape first: every original tag site is a **per-index COMPILE-TIME constant**
+(`MOV ECX,0x456890` → a byte-wise inlined pair-strcmp against `DAT_00456890+8k`), **NOT a table loop** —
+so per-index wiring IS the faithful reproduction (the "reproduce the loop if it was a loop" condition in
+the pickup resolves to "it wasn't"). We wired **37 strcmp sites** in LoadWorld(0x421fd0)/Load(0x422670)/
+LoadWorldStateFile/Serialize to `g_aDtaRecordTags[i]` with the faithful map (0 ENDF … 7 ZONE … 15 STUP;
+`Load` alone touches indices 0–13 — all but the two save-only tags). **VC4.2 /O2 emits byte-identical
+code for the array reference vs the string literal** (verified in isolation: same inlined 2-byte-pair
+strcmp loop, only a masked reloc differs), and the forward `extern` is SAME-LINE on the .data-tables
+comment line → **every site byte- and #line-neutral**. Remaining literals (ZAX4/IZAX/PNAM/ANAM alias
+group, INDYSAV44/YODASAV44) are not table entries and correctly stayed literal.
+- **Result: 211 → 213 exact** (Worldgen 34→36), all other TUs untouched. The wiring removes ~16 unique
+  string-literal symbols → a REGALLOC-aftershock on the ambient dial: **+4 genuine** (IsItemPlaced,
+  SetCurrentToIntroZone, GetZoneIndex, ParseZax2) **/−2 regalloc variants** (ParseZaux 0x423110,
+  RemoveItem 0x429150 — semantically identical, just different register assignment; verified by byte
+  diff). Not padding (the rule holds: these are real byte-equalities + honest RE, and we did NOT chase
+  the number with filler). The caveat to remember: **string-literal count is now a KNOWN dial input in
+  Worldgen.cpp** (removing the ~16 literals moved the exact-set), same family as the enum/typedef ones.
 
-**▶ THE MECHANISM (all measured, `tools/enumfieldtest.py`).** The dial is a **pure file-scope SYMBOL
-COUNT**:
-- an `enum` costs **tag + field count** (11/11 positions match the plain-symbol curve); an EMPTY enum
-  body is free ⇒ **unused enumerators ARE dial-active**, and a mis-transcribed enum is a *quantified*
-  dial error;
-- **identifier LENGTH is irrelevant** (40-char vs 1-char names, identical) ⇒ it is a clean scalar, not
-  symbol-table bytes / hash occupancy — which is what makes it usable as an instrument;
-- **macros are FREE** (never enter the symbol table) — why our huge `#define` blocks cost nothing while
-  one 23-name `enum ArtooHint` cost 6 functions;
-- declaration KIND is irrelevant (struct == typedef == extern at every n).
-⚠ NOT everything is symbol count: an **empty include FILE** still costs a function (v95) and
-`sizeof(T)` for the literal costs one (v96) — at least three distinct mechanisms; don't over-unify.
+**▶ ⭐ BUG FOUND + FIXED — pinned-seed worldgen retry SPIN (Indy `save_smoke 1` at 100% CPU).**
+Mechanism (stack-sampled: `Load() → IndyGenerate → IndyLoadPlacedZoneList → GetProfileString/fopen` all
+burning CPU): `Load()`'s retry does `else  nSeed = Randomize();` while `Randomize()`'s YODA_DEBUG
+`YODA_SEED` pin returned the **SAME seed on every call** → a seed that can't place an Indy mission
+(`IndySelectPuzzle` returns <0 for some seed+[GameData] states, e.g. seed 1 with `save_smoke.INI`) was
+re-tried **forever**. Retail never spins because production Randomize reseeds from cursor+clock; only a
+pinned harness hits it. **FIX (same-line, YODA_DEBUG-only → zero anchor impact):** the pinned value now
+**ADVANCES one step per call** (`+sRetryRound++`); the first call is still exactly `YODA_SEED`, so the
+worldgen_smoke cross-host digest A/B is unchanged. `save_smoke 1` now PASSES (escapes to seed 3);
+42/7 unchanged. ⚠ Related pre-existing caveat re-confirmed: worldgen_smoke/save_smoke **REWRITE their
+own [GameData] INI each run** (v85 replay persistence), so repeated runs of a harness drift seed→zones
+nondeterministically — **snapshot/restore the INI before any cross-run A/B** (the docs already say this;
+the harnesses still do not self-restore).
 
-**▶ ⭐ LOCALIZED (`tools/headersweep.py`) — the gap is TWO TUs, and it points at `Worldgen.h`.**
-- `DeskcppView.cpp` ~6-8 symbols short → gains 0x40ebe0, 0x40fca0
-- `Worldgen.cpp` exactly **7** short → gains 0x423110 (n≥3), 0x41f830 (only n=7)
-- **every other TU is ALREADY correct** — Iact/WorldgenHelpers/GameObjects/IactScript/DeskcppDoc only
-  ever LOSE when perturbed. Free gains appear ONLY in headers avoiding those TUs (`Worldgen.h`,
-  `Deskcpp.h` — identical curves, its 2 extra TUs inert — and `TextDialog.h`, the clean control that
-  delivers DeskcppView's two and neither of Worldgen's). Full table: docs/compiler-hunt.md v96b.
-
-**▶ ⛔ THE RULE THAT KEEPS THIS HONEST — the dial is an INSTRUMENT, not a knob.** Full statement in
-the 🛡 ANCHOR section. Short form: a **free gain (zero regressions)** is the fingerprint of a REAL
-missing fact (the `afxcmn.h` pattern); a **trade (+3/−3)** is the fingerprint of padding. **NEVER pad
-to a number** — the 215 is currently placeholder decls and is deliberately NOT committed as source.
-
-**▶ v97 (2026-07-26, THIS session) — pickup steps 1 & 2 EXECUTED; real RE artifacts SHIPPED (all
-5 oracles green, anchor held 211/99.17 %, never dropped, build-sdl green).**
-- **⭐ Member-vs-file-scope A/B — RESOLVED** (`tools/membertest.py`, was UNTESTED): members are
-  **INERT** — a struct's N members don't dial (exact flat across n=1..12), only the single struct
-  TAG does; externs move it and **n=7 uniquely unlocks 0x41f830**. ⇒ the missing symbols MUST be
-  **file-scope or enum enumerators** (enumerators leak to enclosing scope; struct members never
-  escape the class scope). Reconciles v36 #8 with v96. **Tool kept: `tools/membertest.py`.**
-- **⭐ Ghidra globals inventory — DONE.** Only unmodelled REAL worldgen-TU global is the
-  **DTA/.wld record-tag table (0x00456890)**: 16×8 bytes `ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE
-  PUZ2 SNDS CAUX CHWP CHAR TNAM TILE STUP` (+`YODASAV44` magic at 0x456910) — we'd inlined them.
-  **SHIPPED `char g_aDtaRecordTags[16][8]` at EOF of Worldgen.cpp** (unreferenced-but-faithful;
-  wiring the strcmp sites deferred).
-- **Placement/#line refinement (MEASURED):** the table at TOP of Worldgen.cpp flips 0x41d8d0 OFF
-  (34→33); at **EOF (line-neutral) it is 34/34 zero-delta**. The 33-dip was #line rotation, NOT the
-  +1 symbol. ⇒ **EOF is the dial-safe home for any new real global** in a byte-matched TU.
-- **`TileFlags` +3 enumerators SHIPPED** (`TILE_PLAYER/TILE_ENEMY/TILE_FRIENDLY` =1<<16/17/18,
-  comments→enumerators, readability, pickup-sanctioned).
-- ⚠ **MODEL REFINEMENT: the "~7" is not any 7 file-scope decls.** Real additions (cpp-EOF array +
-  shared-enum aliases) did NOT reproduce the +7 extern sweep — **211 held, 0x41f830 STILL gated** on
-  exactly matching the original's ~7 symbols. Don't chase it with filler; 211 is the honest plateau.
+**▶ HARNESS WATCHDOG (user ask — "set a timer event to catch this, otherwise it's a silent failure").**
+New `microfx/harness/harness_watchdog.h` (SIGALRM time budget + best-effort backtrace, then a LOUD
+non-zero `_Exit(1)`) is now armed by all 5 smoke harnesses so any future infinite loop fails loudly
+instead of silently burning CPU. **Verified firing** on an artificial 2s spin (printed a real backtrace
+and exited 1). `save_smoke`/`worldgen_smoke`/`zone_view`/`dlg_smoke` arm 60s; `game_walk` 180s (it
+pumps a live loop). The real game (`yoda_main`) is NOT armed (runs forever by design).
 
 **▶ NEXT — pick up here (real RE, not sweeping):**
-1. **(DONE v97 — see above.)** Remaining honest open thread: wiring `g_aDtaRecordTags` into the ~50
-   `strcmp(tag, "…")` Load/Save sites (line/byte-neutral by construction — relocs masked; keep the
-   callsites' line counts stable). If the original's dispatcher was a table LOOP, reproduce that
-   shape from DESKADV/YodaDemo disasm rather than per-index guessing.
-2. **(DONE v97 — membertest settled it.)**
-3. **Re-baseline is a NO-OP for v97** (211 held; real change was dial-net-neutral). Do NOT re-baseline
-   upward unless a REAL missing decl lands with zero regressions AND raises the count — never pad.
-4. **Reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41** functions differ
-   by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population, ~10 already
-   proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the small-`align` ones
-   are the cheap wins). **A hard core is dial-invariant** — `DetonateAdjacentTiles` never moved once
-   across ~70 positions, corroborating PLAN_COMPLETED #29 *for that function*.
-5. **De-hex leftovers** (all still valid): `0x68`→PLAN_WALL in WorldgenHelpers/DeskcppDoc (blocked — a
-   shared `#define PLAN_WALL` would rewrite Worldgen.h's enum declaration into `104 = 104`; needs the
-   enum relocated, itself a dial risk now measurable); ambiguous `TileFlags` bits 16-19 (need real RE);
+1. **(OPTIONAL polish) reclaim the two v98 regalloc losses.** ParseZaux 0x423110 was v97's marquee
+   "byte-exact under our own VC4.2" function and is now a — semantic-identical — regalloc variant after
+   the literal→table symbol shift. A `tools/dialsweep.py` position sweep could re-land it (+N/−0 or
+   +0/−0), but NEVER pad to a number: 213 with ParseZaux partial is the honest state.
+2. **PICKUP #4 — reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41**
+   functions differ by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population,
+   ~10 already proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the
+   small-`align` ones are the cheap wins). **A hard core is dial-invariant** — `DetonateAdjacentTiles`
+   never moved once across ~70 positions, corroborating PLAN_COMPLETED #29 *for that function*.
+3. **PICKUP #5 — de-hex leftovers** (all still valid): `0x68`→PLAN_WALL in WorldgenHelpers/DeskcppDoc
+   (blocked — a shared `#define PLAN_WALL` would rewrite Worldgen.h's enum declaration into `104 = 104`;
+   needs the enum relocated, a dial risk now measurable); ambiguous `TileFlags` bits 16-19 (need real RE);
    DeskcppDoc's `0xffffffff` sentinels + `0x11/0x10/0xe` zone-state codes; `WORLD_GRID_SIZE 10` (user's
    call); the `Canvas::Canvas` `sizeof` dial note at Canvas.cpp EOF.
-
-**▶ TOOLS ADDED (all committed, all restore headers via atexit+finally):** `tools/idiomscan.py`
-(classify residuals; ⚠ slice the original at OUR trimmed COMDAT length — `toolchain/test/app_funcs.txt`
-extents are for coverage accounting and have bogus entries, e.g. 0x416620 listed as 1 byte, which
-fabricated a whole function of phantom delta before the built-in assert caught it) · `tools/dialsweep.py`
-(`--all-tus` for project-wide) · `tools/enumfieldtest.py` (mechanism + determinism/name-length controls)
-· `tools/headersweep.py` (reach fingerprints) · `toolchain/vc40mix/` (4.0 BIN + 4.2 headers, the
-documented A/B config).
-
+4. **(NEW WATCH) the dial model grew one input:** string-literal symbol removal now demonstrably moves
+   Worldgen's exact-set (the v98 +4/−2). Any future change that de-duplicates literals or swaps a literal
+   for a data symbol is a dial event — re-run ALL FIVE oracles after such edits, not just progress.py.
 **▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
 atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
 while a `progress.py` is in flight: they fight over the header AND `build/*.obj` (this confounded the

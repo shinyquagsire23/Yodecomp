@@ -198,6 +198,17 @@ write-recipes/struct-edit-gotchas block (Conventions). These blocks are the full
 logs, newest first, kept for provenance (per-function autopsies also live in-source next to
 their `// FUNCTION: YODA` markers).
 
+### ⏮ PRIOR (2026-07-26 v97, cond. from CLAUDE.md — the dial hunt: retract the compiler-wall, 215>211, member-vs-file-scope resolved)
+Commits b0d430a (de-hex) · fff083b (dialsweep tools + 215) · f747e02 (prior retractions) · 2c9067f (headersweep). Anchor held 211/99.17% + all 5 oracles.
+- **THE COMPILER WALL WAS WRONG (v96 retraction):** `tools/dialsweep.py` hits **215 exact project-wide +4/−0** from only **7 extra file-scope symbols via Worldgen.h**; plateau 6/7/8 (214/215/214); validated 4 ways (struct/typedef/extern/6-field-enum) + determinism repeat ⇒ **interim-compiler hypothesis DEAD** — ParseZaux 0x423110 + ZoneHasIzxItemMaybe 0x41bfa0 both go byte-exact under OUR VC4.2.
+- **THE DIAL IS A FILE-SCOPE SYMBOL COUNT** (`tools/enumfieldtest.py`): enum = tag+field count (empty body free ⇒ unused enumerators ARE dial-active); identifier length IRRELEVANT; macros FREE (never enter the symbol table); decl kind irrelevant. DIFFERENT mechanisms exist too: an empty include FILE costs a func (v95); `sizeof(T)` for a literal costs one (v96). Don't over-unify.
+- **THE RULE (v96):** the dial is an INSTRUMENT, not a knob. FREE GAIN (zero regressions) = fingerprint of truth; TRADE (+3/−3) = fingerprint of padding. NEVER pad to a number; 215 is placeholder, deliberately UNCOMMITTED.
+- **membertest (v97): members are INERT** — a struct's N members don't dial (flat n=1..12), only the TAG; externs move it, **n=7 uniquely unlocks 0x41f830** ⇒ missing symbols MUST be file-scope or enum enumerators.
+- **headersweep (v97 localized):** gap is TWO TUs — DeskcppView.cpp ~6-8 symbols short (gains 0x40ebe0/0x40fca0), Worldgen.cpp EXACTLY 7 short (gains 0x423110 n≥3, 0x41f830 only n=7); every other TU ALREADY correct (only LOSE when perturbed). Reach via Worldgen.h/Deskcpp.h; TextDialog.h is the clean control.
+- **Ghidra globals inventory (v97):** only unmodelled REAL worldgen global = DTA/.wld record-tag table 0x00456890 (16×8: ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE PUZ2 SNDS CAUX CHWP CHAR TNAM TILE STUP; YODASAV44 magic at +0x20). SHIPPED unreferenced at Worldgen.cpp EOF; **wiring the strcmp sites was the planned pickup #1.**
+- **Placement/#line (v97, measured):** the table at TOP of Worldgen.cpp flips 0x41d8d0 OFF (34→33, #line rotation NOT the +1 symbol); at **EOF it is 34/34 zero-delta** ⇒ EOF = dial-safe home for any new real global in a byte-matched TU.
+- **Safe sweep protocol:** every header-sweep tool restores via atexit+finally (+ .bak). NEVER run two sweeps concurrently or during a progress.py. Verify clean: `git diff --stat src/` + `grep -rn DIALSWEEP src/`.
+
 ### ⏮ PRIOR (2026-07-07 v28 — DoDataExchange discovery + struct de-dup 1-5 + CyclePalette/OnCmdStats; 95.64% coverage)
 **▶ v28 RESULTS (commits 60ac1c8..): GameView TU = 70/114 markers (7605B exact); 95.64%
 coverage / 19.39% exact globally. Ghidra: YodaDemo ACTIVE all session; run_script_inline
