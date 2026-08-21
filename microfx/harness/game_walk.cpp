@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <thread>       // portable sleep (was POSIX usleep)
 #include <chrono>
+#include "harness_watchdog.h"
 
 static CDeskcppDoc *g_pDoc;
 static CDeskcppView *g_pGameView;
@@ -56,6 +57,7 @@ static void HoldKey(int vk, int nIters)
 
 int main(int argc, char **argv)
 {
+    HarnessArmWatchdog(180);   // generous: this harness pumps a live game loop; a hang = loud frame
     setenv("YODA_SEED", argc > 1 ? argv[1] : "0x2a", 1);
 
     CWinApp *pApp = AfxGetApp();

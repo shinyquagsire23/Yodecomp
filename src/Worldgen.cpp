@@ -14,8 +14,8 @@
 #define PTRINT int
 #endif
 
-// ---- .data lookup tables (extracted from the original binary) ----
-// 10x10 worldgen grid-order priority ring (0x00456630): outer ring 5 -> center 1.
+extern char g_aDtaRecordTags[16][8];  // DTA tag table DEFINED at EOF; forward-declared SAME-LINE so this TU's byte-matched funcs keep their #line (dial lesson #23) — do NOT insert a real line before them
+// ---- .data lookup tables (0x00456630 etc.) ---- 10x10 worldgen grid-order priority ring: outer ring 5 -> center 1
 int gWorldgenGridOrderTable[100] = {
      5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
      5, 4, 4, 4, 4, 4, 4, 4, 4, 5,
@@ -4098,7 +4098,7 @@ int CDeskcppDoc::LoadWorld()
         TRY {
             pFile->Read(tag, 4);
             tag[4] = 0;
-            if (strcmp(tag, "ZONE") != 0)
+            if (strcmp(tag, g_aDtaRecordTags[7]) != 0)
                 pFile->Read(&nLen, 4);
         }
         }              // closes the try block the TRY macro opened
@@ -4117,21 +4117,21 @@ int CDeskcppDoc::LoadWorld()
         // Yoda ParseZaux on Indy's global ZAUX walks off the rails and the chunk loop never reaches
         // ENDF -> the New World "progress bar jumping / infinite load". ZONE/HTSP/ACTN are shared
         // (fall through below); ZAUX/ZAX2/ZAX3 use the Indy distributors; ZAX4/IZAX/PNAM/ANAM skip.
-        if (strcmp(tag, "ZAUX") == 0)
+        if (strcmp(tag, g_aDtaRecordTags[5]) == 0)
         {
             nRet = ParseZauxIndy(pFile);
             if (nRet == 0)
                 break;
             continue;
         }
-        else if (strcmp(tag, "ZAX2") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[4]) == 0)
         {
             nRet = ParseZax2Indy(pFile);
             if (nRet == 0)
                 break;
             continue;
         }
-        else if (strcmp(tag, "ZAX3") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[3]) == 0)
         {
             nRet = ParseZax3Indy(pFile);
             if (nRet == 0)
@@ -4145,7 +4145,7 @@ int CDeskcppDoc::LoadWorld()
             continue;
         }
 #endif
-        if (strcmp(tag, "VERS") == 0)
+        if (strcmp(tag, g_aDtaRecordTags[6]) == 0)
         {
             if (nLen != 0x200)
             {
@@ -4153,43 +4153,43 @@ int CDeskcppDoc::LoadWorld()
                 nDone++;
             }
         }
-        else if (strcmp(tag, "ZONE") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[7]) == 0)
         {
             nRet = ParseZone(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAUX") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[5]) == 0)
         {
             nRet = ParseZaux(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAX2") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[4]) == 0)
         {
             nRet = ParseZax2(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAX3") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[3]) == 0)
         {
             nRet = ParseZax3(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "HTSP") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[2]) == 0)
         {
             nRet = ParseHtsp(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ACTN") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[1]) == 0)
         {
             nRet = ParseActn(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ENDF") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[0]) == 0)
         {
             nDone++;
         }
@@ -4277,7 +4277,7 @@ int CDeskcppDoc::Load()
         TRY {
             pFile->Read(tag, 4);
             tag[4] = 0;
-            if (strcmp(tag, "ZONE") != 0)
+            if (strcmp(tag, g_aDtaRecordTags[7]) != 0)
                 pFile->Read(&nLen, 4);
         }
         }              // closes the try block the TRY macro opened
@@ -4302,21 +4302,21 @@ int CDeskcppDoc::Load()
         // zone, so it falls through to the shared ParseActn dispatch below and distributes to
         // zone->iactScripts. Still length-skipped (H3 milestone 2b+): ZAX4 (IZX4 static-map flag,
         // Yoda discards it), and Indy-only PNAM/ANAM (puzzle/actor names).
-        if (strcmp(tag, "ZAUX") == 0)
+        if (strcmp(tag, g_aDtaRecordTags[5]) == 0)
         {
             nRet = ParseZauxIndy(pFile);
             if (nRet == 0)
                 break;
             continue;
         }
-        else if (strcmp(tag, "ZAX2") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[4]) == 0)
         {
             nRet = ParseZax2Indy(pFile);
             if (nRet == 0)
                 break;
             continue;
         }
-        else if (strcmp(tag, "ZAX3") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[3]) == 0)
         {
             nRet = ParseZax3Indy(pFile);
             if (nRet == 0)
@@ -4331,91 +4331,91 @@ int CDeskcppDoc::Load()
         }
         // ACTN falls through to the shared ParseActn (same keyed format) below.
 #endif
-        if (strcmp(tag, "VERS") == 0)
+        if (strcmp(tag, g_aDtaRecordTags[6]) == 0)
         {
             if (nLen != 0x200)
                 nDone++;
         }
-        else if (strcmp(tag, "TILE") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[14]) == 0)
         {
             nRet = ParseTilesMaybe(pFile, nLen);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "TNAM") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[13]) == 0)
         {
             nRet = ParseTnam(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZONE") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[7]) == 0)
         {
             nRet = ParseZone(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAUX") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[5]) == 0)
         {
             nRet = ParseZaux(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAX2") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[4]) == 0)
         {
             nRet = ParseZax2(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ZAX3") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[3]) == 0)
         {
             nRet = ParseZax3(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "CHAR") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[12]) == 0)
         {
             nRet = ParseChar(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "CHWP") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[11]) == 0)
         {
             nRet = ParseChwp(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "CAUX") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[10]) == 0)
         {
             nRet = ParseCaux(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "HTSP") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[2]) == 0)
         {
             nRet = ParseHtsp(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "SNDS") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[9]) == 0)
         {
             nRet = ParseSnds(pFile);
             if (nRet == 0)
                 break;
             UpdateAllViews(NULL, 399, NULL);
         }
-        else if (strcmp(tag, "PUZ2") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[8]) == 0)
         {
             nRet = ParsePuz2(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ACTN") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[1]) == 0)
         {
             nRet = ParseActn(pFile);
             if (nRet == 0)
                 break;
         }
-        else if (strcmp(tag, "ENDF") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[0]) == 0)
         {
             nDone++;
         }
@@ -4901,7 +4901,7 @@ void CDeskcppDoc::LoadWorldStateFile()
         }              // closes the TRY macro's outer (link-scope) brace
         if (nDone != 0)
             break;
-        if (strcmp(tag, "VERS") == 0)
+        if (strcmp(tag, g_aDtaRecordTags[6]) == 0)
         {
             if (nLen != 0x200)
             {
@@ -4909,7 +4909,7 @@ void CDeskcppDoc::LoadWorldStateFile()
                 nDone++;
             }
         }
-        else if (strcmp(tag, "STUP") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[15]) == 0)
         {
             if (bDtaLoaded == 0)
             {
@@ -4925,7 +4925,7 @@ void CDeskcppDoc::LoadWorldStateFile()
             else
                 nDone++;
         }
-        else if (strcmp(tag, "ENDF") == 0)
+        else if (strcmp(tag, g_aDtaRecordTags[0]) == 0)
         {
             nDone++;
         }
@@ -4968,7 +4968,7 @@ void CDeskcppDoc::Serialize(CArchive &ar)
             }              // closes the TRY macro's outer (link-scope) brace
             if (nDone != 0)
                 break;
-            if (strcmp(tag, "VERS") == 0)
+            if (strcmp(tag, g_aDtaRecordTags[6]) == 0)
             {
                 if (nLen != 0x200)
                 {
@@ -4976,7 +4976,7 @@ void CDeskcppDoc::Serialize(CArchive &ar)
                     nDone++;
                 }
             }
-            else if (strcmp(tag, "STUP") == 0)
+            else if (strcmp(tag, g_aDtaRecordTags[15]) == 0)
             {
                 if (bDtaLoaded == 0)
                 {
@@ -4992,7 +4992,7 @@ void CDeskcppDoc::Serialize(CArchive &ar)
                 else
                     nDone++;
             }
-            else if (strcmp(tag, "ENDF") == 0)
+            else if (strcmp(tag, g_aDtaRecordTags[0]) == 0)
             {
                 nDone++;
             }
@@ -5296,8 +5296,8 @@ unsigned int CDeskcppDoc::Randomize()
     // debug oracle: pin the world seed (env YODA_SEED, e.g. "0x2a") so a native-SDL run and a
     // wine/Win32 run of the same data file can be log-diffed (docs/phase-h4-sdl.md M0)
     const char *pszSeed = getenv("YODA_SEED");
-    if (pszSeed != NULL)
-        return (unsigned int)strtoul(pszSeed, NULL, 0);
+    if (pszSeed != NULL) { static int sRetryRound;          // pinned retries ADVANCE the seed (same-line, YODA_DEBUG-only): an unplacable
+        return (unsigned int)strtoul(pszSeed, NULL, 0) + sRetryRound++; }  // pinned seed escapes instead of spinning; first call still == YODA_SEED (worldgen_smoke A/B unchanged)
 #endif
     POINT pt;
     GetCursorPos(&pt);
@@ -10665,12 +10665,17 @@ void CDeskcppDoc::IndyReadWorldState(CFile *pFile)
 
 // ---- DTA/.wld record-type tag table (0x00456890) ----
 // The original engine's file-scope lookup table of the .dta/.wld binary record tags,
-// referenced by address throughout the Load/Save record dispatchers. We currently express
-// these same tags as inline strcmp(tag, "...") string literals in Load*/Save* (which
-// byte-match because relocations are masked), but the original carried them as ONE global.
-// Declared and kept faithful here (16 x 8-byte entries: 4-char tag + 4 pad, per the binary
-// layout). Deliberately at EOF so the extra lines cannot rotate the byte-matched functions'
-// #line provenance (dial lesson #23). Wire the strcmp call-sites to it when convenient.
+// referenced by address THROUGHOUT the Load/Save record dispatchers. YodaDemo disasm shows
+// every site is a per-index compile-time constant (strcmp(tag, &DAT_00456890+8k)); the
+// Load dispatch alone touches indeces 0-13 (all but the two save-only tags STUP/TILE). We
+// reproduce that shape EXACTLY here: the strcmp call-sites below reference THIS global by
+// constant index, and VC4.2 /O2 emits byte-identical code to the equivalent string literal
+// (verified; both inline the 2-byte-pair strcmp loop, differing only in a masked reloc).
+// Index map (idx k = 0x456890 + 8k): 0 ENDF, 1 ACTN, 2 HTSP, 3 ZAX3, 4 ZAX2, 5 ZAUX,
+// 6 VERS, 7 ZONE, 8 PUZ2, 9 SNDS, 10 CAUX, 11 CHWP, 12 CHAR, 13 TNAM, 14 TILE, 15 STUP.
+// The ZAX4/IZAX/PNAM/ANAM alias group and the INDYSAV44/YODASAV44 magics are NOT table
+// entries and stay as literals. Deliberately at EOF so these lines cannot rotate the
+// byte-matched functions' #line provenance (dial lesson #23).
 // 0x00456890: ENDF ACTN HTSP ZAX3 ZAX2 ZAUX VERS ZONE PUZ2 SNDS CAUX CHWP CHAR TNAM TILE STUP
 char g_aDtaRecordTags[16][8] = {
     {'E','N','D','F'}, {'A','C','T','N'}, {'H','T','S','P'}, {'Z','A','X','3'},

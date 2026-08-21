@@ -7,12 +7,14 @@
 #include <afxwin.h>
 #include "Deskcpp.h"
 #include "Worldgen.h"
+#include "harness_watchdog.h"
 
 static int g_nFail = 0;
 #define CHECK(cond) do { if (!(cond)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); ++g_nFail; } } while (0)
 
 int main(int argc, char** argv)
 {
+    HarnessArmWatchdog(60);   // fail LOUDLY if we ever spin (e.g. pinned-seed worldgen retry wall)
     if (argc < 2) { fprintf(stderr, "usage: save_smoke <seed>\n"); return 2; }
     setenv("YODA_SEED", argv[1], 1);
 

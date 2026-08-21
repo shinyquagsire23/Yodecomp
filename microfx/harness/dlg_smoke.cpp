@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <filesystem>   // portable temp dir (was POSIX mkdtemp + /tmp)
 #include <string>
+#include "harness_watchdog.h"
 
 int MfxFileDialogScan(const char *pszDir, const char *pszExt, CString aNames[], int nMax);
 int MfxFileDialogBuildRows(int bOpenFileDialog, const CString &strDefault,
@@ -25,6 +26,7 @@ enum { ID_NEW = 90, ID_ROW0 = 100 };
 
 int main()
 {
+    HarnessArmWatchdog(60);   // fail LOUDLY if a modal-loop smoke hangs (see harness_watchdog.h)
     std::error_code ec;
     std::filesystem::path dir = std::filesystem::temp_directory_path(ec) / "dlg_smoke_test";
     std::filesystem::remove_all(dir, ec);                 // clean any prior run

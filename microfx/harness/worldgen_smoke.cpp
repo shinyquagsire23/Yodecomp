@@ -6,6 +6,7 @@
 #include <afxwin.h>
 #include "Deskcpp.h"     // CDeskcppApp (m_str = data-file path)
 #include "Worldgen.h"    // CDeskcppDoc facade: Load(), worldSeed, totalZones, nZonesLoaded
+#include "harness_watchdog.h"
 
 static int g_nFail = 0;
 #define CHECK(cond) do { if (!(cond)) { fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); ++g_nFail; } } while (0)
@@ -109,6 +110,7 @@ static int RunWorldgen(const char* pszSeed, const char* pszDataOverride)
 
 int main(int argc, char** argv)
 {
+    HarnessArmWatchdog(60);   // fail LOUDLY if Load()/worldgen ever hangs (see harness_watchdog.h)
     TestCString();
     TestArrays();
     TestCFile();

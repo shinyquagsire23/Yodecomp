@@ -11,6 +11,7 @@
 #include <microfx.h>
 #include "Deskcpp.h"     // CDeskcppApp (m_str = data-file path)
 #include "Worldgen.h"    // CDeskcppDoc facade: Load(), currentZone, pCanvas, RefreshZone()
+#include "harness_watchdog.h"
 #include <stdlib.h>
 
 #ifdef MICROFX_HAS_SDL
@@ -61,6 +62,7 @@ static int ShowDib(const MFXDIB *pDib)
 
 int main(int argc, char **argv)
 {
+    HarnessArmWatchdog(60);   // fail LOUDLY if Load()/worldgen ever hangs (see harness_watchdog.h)
     const char *pszSeed = 0, *pszData = 0, *pszDump = "zone.bmp";
     int nZoneId = -1, bShow = 0;
     for (int i = 1; i < argc; i++) {
