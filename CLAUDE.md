@@ -457,72 +457,74 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-26 v98 — pickup #1 (tag-table wiring) EXECUTED → honest re-baseline 211→213; found + FIXED a pinned-seed worldgen retry spin; added the smoke-harness watchdog the user asked for. All 5 oracles GREEN on 213, build-sdl + build-sdl-indy green, save_smoke 1/42/7 + worldgen_smoke 1 + game_walk pass. Tree GREEN + COMMITTED b0ee41a. Old v97 dial-hunt log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-07-27 v99 — pickup #4 (the idiomscan residual hunt) OPENED and paid off immediately: the **inline-MEMBER idiom** (new lesson #34) landed all FIVE demo-grayed `OnUpdate*` stubs at once → honest re-baseline **213 → 217**. Two other class-D residual families were re-swept and PARKED with evidence. All 5 oracles GREEN on 217; build-sdl + build-sdl-indy green; save_smoke 1/42/7 + worldgen_smoke 1 + game_walk + dlg_smoke pass. Tree GREEN + COMMITTED (0d4cb20 + this session's tail). v98 log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT HAPPENED.** v98 executed pickup #1 (wiring the v97-shipped `g_aDtaRecordTags` table into the
-records) — that made the honest anchor count RISE **211 → 213**, so we re-baselined deliberately with
-all five oracles re-run in one pass. Along the way we tripped a real 100%-CPU infinite loop in
-`save_smoke 1` (fragile-seed worldgen retry × the YODA_DEBUG seed PIN) and FIXED it, plus shipped the
-smoke-harness WATCHDOG the user asked for. Commit `b0ee41a`; tree GREEN.
+**▶ WHAT HAPPENED.** Ran `tools/idiomscan.py --all` to get the honest partition (1 class-A / 14 B /
+23 C / **134 D SOURCE-IDIOM**), sorted class D by `align`, and noticed a **systematic cluster**: five
+13-byte functions with the IDENTICAL signature `align=12 regpen=0 bytes=8`. One root cause → five
+functions. That is the shape to look for; it beats grinding single functions one at a time.
 
-**▶ ⭐ PICKUP #1 — `g_aDtaRecordTags` is now WIRED, not dead, and the count legitimately rose to 213.**
-YodaDemo disasm settles the shape first: every original tag site is a **per-index COMPILE-TIME constant**
-(`MOV ECX,0x456890` → a byte-wise inlined pair-strcmp against `DAT_00456890+8k`), **NOT a table loop** —
-so per-index wiring IS the faithful reproduction (the "reproduce the loop if it was a loop" condition in
-the pickup resolves to "it wasn't"). We wired **37 strcmp sites** in LoadWorld(0x421fd0)/Load(0x422670)/
-LoadWorldStateFile/Serialize to `g_aDtaRecordTags[i]` with the faithful map (0 ENDF … 7 ZONE … 15 STUP;
-`Load` alone touches indices 0–13 — all but the two save-only tags). **VC4.2 /O2 emits byte-identical
-code for the array reference vs the string literal** (verified in isolation: same inlined 2-byte-pair
-strcmp loop, only a masked reloc differs), and the forward `extern` is SAME-LINE on the .data-tables
-comment line → **every site byte- and #line-neutral**. Remaining literals (ZAX4/IZAX/PNAM/ANAM alias
-group, INDYSAV44/YODASAV44) are not table entries and correctly stayed literal.
-- **Result: 211 → 213 exact** (Worldgen 34→36), all other TUs untouched. The wiring removes ~16 unique
-  string-literal symbols → a REGALLOC-aftershock on the ambient dial: **+4 genuine** (IsItemPlaced,
-  SetCurrentToIntroZone, GetZoneIndex, ParseZax2) **/−2 regalloc variants** (ParseZaux 0x423110,
-  RemoveItem 0x429150 — semantically identical, just different register assignment; verified by byte
-  diff). Not padding (the rule holds: these are real byte-equalities + honest RE, and we did NOT chase
-  the number with filler). The caveat to remember: **string-literal count is now a KNOWN dial input in
-  Worldgen.cpp** (removing the ~16 literals moved the exact-set), same family as the enum/typedef ones.
+**▶ ⭐ THE WIN — lesson #34, the inline-MEMBER idiom (+5 intended, 213→217 net).** The five
+permanently-grayed `ON_UPDATE_COMMAND_UI` stubs (`OnUpdateFileSave` 0x403510, `OnUpdateLoadWorld`
+0x403600, `OnUpdateReplayStory` 0x403610 on CDeskcppDoc; `OnUpdateWorldSizeUi` 0x4165a0,
+`OnUpdateStatsUi` 0x416800 on CDeskcppView) had been parked since v34 as "EFFECTIVE … allocation
+artifact of a `this`-ignoring member — park". **That diagnosis was wrong.** MSVC 4.2 lowers
+`p->Enable(0)` inside a plain member as `mov ecx,[esp+4]; push 0; mov eax,[ecx]; call [eax]` (11 B),
+but when the call arrives by **inlining a non-static MEMBER** it emits `mov eax,[esp+4]; push 0;
+mov ecx,eax; mov edx,[eax]; call [edx]` (13 B) — the inlinee's implicit `this` nominally owns ECX, so
+the arg must be staged in EAX. Proven by scratch-TU probe under the anchor flags: in-class defs,
+out-of-class `__inline` defs, an inline member *predicate* used as the ARGUMENT, and
+`((COther*)this)->Dis(p)` all reproduce it; `static __inline` free functions, `static` MEMBERS,
+local-object member calls, local copies, casts and references ALL fold. Fix = the old file-scope
+`static __inline DemoDisable` became a real member on each class (decl in DeskcppStub.h, in-class def
+in DeskcppView.h); both .cpp edits are line-neutral and the demo path's tokens are unchanged.
+Exact-set delta **+10 / −6** (net +4): the 5 targets + LoadStoryHistoryOregon, StepDetonatorEffect,
+ClassifyTile, Randomize and **RemoveItem 0x429150** (one of v98's two regalloc losses, back for free);
+lost to aftershock: LoadStoryHistoryNevada, PlaceZoneObjectTiles, FindTile, RemoveZoneEntry,
+SetCurrentToIntroZone, GetZoneIndex. ParseZaux 0x423110 is still out.
 
-**▶ ⭐ BUG FOUND + FIXED — pinned-seed worldgen retry SPIN (Indy `save_smoke 1` at 100% CPU).**
-Mechanism (stack-sampled: `Load() → IndyGenerate → IndyLoadPlacedZoneList → GetProfileString/fopen` all
-burning CPU): `Load()`'s retry does `else  nSeed = Randomize();` while `Randomize()`'s YODA_DEBUG
-`YODA_SEED` pin returned the **SAME seed on every call** → a seed that can't place an Indy mission
-(`IndySelectPuzzle` returns <0 for some seed+[GameData] states, e.g. seed 1 with `save_smoke.INI`) was
-re-tried **forever**. Retail never spins because production Randomize reseeds from cursor+clock; only a
-pinned harness hits it. **FIX (same-line, YODA_DEBUG-only → zero anchor impact):** the pinned value now
-**ADVANCES one step per call** (`+sRetryRound++`); the first call is still exactly `YODA_SEED`, so the
-worldgen_smoke cross-host digest A/B is unchanged. `save_smoke 1` now PASSES (escapes to seed 3);
-42/7 unchanged. ⚠ Related pre-existing caveat re-confirmed: worldgen_smoke/save_smoke **REWRITE their
-own [GameData] INI each run** (v85 replay persistence), so repeated runs of a harness drift seed→zones
-nondeterministically — **snapshot/restore the INI before any cross-run A/B** (the docs already say this;
-the harnesses still do not self-restore).
+**▶ ⭐ TWO DIAL FACTS MEASURED (both refine the v96 symbol-count model over lesson #23's "lines"
+framing):** (1) **COMMENT lines are INERT** — deleting 5 comment lines from a class body left three
+Worldgen.cpp asmscores BIT-IDENTICAL, and later adding a 9-line comment block mid-file to
+Worldgen.cpp (the most dial-sensitive TU) held 217 exactly. Comments cost nothing; write them freely.
+(2) **member FUNCTIONS are NOT inert** — adding one to CDeskcppView rotated Worldgen.cpp's exact set.
+This **partly retracts v97's "members are INERT"** (membertest.py tested member DATA only).
 
-**▶ HARNESS WATCHDOG (user ask — "set a timer event to catch this, otherwise it's a silent failure").**
-New `microfx/harness/harness_watchdog.h` (SIGALRM time budget + best-effort backtrace, then a LOUD
-non-zero `_Exit(1)`) is now armed by all 5 smoke harnesses so any future infinite loop fails loudly
-instead of silently burning CPU. **Verified firing** on an artificial 2s spin (printed a real backtrace
-and exited 1). `save_smoke`/`worldgen_smoke`/`zone_view`/`dlg_smoke` arm 60s; `game_walk` 180s (it
-pumps a live loop). The real game (`yoda_main`) is NOT armed (runs forever by design).
+**▶ TWO RESIDUAL FAMILIES RE-SWEPT AND PARKED — with evidence, so nobody re-chases them:**
+1. **ReadZax2 0x406410 / ReadZax3 0x406490** (`mov ax,[esp+0x12]; movsx ebp,ax` vs our folded
+   `movsx ebp, word ptr [...]`; the ONLY diff in either, 46/46 insns). Swept 20+ source forms —
+   short/int counters, for- vs do-while, casts, decl reordering, `register short`, unsigned+cast,
+   ternary, post-decrement, count-reused-after-loop, short temp chains — ALL fold. The one form that
+   DOES stage through AX (assigning into an ADDRESS-TAKEN short) emits an extra store the original
+   lacks. Also: merging count into `n` is WRONG — the original keeps TWO slots (count@0x12, n@0x10).
+   Full note at **Iact.cpp EOF**. ⇒ allocation state, not source.
+2. **LoadWorldStateFile 0x423850 + Serialize 0x423b30** (`add [nDone],ecx` vs our `inc [nDone]`).
+   v99 checked this at the DISASSEMBLY level: the arms are byte-identical on both sides across
+   0x1b0..0x1fe except that one 3-byte slot, and **ours materializes `mov ecx,1` at the very same
+   offset 0x1d3** — so the CSE'd 1 is live in our build too and the compiler just preferred `inc mem`
+   over the equal-length `add mem,ecx`. The original's own else-arm uses `inc` where no 1-register is
+   live. ⇒ pure peephole tie-break. Note expanded in place above the function.
 
-**▶ NEXT — pick up here (real RE, not sweeping):**
-1. **(OPTIONAL polish) reclaim the two v98 regalloc losses.** ParseZaux 0x423110 was v97's marquee
-   "byte-exact under our own VC4.2" function and is now a — semantic-identical — regalloc variant after
-   the literal→table symbol shift. A `tools/dialsweep.py` position sweep could re-land it (+N/−0 or
-   +0/−0), but NEVER pad to a number: 213 with ParseZaux partial is the honest state.
-2. **PICKUP #4 — reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41**
-   functions differ by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population,
-   ~10 already proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the
-   small-`align` ones are the cheap wins). **A hard core is dial-invariant** — `DetonateAdjacentTiles`
-   never moved once across ~70 positions, corroborating PLAN_COMPLETED #29 *for that function*.
-3. **PICKUP #5 — de-hex leftovers** (all still valid): `0x68`→PLAN_WALL in WorldgenHelpers/DeskcppDoc
-   (blocked — a shared `#define PLAN_WALL` would rewrite Worldgen.h's enum declaration into `104 = 104`;
-   needs the enum relocated, a dial risk now measurable); ambiguous `TileFlags` bits 16-19 (need real RE);
-   DeskcppDoc's `0xffffffff` sentinels + `0x11/0x10/0xe` zone-state codes; `WORLD_GRID_SIZE 10` (user's
-   call); the `Canvas::Canvas` `sizeof` dial note at Canvas.cpp EOF.
-4. **(NEW WATCH) the dial model grew one input:** string-literal symbol removal now demonstrably moves
-   Worldgen's exact-set (the v98 +4/−2). Any future change that de-duplicates literals or swaps a literal
-   for a data symbol is a dial event — re-run ALL FIVE oracles after such edits, not just progress.py.
+**▶ NEXT — keep mining class D the same way (this is the productive seam):**
+1. **Re-run `tools/idiomscan.py --all --csv …` first** — the v99 change moved the exact set, so the
+   old CSV is stale. Sort class D by `align`, then **look for repeated signatures** (identical
+   `align/regpen/bytes` across several functions = one shared root cause, like the five stubs).
+2. **Cheap unexamined class-D targets** (from the pre-v99 scan; re-confirm): `ParseTilesMaybe`
+   0x41a030 (bytes=3 — sole diff is a `jg`/`jl` back-edge, lesson-#6 family but worth a look since the
+   cmp appeared identical), `AddHealth` 0x427690 (bytes=6), `InitInstance` 0x4198c0 (bytes=25 over
+   998 B), `HitEntityAt` 0x4059d0, `ParseChar` 0x421e70, `CalcSolvedScore` 0x401780.
+   ⚠ `Serialize` 0x423b30 makes `asmscore.py` best-fit onto `?Serialize@CObject@@` (insns 1/0) — a
+   mis-pair; confirm name-keyed (CLAUDE.md tooling note) before believing any number for it.
+3. **The method that worked** (reuse it): dump the original with capstone, dump OURS from
+   `build/<TU>.obj` the same way, and diff the two disassemblies *in full context* — asmscore's
+   `--dump` shows only differing lines and hides the surrounding register state that explains WHY.
+   Then write a scratch-TU probe (`/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS`)
+   with 8–12 candidate source forms and a byte-pattern classifier. Probes are FREE — they never touch
+   src/ and never perturb the dial.
+4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note);
+   reclaiming ParseZaux 0x423110 via a dial-sweep position (optional, NEVER pad to a number).
+
 **▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
 atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
 while a `progress.py` is in flight: they fight over the header AND `build/*.obj` (this confounded the

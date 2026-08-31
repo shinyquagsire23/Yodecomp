@@ -2944,3 +2944,84 @@ residuals (⚠ slice original at OUR trimmed COMDAT length, not `toolchain/test/
   additions did NOT reproduce it, so 0x41f830 remains gated on exactly matching the original's
   ~7 symbols (unknowable from the binary alone; more RE or lucky reload needed, or accept 211
   as the honest plateau per "never pad"). All changes commit-verified; anchor never dropped.
+
+
+### ⏮ PRIOR PICKUP — DEMOTED at v99 (2026-07-26 v98 — pickup #1 (tag-table wiring) EXECUTED → honest re-baseline 211→213; found + FIXED a pinned-seed worldgen retry spin; added the smoke-harness watchdog the user asked for. All 5 oracles GREEN on 213, build-sdl + build-sdl-indy green, save_smoke 1/42/7 + worldgen_smoke 1 + game_walk pass. Tree GREEN + COMMITTED b0ee41a. Old v97 dial-hunt log demoted to PLAN_COMPLETED.md ⏮.)
+
+**▶ WHAT HAPPENED.** v98 executed pickup #1 (wiring the v97-shipped `g_aDtaRecordTags` table into the
+records) — that made the honest anchor count RISE **211 → 213**, so we re-baselined deliberately with
+all five oracles re-run in one pass. Along the way we tripped a real 100%-CPU infinite loop in
+`save_smoke 1` (fragile-seed worldgen retry × the YODA_DEBUG seed PIN) and FIXED it, plus shipped the
+smoke-harness WATCHDOG the user asked for. Commit `b0ee41a`; tree GREEN.
+
+**▶ ⭐ PICKUP #1 — `g_aDtaRecordTags` is now WIRED, not dead, and the count legitimately rose to 213.**
+YodaDemo disasm settles the shape first: every original tag site is a **per-index COMPILE-TIME constant**
+(`MOV ECX,0x456890` → a byte-wise inlined pair-strcmp against `DAT_00456890+8k`), **NOT a table loop** —
+so per-index wiring IS the faithful reproduction (the "reproduce the loop if it was a loop" condition in
+the pickup resolves to "it wasn't"). We wired **37 strcmp sites** in LoadWorld(0x421fd0)/Load(0x422670)/
+LoadWorldStateFile/Serialize to `g_aDtaRecordTags[i]` with the faithful map (0 ENDF … 7 ZONE … 15 STUP;
+`Load` alone touches indices 0–13 — all but the two save-only tags). **VC4.2 /O2 emits byte-identical
+code for the array reference vs the string literal** (verified in isolation: same inlined 2-byte-pair
+strcmp loop, only a masked reloc differs), and the forward `extern` is SAME-LINE on the .data-tables
+comment line → **every site byte- and #line-neutral**. Remaining literals (ZAX4/IZAX/PNAM/ANAM alias
+group, INDYSAV44/YODASAV44) are not table entries and correctly stayed literal.
+- **Result: 211 → 213 exact** (Worldgen 34→36), all other TUs untouched. The wiring removes ~16 unique
+  string-literal symbols → a REGALLOC-aftershock on the ambient dial: **+4 genuine** (IsItemPlaced,
+  SetCurrentToIntroZone, GetZoneIndex, ParseZax2) **/−2 regalloc variants** (ParseZaux 0x423110,
+  RemoveItem 0x429150 — semantically identical, just different register assignment; verified by byte
+  diff). Not padding (the rule holds: these are real byte-equalities + honest RE, and we did NOT chase
+  the number with filler). The caveat to remember: **string-literal count is now a KNOWN dial input in
+  Worldgen.cpp** (removing the ~16 literals moved the exact-set), same family as the enum/typedef ones.
+
+**▶ ⭐ BUG FOUND + FIXED — pinned-seed worldgen retry SPIN (Indy `save_smoke 1` at 100% CPU).**
+Mechanism (stack-sampled: `Load() → IndyGenerate → IndyLoadPlacedZoneList → GetProfileString/fopen` all
+burning CPU): `Load()`'s retry does `else  nSeed = Randomize();` while `Randomize()`'s YODA_DEBUG
+`YODA_SEED` pin returned the **SAME seed on every call** → a seed that can't place an Indy mission
+(`IndySelectPuzzle` returns <0 for some seed+[GameData] states, e.g. seed 1 with `save_smoke.INI`) was
+re-tried **forever**. Retail never spins because production Randomize reseeds from cursor+clock; only a
+pinned harness hits it. **FIX (same-line, YODA_DEBUG-only → zero anchor impact):** the pinned value now
+**ADVANCES one step per call** (`+sRetryRound++`); the first call is still exactly `YODA_SEED`, so the
+worldgen_smoke cross-host digest A/B is unchanged. `save_smoke 1` now PASSES (escapes to seed 3);
+42/7 unchanged. ⚠ Related pre-existing caveat re-confirmed: worldgen_smoke/save_smoke **REWRITE their
+own [GameData] INI each run** (v85 replay persistence), so repeated runs of a harness drift seed→zones
+nondeterministically — **snapshot/restore the INI before any cross-run A/B** (the docs already say this;
+the harnesses still do not self-restore).
+
+**▶ HARNESS WATCHDOG (user ask — "set a timer event to catch this, otherwise it's a silent failure").**
+New `microfx/harness/harness_watchdog.h` (SIGALRM time budget + best-effort backtrace, then a LOUD
+non-zero `_Exit(1)`) is now armed by all 5 smoke harnesses so any future infinite loop fails loudly
+instead of silently burning CPU. **Verified firing** on an artificial 2s spin (printed a real backtrace
+and exited 1). `save_smoke`/`worldgen_smoke`/`zone_view`/`dlg_smoke` arm 60s; `game_walk` 180s (it
+pumps a live loop). The real game (`yoda_main`) is NOT armed (runs forever by design).
+
+**▶ NEXT — pick up here (real RE, not sweeping):**
+1. **(OPTIONAL polish) reclaim the two v98 regalloc losses.** ParseZaux 0x423110 was v97's marquee
+   "byte-exact under our own VC4.2" function and is now a — semantic-identical — regalloc variant after
+   the literal→table symbol shift. A `tools/dialsweep.py` position sweep could re-land it (+N/−0 or
+   +0/−0), but NEVER pad to a number: 213 with ParseZaux partial is the honest state.
+2. **PICKUP #4 — reopen the residual hunt with the right partition** (`tools/idiomscan.py`): **41**
+   functions differ by regalloc/scheduling ONLY (16 perfectly aligned) — that is the dial's population,
+   ~10 already proven dial-reachable. **~134** are unfaithful SOURCE (ordinary decomp work; the
+   small-`align` ones are the cheap wins). **A hard core is dial-invariant** — `DetonateAdjacentTiles`
+   never moved once across ~70 positions, corroborating PLAN_COMPLETED #29 *for that function*.
+3. **PICKUP #5 — de-hex leftovers** (all still valid): `0x68`→PLAN_WALL in WorldgenHelpers/DeskcppDoc
+   (blocked — a shared `#define PLAN_WALL` would rewrite Worldgen.h's enum declaration into `104 = 104`;
+   needs the enum relocated, a dial risk now measurable); ambiguous `TileFlags` bits 16-19 (need real RE);
+   DeskcppDoc's `0xffffffff` sentinels + `0x11/0x10/0xe` zone-state codes; `WORLD_GRID_SIZE 10` (user's
+   call); the `Canvas::Canvas` `sizeof` dial note at Canvas.cpp EOF.
+4. **(NEW WATCH) the dial model grew one input:** string-literal symbol removal now demonstrably moves
+   Worldgen's exact-set (the v98 +4/−2). Any future change that de-duplicates literals or swaps a literal
+   for a data symbol is a dial event — re-run ALL FIVE oracles after such edits, not just progress.py.
+**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
+atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
+while a `progress.py` is in flight: they fight over the header AND `build/*.obj` (this confounded the
+first ArtooHint measurement and cost a full re-run). Verify a clean tree with
+`git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
+
+---
+
+**(v99 follow-up on the above):** pickup #1 of this block is CLOSED; the "optional polish"
+item (reclaim ParseZaux 0x423110) is still open, and **RemoveItem 0x429150 came back for
+free** in the v99 inline-MEMBER shuffle. Pickup #4 (the idiomscan residual hunt) was OPENED
+at v99 and produced KEY codegen lesson #34 + the 213→217 re-baseline; see the current ⏭
+block in CLAUDE.md.

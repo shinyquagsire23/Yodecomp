@@ -4871,7 +4871,15 @@ int CDeskcppDoc::ParseHtsp(CFile *pFile)
 // [EFFECTIVE MATCH: DIFF(2), insns 230/230. Sole residual: the STUP arm's nDone++ — orig
 // emits add [nDone],ecx reusing the CSE'd ECX=1; ours emits inc. ++/+=1/n=n+1 all inert
 // (probed 2026-07-06) — inc-vs-add-reg is instruction selection, same family as the
-// cmp-direction tie-breaks. Serialize (0x423b30) carries the identical residual.]
+// cmp-direction tie-breaks. Serialize (0x423b30) carries the identical residual.
+//  ⭐ v99 re-checked at the DISASSEMBLY level and the verdict is now much stronger: the two
+//  arms are byte-identical on BOTH sides for 0x1b0..0x1fe EXCEPT this one 3-byte slot, and
+//  ours materializes `mov ecx,1` at the very same offset 0x1d3 — so the CSE'd 1 IS live in
+//  our build too and the compiler simply picked `inc mem` over the equal-length `add mem,ecx`.
+//  Identical dataflow + identical register state + equal encoding length = a pure peephole
+//  tie-break, i.e. the dial, not the source. (Note the SAME function's else-arm at 0x1fc uses
+//  `inc` in the ORIGINAL too, where no 1-register is live — consistent with one `nDone++` in
+//  the source and an opportunistic peephole.) Do not re-chase from the source side.]
 // Standalone .wld-state reader (invoked from OnDraw): open the doc path read/binary, read the
 // chunk stream VERS(==0x200)/STUP(->ReadStupCanvas)/ENDF, then enter the world-view state
 // (bWorldReady/bHidePlayer/nMapChangeReason=1/nFrameMode=7) and UpdateAllViews.

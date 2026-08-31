@@ -375,7 +375,7 @@ void Zone::ReadZax2(CFile *pFile)
     pFile->Read(&size, 4);
     pFile->Read(&count, 2);
     if (count > 0) {
-        i = count;              // orig: mov ax/movsx pair (+3B) — inst-selection, not source-steerable
+        i = count;              // orig: mov ax/movsx pair (+3B). v99 SWEPT 20+ forms (see EOF note).
         do {
             pFile->Read(&n, 2);
             genCandidateA.SetAtGrow(genCandidateA.GetSize(), n);
@@ -397,7 +397,7 @@ void Zone::ReadZax3(CFile *pFile)
     pFile->Read(&size, 4);
     pFile->Read(&count, 2);
     if (count > 0) {
-        i = count;              // orig: mov ax/movsx pair (+3B) — inst-selection, not source-steerable
+        i = count;              // orig: mov ax/movsx pair (+3B). v99 SWEPT 20+ forms (see EOF note).
         do {
             pFile->Read(&n, 2);
             genCandidateB.SetAtGrow(genCandidateB.GetSize(), n);
@@ -1275,3 +1275,17 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
         pScript->doneFlag = 1;
     return result;
 }
+
+// ═══ v99 NEGATIVE RESULT — ReadZax2 0x406410 / ReadZax3 0x406490, the `mov ax`/`movsx` pair ═══
+// The originals widen the element count as `mov ax,[esp+0x12]; movsx ebp,ax` (8 B) where we emit
+// the folded `movsx ebp, word ptr [esp+0x12]` (5 B) — the ONLY structural diff in either function
+// (46/46 insns, align=16, reg_pen=0). Do not re-chase it from the source side: a v99 probe sweep
+// under the anchor flags tried short/int loop counters, for- vs do-while, explicit casts, decl
+// reordering, `register short`, unsigned+cast, ternaries, post-decrement, count reused after the
+// loop, and short temp chains (t=count; u=t; i=u) — ALL fold to the 5-byte form. The one form that
+// DOES stage through AX is assigning into an ADDRESS-TAKEN short (`n = count; i = n;`), and that
+// necessarily emits a `mov word ptr [esp+0x10],ax` store the original does not have. Merging count
+// into `n` (one scratch short) is also wrong: the original keeps TWO slots, count@0x12 + n@0x10.
+// ⇒ classify as allocation/scheduling state (the dial), not a source fact. Contrast lesson #34,
+// where an equally 'unreachable-looking' register copy DID turn out to be a source construct —
+// which is why this one was re-swept before being parked again.
