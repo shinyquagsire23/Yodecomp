@@ -9,9 +9,9 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; byte count re-baselined 211→213 at v98)
+## Where the project stands (2026-07-11, v87; byte count re-baselined 213→217 at v99)
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **213 functions byte-exact / 99.17 % coverage** (v98: honest +2 from wiring the real DTA tag table — see v98 pickup),
+Phases A–G (byte-matching YodaDemo.exe's app region): **217 functions byte-exact / 99.17 % coverage** (v99: honest +4 — the inline-MEMBER idiom landed all five demo-grayed `OnUpdate*` stubs; see v99 pickup),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
 oracles green.
 
@@ -25,7 +25,9 @@ plus a determinism repeat. Both surviving "only VC 4.0 can make these" functions
 interim-compiler hypothesis is dead (docs/compiler-hunt.md v96). ⚠ the +7 is currently PLACEHOLDER
 declarations and is deliberately NOT committed as source — it is a **measurement** saying the
 original's headers carried ~7 more symbols than ours. The work is finding the real seven; **never
-pad to hit a number** (see "the dial is an instrument" below). **v97 (same day): the search is NARROWED — members are INERT (only file-scope symbols / enum ENUMERATORS dial; `tools/membertest.py`), and the Ghidra globals inventory found the one real unmodelled worldgen global = the DTA record-tag table (0x00456890, SHIPPED at EOF of Worldgen.cpp) + TileFlags TILE_PLAYER/ENEMY/FRIENDLY enumerators (SHIPPED). Real additions did NOT reproduce the +7 extern sweep → 211 is the honest plateau, 0x41f830 still gated on the exact ~7 (see ⏭ v97).**
+pad to hit a number** (see "the dial is an instrument" below). **v97 (same day): the search is NARROWED — members are INERT (only file-scope symbols / enum ENUMERATORS dial; `tools/membertest.py`) — ⚠ **PARTLY
+RETRACTED at v99: adding a member FUNCTION to `CDeskcppView` demonstrably rotated Worldgen.cpp's exact set
+(net +10/−6 project-wide). membertest.py tested member DATA; member functions are NOT inert**, and the Ghidra globals inventory found the one real unmodelled worldgen global = the DTA record-tag table (0x00456890, SHIPPED at EOF of Worldgen.cpp) + TileFlags TILE_PLAYER/ENEMY/FRIENDLY enumerators (SHIPPED). Real additions did NOT reproduce the +7 extern sweep → 211 is the honest plateau, 0x41f830 still gated on the exact ~7 (see ⏭ v97).**
 
 Phase H (extension — functional correctness, not byte-matching) status:
 - **H1 CMake build** ✅ (docs/cmake-build.md) — config matrix `YODA_GAME`(YODA|INDY) × `YODA_VARIANT`(DEMO|FULL)
@@ -159,16 +161,26 @@ byte-exactness.** All confirmed by A/B with `tools/progress.py`; none are theore
 build while `progress.py` stays green (v95 did exactly that — microfx lacked `CLR_INVALID`,
 `WS_MAXIMIZE`, `SM_CXDLGFRAME`, `ES_NOHIDESEL`, `OFN_EXPLORER`, …). Build `build-sdl` too.
 
+⭐ **THE INLINE-MEMBER IDIOM (v99 — a MATCHING lever, not a dial trick; full write-up =
+PLAN_COMPLETED.md lesson #34).** A redundant `mov reg,reg` feeding a thiscall, where the vtable
+load uses the ORIGINAL register instead of ECX — `mov eax,[esp+4]; push 0; mov ecx,eax;
+mov edx,[eax]; call [edx]` — is the fingerprint of **inlining a non-static MEMBER** (its implicit
+`this` nominally owns ECX, so the arg must be staged in EAX). `static __inline` free functions,
+`static` members, local copies, casts and references ALL fold to the tight `mov ecx,[esp+4]` form.
+Reproduce it by making the helper a real member. This landed all five demo-grayed `OnUpdate*`
+stubs (0x403510/0x403600/0x403610, 0x4165a0/0x416800) that had been parked as "allocation
+artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not class B.
+
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **213 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **217 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **213 is the CURRENT baseline (re-baselined at v98 from 211, ALL five oracles re-run in the same
+⚠ **217 is the CURRENT baseline (re-baselined at v99 from 213, ALL five oracles re-run in the same
 pass).** It is the number to hold while the header set is what it is — a drop still means you broke
 something. The v98 rise was HONEST, not padded: wiring the original's real file-scope DTA tag table
 (g_aDtaRecordTags) into 37 Load*/Save* strcmp sites gained exactly 4 functions with only 2 lost to
@@ -176,6 +188,10 @@ regalloc aftershock (net +2; the −2, ParseZaux 0x423110 + RemoveItem 0x429150,
 semantic-equivalent regalloc variants — see v98 pickup ⏭ if you ever want ParseZaux back via a
 dial-sweep position). The project-wide per-TU count (all non-Worldgen TUs untouched) is the thing
 that must never drop. Re-baseline deliberately, never let it drift.
+The v99 rise (213→217) was likewise honest and mechanistically PROVEN: reproducing the original's
+inline-MEMBER idiom (lesson #34) turned all five demo-grayed `OnUpdate*` stubs byte-exact in one
+stroke — +10 gained / −6 dial aftershock. RemoveItem 0x429150, one of v98's two regalloc losses,
+came back for free in that shuffle; ParseZaux 0x423110 is still out.
 
 ⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
 count is steerable by ambient declaration state, which means it can be *gamed*. Do not.
@@ -430,7 +446,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (211)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (217)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.

@@ -21,8 +21,8 @@
 #endif
 
 // Demo-limiting helper: the three permanently-grayed menu items (Save/Load/Replay) share an
-// inlined disable call — the EAX staging of the pointer arg is the inlining fingerprint.
-static __inline void DemoDisable(CCmdUI *p)
+// inlined disable call — a non-static inline MEMBER, which is what stages the arg via EAX.
+__inline void CDeskcppDoc::DemoDisable(CCmdUI *p)
 {
 #if defined(YODA_FULL) || defined(GAME_INDY)
     p->Enable(1);        // full/Indy: Save/Load World + Replay Story are available
@@ -622,9 +622,9 @@ void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 
 // FUNCTION: YODA 0x00403510
 // File>Save World: permanently grayed in the demo.
-// [EFFECTIVE MATCH: DIFF(6) x3 for the grayed trio — the original stages pCmdUI through EAX
-//  (mov eax,[esp+4]; mov ecx,eax; mov edx,[eax]) where ours loads ECX directly. Local-copy,
-//  inline-helper, and cast forms all fold to ours. 18 bytes total; park.]
+// [EXACT (v99): the grayed trio's EAX staging is the fingerprint of inlining a non-static
+//  MEMBER — the implicit `this` nominally holds ECX, so the arg must land in EAX first. The
+//  old file-scope `static __inline` helper folded to `mov ecx,[esp+4]`; a member does not.]
 void CDeskcppDoc::OnUpdateFileSave(CCmdUI *pCmdUI)
 {
     DemoDisable(pCmdUI);

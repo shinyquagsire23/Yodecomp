@@ -2454,6 +2454,31 @@ through = exact Yoda) or a `#else`/`#ifndef` that reproduces the original tokens
      InvScrollBar). Fix = rename→OnVScroll + ON_WM_VSCROLL + reorder entries to match. BOTH fixes CODEGEN-NEUTRAL
      (211 held — a msgmap is .rdata data, reordering/completing it doesn't rotate code, UNLIKE v45's empty→full
      World map which displaced ~World; the difference: World went from 0 entries, these were already non-empty).
+  34. **⭐ Inlining a non-static MEMBER stages the pointer arg through EAX — a file-scope/`static`
+     helper does NOT (v99, +5 exact in one stroke).** MSVC 4.2 lowers `p->Virt(0)` inside a plain
+     member as `mov ecx,[esp+4]; push 0; mov eax,[ecx]; call [eax]` (11 B), but when the call is
+     reached by INLINING another **non-static member** of the same class it emits
+     `mov eax,[esp+4]; push 0; mov ecx,eax; mov edx,[eax]; call [edx]` (13 B) — the inlinee's
+     implicit `this` nominally owns ECX, so the argument must be materialized in EAX and copied.
+     PROVEN by probe (scratch TU, same flags): in-class definition, out-of-class `__inline`
+     definition, an inline member *predicate* used as the ARGUMENT (`p->Enable(IsFull())`), and
+     `((COther*)this)->Dis(p)` ALL reproduce the 13 bytes; `static __inline` free functions,
+     `static` MEMBERS, local-object member calls, local copies, casts and references ALL fold to
+     the 11-byte form. So the tell is specifically **an inlined member with an implicit `this`**,
+     not "inlining" and not "a helper".
+     ⇒ WHEN YOU SEE IT: a redundant `mov reg,reg` right before a thiscall, plus the vtable load
+     using the ORIGINAL register instead of ECX, means the body you are looking at came through
+     an inline member — go add that member rather than filing it as "allocation artifact". v99
+     turned all five of the demo-grayed `OnUpdate*` stubs (0x403510/0x403600/0x403610 on
+     CDeskcppDoc, 0x4165a0/0x416800 on CDeskcppView) exact this way; they had been parked since
+     v34 as "EFFECTIVE / allocation artifact of a `this`-ignoring member — park".
+     ⚠ COROLLARY for idiomscan (tools/idiomscan.py): a lone extra `mov` makes the mnemonic
+     multisets differ, so these land in **class D SOURCE/IDIOM**, not class B REGALLOC — do not
+     assume a small class-D delta is unreachable regalloc noise. Conversely a register-COPY diff
+     is not automatically regalloc: check for this idiom first.
+     ⚠ Header COMMENT lines are provably INERT (A/B: deleting 5 comment lines from a class body
+     left three Worldgen.cpp asmscores bit-identical) — consistent with the v96 symbol-count dial
+     model. Adding the member itself IS a dial event (v99 net +10/-6 across the project).
      ⚠ IDs are afxres.h-version-specific: this MFC 4.2 has ID_CONTEXT_HELP=0xe145 / ID_DEFAULT_HELP=0xe147
      (swapped from the usual) — trust the EMITTED value, not the assumed constant. A wrong `CALL [reg+disp]`
      (lesson #24) is the .text twin: all three (vtable slot / msgmap entry / call disp) are silent to byte-%.

@@ -8072,17 +8072,17 @@ void CDeskcppView::OnCmdWorldSizeMaybe()
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x004165a0
 // GameView::OnUpdateWorldSizeUi (ON_UPDATE_COMMAND_UI 0x800d): always disabled (demo).
-// EFFECTIVE (6B, 13/13): the original materializes pCmdUI in eax then `mov ecx,eax`
-// for the vcall (the unused GameView `this` stays in ecx a beat longer); ours loads
-// pCmdUI straight to ecx. Allocation artifact of a `this`-ignoring member. G1.
+// EXACT (v99): the eax staging is not an allocation artifact — it is the fingerprint of
+// inlining a non-static MEMBER, whose implicit `this` nominally occupies ecx. Routing the
+// body through CDeskcppView::DemoDisable reproduces all 13 bytes.
 // ---------------------------------------------------------------------------
 void CDeskcppView::OnUpdateWorldSizeUi(CCmdUI *pCmdUI)
 {
-#ifdef YODA_FULL
-    pCmdUI->Enable(1);        // full: World Size is selectable
-#else
-    pCmdUI->Enable(0);
-#endif
+    // Permanently grayed in the demo, selectable in the full game. DemoDisable MUST stay an
+    // inline MEMBER of CDeskcppView (declared in DeskcppView.h) — that is what stages pCmdUI
+    // through EAX and makes these 13 bytes exact; a file-scope/static helper folds to
+    // `mov ecx,[esp+4]` and misses by 8. v99.
+    DemoDisable(pCmdUI);
 }
 
 // ---------------------------------------------------------------------------
@@ -8135,15 +8135,15 @@ void CDeskcppView::OnCmdStats()
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416800
 // GameView::OnUpdateStatsUi (ON_UPDATE_COMMAND_UI 0x800e): always disabled (demo).
-// EFFECTIVE (6B, 13/13): same unused-`this` eax-hop as OnUpdateWorldSizeUi. G1.
+// EXACT (v99): same inline-MEMBER fingerprint as OnUpdateWorldSizeUi.
 // ---------------------------------------------------------------------------
 void CDeskcppView::OnUpdateStatsUi(CCmdUI *pCmdUI)
 {
-#ifdef YODA_FULL
-    pCmdUI->Enable(1);        // full: Stats is available
-#else
-    pCmdUI->Enable(0);
-#endif
+    // Same shape as OnUpdateWorldSizeUi: Statistics is demo-grayed, available in the full
+    // game. The inline-MEMBER call is load-bearing for the byte match (v99) — see the
+    // DemoDisable definition in DeskcppView.h. Retail Indy has no Statistics feature at
+    // all (v85 ground truth), so the GAME_INDY path deliberately stays grayed.
+    DemoDisable(pCmdUI);
 }
 
 // ===========================================================================

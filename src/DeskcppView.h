@@ -272,6 +272,19 @@ protected:
     afx_msg void OnUpdateWorldSizeUi(CCmdUI *pCmdUI);      // 0x004165a0
     afx_msg void OnCmdStats();                             // 0x00416620  cmd 0x800e (demo-disabled)
     afx_msg void OnUpdateStatsUi(CCmdUI *pCmdUI);          // 0x00416800
+    // v99: World Size / Statistics are permanently grayed in the demo. This helper MUST be a
+    // non-static inline MEMBER — inlining a member keeps the implicit `this` nominally in ECX,
+    // so pCmdUI is staged through EAX (mov eax,[esp+4]; push 0; mov ecx,eax; mov edx,[eax];
+    // call [edx]), exactly the original at 0x004165a0/0x00416800. A file-scope or `static`
+    // helper folds to `mov ecx,[esp+4]` and misses by 8 bytes. Twin: CDeskcppDoc::DemoDisable.
+    void DemoDisable(CCmdUI *pCmdUI)
+    {
+#ifdef YODA_FULL
+        pCmdUI->Enable(1);     // full: World Size + Statistics are selectable
+#else
+        pCmdUI->Enable(0);
+#endif
+    }
     afx_msg void OnDialogCloseBtn();                       // 0x00416a60  BN 0x1389
     afx_msg void OnDialogDownBtnNop();                     // 0x00416a80  BN 0x138a
     afx_msg void OnDialogUpBtnNop();                       // 0x00416a70  BN 0x138b

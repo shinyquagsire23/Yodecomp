@@ -287,6 +287,7 @@ public:
     void OnUpdateNewWorld(CCmdUI *pCmdUI);                // 0x00403580
     void OnUpdateLoadWorld(CCmdUI *pCmdUI);               // 0x00403600  demo: grayed
     void OnUpdateReplayStory(CCmdUI *pCmdUI);             // 0x00403610  demo: grayed
+    void DemoDisable(CCmdUI *pCmdUI);                     // v99: MUST be an inline MEMBER
     void OnReplayStory();                                 // 0x00403620
     int  StartGame(unsigned int nSeed, int bSkipGenerate);// 0x004037a0
     void RefreshZone();                                   // 0x00403ae0
