@@ -143,9 +143,18 @@ def pair_by_name(text, funcs):
                     chosen = (nm, c, r)
                     break
         if chosen is None:                        # positional fallback: next unused COMDAT
+            # ⚠ this is the CASCADE source (v100): once one marker falls back, it consumes a
+            # COMDAT some LATER marker wanted by name, shifting every marker after it. That
+            # silently mis-scored 28 DeskcppView.cpp markers and fabricated a phantom idiom
+            # family in idiomscan. Announce it (YODA_PAIR_WARN=0 to silence) so a stale marker
+            # hint gets FIXED instead of quietly poisoning the measurement.
             for nm, c, r in funcs:
                 if nm not in used:
                     chosen = (nm, c, r)
+                    if os.environ.get("YODA_PAIR_WARN", "1") != "0":
+                        sys.stderr.write(
+                            "WARN pair_by_name: %#010x has no COMDAT matching want=%r — falling "
+                            "back POSITIONALLY to %s (fix the marker hint)\n" % (addr, want, nm))
                     break
         if chosen is None:
             continue

@@ -9,9 +9,10 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; byte count re-baselined 213→217 at v99)
+## Where the project stands (2026-07-11, v87; byte count re-baselined 217→234 at v100 — MEASUREMENT FIX)
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **217 functions byte-exact / 99.17 % coverage** (v99: honest +4 — the inline-MEMBER idiom landed all five demo-grayed `OnUpdate*` stubs; see v99 pickup),
+Phases A–G (byte-matching YodaDemo.exe's app region): **234 functions byte-exact / 99.17 % coverage** (v100: +17 is a
+**MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; see v100 pickup),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
 oracles green.
 
@@ -174,24 +175,42 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **217 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **234 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
-| vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN |
+| vtables | `python3 tools/vtcheck.py` | 15 classes CLEAN |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **217 is the CURRENT baseline (re-baselined at v99 from 213, ALL five oracles re-run in the same
-pass).** It is the number to hold while the header set is what it is — a drop still means you broke
-something. The v98 rise was HONEST, not padded: wiring the original's real file-scope DTA tag table
-(g_aDtaRecordTags) into 37 Load*/Save* strcmp sites gained exactly 4 functions with only 2 lost to
-regalloc aftershock (net +2; the −2, ParseZaux 0x423110 + RemoveItem 0x429150, are byte-neutral
-semantic-equivalent regalloc variants — see v98 pickup ⏭ if you ever want ParseZaux back via a
-dial-sweep position). The project-wide per-TU count (all non-Worldgen TUs untouched) is the thing
-that must never drop. Re-baseline deliberately, never let it drift.
-The v99 rise (213→217) was likewise honest and mechanistically PROVEN: reproducing the original's
-inline-MEMBER idiom (lesson #34) turned all five demo-grayed `OnUpdate*` stubs byte-exact in one
-stroke — +10 gained / −6 dial aftershock. RemoveItem 0x429150, one of v98's two regalloc losses,
-came back for free in that shuffle; ParseZaux 0x423110 is still out.
+⚠ **234 is the CURRENT baseline (re-baselined at v100 from 217, ALL five oracles re-run in the same
+pass).** ⭐ **The +17 is a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions were
+ALREADY byte-exact and were being scored against the WRONG addresses. Do not read it as progress on
+matching. The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
+never let it drift.
+
+⭐ **THE INSTRUMENT ITSELF CAN LIE — verify the harness before chasing its targets (v100, two real
+tool bugs found in one session).** Both silently manufactured work that did not exist:
+1. **The marker-pairing CASCADE.** `verify.py` has always kept a lib-owned COMDAT that a marker
+   EXPLICITLY names by mangled hint (the `hinted` set — CDeskcppView's CGdiObject/CBitmap trios are
+   genuinely ours to match). `progress.py` and `idiomscan.py` had drifted and dropped them. A marker
+   whose COMDAT was filtered away then fell back POSITIONALLY in `match.pair_by_name`, consuming a
+   COMDAT the NEXT marker wanted — cascading **28 mis-pairs through DeskcppView.cpp**, scoring 17
+   already-exact functions against wrong addresses and fabricating a whole phantom "`??_G`
+   scalar-deleting-dtor idiom family" that looked exactly like the v99 five-stub cluster. Fixed by
+   porting verify.py's exception + fixing 3 stale marker hints (`??_GGameView`/`?DrawTextA@GameView`
+   → `CDeskcppView`; the two stacked InvScrollBar markers both derived `??1InvScrollBar@@`).
+   `pair_by_name` now WARNS on every positional fallback (`YODA_PAIR_WARN=0` to silence) — a warning
+   means a stale marker hint to FIX, never noise to ignore.
+2. **Two different definitions of "exact".** `idiomscan` skipped a function on `asmscore`'s
+   DISASSEMBLY-based verdict; the anchor's definition is `progress.py`'s reloc-masked BYTE compare.
+   A function carrying an embedded switch JUMP TABLE decodes the table as instructions, so asmscore
+   reports a phantom `byte_diff` on provably byte-exact code — **8 fake class-D targets**
+   (OnUpdateGameSpeedUi, OnUpdateDifficultyUi, ClassifyTile, StepDetonatorEffect, OnChar, …).
+   idiomscan now uses the byte test. ⇒ **before investing in any residual, confirm it is non-exact
+   with a raw reloc-masked byte diff**, and cross-check a per-TU number against `verify.py`
+   (it disagreed with progress.py for 3 sessions and verify.py was right).
+⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
+stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
+re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
 
 ⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
 count is steerable by ambient declaration state, which means it can be *gamed*. Do not.
@@ -446,7 +465,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (217)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (234)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -457,79 +476,61 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-07-27 v99 — pickup #4 (the idiomscan residual hunt) OPENED and paid off immediately: the **inline-MEMBER idiom** (new lesson #34) landed all FIVE demo-grayed `OnUpdate*` stubs at once → honest re-baseline **213 → 217**. Two other class-D residual families were re-swept and PARKED with evidence. All 5 oracles GREEN on 217; build-sdl + build-sdl-indy green; save_smoke 1/42/7 + worldgen_smoke 1 + game_walk + dlg_smoke pass. Tree GREEN + COMMITTED (0d4cb20 + this session's tail). v98 log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v100 — pickup #4 (mine class D for repeated signatures) was worked as written and immediately hit a **broken instrument**: the top "cluster" it surfaced was a PAIRING ARTIFACT. Fixing the harness re-baselined the anchor **217 → 234 (a MEASUREMENT CORRECTION, not new matching)** and removed 26 phantom class-D targets. All 5 oracles GREEN on 234. No game-code change: the only src/ edit is 3 marker-hint COMMENTS, proven bit-identical across all 140 DeskcppView COMDATs. v99 log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT HAPPENED.** Ran `tools/idiomscan.py --all` to get the honest partition (1 class-A / 14 B /
-23 C / **134 D SOURCE-IDIOM**), sorted class D by `align`, and noticed a **systematic cluster**: five
-13-byte functions with the IDENTICAL signature `align=12 regpen=0 bytes=8`. One root cause → five
-functions. That is the shape to look for; it beats grinding single functions one at a time.
+**▶ WHAT HAPPENED.** Followed v99's advice — re-ran `idiomscan.py --all --csv`, sorted class D by
+`align`, looked for repeated signatures. A clean cluster appeared: five `??_G` scalar-deleting-dtor
+thunks (CButton/CEdit/InvScrollBar/CBitmap/CBitmapButton), same shape as v99's five-stub win.
+**It was fake.** The source marker at 0x40a560 says `??_GCBitmap@@`, but the CSV called it
+`??_GCButton@@`. Chasing that name would have been days of work on functions that do not exist.
 
-**▶ ⭐ THE WIN — lesson #34, the inline-MEMBER idiom (+5 intended, 213→217 net).** The five
-permanently-grayed `ON_UPDATE_COMMAND_UI` stubs (`OnUpdateFileSave` 0x403510, `OnUpdateLoadWorld`
-0x403600, `OnUpdateReplayStory` 0x403610 on CDeskcppDoc; `OnUpdateWorldSizeUi` 0x4165a0,
-`OnUpdateStatsUi` 0x416800 on CDeskcppView) had been parked since v34 as "EFFECTIVE … allocation
-artifact of a `this`-ignoring member — park". **That diagnosis was wrong.** MSVC 4.2 lowers
-`p->Enable(0)` inside a plain member as `mov ecx,[esp+4]; push 0; mov eax,[ecx]; call [eax]` (11 B),
-but when the call arrives by **inlining a non-static MEMBER** it emits `mov eax,[esp+4]; push 0;
-mov ecx,eax; mov edx,[eax]; call [edx]` (13 B) — the inlinee's implicit `this` nominally owns ECX, so
-the arg must be staged in EAX. Proven by scratch-TU probe under the anchor flags: in-class defs,
-out-of-class `__inline` defs, an inline member *predicate* used as the ARGUMENT, and
-`((COther*)this)->Dis(p)` all reproduce it; `static __inline` free functions, `static` MEMBERS,
-local-object member calls, local copies, casts and references ALL fold. Fix = the old file-scope
-`static __inline DemoDisable` became a real member on each class (decl in DeskcppStub.h, in-class def
-in DeskcppView.h); both .cpp edits are line-neutral and the demo path's tokens are unchanged.
-Exact-set delta **+10 / −6** (net +4): the 5 targets + LoadStoryHistoryOregon, StepDetonatorEffect,
-ClassifyTile, Randomize and **RemoveItem 0x429150** (one of v98's two regalloc losses, back for free);
-lost to aftershock: LoadStoryHistoryNevada, PlaceZoneObjectTiles, FindTile, RemoveZoneEntry,
-SetCurrentToIntroZone, GetZoneIndex. ParseZaux 0x423110 is still out.
+**▶ ⭐ TWO REAL TOOL BUGS FOUND AND FIXED** (full write-up = CLAUDE.md "THE INSTRUMENT ITSELF CAN
+LIE"; both were silently manufacturing work):
+1. **Marker-pairing CASCADE.** `progress.py`/`idiomscan.py` filtered lib-owned COMDATs BEFORE
+   `pair_by_name`, dropping ones that markers explicitly name. Those markers then fell back
+   POSITIONALLY, each stealing the COMDAT the NEXT marker wanted → **28 mis-pairs cascading through
+   DeskcppView.cpp**. `verify.py` had the correct `hinted` exception all along and had been
+   reporting the true 80/124 for DeskcppView while progress.py said 63 — **the cross-check that
+   would have caught this years earlier.** Ported the exception; fixed 3 stale marker hints
+   (`??_GGameView`, `?DrawTextA@GameView` → `CDeskcppView`; added an explicit `??_GInvScrollBar@@`
+   hint to 0x408690, whose two stacked markers both derived `??1InvScrollBar@@`). `pair_by_name`
+   now WARNS on every positional fallback — audit is now **0/378 mis-paired** (was 28).
+2. **Two definitions of "exact".** `idiomscan` used `asmscore`'s disassembly verdict; the anchor
+   uses a reloc-masked BYTE compare. Functions with an embedded switch JUMP TABLE decode the table
+   as instructions → phantom `byte_diff` on **8 provably byte-exact functions** (OnUpdateGameSpeedUi,
+   OnUpdateDifficultyUi, ClassifyTile, StepDetonatorEffect, OnChar, OnUpdateNewWorld, OnUpdatePauseUi,
+   ZoneObj::Read). idiomscan now uses the byte test. Class D: 129 → **103**.
 
-**▶ ⭐ TWO DIAL FACTS MEASURED (both refine the v96 symbol-count model over lesson #23's "lines"
-framing):** (1) **COMMENT lines are INERT** — deleting 5 comment lines from a class body left three
-Worldgen.cpp asmscores BIT-IDENTICAL, and later adding a 9-line comment block mid-file to
-Worldgen.cpp (the most dial-sensitive TU) held 217 exactly. Comments cost nothing; write them freely.
-(2) **member FUNCTIONS are NOT inert** — adding one to CDeskcppView rotated Worldgen.cpp's exact set.
-This **partly retracts v97's "members are INERT"** (membertest.py tested member DATA only).
+**▶ HONESTY NOTE (important).** 234 − 217 = 17 functions that were ALREADY byte-exact and were being
+scored against the WRONG addresses. **No new matching happened this session.** Per-TU: only
+DeskcppView.cpp moved (63+61/127 → 80+44/130). Verified three ways: source diff is comments only;
+all 140 COMDATs bit-identical old-vs-new (COFF timestamp makes md5 differ — compare code sections,
+not the file); and `verify.py` independently reports the same 80.
 
-**▶ TWO RESIDUAL FAMILIES RE-SWEPT AND PARKED — with evidence, so nobody re-chases them:**
-1. **ReadZax2 0x406410 / ReadZax3 0x406490** (`mov ax,[esp+0x12]; movsx ebp,ax` vs our folded
-   `movsx ebp, word ptr [...]`; the ONLY diff in either, 46/46 insns). Swept 20+ source forms —
-   short/int counters, for- vs do-while, casts, decl reordering, `register short`, unsigned+cast,
-   ternary, post-decrement, count-reused-after-loop, short temp chains — ALL fold. The one form that
-   DOES stage through AX (assigning into an ADDRESS-TAKEN short) emits an extra store the original
-   lacks. Also: merging count into `n` is WRONG — the original keeps TWO slots (count@0x12, n@0x10).
-   Full note at **Iact.cpp EOF**. ⇒ allocation state, not source.
-2. **LoadWorldStateFile 0x423850 + Serialize 0x423b30** (`add [nDone],ecx` vs our `inc [nDone]`).
-   v99 checked this at the DISASSEMBLY level: the arms are byte-identical on both sides across
-   0x1b0..0x1fe except that one 3-byte slot, and **ours materializes `mov ecx,1` at the very same
-   offset 0x1d3** — so the CSE'd 1 is live in our build too and the compiler just preferred `inc mem`
-   over the equal-length `add mem,ecx`. The original's own else-arm uses `inc` where no 1-register is
-   live. ⇒ pure peephole tie-break. Note expanded in place above the function.
-
-**▶ NEXT — keep mining class D the same way (this is the productive seam):**
-1. **Re-run `tools/idiomscan.py --all --csv …` first** — the v99 change moved the exact set, so the
-   old CSV is stale. Sort class D by `align`, then **look for repeated signatures** (identical
-   `align/regpen/bytes` across several functions = one shared root cause, like the five stubs).
-2. **Cheap unexamined class-D targets** (from the pre-v99 scan; re-confirm): `ParseTilesMaybe`
-   0x41a030 (bytes=3 — sole diff is a `jg`/`jl` back-edge, lesson-#6 family but worth a look since the
-   cmp appeared identical), `AddHealth` 0x427690 (bytes=6), `InitInstance` 0x4198c0 (bytes=25 over
-   998 B), `HitEntityAt` 0x4059d0, `ParseChar` 0x421e70, `CalcSolvedScore` 0x401780.
-   ⚠ `Serialize` 0x423b30 makes `asmscore.py` best-fit onto `?Serialize@CObject@@` (insns 1/0) — a
-   mis-pair; confirm name-keyed (CLAUDE.md tooling note) before believing any number for it.
-3. **The method that worked** (reuse it): dump the original with capstone, dump OURS from
-   `build/<TU>.obj` the same way, and diff the two disassemblies *in full context* — asmscore's
-   `--dump` shows only differing lines and hides the surrounding register state that explains WHY.
-   Then write a scratch-TU probe (`/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS`)
-   with 8–12 candidate source forms and a byte-pattern classifier. Probes are FREE — they never touch
-   src/ and never perturb the dial.
+**▶ NEXT — the class-D seam is still the right one, now with a trustworthy list**
+(`/private/tmp/.../idiom_v100final.csv`; regenerate with `tools/idiomscan.py --all --csv`):
+1. **Re-verify before investing.** For any candidate, first confirm it is REALLY non-exact with a
+   raw reloc-masked byte diff (`match.mask` both sides, compare) — that is the anchor's definition.
+2. **Cheap unexamined class-D targets** (post-fix, none are v99 aftershock or parked):
+   `ParseTilesMaybe` 0x41a030 (bytes=3), `ParseChwp` 0x423300 (bytes=7), `AddHealth` 0x427690
+   (bytes=6), `FindObjectAt` 0x405330 (bytes=11, idiom `{test:1}`), `HitEntityAt` 0x4059d0
+   (bytes=16), `CalcSolvedScore` 0x401780 (bytes=17), `InitInstance` 0x4198c0 (bytes=25 over 998 B).
+3. **Biggest coherent cluster = SaveStoryHistory Nevada/Alaska/Oregon** (0x402670/0x4029c0/0x402d10,
+   ~110 B each, identical delta: we emit 6 extra insns, `{lea:2}` + `{jg,jl,mov,push:2,pop}`).
+   ⚠ **documented-exhausted** — the note at WorldgenHelpers.cpp:220 lists the sweep already done and
+   calls the {lineNo,base,rem} slot 3-cycle "IR temp numbering = full-TU/endgame territory".
+   `bugscan` corroborates: consistent 4-byte ebp shifts (orig −0x20/−0x24 vs ours −0x1c/−0x20), i.e.
+   the original has ONE extra local slot. Don't re-chase without a genuinely new lever.
 4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
    `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note);
    reclaiming ParseZaux 0x423110 via a dial-sweep position (optional, NEVER pad to a number).
+5. **Not yet done this session:** `build-sdl` / `build-sdl-indy` were NOT rebuilt (no game-code
+   change, so no portable-build risk — but rebuild if you touch shared headers next).
 
 **▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
 atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
-while a `progress.py` is in flight: they fight over the header AND `build/*.obj` (this confounded the
-first ArtooHint measurement and cost a full re-run). Verify a clean tree with
-`git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
+while a `progress.py` is in flight: they fight over the header AND `build/*.obj`. Verify a clean tree
+with `git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
 
 ---
 

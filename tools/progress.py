@@ -68,8 +68,16 @@ def main():
         # drop MFC base-class library COMDATs (CObject::~CObject, Serialize, ??_GCObject, ...)
         # and CRT dynamic-init thunks (_$E123 etc. from a file-scope object with a ctor/dtor):
         # they byte-match but carry no // FUNCTION marker, so best-fit would mis-pair them.
+        # ...EXCEPT one a marker EXPLICITLY names by mangled hint: some MFC base-class COMDAT
+        # copies provably survive per-TU in the app region (CDeskcppView's CGdiObject/CBitmap
+        # trios) and ARE ours to match. Dropping them made every following marker in the TU
+        # fall back POSITIONALLY, cascading 28 mis-pairs through DeskcppView.cpp (v100).
+        # verify.py has always had this exception; progress.py/idiomscan.py had drifted.
+        hinted = set(re.findall(
+            r"//\s*FUNCTION:\s*YODA\s+0x[0-9a-fA-F]+[^\n]*?(\?\?(?:_[A-Z]|[0-9])\w+@@)", text))
         funcs = [f for f in match.coff_functions(obj)
-                 if verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                 if (verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                     or any(h in f[0] for h in hinted))
                  and not f[0].lstrip("?").startswith(("_$E", "$E"))]
         # pair each marker to its SAME-named COMDAT (best-fit mis-assigns reloc-masked-identical
         # stubs — two GetMessageMaps become byte-identical once their one imm reloc is masked).

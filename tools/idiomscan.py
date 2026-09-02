@@ -95,15 +95,27 @@ def main():
             print("COMPILE FAILED: %s" % rel, file=sys.stderr)
             continue
         text = open(cpp).read()
+        # keep a lib-owned COMDAT that a marker EXPLICITLY names (see progress.py v100 note:
+        # dropping them cascaded 28 positional mis-pairs through DeskcppView.cpp, which is what
+        # fabricated the phantom "??_G scalar-deleting dtor" idiom family).
+        hinted = set(re.findall(
+            r"//\s*FUNCTION:\s*YODA\s+0x[0-9a-fA-F]+[^\n]*?(\?\?(?:_[A-Z]|[0-9])\w+@@)", text))
         funcs = [f for f in match.coff_functions(obj)
-                 if verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                 if (verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                     or any(h in f[0] for h in hinted))
                  and not f[0].lstrip("?").startswith(("_$E", "$E"))]
         for va, name, code, relocs in match.pair_by_name(text, funcs):
             L = match.trim_pad(code)
             foff = (va - match.TEXT_VA) + match.TEXT_RAW
             orig = EXE[foff:foff + L]
             res = asmscore.score(orig, code[:L], relocs, exact_len=L)
-            if res.exact:
+            # Exactness MUST use the anchor's own definition (progress.py: reloc-masked byte
+            # compare), not asmscore's disassembly-based one. A function carrying an embedded
+            # SWITCH JUMP TABLE decodes the table as instructions, so asmscore reports a phantom
+            # byte_diff on functions that are provably byte-exact (v100: 8 of them, incl.
+            # OnUpdateGameSpeedUi/OnUpdateDifficultyUi/ClassifyTile — all fake class-D targets).
+            cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
+            if res.exact or (len(orig) == L and cm == om):
                 seen.setdefault(va, None)
                 continue
             if seen.get(va, "x") is None:

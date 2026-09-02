@@ -3025,3 +3025,54 @@ item (reclaim ParseZaux 0x423110) is still open, and **RemoveItem 0x429150 came 
 free** in the v99 inline-MEMBER shuffle. Pickup #4 (the idiomscan residual hunt) was OPENED
 at v99 and produced KEY codegen lesson #34 + the 213→217 re-baseline; see the current ⏭
 block in CLAUDE.md.
+
+---
+
+### ⏮ v99 (2026-07-27) — the inline-MEMBER idiom (lesson #34); re-baseline 213 → 217
+
+⚠ **Read with the v100 correction in hand:** the 217 headline this session produced was itself
+computed by a `progress.py` that was UNDER-counting by 17 (the marker-pairing cascade — see
+CLAUDE.md "THE INSTRUMENT ITSELF CAN LIE"). The v99 *matching* work below is real and unaffected —
+the five stubs genuinely went byte-exact — but every absolute number in this block is 17 low.
+
+**▶ THE WIN — lesson #34, the inline-MEMBER idiom (+5 intended).** The five permanently-grayed
+`ON_UPDATE_COMMAND_UI` stubs (`OnUpdateFileSave` 0x403510, `OnUpdateLoadWorld` 0x403600,
+`OnUpdateReplayStory` 0x403610 on CDeskcppDoc; `OnUpdateWorldSizeUi` 0x4165a0, `OnUpdateStatsUi`
+0x416800 on CDeskcppView) had been parked since v34 as "EFFECTIVE … allocation artifact of a
+`this`-ignoring member". **That diagnosis was wrong.** MSVC 4.2 lowers `p->Enable(0)` inside a plain
+member as `mov ecx,[esp+4]; push 0; mov eax,[ecx]; call [eax]` (11 B), but when the call arrives by
+**inlining a non-static MEMBER** it emits `mov eax,[esp+4]; push 0; mov ecx,eax; mov edx,[eax];
+call [edx]` (13 B) — the inlinee's implicit `this` nominally owns ECX, so the arg must be staged in
+EAX. Proven by scratch-TU probe under the anchor flags: in-class defs, out-of-class `__inline` defs,
+an inline member *predicate* used as the ARGUMENT, and `((COther*)this)->Dis(p)` all reproduce it;
+`static __inline` free functions, `static` MEMBERS, local-object member calls, local copies, casts
+and references ALL fold. Fix = the old file-scope `static __inline DemoDisable` became a real member
+on each class (decl in DeskcppStub.h, in-class def in DeskcppView.h); both .cpp edits are
+line-neutral and the demo path's tokens are unchanged. Exact-set delta **+10 / −6**: the 5 targets +
+LoadStoryHistoryOregon, StepDetonatorEffect, ClassifyTile, Randomize and **RemoveItem 0x429150**
+(one of v98's two regalloc losses, back for free); lost to aftershock: LoadStoryHistoryNevada,
+PlaceZoneObjectTiles, FindTile, RemoveZoneEntry, SetCurrentToIntroZone, GetZoneIndex.
+ParseZaux 0x423110 still out.
+
+**▶ TWO DIAL FACTS MEASURED** (both refine the v96 symbol-count model over lesson #23's "lines"
+framing): (1) **COMMENT lines are INERT** — deleting 5 comment lines from a class body left three
+Worldgen.cpp asmscores BIT-IDENTICAL, and adding a 9-line comment block mid-file to Worldgen.cpp
+held the count exactly. Comments cost nothing; write them freely. (**Re-confirmed at v100**: the
+three marker-hint comment edits left all 140 DeskcppView COMDATs bit-identical.) (2) **member
+FUNCTIONS are NOT inert** — adding one to CDeskcppView rotated Worldgen.cpp's exact set. This
+**partly retracts v97's "members are INERT"** (membertest.py tested member DATA only).
+
+**▶ TWO RESIDUAL FAMILIES RE-SWEPT AND PARKED — with evidence, so nobody re-chases them:**
+1. **ReadZax2 0x406410 / ReadZax3 0x406490** (`mov ax,[esp+0x12]; movsx ebp,ax` vs our folded
+   `movsx ebp, word ptr [...]`; the ONLY diff in either, 46/46 insns). Swept 20+ source forms —
+   short/int counters, for- vs do-while, casts, decl reordering, `register short`, unsigned+cast,
+   ternary, post-decrement, count-reused-after-loop, short temp chains — ALL fold. The one form that
+   DOES stage through AX (assigning into an ADDRESS-TAKEN short) emits an extra store the original
+   lacks. Also: merging count into `n` is WRONG — the original keeps TWO slots (count@0x12, n@0x10).
+   Full note at **Iact.cpp EOF**. ⇒ allocation state, not source.
+2. **LoadWorldStateFile 0x423850 + Serialize 0x423b30** (`add [nDone],ecx` vs our `inc [nDone]`).
+   Checked at the DISASSEMBLY level: the arms are byte-identical on both sides across 0x1b0..0x1fe
+   except that one 3-byte slot, and **ours materializes `mov ecx,1` at the very same offset 0x1d3** —
+   so the CSE'd 1 is live in our build too and the compiler just preferred `inc mem` over the
+   equal-length `add mem,ecx`. The original's own else-arm uses `inc` where no 1-register is live.
+   ⇒ pure peephole tie-break. Note expanded in place above the function.

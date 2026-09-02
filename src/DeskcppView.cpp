@@ -407,7 +407,7 @@ CDeskcppView::~CDeskcppView()
         delete pDragTileCanvas;
 }
 // Compiler-generated (GameView vtable @0x44b638 slot 1):
-// FUNCTION: YODA 0x00408c40 (??_GGameView scalar-deleting dtor)
+// FUNCTION: YODA 0x00408c40 (??_GCDeskcppView@@ scalar-deleting dtor)
 
 // -----------------------------------------------------------------------------
 // FUNCTION: YODA 0x00408df0
@@ -4195,7 +4195,7 @@ void CDeskcppView::UpdateItemObjectsMaybe()
     }
 }
 
-// FUNCTION: YODA 0x0040f060  (?DrawTextA@GameView@@QAEXPAVCDC@@@Z — windows.h renames DrawText)
+// FUNCTION: YODA 0x0040f060  (?DrawTextA@CDeskcppView@@QAEXPAVCDC@@@Z — windows.h renames DrawText)
 // GameView::DrawText — paints the 7-slot inventory panel (rectUnk3284):
 // for each visible row, fill the 32x32 drag canvas with the button-face
 // color, blit the item tile into it (skipped for the slot being dragged),
@@ -9182,7 +9182,7 @@ TriPoint::TriPoint()
 {
 }
 
-// FUNCTION: YODA 0x00408690
+// FUNCTION: YODA 0x00408690  (??_GInvScrollBar@@ thin scalar-deleting dtor)
 // FUNCTION: YODA 0x004086b0
 // InvScrollBar::~InvScrollBar — EXPLICIT dtor calling DestroyWindow(). Declaring the dtor (vs.
 // leaving it implicit) forces MSVC to SPLIT destruction into a separate ??1 (0x4086b0, the
