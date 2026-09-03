@@ -75,8 +75,23 @@ def main():
 
     EXE = open(os.path.join(ROOT, "YodaDemo/YodaDemo.exe"), "rb").read()
 
+    def _saves(buf):
+        """Callee-saved pushes before the first call/branch — the lesson-#42 signal (v110).
+        A variant that changes this set has changed how many long-lived values the body
+        needs, which is usually the REAL find even when the byte count barely moves.
+        See tools/savescan.py for the project-wide scan and the two readings."""
+        import capstone
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        out = []
+        for i in md.disasm(bytes(buf[:64]), 0):
+            if i.mnemonic == "call" or i.mnemonic[0] == "j" or i.mnemonic == "ret":
+                break
+            if i.mnemonic == "push" and i.op_str in ("ebx", "esi", "edi"):
+                out.append(i.op_str)
+        return "+".join(sorted(out)) or "-"
+
     def measure():
-        """Return (our_len, orig_len, ndiff) for `addr`, using progress.py's exact predicate."""
+        """Return (our_len, orig_len, ndiff, saves, orig_saves), using progress.py's predicate."""
         obj = prog.compile_obj(cpp)
         if not obj:
             return None
@@ -98,7 +113,7 @@ def main():
             orig = EXE[foff:foff + L]
             cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
             nd = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
-            return (L, len(orig), nd)
+            return (L, len(orig), nd, _saves(code[:L]), _saves(orig))
         return None
 
     rc = 0
@@ -110,10 +125,12 @@ def main():
                 print("%-34s COMPILE FAILED" % name)
                 sys.stdout.flush()
                 continue
-            L, OL, nd = r
+            L, OL, nd, sv, so = r
             exact = (nd == 0 and L == OL)
-            print("%-34s len=%-5d origlen=%-5d diff=%-4d%s"
-                  % (name, L, OL, nd, "  *** EXACT ***" if exact else ""))
+            print("%-34s len=%-5d origlen=%-5d diff=%-4d saves=%-12s%s%s"
+                  % (name, L, OL, nd, sv,
+                     "" if sv == so else " (orig %s) <-" % so,
+                     "  *** EXACT ***" if exact else ""))
             sys.stdout.flush()
             if i == 0 and expect is not None and nd != expect:
                 print("\n!! BASELINE MISMATCH: measured %d, --expect %d.\n"

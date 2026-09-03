@@ -7900,14 +7900,21 @@ void CDeskcppView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416030
-// GameView::ConfirmExit — cancel any in-progress drag (mode 4), then AfxMessageBox
-// (yes/no). On Yes: force the balloon closed, persist MIDILoad if music is on, resume
-// the (suspended) music thread, signal the wave-mix pump to stop, close the document,
-// and PostQuitMessage. Near-identical twin of OnAppExit (0x416110).
-// EFFECTIVE (align 24, 54/54 insns): the only residual is the AfxGetApp() inline
-// (AfxGetModuleState()->m_pCurrentWinApp) scheduling relative to the pMusicThread load
-// - the original hoists the AfxGetModuleState call earlier. Scheduling tie-break, G1.
-// ---------------------------------------------------------------------------
+// GameView::ConfirmExit — cancel any in-progress drag (mode 4), then AfxMessageBox (yes/no).
+// On Yes: force the balloon closed, persist MIDILoad if music is on, resume the (suspended)
+// music thread, signal the wave-mix pump to stop, close the document, and PostQuitMessage.
+// OnAppExit (0x416110) is a one-line forwarder to this; see its note.
+// ⭐ BYTE-EXACT since v110 (was 10 B, parked at G1 as "the AfxGetApp() inline scheduling
+// relative to the pMusicThread load — scheduling tie-break"). Same lever as CheckCheat: an
+// INLINE CALL/CAST CHAIN that the original evaluated into a NAMED LOCAL first.
+//   * `AfxGetApp()->WriteProfileInt(...)` emits the argument pushes BEFORE the inlined
+//     AfxGetModuleState call; the original calls first, then pushes. A `CWinApp *pApp` local
+//     declared INSIDE the `if (nMusicEnabled)` body reproduces that: 10 -> 2. ⚠ the scope is
+//     load-bearing — the same local hoisted OUT to before the `if` costs 19 B, worse than
+//     doing nothing (cf. lesson #37: declaration SCOPE is directional).
+//   * `ResumeThread(((CWinThread *)pMusicThread)->m_hThread)` likewise wants the cast in a
+//     named local (`CWinThread *pMusicWinThread = ...;`): 2 -> 0. Alone it is worth 10 -> 8,
+//     so the two are not independent — enumerate the COMBINATIONS (the v103 selectivity rule).
 void CDeskcppView::ConfirmExit()
 {
     if (pWorld->nFrameMode == 4)
@@ -7928,9 +7935,15 @@ void CDeskcppView::ConfirmExit()
             pWorld->nFrameMode = 3;
         }
         if (pWorld->nMusicEnabled != 0)
-            AfxGetApp()->WriteProfileInt("OPTIONS", "MIDILoad", 1);
+        {
+            CWinApp *pApp = AfxGetApp();
+            pApp->WriteProfileInt("OPTIONS", "MIDILoad", 1);
+        }
         if (pMusicThread != NULL)
-            ResumeThread(((CWinThread *)pMusicThread)->m_hThread);
+        {
+            CWinThread *pMusicWinThread = (CWinThread *)pMusicThread;
+            ResumeThread(pMusicWinThread->m_hThread);
+        }
         g_bStopMusicThread = 1;
         SetEvent(g_hWaveMixEvent);
         pWorld->OnCloseDocument();
