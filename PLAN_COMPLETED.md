@@ -3477,3 +3477,94 @@ Richest: `Tick` 0x40b270 (pX ×9, pY ×9, t ×8, nStep ×6), `OnBumpTile` 0x413d
   CSV to find a class such as `inc/add`.
 - `asmscore.py` best-fit mis-paired `CDeskcppDoc::Serialize` with the lib `CObject::Serialize`
   stub and reported a 1-instruction function. Cross-check with `bytediff.py` before believing it.
+
+## ⭐ v107 (2026-09-03) — 249 → 250; lesson #40 (the LOOP FORM), and a fidelity trade taken
+
+**▶ ⭐ LESSON #40 — THE LOOP FORM IS A DIAL, AND IT IS NOT A REGISTER TIE-BREAK.**
+`SaveZoneRecursive` 0x4033b0 had sat at DIFF(6) since G1 annotated as a "walker/counter
+ebx<->ebp 2-cycle" — the canonical lesson-#37 fingerprint. It is not one: **all 9 hoist /
+decl-order / decl-set variants measure 6 B, dead flat.** The lever is the shape of the loop.
+The original writes the house countdown
+
+    int n = z->objects.GetSize();
+    if (n > 0) { int i = 0; do { ...; i++; n--; } while (n != 0); }
+
+not `for (int i = 0; i < n; i++)`. That is the recipe `PlacePuzzle` 0x421620's note already
+documented for its three delete loops ("yields the DEC/JNE countdown the plain guard+do-while
+i<n form never produces") — v107's contribution is recognising it as a GENERAL lever and
+probing for it. All five spellings of the idiom measure 0 B (`i++; n--;` vs `} while (--n)`,
+`i` before or after `n`, `GetAt` vs `operator[]`), so the oracle pins a FAMILY — pick the house
+member (lesson #36 discipline). ⚠ The `n > 0` GUARD is load-bearing: an unguarded do-while
+emits 145 bytes against the original's 149.
+⇒ **When a residual looks like a walker/counter register 2-cycle and every declaration variant
+is flat, stop treating it as a register problem and vary the LOOP FORM.** A flat decl sweep is
+now a POSITIVE signal for this lever, not a dead end.
+⚠ **It is NOT universal, and the counter-evidence is cheap to get** — the emitted LENGTH rules
+it out immediately where it is wrong:
+| fn | resid | countdown verdict |
+|---|---|---|
+| `SaveZoneRecursive` 0x4033b0 | 6 B | **0 B — landed** |
+| `WorldgenCollectZoneRefs` 0x41f8e0 | 9 B | 7 B, identical length — probably right, PARKED (see below) |
+| `LoadZoneRecursive` 0x403450 | 1 B | **165 B vs 177 — structurally WRONG** |
+| `FindObjectAt` 0x405330 | 2 B | **77 B vs 79 — structurally WRONG**; caching GetSize() also costs 13 B |
+| `RemoveEmptyZonesFromPlacedList` 0x403070 loop 1 | 26 B | byte-IDENTICAL to the `for` (inert) |
+| `RemoveEmptyZonesFromPlacedList` 0x403070 loop 2 | 26 B | 204 B vs 206 — wrong |
+So `SaveZoneRecursive` and `LoadZoneRecursive`, textual mirrors, genuinely differ in loop form.
+
+**▶ `SetCurrentToIntroZone` 0x423d20, 5 B → EXACT (+1/−0) — lesson #38 by the book.**
+Both `i` and `pZone` belong at FUNCTION scope, **in that order**, with `nCount` initialised in
+its own declaration: `int nCount = zones.GetSize(), i; Zone *pZone;`. The descent is the whole
+lesson in one function — hoist `i` alone = 5 (nothing), hoist `pZone` alone = **9 (worse)**,
+hoist both with `pZone` first = 9, `Zone *pZone;` ahead of `nCount` = 11, all-top with `nCount`
+assigned separately = 5, **hoist both with `i` first = 0**. A single-hoist probe would have
+reported "inert or worse" and parked it. Inert here: `zones[i]` vs `GetAt(i)`, the loop-condition
+cmp mirror, an early-`continue` body. The do-while countdown emits 53 B vs 60 — ruled out.
+
+**▶ ⚠ A NET-ZERO FIDELITY TRADE, TAKEN DELIBERATELY (Save gained, Load lost).**
+Landing `SaveZoneRecursive`'s countdown costs `LoadZoneRecursive` 0x403450, immediately below it,
+its last byte — project total stays **250**, +1/−1. Taken because it strictly improves the source
+as a reference: before, Save carried a form now PROVEN wrong; after, both carry their
+most-likely-correct form. Load's own source is untouched (the v102 assign-in-condition crack
+stands) and the byte it regains is the `savedId`/`child` cmp operand order its note already
+recorded as an inert commutative tie-break — re-confirmed inert here.
+⇒ **This is NOT the v96 "a trade is the fingerprint of padding" case.** That rule governs adding
+filler DECLARATIONS to move the dial. Here the gained form has independent structural proof (the
+unguarded variant emits the wrong LENGTH) and matches a house idiom already documented elsewhere
+in the source. The v45 `~CDeskcppDoc` message-map trade is the precedent.
+⚠ **The trade is TOKEN-driven, not lesson #23**: a LINE-NEUTRAL spelling of the same change
+trades identically. That is a clean second confirmation of v105's joint-phase finding.
+
+**▶ THE JOINT SEARCH AROUND IT — bounded and already partly executed.** Per v106 downstream-only,
+the compensating fix must sit UPSTREAM of line 613 in WorldgenHelpers.cpp. Probed:
+- `LoadZoneRecursive` itself under the new phase: **16 spellings** (decl set/order for `i`/`o`/
+  `child`, `savedId`/`savedFull` order, cmp mirror, `==` form, countdown) → floor 1 B,
+  unreachable from its own source. Textbook v105 "the source is not the variable".
+- `RemoveEmptyZonesFromPlacedList` 0x403070, the obvious upstream candidate: **10 variants**, inert
+  at 26 B. ⇒ look further up (`LoadStoryHistoryNevada` 0x401ac0 is a known phase oscillator; the
+  three `SaveStoryHistory*` are 611 B each and untouched).
+
+**▶ THE DUPLICATED-LOCAL SEAM (v106's lead) — RE-RUN AND LARGELY DISAPPOINTING.** The scan
+reproduces at 48 functions, but the merges do not pay where v106 guessed they would:
+| fn | resid | verdict |
+|---|---|---|
+| `DrawDirectionArrows` 0x4270f0 | 21 B | **13 spellings, floor 21.** Merging x/y across all four arrow blocks costs **+7**; block-2-only hoists inert; block-2 decl-order swap = 23. CLOSED on this axis. |
+| `PlacePuzzle` 0x421620 | 32 B | floor **29** (hoist `i`, or hoist `pPt`). Renaming the three delete counters to one `n` is inert; hoisting `n` alone or `pPt`+`i`+`n` = 35. Not landed (partial). |
+| `GetFrameTile` 0x404850 | 2 B | **one-variable hypothesis REFUTED STRUCTURALLY** — merging `bank` into `idx` collapses the `dy == -1` test and emits **177 B vs the original's 183**. Decl order and every addend order inert. |
+⇒ The v106 claim that this is "the richest untouched seam" is **downgraded**: 3 of 3 worked
+candidates closed without a gain, and the one v106 win (`ReadSavedState`) may be the exception.
+The productive lever this session was the LOOP FORM, found on a function the dup-scan also
+flagged — so the scan is still useful as a TARGET LIST, just not for the merge probe specifically.
+
+**▶ A USEFUL COMPILER CONSTRAINT (new).** VC 4.2 uses OLD for-scope: `for (int i = ...)` leaks
+`i` into the enclosing scope, so **two `for (int i ...)` loops in one function is a redefinition
+ERROR**. That is why `RemoveEmptyZonesFromPlacedList` uses `i` and `j`, and it bounds the space of
+spellings the 1997 author could have written in every multi-loop function — a same-name merge
+across two `for`-init declarations is not just unlikely, it is uncompilable.
+
+**▶ HARNESS NOTES (v107).**
+- `tools/residuals.py --csv` takes a PATH argument (`--csv out.csv`); bare `--csv` raises IndexError.
+- The `mov-operand` class is 119 of 129 residuals — far too broad to be a targeting signal on its
+  own. `cmp-swap` and `jcc-mirror` continue to LOOK source-steerable and measure inert (GetZoneIndex,
+  LoadZoneRecursive, LoadStoryHistoryNevada all sit there).
+- Positive-control discipline held up again: the dup-local scan prints its parsed-row count before
+  reporting, per the v103 rule.

@@ -6,12 +6,12 @@ into real, buildable C++/MFC source, plus an extended multi-game engine built on
 modify this file with any useful notes that will aid other/later Claudes.
 
 **Deep history lives in `PLAN_COMPLETED.md`** — the full phased plan (A–G), TU/struct status tables, the
-v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#39 + MFC-matching lessons** (cite as
+v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106 (REAL MATCHES))
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **249 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **250 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -180,19 +180,20 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **249 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **250 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **249 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106; all five oracles
+⚠ **250 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
 v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
 v104: four via DECLARATION SCOPE, lesson #37; v105: the decl SET+ORDER refinement, lesson #38;
-v106: the statement-ORDER-around-a-materialized-constant lever, lesson #39). The project-wide per-TU count is
+v106: the statement-ORDER-around-a-materialized-constant lever, lesson #39; v107: SetCurrentToIntroZone
+via lesson #38, plus SaveZoneRecursive via the new LOOP-FORM lever, lesson #40). The project-wide per-TU count is
 the thing that must never drop; re-baseline deliberately, never let it drift.
 
 ⭐ **THE MFC MEMBER-CALL FORM IS A MATCHING LEVER (lesson #35; v102 — the argument-ordering
@@ -318,6 +319,46 @@ counts in a pickup are PHASE-RELATIVE, not absolute** — after landing any chan
 residual number for a LATER function in the SAME TU is invalid. `vartest --expect 13` on
 `WriteSavedState` hard-failed immediately after the ReadSavedState fix (it had moved to 20 B);
 the v100/v101 baseline guard caught it automatically, which is exactly what it is for.
+
+⭐ **THE LOOP FORM IS A DIAL — AND A FLAT DECL SWEEP IS THE SIGNAL FOR IT (v107, lesson #40).**
+`SaveZoneRecursive` 0x4033b0 sat at DIFF(6) since G1, annotated as a "walker/counter ebx<->ebp
+2-cycle" — the canonical lesson-#37 fingerprint. It is not one: **all 9 hoist / decl-order /
+decl-set variants measured 6 B, dead flat.** The lever is the shape of the loop. The original
+writes the house countdown `int n = X.GetSize(); if (n > 0) { int i = 0; do { ...; i++; n--; }
+while (n != 0); }` rather than `for (int i = 0; i < n; i++)` — the recipe PlacePuzzle's delete-loop
+note already documented, now recognised as a general probe. All five spellings of the idiom give
+0 B (so the oracle pins a FAMILY — pick the house member, lesson #36); the `n > 0` GUARD is
+load-bearing (an unguarded do-while emits 145 B vs the original's 149).
+⇒ **When a residual looks like a walker/counter register 2-cycle and every declaration variant is
+flat, stop treating it as a register problem and vary the LOOP FORM.** A flat decl sweep is a
+POSITIVE signal for this lever, not a dead end.
+⚠ **Not universal — and the emitted LENGTH refutes it instantly where it is wrong**, which makes
+it cheap to probe: countdown gives 165 B vs 177 on `LoadZoneRecursive`, 77 B vs 79 on
+`FindObjectAt`, 204 B vs 206 on `RemoveEmptyZones` loop 2, and is byte-IDENTICAL (inert) on that
+function's loop 1. `WorldgenCollectZoneRefs` 0x41f8e0 reaches 9 B → 7 B at identical length
+(parked — see its source note). So textual mirrors can genuinely differ in loop form.
+⚠ **VC 4.2 has OLD for-scope**: `for (int i ...)` leaks `i`, so two such loops in one function is
+a redefinition ERROR. That bounds what the 1997 author could write in every multi-loop function
+(and is why `RemoveEmptyZonesFromPlacedList` uses `i` and `j`).
+
+⭐ **A NET-ZERO FIDELITY TRADE IS SOMETIMES RIGHT — AND IT IS NOT THE v96 PADDING CASE (v107).**
+Landing SaveZoneRecursive's countdown costs `LoadZoneRecursive` (immediately downstream) its last
+byte: +1/−1, total unchanged at 250. Taken deliberately, because before the change Save carried a
+form now PROVEN wrong and after it both functions carry their most-likely-correct form. The
+distinction from the ❌ "a trade is the fingerprint of padding" rule: **that rule governs adding
+filler DECLARATIONS to move the dial.** A trade is defensible when the gained form has INDEPENDENT
+structural proof (here: the wrong variants emit the wrong LENGTH) and matches a house idiom already
+documented in the source. Precedent: the v45 `~CDeskcppDoc` message-map trade.
+⚠ Confirmed TOKEN-driven, not lesson #23 — a LINE-NEUTRAL spelling trades identically. Second
+clean confirmation of v105's joint phase.
+
+⭐ **THE DUPLICATED-LOCAL SEAM IS DOWNGRADED (v107).** v106 called it "the richest untouched
+seam" (48 functions). Worked three of its top candidates; **all three closed without a gain**:
+`DrawDirectionArrows` 0x4270f0 (13 spellings, floor 21 — merging x/y costs +7), `PlacePuzzle`
+0x421620 (12 spellings, 32 → 29 via hoisting `i`, merge inert), and `GetFrameTile` 0x404850 where
+the one-variable hypothesis is **structurally REFUTED** (merging `bank` into `idx` collapses the
+`dy == -1` test → 177 B vs the original's 183). Keep the scan as a TARGET LIST — it is how
+SaveZoneRecursive surfaced — but do not expect the merge probe itself to pay.
 
 ⭐ **"ONE VARIABLE WHERE WE HAD TWO" IS A REPEATABLE PROBE (v106; lesson #37 refinement 2).**
 `Zone::ReadSavedState` 0x405bd0 went 21 B → 12 B because the original used ONE `ZoneObj *o` for
@@ -647,7 +688,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (249)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (250)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -658,58 +699,72 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v106 — **247 → 249**, +2 gained / 0 lost, plus a free
-21 B → 12 B fidelity win. All 5 oracles green (249 exact / link 0-0-exit0 / bugscan 0 HIGH
-0 SHIFT / vt 10 CLEAN / msg 11 CLEAN); build-sdl + build-sdl-indy relinked. v105 log demoted to
-PLAN_COMPLETED.md ⏮; full v106 detail lives in the new "⭐ v106" section there.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v107 — **249 → 250**, +1 gained / 0 lost, plus a
+deliberate net-zero FIDELITY TRADE (SaveZoneRecursive gained, LoadZoneRecursive lost).
+All 5 oracles green (250 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
+msg 11 CLEAN); build-sdl + build-sdl-indy relinked. v106 log demoted to PLAN_COMPLETED.md;
+full v107 detail lives in the new "⭐ v107" section there.)
 
 **▶ WHAT LANDED.**
-1. **`LoadWorldStateFile` 0x423850 + `Serialize` 0x423b30 → EXACT (+2, commit 46988ce)** via
-   **lesson #39** (standing bullet above): move the `nDone++` to the END of the STUP block, after
-   the `= 1` state stores, so cl folds it into the already-materialised `ecx`. Their DIFF(2) had
-   been parked as an "inc-vs-add tie-break" since G1.
-2. **`Zone::ReadSavedState` 0x405bd0 21 B → 12 B (commit adbf2fb)** — the original used ONE
-   `ZoneObj *o`, not two. Free (+0/−0), and the "one variable where we had two" probe it
-   establishes is the seam below.
+1. **`SetCurrentToIntroZone` 0x423d20 5 B → EXACT (+1, commit 3c52c5b)** via **lesson #38**:
+   `int nCount = zones.GetSize(), i; Zone *pZone;` — both locals at function scope, `i`
+   BEFORE `pZone`. Textbook descent: `i` alone = 5, `pZone` alone = **9 (worse)**, reversed
+   order = 9, all-top with nCount assigned separately = 5, **both with `i` first = 0**.
+2. **⭐ `SaveZoneRecursive` 0x4033b0 6 B → EXACT via the NEW LOOP-FORM lever, lesson #40
+   (commit ca0edae)** — see the standing bullet above. Its "walker/counter 2-cycle" was
+   never a register problem: 9 decl variants were dead flat, and the answer was the house
+   `i++/n--` countdown under an `n > 0` guard.
+   ⚠ **Net zero on the count**: it costs `LoadZoneRecursive` 0x403450 (immediately
+   downstream) its last byte, so the total stays 250. Taken for source fidelity, with the
+   reasoning recorded in both source notes and the standing bullet. **Revert with
+   `git revert ca0edae` if the trade is unwanted** — nothing else depends on it.
+3. **Closed axes recorded in-source (commit 8cb4cc5, comment-only, verified +0/−0).**
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ THE DUPLICATED-LOCAL SEAM (best lead — new, 48 candidates, method proven).** Re-run the
-   scan (recipe in PLAN_COMPLETED.md ⏮ v106) and work the merges. Richest: `Tick` 0x40b270
-   (pX ×9, pY ×9, t ×8, nStep ×6), `OnBumpTile` 0x413df0 (5 names ×4), `Generate` 0x41f960
-   (11 names), `IactRunCommands` 0x4070e0 (11 names), `CDeskcppDoc::~CDeskcppDoc` 0x41b2f0 (p ×7,
-   only 6 B residual — the single best ratio in the list). ⚠ merging is DIRECTIONAL: it costs
-   21 B when done across both branches of 0x41d480. Use `hoisttest.py --max-hoist 2` (its name
-   dedup is what reaches the merged configuration) and identify a winner POSITIONALLY.
-2. **Mine lesson #39 further.** All 29 remaining `inc/add` sites sit in 78 B+ residuals, so the
-   cheap ones are gone — but the general form (immediate-vs-register: `mov mem,imm` where the
-   original uses `mov mem,reg`) has NOT been scanned. Pull the `mov-operand` class (119 sites)
-   out of `residuals.py --csv` and look for that fingerprint.
-3. **The ZoneFind joint search** (0x41c490 + 0x429150 + 2 of {0x41f830, 0x423380, 0x428680}) is
-   still open and REPRODUCED exactly this session at 246. ⚠ Its per-function byte counts are
-   PHASE-RELATIVE and were measured before the v106 landings — re-measure before trusting them.
-   The v106 downstream-only finding bounds the search: a compensating edit must sit between
-   Worldgen.cpp line 279 and line 2349 to reach all three losses.
-4. **Do NOT re-tread** the v106 closed-axes table (PLAN_COMPLETED.md ⏮ v106): `GetZoneIndex`
-   0x423dc0, `FindObjectAt` 0x405330, `RemoveZoneEntry` 0x41d740, `ReadIzon` 0x405ae0,
-   `WorldgenAssignTransitItemMaybe` 0x41d480, `WriteSavedState` 0x405f30 — ~130 spellings between
-   them, all inert. ⚠ residuals.py's `cmp-swap`/`jcc-mirror` labels LOOK source-steerable and
-   measure inert; `mov-operand` is the class that actually paid.
-5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
-   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
-6. **Phase-H goals 2-5 untouched** this session.
+1. **⭐ MINE LESSON #40 SYSTEMATICALLY (best lead).** Only 6 loops were probed this session
+   and one landed. The targeting rule: pull residuals whose note says "register 2-cycle" /
+   "walker/counter" AND whose decl sweep is flat, then vary the loop form. Refutation is
+   cheap — a wrong loop form emits the WRONG LENGTH, visible in one `vartest` line.
+   `tools/residuals.py --csv <path>` + the for-init scan (recipe in PLAN_COMPLETED ⏮ v107)
+   gives 18 candidates; unprobed ones with small residuals: `BlitMasked` 0x408240 (4 B,
+   2 loops), `ParseTilesMaybe` 0x41a030 (3 B), `ReadSavedState` 0x405bd0 (12 B, 4 inner
+   ptrs), `WriteSavedState` 0x405f30 (20 B), `StartGame` 0x4037a0 (79 B, 4 loops).
+2. **The WorldgenHelpers JOINT SEARCH** (recover LoadZoneRecursive's 1 B without giving up
+   Save). Bounded by v106 downstream-only: the compensating edit must sit UPSTREAM of line
+   613 in that TU. Already probed and inert: `RemoveEmptyZonesFromPlacedList` 0x403070
+   (10 variants) and LoadZoneRecursive's own 16 spellings. Remaining upstream candidates:
+   `LoadStoryHistoryNevada` 0x401ac0 (2 B, a known phase oscillator) and the three
+   `SaveStoryHistory*` (611 B each, untouched — big but they are copy-paste siblings, so
+   one crack pays 3×).
+3. **`WorldgenCollectZoneRefs` 0x41f8e0 is a PARKED PARTIAL** — countdown takes it 9 B → 7 B
+   at identical length (all 4 spellings agree, so the form is probably right). Land it only
+   inside a joint pass that also closes the remaining 7 B; alone it re-rolls Worldgen.cpp's
+   phase below line 2388 for no gain.
+4. **`PlacePuzzle` 0x421620 is a PARKED PARTIAL too** — 32 B → 29 B by hoisting `i` (or
+   `pPt`). Same reasoning; needs the rest of the function before it is worth landing.
+5. **Do NOT re-tread** the v106 closed table PLUS the v107 additions: `DrawDirectionArrows`
+   0x4270f0 (13 spellings, floor 21), `GetFrameTile` 0x404850 (one-variable REFUTED at
+   177 B vs 183), `FindObjectAt` 0x405330 (loop form + cached-GetSize now closed too; floor
+   2 B over 15 spellings), `RemoveEmptyZonesFromPlacedList` 0x403070 (10 variants inert).
+   ⚠ The **duplicated-local seam is DOWNGRADED** — 3 of 3 top candidates closed with no gain
+   (standing bullet above). Keep the scan as a target list, not as a merge probe.
+6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+7. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104/v105 rules stand, plus v106 additions):** every sweep
-MUTATES a source file — always `git diff --stat src/` AFTER each one; run sweeps with
-`run_in_background` writing to a LOG FILE, never through a pipe; restore a single function from
-`git show HEAD:<file>`, never `git checkout <file>`; never run two sweeps concurrently or one
-while `progress.py` is in flight. Measure with **`tools/exactset.py` + `comm`**, not progress.py's
-total (it hides a +2/−4 as "−2"). A pure-comment edit is only free if the file's LINE COUNT is
-unchanged. **NEW v106:** (a) ALWAYS pass `--expect` and let it hard-fail — it caught a stale
-baseline within minutes of a landing; (b) `residuals.py --csv` columns are
-`cpp,va,name,L,ndiff,span,lenmis,kinds,tie` and `va` is DECIMAL, and the terminal `kinds` column
-is TRUNCATED at 28 chars, so use the CSV to select a diff class; (c) `asmscore.py` best-fit
-mis-paired `CDeskcppDoc::Serialize` with the lib `CObject::Serialize` stub — cross-check any
-asmscore verdict with `bytediff.py`.
+**▶ HOW TO WORK THE DIAL SAFELY (v104/v105/v106 rules stand, plus v107 additions):** every
+sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run sweeps
+with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
+concurrently, or one while `progress.py`/`exactset.py`/`residuals.py` is in flight (they all
+share `build/*.obj`). Measure with **`tools/exactset.py` + `comm`**, never progress.py's total
+alone. **NEW v107:** (a) `residuals.py --csv` needs a PATH argument — bare `--csv` raises
+IndexError; (b) a COMMENT-ONLY edit that changes a TU's line count must still be verified with
+`exactset.py` when exact functions sit downstream of it (both v107 doc commits were checked and
+were free); (c) the `mov-operand` kind covers 119 of 129 residuals — useless as a targeting
+signal on its own; (d) when a variant fails to COMPILE, suspect VC4.2 old-for-scope before
+suspecting the generator.
 
 ---
 
