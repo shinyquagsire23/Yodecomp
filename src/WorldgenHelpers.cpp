@@ -577,7 +577,17 @@ unsigned char CDeskcppDoc::GetExitDirections()
     return dirs;
 }
 
-// FUNCTION: YODA 0x004033b0  [EFFECTIVE MATCH: DIFF(6) — walker/counter ebx<->ebp 2-cycle.]
+// FUNCTION: YODA 0x004033b0
+// [EXACT at v107. The 6 B "walker/counter ebx<->ebp 2-cycle" was NOT a register tie-break and
+// NOT a declaration-scope dial (all 9 hoist/order/decl-set variants measured 6 B, dead flat):
+// it was the LOOP FORM. The original uses the house `i++ / n-- / while (n != 0)` countdown
+// under a separate `n > 0` guard — the recipe PlacePuzzle's delete loops already document —
+// which yields the DEC/JNE that `for (i = 0; i < n; i++)` never produces. All five spellings
+// of that idiom measure 0 B; the guard is load-bearing (an unguarded do-while emits 145 bytes
+// against the original's 149). GetAt vs operator[] and the i/n decl order are inert here.
+// ⚠ JOINT-PHASE DEBT: this token change re-rolls the TU phase and costs LoadZoneRecursive
+// below its last byte (see its note). Confirmed token-driven, not lesson #23 — a LINE-NEUTRAL
+// spelling of the same change trades identically. Net project count unchanged at 250.]
 // .wld save: zone id + full flag + Zone::WriteSavedState, recursing into door-linked rooms.
 void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 {
@@ -591,10 +601,15 @@ void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 #endif
     z->WriteSavedState(f, full);
     int n = z->objects.GetSize();
-    for (int i = 0; i < n; i++) {
-        ZoneObj *o = (ZoneObj *)z->objects[i];
-        if (o->type == 9 && o->arg >= 0)
-            SaveZoneRecursive(f, o->arg, full);
+    if (n > 0) {
+        int i = 0;
+        do {
+            ZoneObj *o = (ZoneObj *)z->objects[i];
+            if (o->type == 9 && o->arg >= 0)
+                SaveZoneRecursive(f, o->arg, full);
+            i++;
+            n--;
+        } while (n != 0);
     }
 }
 
@@ -603,7 +618,15 @@ void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
 //   its load ABOVE the type test, where cl emits it after. Assigning inside the && keeps the
 //   callee-saved cache across the Reads AND the original's order (7 B -> 1 B). Mirrors
 //   SaveZoneRecursive above, which already reads o->arg inside the condition. The last byte is
-//   the savedId/child cmp operand order — a pure commutative tie-break, canonicalized either way.]
+//   the savedId/child cmp operand order — a pure commutative tie-break, canonicalized either way.
+//   ⚠ v107: this was EXACT until SaveZoneRecursive's countdown form landed above; that token
+//   change re-rolls the TU's joint register phase (v105) and puts this back to DIFF(1) on that
+//   same inert cmp byte. 16 spellings probed under the new phase (decl set/order for i/o/child,
+//   savedId/savedFull order, cmp mirror, == form): floor is 1 B, unreachable from this
+//   function's own source. The countdown is structurally WRONG here — it emits 165 bytes vs the
+//   original's 177 — so the two mirrors genuinely differ in loop form. OPEN: the compensating
+//   fix must sit UPSTREAM of line 613 in this TU (v106 downstream-only); RemoveEmptyZones-
+//   FromPlacedList 0x403070 was swept (10 variants) and is inert, so look further up.]
 // .wld load mirror: read + verify each door child id before recursing.
 void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 {
