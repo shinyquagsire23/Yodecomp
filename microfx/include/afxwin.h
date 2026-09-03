@@ -527,6 +527,8 @@ public:
 
     BOOL BitBlt(int x, int y, int nWidth, int nHeight, CDC* pSrcDC, int xSrc, int ySrc, DWORD dwRop)
         { return ::BitBlt(m_hDC, x, y, nWidth, nHeight, pSrcDC ? pSrcDC->m_hDC : 0, xSrc, ySrc, dwRop); }
+    BOOL PatBlt(int x, int y, int nWidth, int nHeight, DWORD dwRop)
+        { return ::PatBlt(m_hDC, x, y, nWidth, nHeight, dwRop); }
     int  GetDeviceCaps(int nIndex) const { return ::GetDeviceCaps(m_hDC, nIndex); }
     int  GetClipBox(LPRECT lpRect) const { return ::GetClipBox(m_hDC, lpRect); }
     CGdiObject* SelectStockObject(int nIndex);

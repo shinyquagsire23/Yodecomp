@@ -6668,12 +6668,12 @@ void CDeskcppView::OnMouseMove(UINT nFlags, CPoint point)
 }
 
 // FUNCTION: YODA 0x00413b20
-// [EFFECTIVE: align=20/reg_pen=0 — ONLY the two end stubs are swapped: orig emits the EH
-//  handler thunk (mov eax,FuncInfo; jmp __CxxFrameHandler) BEFORE the ~CBrush call stub
-//  (lea ecx; jmp ??1CBrush); ours emits dtor-stub-then-handler. Identical bytes, block
-//  order only — funclet-ordering axis, not source-steerable (UpdateDragCursor's stubs
-//  aligned with the same source patterns). Crack: h/w as locals (h FIRST) so both
-//  subtractions batch before the PATCOPY push.]
+// [v103: BYTE-EXACT via the MFC MEMBER form (lesson #35) — pDC->PatBlt(...) not
+//  ::PatBlt(pDC->m_hDC, ...). The 6B residual was the TAIL FUNCLET ORDER (orig emits the
+//  EH handler thunk before the ~CBrush unwind stub; ours emitted dtor-stub-first), and the
+//  old note here called that axis "not source-steerable" — WRONG: the call form drives it.
+//  `CRect rc` in place of `RECT rc` also lands it; the member form is chosen as it matches
+//  the author's confirmed idiom. Earlier crack: h/w as locals, h FIRST.]
 // WM_ERASEBKGND: fills the clip box with the 3D-face system color via a PatBlt.
 // `this` is never read — everything goes through the passed CDC.
 BOOL CDeskcppView::OnEraseBkgnd(CDC *pDC)
@@ -6684,7 +6684,7 @@ BOOL CDeskcppView::OnEraseBkgnd(CDC *pDC)
     pDC->GetClipBox(&rc);
     int h = rc.bottom - rc.top;
     int w = rc.right - rc.left;
-    ::PatBlt(pDC->m_hDC, rc.left, rc.top, w, h, PATCOPY);
+    pDC->PatBlt(rc.left, rc.top, w, h, PATCOPY);
     pDC->SelectObject(pOldBrush);
     return TRUE;
 }
@@ -7829,13 +7829,13 @@ void CDeskcppView::CyclePalette()
     // push the two animated bands (10..14 and 0xa0..0xf5) to the DIB + screen palette
     pWorld->pCanvas->SetPalette(10, 5, pWorld->pSysColorTable + 10);
     pWorld->pCanvas->SetPalette(160, 86, pWorld->pSysColorTable + 160);
-    CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
+    CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 10, 5, &pWorld->sysPalette[10]);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
-    ::RealizePalette(pDC->m_hDC);
+    pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
+    pWorld->pPalette->AnimatePalette(160, 86, &pWorld->sysPalette[160]);
+    pDC->RealizePalette();
     pDC->SelectPalette(pOldPal, 0);
-    ::ReleaseDC(m_hWnd, pDC->m_hDC);
+    ReleaseDC(pDC);
 }
 
 // ---------------------------------------------------------------------------

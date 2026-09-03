@@ -4730,15 +4730,16 @@ int CDeskcppDoc::ParseTnam(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x004233f0
-// [EFFECTIVE: 5B — frame-slot order of the char buffers: orig ascending {ext,fname,name,path}
-// (size-sorted), ours {ext,name,fname,path} (name(16) lands before fname(12)). Probes ALL inert
-// (layout byte-stable): ⭐ EXHAUSTIVE v36 — ALL 24 permutations of the four buffer decls compiled
-// (tryorder.py) => every one gives byte_diff=5, align=0. Also nested strcat(strcpy(),) vs
-// sequential, if-scope vs loop-scope vs split scopes: inert. The array slot key is compiler-
-// internal (NOT decl order, NOT scope) — likely first-linearized-use or an internal symtab hash;
-// insns/regs 100% (align=0 reg_pen=0). Definitive proof for the frame-layout park class:
-// address-taken char[] slots are decl-order-INVARIANT in cl 10.20. Joint-pass/whole-image only
-// (and that build uses the SAME cl, so this 5B may be irreducible from the source side).]
+// [v103: BYTE-EXACT. The 5B residual was the frame-slot ORDER of the char buffers (orig
+// ascending {ext,fname,name,path}, ours {ext,name,fname,path}) — and the lever was the
+// DECLARED buffer SIZE, not the decl order. v36 exhaustively permuted all 24 decl orderings
+// and correctly concluded slot order is decl-order-INVARIANT; it never varied the sizes.
+// fname is a DOS 8.3 basename buffer (8 chars + NUL), not a 12-byte one. Measured windows
+// (tools/vartest.py, replicated): EXACT for fname 9..10 x ext {5,6,8} x name 14..16;
+// NOT exact for fname 11..12, name 13, or ext 4 (4 gives a 4-byte slot => 12B). The oracle
+// pins a FAMILY, not a point, so ext/name keep their round values; only fname encodes the
+// recovered fact. The underlying cl 10.20 slot key stays opaque (padded sizes are identical
+// for name 13 vs 16, yet only 16 matches) — don't infer a sort rule from this.]
 // SNDS chunk: NEGATED sound count, then per-sound a length-prefixed source path; only the
 // bare "fname.ext" is kept in soundNames[i].
 int CDeskcppDoc::ParseSnds(CFile *pFile)
@@ -4753,7 +4754,7 @@ int CDeskcppDoc::ParseSnds(CFile *pFile)
         if (nLen > 0)
         {
             char path[128];
-            char fname[12];
+            char fname[9];
             char ext[8];
             char name[16];
             pFile->Read(path, nLen);
@@ -6746,8 +6747,11 @@ void CDeskcppView::OnInitialUpdate()
 }
 
 // FUNCTION: YODA 0x004270f0
-// [EFFECTIVE: insns 168/168, align=12. Residual = ECX/EDX 2-cycle on the pWorld reload +
-// x/y temps in arrow blocks 2-3 (1 and 4 land exact) + the pDC param-load slot. Cracks:
+// [EFFECTIVE: 28B -> 21B at v103 by using the MFC MEMBER form pDC->FillRect(&rc, &br)
+// (lesson #35) instead of ::FillRect(pDC->m_hDC, ..., (HBRUSH)br.m_hObject); DrawIcon's
+// member form is inert here, and re-probing the last block's x/y decl order (27B) and a
+// pOldPal-first head (21B) confirms the CURRENT order is right. Remaining 21B = the
+// ECX/EDX 2-cycle on the pWorld reload + the pDC param-load slot. Cracks:
 // each arrow is a DUPLICATED full LoadIcon call per arm (cross-jumped tails), `== 0`
 // disabled-icon-first arm order (VC4.2 jumps TO the then-arm here), per-call x/y int
 // locals ahead of DrawIcon (block 1 x-first, blocks 2-4 y-first), rectArrowBox is a
@@ -6777,7 +6781,7 @@ void CDeskcppView::DrawDirectionArrows(CDC *pDC)
     char nDirs = (char)pWorld->GetExitDirections();
     AfxGetResourceHandle();
     CBrush br(GetSysColor(COLOR_3DFACE));
-    ::FillRect(pDC->m_hDC, &rc, (HBRUSH)br.m_hObject);
+    pDC->FillRect(&rc, &br);
     HICON hIcon;
     if ((nDirs & 1) == 0)
         hIcon = LoadIcon(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ARROW_UP_OFF));

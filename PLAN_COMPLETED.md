@@ -3233,3 +3233,23 @@ compare in `LoadZoneRecursive`.
 ⚠ Keep variants LINE-NEUTRAL — a line-count change mid-TU rotates the dial on its own (lesson #23)
 and confounds the measurement. And `vartest.py` enforces the v100/v101 baseline rule on itself:
 `--expect N` hard-fails when its own zero-perturbation measurement disagrees with the anchor.
+
+
+---
+
+### ⏮ v102 (2026-09-02) — condensed (demoted from CLAUDE.md at v103)
+
+Closed the v101 harness audit by finding a 4th and 5th tool bug (`exactset.py` carried the same
+pre-v100 COMDAT filter, reporting 218 not 234; `permute.py`'s SUCCESS test used asmscore's
+disassembly-derived byte_diff so it could never declare a win on a jump-table function — both
+fixed; `survey.py`/`frontier.py`/`asmscore.py` audited CLEAN). Incidental: `/D _MBCS` is not
+cosmetic — it changes code in 5 of WorldgenHelpers.cpp's 27 COMDATs. Then the first REAL matching
+movement since v99, **234 -> 237**: the three TextDialog scroll helpers (0x417c90/0x417d30/
+0x417dc0), parked since G1 as a shared "pParentView-load schedule shift", were a CALL-FORM
+difference — the original called `CWnd::SendMessage`, not `::SendMessage`. All 16
+`::SendMessage(<CWnd>.m_hWnd, ...)` sites converted to the member form (line-neutral); +3, zero
+regressions. Mechanism = standing lesson #35 in CLAUDE.md. Also `LoadZoneRecursive` 0x403450
+7 B -> 1 B (pre-caching `short child = o->arg;` hoisted the load above the type test; assigning
+inside the `&&` restores cl's order — the parked note blamed "residual register roles", wrong).
+New instrument `tools/vartest.py` (batch-A/B source spellings vs the anchor byte oracle,
+`--expect N` enforces the baseline rule on itself) landed both wins.

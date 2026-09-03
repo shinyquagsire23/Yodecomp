@@ -9,9 +9,9 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#35 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102 (REAL MATCHES))
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **237 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **240 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -180,16 +180,17 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **237 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **240 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **237 is the CURRENT baseline (234 at v100, +3 REAL matches at v102; all five oracles re-run in the
+⚠ **240 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103; all five oracles re-run in the
 same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
-matching. **v102's +3 IS matching** (the TextDialog scroll family, via `CWnd::SendMessage`). The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
+matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
+v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form). The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
 never let it drift.
 
 ⭐ **THE MFC MEMBER-CALL FORM IS A MATCHING LEVER (lesson #35; v102 — the argument-ordering
@@ -204,6 +205,41 @@ made all three exact (+3, zero regressions). ⇒ when a residual is a load shift
 pushes, **try the MFC member wrapper before touching the schedule**. Corollary measured the same
 session: where the object expression is a bare `m_hWnd` (this-relative) or a plain `CScrollBar*`
 with a constant `SB_CTL`, the two forms fold to identical bytes — inert, so don't churn those.
+
+⭐ **v103 EXTENDS #35 — the lever is far broader than SendMessage, and the "non-trivial object"
+rule is now measured twice more.** It is NOT a scroll/window-message idiom; it applies to any MFC
+inline wrapper. Landed at v103: `pDC->PatBlt(...)` (OnEraseBkgnd, +1) and
+`pWorld->pPalette->AnimatePalette(...)` (CyclePalette, +1); improved DrawDirectionArrows 28 B→21 B
+via `pDC->FillRect(&rc, &br)`. ⚠ **Two surprises worth carrying forward:**
+1. **It can drive things that look nothing like argument order.** OnEraseBkgnd's entire 6 B residual
+   was the *tail funclet ORDER* (orig emits the `__ehhandler` thunk before the `~CBrush` unwind
+   stub; ours emitted them swapped). The old note there called that axis "not source-steerable" —
+   wrong. So a residual in EH/funclet layout is NOT automatically a park; probe the call forms.
+   (A binary-wide survey confirms both orders occur in both images: 89 eh-first / 6 unwind-first in
+   the original, near-identical in ours — so cl chooses, and source can steer the choice.)
+2. **Selectivity is real and not intuitable — MEASURE, don't reason.** In CyclePalette, converting
+   BOTH `AnimatePalette` calls to the member form gives 6 B, converting only the FIRST gives 0 B,
+   and converting both *plus* GetDC/RealizePalette/ReleaseDC also gives 0 B. Enumerate the
+   combinations with `tools/vartest.py`; don't assume a conversion is monotonic.
+⇒ Targeting rule that pays: scan for global-form calls whose object expression is a **pointer chain**
+(`pWorld->pPalette->m_hObject`, `pInvScrollBar->m_hWnd`, `pBitmap->m_hObject`). Ones rooted at
+`m_hWnd`/`pDC->m_hDC` are usually inert — re-measured inert at v103 on both MainFrm palette handlers
+(all 8 variants gave 54 B) and on `DrawIcon`.
+
+⭐ **A LOCAL BUFFER'S DECLARED SIZE IS A DIAL — and it is invisible in the padded frame (v103,
+lesson #36).** `ParseSnds` 0x4233f0 sat at 5 B since v36 as a "frame-slot order" park: the original
+lays the four char buffers out ascending {ext,fname,name,path}, ours put name before fname. v36
+compiled ALL 24 decl-order permutations, found every one identical, and correctly concluded slot
+order is decl-order-INVARIANT — then wrongly generalised that to "irreducible from the source side".
+It never varied the **sizes**. `char fname[9]` (a DOS 8.3 basename + NUL) instead of `char fname[12]`
+makes it byte-exact. ⇒ **When a residual is a set of `lea reg,[esp+N]` displacement diffs, solve the
+original's frame layout from the disassembly and treat every buffer's DECLARED size as a free
+variable.** Padding hides it: 9, 10, 11 and 12 all occupy the same 12-byte slot, yet only 9–10 match.
+⚠ The oracle pins a FAMILY, not a point (exact for fname 9–10 × ext {5,6,8} × name 14–16), and the
+underlying cl 10.20 key stays opaque — name 13 and 16 have identical padded slots but only 16
+matches. So pick the idiomatic value inside the measured window and say so; don't invent a sort rule.
+(Method note: solve the frame by tracking `esp` through the prologue/pushes and normalising every
+`[esp+N]`; every byte of the original's 0xac frame accounted for exactly.)
 
 ⭐ **PROBE SPELLINGS, DON'T REASON ABOUT SCHEDULES (v102 method).** Both wins this session came
 from enumerating ~10 ways the 1997 author could have SPELLED one statement and letting
@@ -242,6 +278,14 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    under-reporting the baseline by the same 23 (211 vs 234) and, worse, **manufacturing a free
    +4/−0 gain that does not exist** — the entire v96 "find the seven missing symbols" quest. Fixed;
    dialsweep now reproduces the anchor's 234 exactly.
+4. **v103 — an AD-HOC scan lied too, the same way.** A one-off scan of "which non-exact functions
+   contain global-form `::Call(` sites" reported **zero**, and I nearly closed the whole member-call
+   seam on it. The bug: `tools/residuals.py --csv` writes the `va` column in **DECIMAL**, and the
+   scan parsed it with `int(va, 16)` — so no address ever matched and every function looked exact.
+   The corrected scan found **28** such functions, and three of this session's wins came out of them.
+   ⇒ The baseline rule applies to throwaway greps too: **print a positive control** (here: "141
+   residual addrs parsed, e.g. 0x403450") before believing an empty result. An empty result from a
+   scan you just wrote is a bug hypothesis, not a finding.
 ⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
 stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
 re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
@@ -515,7 +559,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (237)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (240)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -526,50 +570,47 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-02 v102 — finished the v101 harness audit (a 4th and 5th tool
-bug), then got REAL MATCHING MOVEMENT for the first time since v99: **234 → 237**, +3 gained /
-0 lost, from a genuine source-fidelity fact. All 5 oracles green; build-sdl + build-sdl-indy
-re-linked. v101 log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v103 — **237 → 240**, +3 gained / 0 lost, all real
+matching, plus a 28 B→21 B improvement. All 5 oracles green (240 exact / link 0-0-exit0 /
+bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN); build-sdl + build-sdl-indy relinked.
+v102 log demoted to PLAN_COMPLETED.md ⏮.)
 
 **▶ WHAT LANDED.**
-1. **Harness audit CLOSED (pickup item #1, 5-for-5 on finding bugs).** `exactset.py` had the SAME
-   pre-v100 COMDAT filter as progress/idiomscan/dialsweep — reported 218, not 234, with 28
-   positional-fallback warnings. Fixed. `permute.py`'s SUCCESS test was asmscore's
-   disassembly-derived byte_diff (the v100 "two definitions of exact" trap, so it could never
-   declare a win on a jump-table function) — now the anchor's byte compare; asmscore stays as the
-   gradient. `survey.py`/`frontier.py`/`asmscore.py` audited CLEAN. Incidental: **`/D _MBCS` is
-   not cosmetic** — it changes code in 5 of WorldgenHelpers.cpp's 27 COMDATs.
-2. **⭐ THE WIN — the original called `CWnd::SendMessage`, not `::SendMessage`.** The three
-   TextDialog scroll helpers (0x417c90 / 0x417d30 / 0x417dc0), parked since G1 as a shared
-   "pParentView-load schedule shift", were a CALL-FORM difference, not a schedule one. All 16
-   `::SendMessage(<CWnd>.m_hWnd, …)` sites converted to the member form (line-neutral). +3 exact,
-   0 regressions — the ✅ free-gain signature. Full mechanism: the new standing lesson "THE MFC
-   MEMBER-CALL FORM IS A MATCHING LEVER" above.
-3. **`LoadZoneRecursive` 0x403450: 7 B → 1 B.** Pre-caching `short child = o->arg;` hoisted the
-   load above the type test; assigning inside the `&&` restores cl's order. The parked note
-   blamed "residual register roles" — wrong, and it would have sent you hunting the wrong thing.
-   Corroborated by its mirror `SaveZoneRecursive`, which already had the original's shape.
-4. **`tools/vartest.py`** — the instrument behind both wins (batch-A/B source spellings vs the
-   anchor's byte oracle). It enforces the baseline rule on itself via `--expect N`; always pass it.
+1. **`ParseSnds` 0x4233f0 (5 B → EXACT) — a buffer's DECLARED SIZE is a dial.** `char fname[9]`
+   (DOS 8.3 basename + NUL), not `[12]`. v36 had exhaustively permuted all 24 decl ORDERS and
+   parked it as irreducible; it never varied sizes. New standing lesson #36 in CLAUDE.md (incl.
+   the method: solve the original's frame by normalising `[esp+N]` through the prologue).
+2. **`OnEraseBkgnd` 0x413b20 (6 B → EXACT) — `pDC->PatBlt(...)`, lesson #35.** The residual was
+   the TAIL FUNCLET ORDER, an axis the old note declared "not source-steerable". It is.
+3. **`CyclePalette` 0x415af0 (6 B → EXACT) — `pWorld->pPalette->AnimatePalette(...)`.** ⚠ the
+   conversion is NON-MONOTONIC: both calls = 6 B, first only = 0 B, both + DC members = 0 B.
+4. **`DrawDirectionArrows` 0x4270f0 28 B → 21 B** via `pDC->FillRect(&rc, &br)`. Its last block's
+   x/y decl order re-probed and CONFIRMED correct (swapping = 27 B); pOldPal-first head is inert.
+5. **microfx gained `CDC::PatBlt`** (afxwin.h) for the portable build.
 
 **▶ NEXT — concrete, in priority order.**
-1. **Hunt more member-call sites.** The idiom is confirmed but only SendMessage is converted.
-   Non-trivial-object candidates still on the global form: `::SetScrollRange/SetScrollPos`
-   on `pInvScrollBar->m_hWnd` (DeskcppView.cpp 3513/3516/3526/3531, Worldgen.cpp 7889/7894),
-   `pCtrl->m_hWnd` in the three `OnInitDialog`s (8935/8936, 9025/9026, 9115/9116),
-   `::PostMessage(pFrame->m_hWnd, …)` (Worldgen.cpp 7656), and the `::BringWindowToTop`/
-   `::IsIconic(g_pExistingInstance->m_hWnd)` cluster (Deskcpp.cpp 89-94). ⚠ MEASURED INERT and
-   already reverted: the 36 `pScrollBar->m_hWnd` sites in the three `OnHScroll` bodies (a plain
-   `CScrollBar*` + constant `SB_CTL` folds identically) — don't redo that one.
-2. **Keep working residuals with `vartest.py`, not by reasoning.** Re-census first
-   (`tools/residuals.py --csv out.csv`); confirm the target with `tools/bytediff.py <tu> <addr>`
-   and pass that number as `--expect`. Unexamined and cheap: `ParseSnds` 0x4233f0 (5 B),
-   `OnEraseBkgnd` 0x413b20 (6 B), `CyclePalette` 0x415af0 (6 B), `~CDeskcppDoc` 0x41b2f0 (6 B),
-   `ParseTilesMaybe` 0x41a030 (3 B), `GetFrameTile` 0x404850 (2 B).
-3. **Do NOT re-tread these — proven source-inert this session:** `FindTile` 0x403aa0 (8 variants),
-   `BlitMasked` 0x408240 (6 variants; its sibling `BlitFast` 0x408110 is exact with the identical
-   expression), the `savedId != child` compare in `LoadZoneRecursive`. `SaveZoneRecursive`
-   0x4033b0 is a pure ebx↔ebp 2-cycle — the documented reg-coloring ceiling, skip it.
+1. **⭐ Keep mining the member-call seam — it is NOT exhausted.** Regenerate the census
+   (`tools/residuals.py --csv out.csv`) then scan for global-form `::Call(` sites inside non-exact
+   functions. ⚠ **`va` in that CSV is DECIMAL — parse with `int(va)`, not base 16** (that exact bug
+   made a v103 scan report zero hits and nearly closed this seam; see harness-lies item 4).
+   At v103 the scan found 28 such functions; still unconverted and ranked by ndiff:
+   `OnInitialUpdate` 0x426c40 (14, `::SetTimer(m_hWnd,…)` — trivial object, low odds),
+   `UpdateDragCursor` 0x412cc0 (379, `::SetBitmapBits((HBITMAP)pBitmap->m_hObject,…)` →
+   `pBitmap->SetBitmapBits(…)`, and `::BitBlt(pDC->m_hDC, …, dcMem.m_hDC, …)` → `pDC->BitBlt(…, &dcMem, …)`),
+   `DrawHealthNeedle` 0x4278a0 (803, `penA.Attach(::CreatePen(…))` → `penA.CreatePen(…)`, same for
+   `CreateSolidBrush`), `OnNewDocument` 0x41bb10 (537, `pPal->Attach(::CreatePalette(…))`),
+   `AddItemToInv` 0x428f50 (381) + `OnTimer` 0x40d470 (2870) (`::SetScrollRange(pInvScrollBar->m_hWnd,…)`).
+   Prefer PONTER-CHAIN objects; `m_hWnd`/`pDC->m_hDC` roots are usually inert.
+2. **Proven INERT at v103 — do not re-tread:** `GetZoneIndex` 0x423dc0 (9 loop spellings; the
+   do-while shape IS right — pre-test loops are 42 B vs the original's 44 B), `ParseTilesMaybe`
+   0x41a030 (6 spellings; the old note's "operand flip proven inert" was CORRECT), both MainFrm
+   palette handlers 0x4193f0/0x419460 (8 member+boolean variants, all 54 B), `DrawIcon` member form.
+   ⇒ The **cmp-swap / jcc-mirror class is now source-inert 3-for-3** — residuals.py's `tie=True`
+   flag (top 6 rows) is trustworthy; skip those rows.
+3. **Remaining cheap residuals, unexamined:** `~CDeskcppDoc` 0x41b2f0 (6 B — pure esi↔edi 2-cycle
+   on a count/index loop), `SetCurrentToIntroZone` 0x423d20 (7), `~IactScript` 0x4187e0 (7),
+   `ReadIzon` 0x405ae0 (7), `GetFrameTile` 0x404850 (2, tie=True). `SaveZoneRecursive` 0x4033b0 is
+   the documented ebx↔ebp 2-cycle — skip.
 4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
    `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
 5. **Phase-H goals 2-5 untouched** this session.
