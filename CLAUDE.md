@@ -9,9 +9,9 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108 (REAL MATCHES))
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **251 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **255 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -180,13 +180,13 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **251 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **255 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **251 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108; all five oracles
+⚠ **255 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
@@ -342,6 +342,54 @@ function's loop 1. `WorldgenCollectZoneRefs` 0x41f8e0 reaches 9 B → 7 B at ide
 a redefinition ERROR. That bounds what the 1997 author could write in every multi-loop function
 (and is why `RemoveEmptyZonesFromPlacedList` uses `i` and `j`).
 
+⭐ **THE CALLEE-SAVE SET IS THE CHEAPEST DIAGNOSTIC IN THE PROJECT (v110, lessons #42/#43) —
+`tools/savescan.py`.** A function's prologue `push ebx/esi/edi` set is a one-line summary of how
+many long-lived values its body needs, and it sits at the TOP: one extra save shifts EVERY later
+byte, so a handful of real decisions present as hundreds of differing bytes. **Fix the save set
+first** — most of the residual is an artifact of the shift. This single scan drove all four of
+v110's wins, and it now reports **0 mismatches across 123 residuals** (seam mined out; re-run it
+on newly-transcribed functions). Read the two directions differently:
+- ⭐ **Ours saves MORE ⇒ WE materialised something the original recomputes (lesson #42, the
+  CSE-TEMP / LICM dial).** `SaveStoryHistory*` wrote `int idx = k + lineNo * 10;` before an
+  if/else and used `idx` in both arms. Naming a subexpression whose multiply is loop-INVARIANT
+  let cl hoist `lineNo*10` into EBX before the loop; that cost a callee-saved register, leaked
+  into the OTHER loop's arms (they landed the buf pointer in different registers), broke the
+  cross-jump of their shared `[lea buf; inc esi; push buf; call]` tail (+16 B) and rotated three
+  frame slots into a 3-cycle. Repeating the subscript INLINE in both arms makes cl CSE it to
+  just above the branch and recompute per iteration — the original's shape. **611 B → 22 B ×3.**
+  Same family, different guise: a global-form call on a POINTER CHAIN
+  (`::GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(...))`) let cl
+  keep `pWorld` alive in EDI across the inner call as a CSE; the MFC member form
+  (`pWorld->pPalette->GetNearestPaletteIndex(...)`) forces the reload. **DrawTextA 663 → 60.**
+- ⭐ **Ours saves FEWER ⇒ the ORIGINAL kept a value alive across a call that we spell as an
+  ARGUMENT EXPRESSION (lesson #43, the named-local lever).** Give it a name and assign it
+  BEFORE the neighbouring call. `CheckCheat` 0x415820 (parked since G1 as "a whole-function
+  register-role swap / G1 dial territory") went **372 → 0** on
+  `int x = pWorld->playerX * LOCATOR_CELL_SIZE + 18;` / `int y = ...;` placed ahead of the
+  `str = "Invincible!"` assignment, at BOTH call sites. `ConfirmExit` 0x416030 went **10 → 0**
+  the same way: `CWinApp *pApp = AfxGetApp();` and `CWinThread *pT = (CWinThread *)pMusicThread;`
+  as named locals. The shape is pinned from several sides, which is what makes it evidence and
+  not tuning: x must precede y (y first = 4 B), the pair must precede the `str =` assignment
+  (after it = strictly worse than doing nothing), and `pApp` must be INSIDE the `if` body
+  (hoisted out = 19 B, worse than baseline). ⇒ **Scan target list: non-exact functions
+  containing `f()->m(...)`, `((T *)p)->m`, `a->b->c(...)` or `->m_hXxx,` as an argument.**
+- ⭐ **The original saves NOTHING at all ⇒ suspect a THUNK, and CHECK THE EXTENT before touching
+  the body.** `OnAppExit` 0x416110 is FIVE BYTES — `jmp ?ConfirmExit@...`, the /O2 tail call for
+  a one-line forwarder — and we had transcribed the twin's whole 220-byte body there, scoring it
+  against a different function and manufacturing a 163 B "residual". ⚠ progress.py compares OUR
+  length's worth of bytes at the marker VA, so a too-short original yields a plausible byte
+  count instead of an error. A follow-up extent scan over all 378 markers found no second case.
+- ⭐ **A DESTRUCTOR CALL'S POSITION PROVES AN INNER SCOPE.** DrawTextA's original emits
+  `mov [ebp-4],-1; call ~CBrush` BEFORE `y += 0x20; slot++; i++`, which a `CBrush` declared
+  directly in the do-body cannot produce — its dtor must run at the body's closing brace, after
+  the increments. Wrapping the drawing work in an explicit nested block: **24 B → 2 B.** ⇒ when
+  a dtor/EH-state store sits earlier than your source allows, the original had a narrower scope.
+⚠ **Implement the scan from the PROLOGUE, never the EPILOGUE.** The obvious "set of registers
+`pop`'d in the body" version is wrong and silently so — a linear sweep desyncs on an embedded
+jump table or EH data, so large functions report an empty set. It flagged six functions whose
+originals visibly DO push ebx+esi+edi in their first 0x20 bytes. Another instance of the v100
+"the instrument itself can lie" family; savescan.py's positive control is the guard.
+
 ⭐ **THE DIALS COMPOSE — A FLAT SWEEP IS A SIGNAL TO CHANGE AXIS, NEVER A PARK (v108,
 lesson #41; and the tooling gap it closed).** v107 taught "flat DECL sweep ⇒ vary the LOOP
 FORM". v108 is the converse, measured: `ParseTilesMaybe` 0x41a030 sat at DIFF(3) since G1,
@@ -451,6 +499,15 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    failure mode to generalise: **a harness that reports NOTHING TO DO is as suspect as one that
    reports a finding** — the v103 positive-control rule applies to emptiness too. Caught by
    hand-checking one function (`SaveStoryHistoryNevada`) whose source visibly HAS a decl block.
+6. **v110 — a SEVENTH, caught BEFORE it published anything.** The v110 callee-save scan was first
+   written to read the save set from the EPILOGUE (the set of `pop ebx/esi/edi` in the body).
+   Capstone's linear sweep desyncs on an embedded jump table or EH data, so large functions
+   reported an EMPTY set — it confidently flagged six functions (ScrollZoneTransition, Layout,
+   Position, OnUpdate, …) whose originals visibly DO push ebx+esi+edi in their first 0x20 bytes.
+   Caught only by hand-disassembling four of the six. Reading the PROLOGUE instead (stop at the
+   first call/branch) keeps the decode inside real prologue bytes and reports 0 mismatches.
+   ⇒ Same family as #2: **two plausible implementations of "the same" measurement can disagree,
+   and the one that decodes MORE of the function is the one that will lie.**
 ⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
 stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
 re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
@@ -705,16 +762,25 @@ Example: `http://localhost:8089/decompile_function?program=YodaDemo.exe&address=
 
 ## Tooling (`tools/`, Python, run from repo root)
 
-Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) · **`bytediff.py <src.cpp>
+Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) ·
+**`savescan.py [--all]`** (⭐ v110 — the CALLEE-SAVE SET of every non-exact residual vs the
+original's; the cheapest "what is actually wrong here" read in the project, and the instrument
+behind all four v110 wins. Currently 0 mismatches — re-run on newly-transcribed functions.
+Its docstring carries the two readings + the epilogue-pops trap) · **`bytediff.py <src.cpp>
 [0xADDR...]`** (⭐ the ANCHOR's own definition of exact for ONE function — reloc-masked BYTE diff +
 hexdump of each differing run; run this BEFORE investing in any residual, per v100) ·
 **`vartest.py <tu.cpp> <0xADDR> <variants.py> --expect N`** (⭐ batch-A/B a set of source SPELLINGS for
 ONE function against the anchor's byte oracle — the instrument that landed both v102 wins; ALWAYS pass
-`--expect`, it hard-fails when its own baseline disagrees with the anchor) ·
+`--expect`, it hard-fails when its own baseline disagrees with the anchor. v110 added a `saves=`
+column flagged `(orig X) <-` on a mismatch: a variant that changes the callee-save set has changed
+how many long-lived values the body needs, which is often the real find even when the byte count
+barely moves) ·
 **`declorder.py <tu.cpp> <0xADDR> --expect N`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
 decl block; the axis `hoisttest.py` structurally cannot reach, and the one that landed
 ParseTilesMaybe) · **`hoisttest.py <tu.cpp> <0xADDR> --expect N`** (decl SCOPE: hoist
-inner-block locals) ·
+inner-block locals. ⚠ v110: it only sees decls WITH an initializer, so a bare `Tile *pTile;`
+is invisible to it — its "1 spelling" answer on DrawTextA was a tool limit, not a result;
+sweep bare decls by hand) ·
 **`residuals.py`** (⭐ census of the non-exact functions RANKED by byte-diff, with a
 commutative/tie-break classifier; the trustworthy replacement for sorting idiomscan's class D) ·
 **`verify.py <src.cpp>`** /
@@ -728,7 +794,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (251)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (255)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -739,86 +805,71 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v109 — **251 → 251**, +0 / −0, no trades. A HARNESS-BUG
-session: one real tool fix, four measured-flat axes, one refuted hypothesis, one root cause
-nailed. All 5 oracles green (251 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
-msg 11 CLEAN). v108 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v110 — **251 → 255**, +5 gained / −1 lost across the
+session, all deliberate. One new INSTRUMENT drove everything; two new lessons (#42/#43); one
+phantom residual retired. All 5 oracles green (255 exact / link 0-0-exit0 / bugscan 0 HIGH 0
+SHIFT / vt 10 CLEAN / msg 11 CLEAN). v109 log demoted to PLAN_COMPLETED.md.)
 
-**▶ WHAT LANDED.**
-1. **⭐ `tools/declorder.py` was BLIND TO ARRAY DECLARATORS — a 6th entry in the "harness can
-   lie" family.** Its `DECL` regex accepted `int n;` and `int n = expr;` but not `char buf[32];`,
-   and because `leading_block()` walks from the first body line and BREAKS on the first
-   non-declaration, a function whose first local is a buffer reported **"no permutable block"**
-   — the exact shape of v108's "11 of 17 targets have no permutable leading block at all".
-   **9 residuals were silently unreachable**, incl. all three `SaveStoryHistory*` (611 B each),
-   the `ReadZax2`/`ReadZax3` pair, `ReadIzon`, and `LoadStoryHistoryNevada`. Fixed (one regex
-   clause; the tool now finds an 8-decl block in SaveStoryHistoryNevada where it saw none).
-   ⚠ **Honest bottom line: the fix did NOT overturn v108's conclusion for the ≤13 B census** —
-   of the small residuals only 0x401ac0 and ReadIzon were newly reachable, and 0x401ac0 swept
-   flat. What it unblocked is the BIG untouched functions, which is where it should now be aimed.
-2. **`SaveStoryHistoryNevada` 0x402670 — root cause NAILED (still 611 B, but no longer vague).**
-   (a) The slot 3-cycle is exact: orig `lineNo@-0x1c base@-0x20 rem@-0x24`, ours
-   `base@-0x1c rem@-0x20 lineNo@-0x24`; the ebp-slot histograms are otherwise identical
-   slot-for-slot. (b) The **16 B is a FAILED CROSS-JUMP**: the original loads `base` ONCE before
-   `cmp esi,9`, so both `sprintf` arms start with `eax=base`, end identically, and share the tail
-   `lea buf; inc esi; push buf; call`. Ours loads `base` per-arm → the arms land the buf pointer
-   in different registers (arm 2 additionally needs EBX, hence the extra `push ebx` at +0x1e) →
-   the tails cannot merge. (c) **REFUTED by the original's own bytes**: the tempting "arm 2 should
-   reuse the running `base` instead of recomputing `lineNo*10`" — the orig emits
-   `lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`, i.e. it DOES compute `k + lineNo*10`. `idx` as
-   transcribed is correct; do not merge it into `base`.
-3. **Four axes measured FLAT (record, don't re-tread):** SaveStoryHistoryNevada — `int base;`
-   hoisted to all 6 leading-decl positions (including the reverse-decl-order PREDICTION that it
-   belongs right after `int rem;`) plus a rem/lineNo swap, all 611. `ReadZax2` 0x406410 — **all
-   120** decl permutations flat at 47 (so its +3 B `mov ax,mem; movsx ebp,ax` survives both the
-   v99 statement sweep and the decl axis; same verdict for its textual twin `ReadZax3` 0x406490).
-   `LoadStoryHistoryNevada` 0x401ac0 — its one permutation flat at 2.
-4. **`CalcSolvedScore` 0x401780 — a POSITIVE result inside a park.** The decl-order axis is
-   genuinely LIVE here (unlike the three above): `x` must lead (moving it costs 16 B) and `solved`
-   must precede `total` (swapping costs 15, full reversal 18); the other 10 of 14 swaps are inert
-   at 13. The current transcription is therefore at the axis's optimum — measured evidence now,
-   not an untested guess. Still parked on the x87 2-accumulator axis.
+**▶ WHAT LANDED — read the new standing-lesson block "THE CALLEE-SAVE SET IS THE CHEAPEST
+DIAGNOSTIC" above first; it is the through-line of the whole session.**
+1. **`SaveStoryHistory{Nevada,Alaska,Oregon}` 611 B → 2/4/2 B** (lesson #42, the CSE-TEMP/LICM
+   dial). A named temp for a partly-loop-invariant subexpression was the whole thing. The
+   phase shift recovered `LoadZoneRecursive` 0x403450's last byte: net +1.
+2. **`OnAppExit` 0x416110 is a 5-byte `jmp ConfirmExit`** — a forwarder, not a copy of the twin
+   body. Retired a phantom 163 B residual. Cost 2 phase losses at the time; both later came back.
+3. **`DrawTextA` 0x40f060 663 B → 2 B** via three composed levers (MFC member form on a pointer
+   chain → PatBlt member form ×2 → an explicit inner scope for the CBrush). +1.
+4. **`CheckCheat` 0x415820 372 B → EXACT** and **`ConfirmExit` 0x416030 10 B → EXACT** via
+   lesson #43 (an argument expression the original held in a named local). **+2.**
+5. **`CyclePalette` 0x415af0** — its two AnimatePalette calls must take DIFFERENT forms (first
+   member, second global); the source carried both as member. Re-measured all 16 combinations.
+6. **New `tools/savescan.py`**; `vartest.py` gained a `saves=` column.
 
 **▶ NEXT — concrete, in priority order.**
-1. **Aim `declorder.py` where the fix actually opened ground: the BIG functions.** The ≤13 B
-   census is genuinely mined out; the newly-reachable mass is large residuals whose first local is
-   a buffer. Untried: `Worldgen.cpp` 0x41f960 (5704 B, block starts `short aOrder[100];` — and
-   per lesson #36 that extent is itself a free variable), `Iact.cpp` 0x406270 (111 B, 5-decl
-   block), `RefreshZone` 0x403ae0 (70 B), `StartGame` 0x4037a0 (79 B).
-2. **SaveStoryHistoryNevada's live axis is now identified, so it is no longer a blind grind:**
-   find the spelling that makes cl hoist the `base` LOAD above `cmp esi,9` (that single change
-   cascades into the shared tail and the whole 16 B). Decl scope/order are proven inert, so this
-   is a statement-order / expression-shape question — lesson #39 territory. Pays 3× (Alaska,
-   Oregon are textual twins). ⚠ `int idx = base + k;` before the `if` is NOT it: the original
-   duplicates `add eax,esi` in each arm and only shares the LOAD.
-3. **The WorldgenHelpers JOINT SEARCH** (carried from v107, still the best structural lead):
-   recover `LoadZoneRecursive` 0x403450's last 1 B without giving up SaveZoneRecursive; bounded by
-   v106 downstream-only ⇒ the compensating edit must sit UPSTREAM of line 613. The three
-   `SaveStoryHistory*` are that upstream region — item 2 is the way in.
-4. **Parked partials, unchanged:** `WorldgenCollectZoneRefs` 0x41f8e0 (9 → 7 B via countdown) and
-   `PlacePuzzle` 0x421620 (32 → 29 B via hoisting `i`) — land only inside a joint pass.
-5. **Do NOT re-tread** the v106/v107/v108 closed table, plus the v109 additions in item 3 above.
-   `ReadIzon` 0x405ae0 stays parked as header-phase displacement (v36 root-cause; do not mangle)
-   — it now HAS a detectable block, so resist the temptation.
-6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
-   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
-7. **Phase-H goals 2-5 untouched** this session.
+1. **Work the lesson-#43 target list.** `savescan.py` is mined out (0 mismatches), but the
+   *chain* scan that found ConfirmExit is not: non-exact functions carrying `f()->m(...)`,
+   `((T *)p)->m`, `a->b->c(...)` or `->m_hXxx` as an argument. 40 residuals match; the ones
+   NOT yet worked, cheapest first: `ReadSavedState` 0x405bd0 (12, `cast()->` ×2),
+   `OnInitialUpdate` 0x426c40 (14, `call()->`), `WorldEntryStepMaybe` 0x409c10 (18, `a->b->c(`
+   ×4), `WriteSavedState` 0x405f30 (20, `cast()->` ×2), `DrawDirectionArrows` 0x4270f0 (21),
+   `DrawPlayer` 0x41a6d0 (50, `cast()->`), `RefreshZone` 0x403ae0 (70, `cast()->` ×3),
+   `DrawWeaponIcon`/`DrawWeaponBox`/`DrawHealthDial`/`DrawHealthNeedle` (`->m_hXxx` args).
+   The scan script is easy to re-derive (see the v110 session) — a `tools/chainscan.py` is
+   worth writing if you work more than two of these.
+2. **The DTOR-POSITION probe is new and unexploited.** DrawTextA's crack was recognising that a
+   destructor call sitting EARLIER than the source allows proves a narrower scope. Any residual
+   whose diff involves `mov [ebp-4],<state>` / a `call ~Foo` at an unexpected position is a
+   candidate. Grep for stack objects with dtors (`CBrush`, `CPen`, `CString`, `CFont`,
+   `CClientDC`) declared directly in a loop body.
+3. **The v110 wins are all in DeskcppView.cpp / WorldgenHelpers.cpp; Worldgen.cpp is untouched**
+   and holds the biggest residual mass (`Generate` 0x41f960 at 5704 B, `OnInitialUpdate`,
+   `PlaceQuestNode`). Run `savescan.py` again after any transcription work there.
+4. **Parked with MEASURED evidence this session — do NOT re-tread:** the SaveStoryHistory* 2/4 B
+   (8 in-function spellings flat; an upstream token perturbation moves them by 0; the three
+   twins DISAGREE with each other, v105's "source is not the variable" signature);
+   `DrawTextA`'s last 2 B (10 spellings flat, decl order already optimal); the three OnHScroll
+   slider twins 6/111/290 (expression fusion is worse, 4 compare spellings flat);
+   `ScrollTextLine` 0x417c90 (10 spellings, current is the optimum).
+5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+6. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand; v108's trap RE-CONFIRMED).** Every sweep
-MUTATES a source file — always `git status --porcelain src/` AFTER each one; run sweeps with
-`run_in_background` writing to a LOG FILE; restore a single function from `git show HEAD:<file>`,
-never `git checkout <file>` mid-sweep; never run two sweeps concurrently, or one while
-`progress.py`/`exactset.py`/`residuals.py` is in flight (they share `build/*.obj`). Measure with
-`tools/exactset.py` + `comm`, never progress.py's total alone.
-⭐ **v108's "completion notification lies" trap REPRODUCED VERBATIM this session** — the
-`declorder` run on 0x406410 was reported `completed (exit code 0)` with only 12 of 120 variants
-logged, and `ps aux` showed it still running for ~16 more minutes. **Always gate on BOTH `ps aux`
-and the driver's own DONE marker**; the wait loop that works is
-`while ! (grep -q DRIVER-DONE log && ! pgrep -f 'declorder|vartest'); do sleep 5; done`.
-⚠ **Adding COMMENT lines to a byte-matched TU is a lesson-#23 risk, not a free action** — this
-session added 4 note blocks (Iact/Score/WorldgenHelpers) and re-ran all five oracles to prove
-the per-TU counts were unchanged. Do that, don't assume.
----
+**▶ ⚠ ONE STANDING RULE IS NOW KNOWN TO HAVE AN EXCEPTION.** v106's "THE TU JOINT PHASE IS
+DOWNSTREAM-ONLY" does not hold universally: the OnAppExit edit (line-neutral, tokens only)
+moved `CyclePalette` 0x415af0, which sits BEFORE it in both address and file order. Treat
+downstream-only as a useful heuristic for bounding a joint search, not a guarantee — re-run
+`exactset.py` + `comm` over the WHOLE project after any token change, not just the tail.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand).** Every sweep MUTATES a source file —
+always `git status --porcelain src/` AFTER each one; run long sweeps with `run_in_background`
+writing to a LOG FILE and gate on BOTH `ps aux` and the driver's own DONE marker; restore a
+single function from `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run
+two sweeps concurrently, or one while `progress.py`/`exactset.py`/`residuals.py` is in flight
+(they share `build/*.obj`). Measure with `tools/exactset.py` + `comm`, never progress.py's total
+alone — this session had a +2/−1 that the total reported as "+1".
+⚠ A large comment rewrite is a LINE-COUNT change; either keep it line-neutral against what it
+replaces (the OnAppExit note is padded on purpose) or re-run the oracles and check the set.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

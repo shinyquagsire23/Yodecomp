@@ -3658,3 +3658,130 @@ suspecting the generator.
   "no permutable block"). ⚠ **v109 showed that last figure was partly a tool bug** — see below.
 
 ---
+
+
+---
+
+### ⏮ v109 PICKUP (demoted at v110 — condensed)
+
+#### (was) NEXT SESSION PICKUP (2026-09-03 v109 — **251 → 251**, +0 / −0, no trades. A HARNESS-BUG
+session: one real tool fix, four measured-flat axes, one refuted hypothesis, one root cause
+nailed. All 5 oracles green (251 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
+msg 11 CLEAN). v108 log demoted to PLAN_COMPLETED.md.)
+
+**▶ WHAT LANDED.**
+1. **⭐ `tools/declorder.py` was BLIND TO ARRAY DECLARATORS — a 6th entry in the "harness can
+   lie" family.** Its `DECL` regex accepted `int n;` and `int n = expr;` but not `char buf[32];`,
+   and because `leading_block()` walks from the first body line and BREAKS on the first
+   non-declaration, a function whose first local is a buffer reported **"no permutable block"**
+   — the exact shape of v108's "11 of 17 targets have no permutable leading block at all".
+   **9 residuals were silently unreachable**, incl. all three `SaveStoryHistory*` (611 B each),
+   the `ReadZax2`/`ReadZax3` pair, `ReadIzon`, and `LoadStoryHistoryNevada`. Fixed (one regex
+   clause; the tool now finds an 8-decl block in SaveStoryHistoryNevada where it saw none).
+   ⚠ **Honest bottom line: the fix did NOT overturn v108's conclusion for the ≤13 B census** —
+   of the small residuals only 0x401ac0 and ReadIzon were newly reachable, and 0x401ac0 swept
+   flat. What it unblocked is the BIG untouched functions, which is where it should now be aimed.
+2. **`SaveStoryHistoryNevada` 0x402670 — root cause NAILED (still 611 B, but no longer vague).**
+   (a) The slot 3-cycle is exact: orig `lineNo@-0x1c base@-0x20 rem@-0x24`, ours
+   `base@-0x1c rem@-0x20 lineNo@-0x24`; the ebp-slot histograms are otherwise identical
+   slot-for-slot. (b) The **16 B is a FAILED CROSS-JUMP**: the original loads `base` ONCE before
+   `cmp esi,9`, so both `sprintf` arms start with `eax=base`, end identically, and share the tail
+   `lea buf; inc esi; push buf; call`. Ours loads `base` per-arm → the arms land the buf pointer
+   in different registers (arm 2 additionally needs EBX, hence the extra `push ebx` at +0x1e) →
+   the tails cannot merge. (c) **REFUTED by the original's own bytes**: the tempting "arm 2 should
+   reuse the running `base` instead of recomputing `lineNo*10`" — the orig emits
+   `lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`, i.e. it DOES compute `k + lineNo*10`. `idx` as
+   transcribed is correct; do not merge it into `base`.
+3. **Four axes measured FLAT (record, don't re-tread):** SaveStoryHistoryNevada — `int base;`
+   hoisted to all 6 leading-decl positions (including the reverse-decl-order PREDICTION that it
+   belongs right after `int rem;`) plus a rem/lineNo swap, all 611. `ReadZax2` 0x406410 — **all
+   120** decl permutations flat at 47 (so its +3 B `mov ax,mem; movsx ebp,ax` survives both the
+   v99 statement sweep and the decl axis; same verdict for its textual twin `ReadZax3` 0x406490).
+   `LoadStoryHistoryNevada` 0x401ac0 — its one permutation flat at 2.
+4. **`CalcSolvedScore` 0x401780 — a POSITIVE result inside a park.** The decl-order axis is
+   genuinely LIVE here (unlike the three above): `x` must lead (moving it costs 16 B) and `solved`
+   must precede `total` (swapping costs 15, full reversal 18); the other 10 of 14 swaps are inert
+   at 13. The current transcription is therefore at the axis's optimum — measured evidence now,
+   not an untested guess. Still parked on the x87 2-accumulator axis.
+
+**▶ NEXT — concrete, in priority order.**
+1. **Aim `declorder.py` where the fix actually opened ground: the BIG functions.** The ≤13 B
+   census is genuinely mined out; the newly-reachable mass is large residuals whose first local is
+   a buffer. Untried: `Worldgen.cpp` 0x41f960 (5704 B, block starts `short aOrder[100];` — and
+   per lesson #36 that extent is itself a free variable), `Iact.cpp` 0x406270 (111 B, 5-decl
+   block), `RefreshZone` 0x403ae0 (70 B), `StartGame` 0x4037a0 (79 B).
+2. **SaveStoryHistoryNevada's live axis is now identified, so it is no longer a blind grind:**
+   find the spelling that makes cl hoist the `base` LOAD above `cmp esi,9` (that single change
+   cascades into the shared tail and the whole 16 B). Decl scope/order are proven inert, so this
+   is a statement-order / expression-shape question — lesson #39 territory. Pays 3× (Alaska,
+   Oregon are textual twins). ⚠ `int idx = base + k;` before the `if` is NOT it: the original
+   duplicates `add eax,esi` in each arm and only shares the LOAD.
+3. **The WorldgenHelpers JOINT SEARCH** (carried from v107, still the best structural lead):
+   recover `LoadZoneRecursive` 0x403450's last 1 B without giving up SaveZoneRecursive; bounded by
+   v106 downstream-only ⇒ the compensating edit must sit UPSTREAM of line 613. The three
+   `SaveStoryHistory*` are that upstream region — item 2 is the way in.
+4. **Parked partials, unchanged:** `WorldgenCollectZoneRefs` 0x41f8e0 (9 → 7 B via countdown) and
+   `PlacePuzzle` 0x421620 (32 → 29 B via hoisting `i`) — land only inside a joint pass.
+5. **Do NOT re-tread** the v106/v107/v108 closed table, plus the v109 additions in item 3 above.
+   `ReadIzon` 0x405ae0 stays parked as header-phase displacement (v36 root-cause; do not mangle)
+   — it now HAS a detectable block, so resist the temptation.
+6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
+7. **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand; v108's trap RE-CONFIRMED).** Every sweep
+MUTATES a source file — always `git status --porcelain src/` AFTER each one; run sweeps with
+`run_in_background` writing to a LOG FILE; restore a single function from `git show HEAD:<file>`,
+never `git checkout <file>` mid-sweep; never run two sweeps concurrently, or one while
+`progress.py`/`exactset.py`/`residuals.py` is in flight (they share `build/*.obj`). Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone.
+⭐ **v108's "completion notification lies" trap REPRODUCED VERBATIM this session** — the
+`declorder` run on 0x406410 was reported `completed (exit code 0)` with only 12 of 120 variants
+logged, and `ps aux` showed it still running for ~16 more minutes. **Always gate on BOTH `ps aux`
+and the driver's own DONE marker**; the wait loop that works is
+`while ! (grep -q DRIVER-DONE log && ! pgrep -f 'declorder|vartest'); do sleep 5; done`.
+⚠ **Adding COMMENT lines to a byte-matched TU is a lesson-#23 risk, not a free action** — this
+session added 4 note blocks (Iact/Score/WorldgenHelpers) and re-ran all five oracles to prove
+the per-TU counts were unchanged. Do that, don't assume.
+---
+
+
+---
+
+## ⏮ v110 (2026-09-03) — 251 → 255 (+5 gained / −1 lost, all deliberate)
+
+One new instrument drove the whole session: **`tools/savescan.py`**, which compares the PROLOGUE
+callee-save set (`push ebx/esi/edi` before the first call/branch) of every non-exact residual
+against the original's. Full write-up in CLAUDE.md's standing-lesson block "THE CALLEE-SAVE SET
+IS THE CHEAPEST DIAGNOSTIC IN THE PROJECT".
+
+- **Lesson #42 — the CSE-TEMP / LICM dial (ours saves MORE than the original).** A named temp for
+  a subexpression that is partly loop-INVARIANT lets cl hoist the invariant part out of the loop
+  into a callee-saved register, which then cascades: extra push/pop, asymmetric if/else arms, a
+  FAILED CROSS-JUMP of their shared call tail, and rotated frame slots. `SaveStoryHistory*`
+  **611 B → 22 B ×3** by repeating the subscript inline in both arms instead of naming `idx`.
+  Same family in a different guise: a global-form call whose object is a POINTER CHAIN lets cl
+  keep the base alive across an inner call — the MFC member form forces the reload
+  (`DrawTextA` 663 → 60).
+- **Lesson #43 — the NAMED-LOCAL lever (ours saves FEWER).** The original kept a value alive
+  across a call that we spell as an argument expression. `CheckCheat` 0x415820 **372 → 0**
+  (`int x = pWorld->playerX * 7 + 18;` ahead of the `str = "..."` assignment, both call sites);
+  `ConfirmExit` 0x416030 **10 → 0** (`CWinApp *pApp = AfxGetApp();` INSIDE the `if` body, plus
+  `CWinThread *pT = (CWinThread *)pMusicThread;`). Directional and combination-sensitive, which
+  is what makes it evidence: x before y, the pair before the assignment, pApp inside not outside.
+- **A DTOR CALL'S POSITION PROVES AN INNER SCOPE.** DrawTextA's original destroys its `CBrush`
+  BEFORE the loop increments, impossible for a brush declared directly in the do-body. An
+  explicit nested block: 24 → 2.
+- **`OnAppExit` 0x416110 was never a function body** — it is a 5-byte `jmp ConfirmExit` forwarder
+  and we had transcribed the twin's 220-byte body there. progress.py compares OUR length's worth
+  of bytes at the marker VA, so a too-short original yields a plausible residual instead of an
+  error. An extent scan over all 378 markers found no second case.
+- **Harness lie #7 (caught before publishing):** implementing the callee-save set from EPILOGUE
+  pops instead of the prologue desyncs on embedded jump tables / EH data and flagged six
+  functions whose originals visibly DO save those registers.
+- **v106's "TU joint phase is DOWNSTREAM-ONLY" has an exception:** a line-neutral token-only edit
+  at 0x416110 moved `CyclePalette` 0x415af0, which precedes it in address and file order.
+- Parked WITH MEASUREMENTS (do not re-tread): SaveStoryHistory*'s 2/4 B (8 spellings flat, an
+  upstream perturbation moves them by 0, and the three twins disagree with each other);
+  DrawTextA's 2 B (10 spellings flat, decl order already optimal); the three OnHScroll slider
+  twins; `ScrollTextLine` 0x417c90.
