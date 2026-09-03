@@ -3389,3 +3389,91 @@ cmp order, pre/post-increment) — every faithful spelling gives exactly 11, onl
 length-changing ones move it. `ParseZaux` 0x423110's "78 of 116 bytes" (v101) is misleading: it is
 a ONE-byte length change (`mov eax,[ebp+0]` vs `mov eax,[edi]`, ebp needing a disp8) cascading
 through the rest — the same PERM class, not 78 independent differences.
+
+---
+
+## ⏮ v105 PICKUP (demoted at v106, 2026-09-03)
+
+Everything in it was re-measured this session; the ZoneFind trade table REPRODUCED EXACTLY
+(zonefind spelling + `RemoveItem` `pEntry` hoist ⇒ 246: gained 0x41c490 + 0x423d20
+`SetCurrentToIntroZone`, lost 0x41f830 / 0x423380 / 0x428680). Still open as a lead, but see the
+v106 downstream-only finding below for the constraint that makes it searchable. The v105
+"proven inert" list stands unchanged.
+
+## ⭐ v106 (2026-09-03) — 247 → 249; lesson #39, and the phase is DOWNSTREAM-ONLY
+
+**▶ ⭐ LESSON #39 — STATEMENT ORDER RELATIVE TO A MATERIALIZED CONSTANT IS A DIAL.**
+`LoadWorldStateFile` 0x423850 and `Serialize` 0x423b30 (copy-paste siblings) each sat at DIFF(2),
+parked since G1 as an "inc-vs-add tie-break". The entire residual was ours `inc [nDone]` vs the
+original's `mov ecx,1; add [nDone],ecx`. The cause is NOT the increment's spelling — `nDone++`,
+`nDone += 1`, `nDone = nDone + 1` and `++nDone` ALL fold to the identical `inc` — it is the
+increment's POSITION among the neighbouring `= 1` stores. The block does
+`bHidePlayer = 1; bWorldReadyMaybe = 1; nMapChangeReason = 1;`, so cl materialises 1 into ecx for
+those; if the increment is sequenced AFTER the first such store, cl folds it into that live
+register as `add mem,ecx`. Measured: position 0 = 2 B, positions 1–6 (anywhere after
+`bHidePlayer = 1`) ALL EXACT, `nDone = 1` = 9 B. +2 / −0.
+⇒ **Generalisation to try elsewhere:** when a residual is an immediate-vs-register form
+(`inc mem` vs `add mem,reg`; `mov mem,imm` vs `mov mem,reg`), the lever is the STATEMENT ORDER
+around the other users of that constant, not the arithmetic spelling. The oracle pins a FAMILY
+(positions 1–6), so pick the idiomatic member and say so — same discipline as lesson #36.
+⚠ Mined out for now: all 29 remaining `inc/add` diff sites live in functions with 78 B+ residuals.
+
+**▶ ⭐ THE TU JOINT PHASE IS DOWNSTREAM-ONLY (sharpens the v105 finding).**
+Every function that moved under the ZoneFind edit sits AFTER it in file order, and an edit
+confined to the TU's LAST function (`RemoveItem` 0x429150) moves NOTHING project-wide
+(247 → 247, +0/−0). ⇒ A joint search IS tractable: an upstream edit can never break a fix that
+sits earlier in the file, and a compensating edit for the ZoneFind trade must live between
+line 279 and line 2349 of Worldgen.cpp to reach all three losses.
+⇒ Corollary that bit immediately: after landing ANY change, every stale residual number for a
+LATER function in the SAME TU is invalid. `vartest --expect 13` on `WriteSavedState` HARD-FAILED
+right after the ReadSavedState fix — its residual had moved to 20. The v100/v101 baseline guard
+caught it automatically; that is exactly what it is for. **Per-function byte counts in a pickup
+are PHASE-RELATIVE, not absolute.**
+
+**▶ `Zone::ReadSavedState` 0x405bd0, 21 B → 12 B — lesson #37's refinement (2) in the wild.**
+The original used ONE `ZoneObj *o` where we had two (`new ZoneObj` in the grow loop and
+`(ZoneObj *)objects[i]` in the read loop). Found by a 95-spelling `hoisttest.py` pair sweep: 21 →
+19 for ANY single hoist → 12 for that one merge, the only configuration below 19. It killed two
+of three diff sites — the tile-grid loop's esi↔edi swap AND the grow loop's `cmp esi,ebx / jl` vs
+`cmp ebx,esi / jg` operand mirror. Two independent sites falling to one declaration change is
+what makes it evidence rather than a register coincidence. Project-wide 247, +0/−0 (free).
+⚠ **Honest counter-observation:** `WriteSavedState`'s best REACHABLE residual worsened 7 → 13
+under the resulting phase. Neither function is exact either way so the count is unaffected, but
+if a later session finds WriteSavedState's true spelling, re-test this pair jointly.
+Residual 12 B = the final IACT done-flags loop only (esi↔ebx between the strength-reduced byte
+offset and `i`, plus a `mov this` / `push 4` order swap); 10 further loop spellings and all extra
+hoists (e/p/k) inert or worse.
+
+**▶ ⭐ NEW SEAM FOR NEXT SESSION — the DUPLICATED-LOCAL scan.** "One variable where we had two"
+is now a repeatable probe, and a scan says **48 non-exact functions carry a repeated same-name
+local declaration** (script pattern: split each TU on `// FUNCTION: YODA` markers, regex the
+`Type name = ...;` declarations, report names declared >1× in one function, filter to non-exact).
+Richest: `Tick` 0x40b270 (pX ×9, pY ×9, t ×8, nStep ×6), `OnBumpTile` 0x413df0 (5 names ×4),
+`WorldgenSelectPuzzle`, `Generate` 0x41f960 (11 names), `CDeskcppDoc::~CDeskcppDoc` (p ×7),
+`IactRunCommands` 0x4070e0 (11 names). ⚠ Not universal: for `WorldgenAssignTransitItemMaybe`
+0x41d480 merging `i` or `v` across BOTH sel-branches costs (21 B); one-branch merges are inert.
+
+**▶ AXES CLOSED AT v106 (measured; do not re-tread).**
+| fn | resid | swept | verdict |
+|---|---|---|---|
+| `GetZoneIndex` 0x423dc0 | 2 B | 10 spellings — both cmp mirrors, `!=`, for/do-while, cached size | INERT. ⚠ residuals.py labels it `cmp-swap,jcc-mirror`, which LOOKS source-steerable; it is not. |
+| `FindObjectAt` 0x405330 | 2 B | 9 spellings incl. the early-return restructure | INERT — and early-return emits a **72-byte** function vs the original's 79, definitively ruling that structure out. |
+| `RemoveZoneEntry` 0x41d740 | 13 B | 10 decl configs | only `nCount`/`i` ORDER moves it (13 vs 18); current spelling already best; `pEntry` hoist inert. |
+| `ReadIzon` 0x405ae0 | 7 B | 16 spellings — decl order ×6, `tag[4/6/8/9/12/16]`, for-init scope, cmp mirror | ALL faithful spellings = 7 (`tag[5]/[6]/[8]` one padded-slot family; [9]/[12]=20, [16]=16, [4]=21). Closes the lesson #36 + #38 axes v36 never tried. |
+| `WorldgenAssignTransitItemMaybe` 0x41d480 | 9 B | 70 spellings / 4 sweeps | floor 7. Config A (`first,bIn,nUsed,k`) has the REGISTERS right and the `this`-reload schedule wrong; config B (`first,nUsed,bIn,k`) is the exact reverse. The two halves never combine. `SetAtGrow(GetSize())` = 8 is a separate axis. |
+| `WriteSavedState` 0x405f30 | 13 B (old phase) | 74 hoist subsets | floor 7 for ANY PAIR, 13 for singles/triples/quads — a family, so no unique historical answer. Now re-based at 20 B (see above). |
+| `LoadStoryHistoryNevada` 0x401ac0 | 2 B | — | left parked: its own note already PROVES phase (the three sibling loaders oscillate jg/jl/jg on identical source). |
+
+**▶ HARNESS NOTES (v106).**
+- `hoisttest.py` DEDUPS hoisted decls by NAME, so a label like `o+o` means the SET {o} merged from
+  two same-named declarations — that is the only way the "one variable, not two" configuration is
+  reachable, and it is why `--max-hoist 1` misses it. ⚠ Labels are AMBIGUOUS when candidates share
+  a name: index the log POSITIONALLY against `itertools.combinations` order to identify a winner.
+- A dead SHADOWED declaration is INERT (measured): "hoist + convert inner to assignment" and
+  "add a fn-scope decl but KEEP the inner one shadowing it" are codegen-identical. So hoisttest
+  listing candidates from both sides of an `#ifdef` does NOT manufacture padding wins.
+- `residuals.py --csv` columns are `cpp,va,name,L,ndiff,span,lenmis,kinds,tie` (NOT tu/ndif), and
+  `va` is DECIMAL (the v103 trap). The terminal `kinds` column is TRUNCATED at 28 chars — use the
+  CSV to find a class such as `inc/add`.
+- `asmscore.py` best-fit mis-paired `CDeskcppDoc::Serialize` with the lib `CObject::Serialize`
+  stub and reported a 1-instruction function. Cross-check with `bytediff.py` before believing it.

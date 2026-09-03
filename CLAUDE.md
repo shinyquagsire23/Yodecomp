@@ -6,12 +6,12 @@ into real, buildable C++/MFC source, plus an extended multi-game engine built on
 modify this file with any useful notes that will aid other/later Claudes.
 
 **Deep history lives in `PLAN_COMPLETED.md`** — the full phased plan (A–G), TU/struct status tables, the
-v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#35 + MFC-matching lessons** (cite as
+v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#39 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105 (REAL MATCHES))
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **247 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **249 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -180,18 +180,19 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **247 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **249 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **247 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105; all five oracles
+⚠ **249 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
 v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
-v104: four via DECLARATION SCOPE, lesson #37; v105: the decl SET+ORDER refinement, lesson #38). The project-wide per-TU count is
+v104: four via DECLARATION SCOPE, lesson #37; v105: the decl SET+ORDER refinement, lesson #38;
+v106: the statement-ORDER-around-a-materialized-constant lever, lesson #39). The project-wide per-TU count is
 the thing that must never drop; re-baseline deliberately, never let it drift.
 
 ⭐ **THE MFC MEMBER-CALL FORM IS A MATCHING LEVER (lesson #35; v102 — the argument-ordering
@@ -294,6 +295,39 @@ other is not, the source is not the variable; (3) a greedy one-function-at-a-tim
 trades, so a saturated TU needs a JOINT search over several functions' decl configurations.
 ⇒ Measure with **`tools/exactset.py` + `comm`**, never progress.py's total alone: the total
 reports a +2/−4 as "−2" and never says WHICH functions moved.
+
+⭐ **STATEMENT ORDER RELATIVE TO A MATERIALIZED CONSTANT IS A DIAL (v106, lesson #39).**
+`LoadWorldStateFile` 0x423850 and `Serialize` 0x423b30 each sat at DIFF(2), parked since G1 as an
+"inc-vs-add tie-break": ours `inc [nDone]`, the original `mov ecx,1; add [nDone],ecx`. The cause
+is NOT the increment's spelling — `nDone++`, `nDone += 1`, `nDone = nDone + 1` and `++nDone` ALL
+fold to the identical `inc`. It is the increment's POSITION among the neighbouring `= 1` stores:
+the block writes `bHidePlayer = 1; bWorldReadyMaybe = 1; nMapChangeReason = 1;`, so cl
+materialises 1 into ecx for those, and an increment sequenced AFTER the first such store folds
+into that live register as `add mem,ecx`. Measured: position 0 = 2 B, positions 1–6 ALL EXACT,
+`nDone = 1` = 9 B. +2 / −0.
+⇒ **When a residual is an immediate-vs-register form** (`inc mem` vs `add mem,reg`; `mov mem,imm`
+vs `mov mem,reg`), the lever is the STATEMENT ORDER around the constant's other users, not the
+arithmetic spelling. The oracle pins a FAMILY — pick the idiomatic member and say so (lesson #36
+discipline). ⚠ Mined out for now: all 29 remaining `inc/add` sites are in 78 B+ residuals.
+
+⭐ **THE TU JOINT PHASE IS DOWNSTREAM-ONLY (v106 — sharpens v105).** Every function that moved
+under the ZoneFind edit sits AFTER it in file order, and an edit confined to the TU's LAST
+function (`RemoveItem` 0x429150) moves NOTHING (247→247, +0/−0). ⇒ a joint search IS tractable:
+an upstream edit can never break a fix earlier in the file. ⚠ **Corollary: per-function byte
+counts in a pickup are PHASE-RELATIVE, not absolute** — after landing any change, every stale
+residual number for a LATER function in the SAME TU is invalid. `vartest --expect 13` on
+`WriteSavedState` hard-failed immediately after the ReadSavedState fix (it had moved to 20 B);
+the v100/v101 baseline guard caught it automatically, which is exactly what it is for.
+
+⭐ **"ONE VARIABLE WHERE WE HAD TWO" IS A REPEATABLE PROBE (v106; lesson #37 refinement 2).**
+`Zone::ReadSavedState` 0x405bd0 went 21 B → 12 B because the original used ONE `ZoneObj *o` for
+both its grow loop (`new ZoneObj`) and its read loop (`(ZoneObj *)objects[i]`). It killed two of
+three diff sites — a register swap AND a cmp-operand mirror — which is what makes it evidence
+rather than coincidence. ⇒ **A scan finds 48 non-exact functions carrying a repeated same-name
+local declaration** (`Tick` 0x40b270, `OnBumpTile`, `Generate`, `IactRunCommands`, `~CDeskcppDoc`
+lead it); that is the richest untouched seam. ⚠ not universal — merging across BOTH branches of
+`WorldgenAssignTransitItemMaybe` costs 21 B. ⚠ `hoisttest.py` reaches this configuration only via
+its name-DEDUP, so `--max-hoist 1` cannot see it.
 
 ⭐ **PROBE SPELLINGS, DON'T REASON ABOUT SCHEDULES (v102 method).** Both wins this session came
 from enumerating ~10 ways the 1997 author could have SPELLED one statement and letting
@@ -613,7 +647,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (247)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (249)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -624,94 +658,58 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v105 — **244 → 247**, +3 gained / 0 lost. All 5 oracles
-green (247 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN);
-build-sdl + build-sdl-indy relinked. v104 log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v106 — **247 → 249**, +2 gained / 0 lost, plus a free
+21 B → 12 B fidelity win. All 5 oracles green (249 exact / link 0-0-exit0 / bugscan 0 HIGH
+0 SHIFT / vt 10 CLEAN / msg 11 CLEAN); build-sdl + build-sdl-indy relinked. v105 log demoted to
+PLAN_COMPLETED.md ⏮; full v106 detail lives in the new "⭐ v106" section there.)
 
-**▶ WHAT LANDED — one match + two that fell out with it (exactset diff, +3 / −0):**
-`ZoneHasIzxItemMaybe` 0x41bfa0 17 B → 0; `CheckZoneItemsAvailable` 0x41f830 and
-`DetonateAdjacentTiles` 0x428680 came free on the resulting TU shift.
-
-**▶ ⭐ LESSON #38 — DECL SCOPE IS PER-VARIABLE AND CAN BE ASYMMETRIC; SWEEP THE SET AND THE
-ORDER, NOT "HOIST OR NOT".** Lesson #37's tooling (`hoisttest.py`) asks a yes/no question per
-declaration. The real dial is the *set* of function-scope locals **and their order**, and the
-answer can differ between two textually identical branches of the SAME function. For 0x41bfa0
-the winning configuration is: `nCount` function-scope (BOTH branches assign the one variable),
-the **else** branch's `i` function-scope, and the `sel!=0` branch keeping its **own** `i` that
-shadows it — declared `int nCount; int i;` in that order. The descent was
-17 → 10 (order: `nCount` before `i`) → 8 (3-name subset) → 7 (only `nCount` from both branches)
-→ **0** (+ the else branch's `i`). Plain all-hoist never gets below 8, which is exactly why the
-first single-hoist probe read as a dead end. ⚠ `hoisttest.py --max-hoist 1` would have MISSED
-this; when a single-hoist probe is flat, escalate to a hand-written set×order sweep.
-
-**▶ ⭐ THE BIG STRUCTURAL FINDING — A TU HAS A JOINT REGISTER-ALLOCATION PHASE. Residuals in one
-TU are NOT independent, and several standing park notes are wrong because of it.**
-- **Direct proof (a clean control):** `ParseZaux` 0x423110, `ParseZax3` 0x423190 and `ParseZax2`
-  0x423210 are TEXTUALLY IDENTICAL (only the `ReadZaux`/`ReadZax2`/`ReadZax3` callee differs;
-  the three declarations are identical too). Yet each image assigns registers differently, and a
-  DIFFERENT one deviates in each: in the original `ParseZax3` is the odd one out, in ours it is
-  `ParseZaux`. Our `ParseZax3` codegen is byte-for-byte the ORIGINAL `ParseZaux`'s allocation.
-  ⇒ the allocation is not a function of the function's own source.
-- **Confirmed twice more:** `DetonateAdjacentTiles` gained on a 5-line shift ~5000 lines earlier;
-  and `ZoneFindInIzxList`'s exact spelling costs exactly 4 downstream functions **whether or not
-  the edit is line-neutral** (so it is the TOKEN change re-rolling the phase, not lesson #23).
-- ⇒ **RETRACT the v39 park note on `DetonateAdjacentTiles` 0x428680**, which claimed the residual
-  was "the genuine intrinsic allocator choice … NOT source-steerable" and "PROVEN INTRINSIC (v39):
-  byte-stable across a COMDAT-set probe and a reg-pressure predecessor — the emitted-set/position
-  axis is DEAD for it". That axis is alive; it is what landed the function this session.
-- ⇒ **A greedy one-function-at-a-time search WILL hit trades.** For a saturated TU the next real
-  method is a JOINT search over several functions' decl configurations at once.
-
-**▶ PARKED WITH FULL DATA — `ZoneFindInIzxList` 0x41c490 (a −2 trade, deliberately NOT landed).**
-An EXACT spelling is known and reproducible: hoist all inner locals to function scope, order
-`nCount, i, nObjs, j, pObj` **before** `v` (measured: in-block 21 B, `i` before `nCount` 14 B,
-decls after `v` 19 B; the exact family is {+nObjs, +nObjs+j, +all} — all three have the identical
-project-wide footprint). Landing it gives **+2 / −4 = 245**, so it violates the never-drop rule.
-Under that phase the four losses measure:
-| addr | fn | residual under the ZoneFind phase | probed |
-|---|---|---|---|
-| 0x429150 | RemoveItem | **0 — EXACT** by hoisting `InvItem *pEntry` to fn scope | ✅ solved |
-| 0x41f830 | CheckZoneItemsAvailable | 2 B (`cmp` operand order) | cmp order / guard / pObj hoist / decl swap ALL inert |
-| 0x423380 | ParseTnam | 5 B (esi↔edi) | all 9 decl-scope subsets+orders inert |
-| 0x428680 | DetonateAdjacentTiles | 77 B | — |
-⇒ that phase reaches **246** with the two known fixes; it needs **2 of the remaining 3** to beat
-247. That is the single most concrete open lead in the byte-match seam — a bounded joint search
-with 3 of 6 cells already solved.
-
-**▶ PROVEN INERT AT v105 — do not re-tread:**
-- `ParseZax3` 0x423190 (11 B): 18 spellings — all decl-scope subsets, buffer sizes 9/10/12/16,
-  `i` as short/uint, `nCount` as int/uncast, while-form, `!pZone`/`NULL ==`, cmp order,
-  pre/post-increment. Every FAITHFUL spelling gives exactly 11; only length-changing (wrong)
-  ones move it, and they move it worse. Its identical sibling `ParseZax2` is byte-EXACT ⇒ this
-  residual is phase, not source. Same for `ParseZaux` 0x423110 (its 78 B is a 1-byte length
-  change from using `ebp` as a base register, cascading — NOT 78 real differences, contra v101).
-- `DetonateAdjacentTiles` 0x428680: all 12 decl-scope subsets/orders of `nTile`/`pT`/`pW`
-  (it gained via TU phase instead).
-- `CheckZoneItemsAvailable` / `ParseTnam` as tabulated above.
+**▶ WHAT LANDED.**
+1. **`LoadWorldStateFile` 0x423850 + `Serialize` 0x423b30 → EXACT (+2, commit 46988ce)** via
+   **lesson #39** (standing bullet above): move the `nDone++` to the END of the STUP block, after
+   the `= 1` state stores, so cl folds it into the already-materialised `ecx`. Their DIFF(2) had
+   been parked as an "inc-vs-add tie-break" since G1.
+2. **`Zone::ReadSavedState` 0x405bd0 21 B → 12 B (commit adbf2fb)** — the original used ONE
+   `ZoneObj *o`, not two. Free (+0/−0), and the "one variable where we had two" probe it
+   establishes is the seam below.
 
 **▶ NEXT — concrete, in priority order.**
-1. **The joint search above** (0x41c490 + 0x429150 + 2 of {0x41f830, 0x423380, 0x428680}).
-   Everything needed is in the table; `$SCRATCH/L{1,2,3}.py` variant files show the shapes tried.
-2. **Finish the decl set×order seam on the ranked residual list** with the #38 method (set AND
-   order, asymmetry allowed) — `WorldgenAssignTransitItemMaybe` 0x41d480 (13 B, PERM + a
-   `this`-load/push-order component), `ReadSavedState` 0x405bd0 (21 B, 10 decls),
-   `PickUnplacedItemMaybe` 0x41c200 (13 B), `ZoneRequiresItemMaybe` 0x41c0b0 (8 B — note its
-   `nCount`/`i` are ALREADY fn-scope in the winning order, so its lever is elsewhere: try `j`,
-   `found`, and the insertion point relative to them).
-3. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+1. **⭐ THE DUPLICATED-LOCAL SEAM (best lead — new, 48 candidates, method proven).** Re-run the
+   scan (recipe in PLAN_COMPLETED.md ⏮ v106) and work the merges. Richest: `Tick` 0x40b270
+   (pX ×9, pY ×9, t ×8, nStep ×6), `OnBumpTile` 0x413df0 (5 names ×4), `Generate` 0x41f960
+   (11 names), `IactRunCommands` 0x4070e0 (11 names), `CDeskcppDoc::~CDeskcppDoc` 0x41b2f0 (p ×7,
+   only 6 B residual — the single best ratio in the list). ⚠ merging is DIRECTIONAL: it costs
+   21 B when done across both branches of 0x41d480. Use `hoisttest.py --max-hoist 2` (its name
+   dedup is what reaches the merged configuration) and identify a winner POSITIONALLY.
+2. **Mine lesson #39 further.** All 29 remaining `inc/add` sites sit in 78 B+ residuals, so the
+   cheap ones are gone — but the general form (immediate-vs-register: `mov mem,imm` where the
+   original uses `mov mem,reg`) has NOT been scanned. Pull the `mov-operand` class (119 sites)
+   out of `residuals.py --csv` and look for that fingerprint.
+3. **The ZoneFind joint search** (0x41c490 + 0x429150 + 2 of {0x41f830, 0x423380, 0x428680}) is
+   still open and REPRODUCED exactly this session at 246. ⚠ Its per-function byte counts are
+   PHASE-RELATIVE and were measured before the v106 landings — re-measure before trusting them.
+   The v106 downstream-only finding bounds the search: a compensating edit must sit between
+   Worldgen.cpp line 279 and line 2349 to reach all three losses.
+4. **Do NOT re-tread** the v106 closed-axes table (PLAN_COMPLETED.md ⏮ v106): `GetZoneIndex`
+   0x423dc0, `FindObjectAt` 0x405330, `RemoveZoneEntry` 0x41d740, `ReadIzon` 0x405ae0,
+   `WorldgenAssignTransitItemMaybe` 0x41d480, `WriteSavedState` 0x405f30 — ~130 spellings between
+   them, all inert. ⚠ residuals.py's `cmp-swap`/`jcc-mirror` labels LOOK source-steerable and
+   measure inert; `mov-operand` is the class that actually paid.
+5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
    `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
-4. **Phase-H goals 2-5 untouched** this session.
+6. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104 rules still stand, plus two v105 additions):**
-every sweep MUTATES a source file — always `git diff --stat src/` AFTER each one; run sweeps with
+**▶ HOW TO WORK THE DIAL SAFELY (v104/v105 rules stand, plus v106 additions):** every sweep
+MUTATES a source file — always `git diff --stat src/` AFTER each one; run sweeps with
 `run_in_background` writing to a LOG FILE, never through a pipe; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>`; never run two sweeps concurrently or one
-while `progress.py` is in flight. **NEW v105:** (a) when a fix touches a shared TU, measure with
-**`tools/exactset.py` + `comm`**, not just progress.py's total — the total hides a +2/−4 as a
-"−2" and never tells you WHICH functions moved; keep a before/after exactset pair every time.
-(b) A **pure-comment edit is only free if the file's LINE COUNT is unchanged** — replace existing
-comment lines rather than adding new ones next to a byte-matched function, and put long
-measurement write-ups in PLAN_COMPLETED.md instead.
+while `progress.py` is in flight. Measure with **`tools/exactset.py` + `comm`**, not progress.py's
+total (it hides a +2/−4 as "−2"). A pure-comment edit is only free if the file's LINE COUNT is
+unchanged. **NEW v106:** (a) ALWAYS pass `--expect` and let it hard-fail — it caught a stale
+baseline within minutes of a landing; (b) `residuals.py --csv` columns are
+`cpp,va,name,L,ndiff,span,lenmis,kinds,tie` and `va` is DECIMAL, and the terminal `kinds` column
+is TRUNCATED at 28 chars, so use the CSV to select a diff class; (c) `asmscore.py` best-fit
+mis-paired `CDeskcppDoc::Serialize` with the lib `CObject::Serialize` stub — cross-check any
+asmscore verdict with `bytediff.py`.
 
 ---
 
