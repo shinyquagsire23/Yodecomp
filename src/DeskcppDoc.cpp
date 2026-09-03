@@ -205,15 +205,21 @@ int CDeskcppDoc::FindAdjacentGateDirMaybe(int x, int y, short *paGrid)
     return 0;
 }
 
-// FUNCTION: YODA 0x0041a030  [EFFECTIVE MATCH: DIFF(3) — first-loop backedge cmp direction
-//   (orig cmp n,i;jg vs ours cmp i,n;jl), the GameData-loader jl/jg phase family; operand
-//   flip proven inert. 119/119 insns otherwise identical.]
+// FUNCTION: YODA 0x0041a030
+// ⭐ v108: was DIFF(3) — the first-loop backedge cmp direction (orig `cmp n,i; jg` vs ours
+//   `cmp i,n; jl`). NOT a loop-form residual (lesson #40 refuted here: all 8 guarded loop
+//   spellings measured 3 B dead flat, and the unguarded do-while emits the WRONG LENGTH,
+//   380 vs 385 — so the `for` family was already right) and NOT the compare's operand order
+//   (`n > i` is inert). It is lesson #38: the DECL ORDER at function scope. Declaring `i`
+//   BEFORE `n` makes it byte-exact; `pNew,i,n` and `i,pNew,n` both give 0, while every order
+//   with `n` before `i` gives 40-43 B. The oracle pins a family — `pNew` stays first here
+//   because that is the minimal change from the transcribed form.
 // TILE chunk parser: nBytes/0x404 records of (u32 flags + 0x400 pixel bytes).
 int CDeskcppDoc::ParseTilesMaybe(CFile *pFile, unsigned int nBytes)
 {
     Tile *pNew = NULL;
-    int   n = nBytes / 0x404;
     int   i;
+    int   n = nBytes / 0x404;
 
     tiles.SetSize(n, -1);
     for (i = 0; i < n; i++) {

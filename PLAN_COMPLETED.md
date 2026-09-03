@@ -3568,3 +3568,76 @@ across two `for`-init declarations is not just unlikely, it is uncompilable.
   LoadZoneRecursive, LoadStoryHistoryNevada all sit there).
 - Positive-control discipline held up again: the dup-local scan prints its parsed-row count before
   reporting, per the v103 rule.
+
+
+### ⏮ v107 PICKUP (demoted at v108, 2026-09-03) — anchor 249 → 250
+
+#### (was: NEXT SESSION PICKUP) (2026-09-03 v107 — **249 → 250**, +1 gained / 0 lost, plus a
+deliberate net-zero FIDELITY TRADE (SaveZoneRecursive gained, LoadZoneRecursive lost).
+All 5 oracles green (250 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
+msg 11 CLEAN); build-sdl + build-sdl-indy relinked. v106 log demoted to PLAN_COMPLETED.md;
+full v107 detail lives in the new "⭐ v107" section there.)
+
+**▶ WHAT LANDED.**
+1. **`SetCurrentToIntroZone` 0x423d20 5 B → EXACT (+1, commit 3c52c5b)** via **lesson #38**:
+   `int nCount = zones.GetSize(), i; Zone *pZone;` — both locals at function scope, `i`
+   BEFORE `pZone`. Textbook descent: `i` alone = 5, `pZone` alone = **9 (worse)**, reversed
+   order = 9, all-top with nCount assigned separately = 5, **both with `i` first = 0**.
+2. **⭐ `SaveZoneRecursive` 0x4033b0 6 B → EXACT via the NEW LOOP-FORM lever, lesson #40
+   (commit ca0edae)** — see the standing bullet above. Its "walker/counter 2-cycle" was
+   never a register problem: 9 decl variants were dead flat, and the answer was the house
+   `i++/n--` countdown under an `n > 0` guard.
+   ⚠ **Net zero on the count**: it costs `LoadZoneRecursive` 0x403450 (immediately
+   downstream) its last byte, so the total stays 250. Taken for source fidelity, with the
+   reasoning recorded in both source notes and the standing bullet. **Revert with
+   `git revert ca0edae` if the trade is unwanted** — nothing else depends on it.
+3. **Closed axes recorded in-source (commit 8cb4cc5, comment-only, verified +0/−0).**
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ MINE LESSON #40 SYSTEMATICALLY (best lead).** Only 6 loops were probed this session
+   and one landed. The targeting rule: pull residuals whose note says "register 2-cycle" /
+   "walker/counter" AND whose decl sweep is flat, then vary the loop form. Refutation is
+   cheap — a wrong loop form emits the WRONG LENGTH, visible in one `vartest` line.
+   `tools/residuals.py --csv <path>` + the for-init scan (recipe in PLAN_COMPLETED ⏮ v107)
+   gives 18 candidates; unprobed ones with small residuals: `BlitMasked` 0x408240 (4 B,
+   2 loops), `ParseTilesMaybe` 0x41a030 (3 B), `ReadSavedState` 0x405bd0 (12 B, 4 inner
+   ptrs), `WriteSavedState` 0x405f30 (20 B), `StartGame` 0x4037a0 (79 B, 4 loops).
+2. **The WorldgenHelpers JOINT SEARCH** (recover LoadZoneRecursive's 1 B without giving up
+   Save). Bounded by v106 downstream-only: the compensating edit must sit UPSTREAM of line
+   613 in that TU. Already probed and inert: `RemoveEmptyZonesFromPlacedList` 0x403070
+   (10 variants) and LoadZoneRecursive's own 16 spellings. Remaining upstream candidates:
+   `LoadStoryHistoryNevada` 0x401ac0 (2 B, a known phase oscillator) and the three
+   `SaveStoryHistory*` (611 B each, untouched — big but they are copy-paste siblings, so
+   one crack pays 3×).
+3. **`WorldgenCollectZoneRefs` 0x41f8e0 is a PARKED PARTIAL** — countdown takes it 9 B → 7 B
+   at identical length (all 4 spellings agree, so the form is probably right). Land it only
+   inside a joint pass that also closes the remaining 7 B; alone it re-rolls Worldgen.cpp's
+   phase below line 2388 for no gain.
+4. **`PlacePuzzle` 0x421620 is a PARKED PARTIAL too** — 32 B → 29 B by hoisting `i` (or
+   `pPt`). Same reasoning; needs the rest of the function before it is worth landing.
+5. **Do NOT re-tread** the v106 closed table PLUS the v107 additions: `DrawDirectionArrows`
+   0x4270f0 (13 spellings, floor 21), `GetFrameTile` 0x404850 (one-variable REFUTED at
+   177 B vs 183), `FindObjectAt` 0x405330 (loop form + cached-GetSize now closed too; floor
+   2 B over 15 spellings), `RemoveEmptyZonesFromPlacedList` 0x403070 (10 variants inert).
+   ⚠ The **duplicated-local seam is DOWNGRADED** — 3 of 3 top candidates closed with no gain
+   (standing bullet above). Keep the scan as a target list, not as a merge probe.
+6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+7. **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104/v105/v106 rules stand, plus v107 additions):** every
+sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run sweeps
+with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
+concurrently, or one while `progress.py`/`exactset.py`/`residuals.py` is in flight (they all
+share `build/*.obj`). Measure with **`tools/exactset.py` + `comm`**, never progress.py's total
+alone. **NEW v107:** (a) `residuals.py --csv` needs a PATH argument — bare `--csv` raises
+IndexError; (b) a COMMENT-ONLY edit that changes a TU's line count must still be verified with
+`exactset.py` when exact functions sit downstream of it (both v107 doc commits were checked and
+were free); (c) the `mov-operand` kind covers 119 of 129 residuals — useless as a targeting
+signal on its own; (d) when a variant fails to COMPILE, suspect VC4.2 old-for-scope before
+suspecting the generator.
+
+---
+
