@@ -218,34 +218,34 @@ void CDeskcppDoc::Nop1()
 {
 }
 
-// FUNCTION: YODA 0x00402670  [EFFECTIVE MATCH x3 (this + Alaska + Oregon): main body 824B vs orig
-//   808B; head/tail/frame layout & instruction stream converged (buf@-0x54, fullLines@-0x34,
-//   obfKey@-0x18, key temp among named locals — the inner-scoped `CString key` block was the
-//   crack: a bare `prefix + buf` temp gets a frame-bottom slot, breaking the layout by 4B).
-//   Residual = ONE coupled allocator artifact: {lineNo,base,rem} int slots are a 3-cycle
-//   (-0x1c/-0x20/-0x24 rotated) which desymmetrizes the two sprintf arms (arm2 grabs EBX ->
-//   push ebx + failed cross-jump of the shared [lea buf; inc; push; call] tail = the 16B).
-//   Exhausted: decl order/position (4 variants), ternary-of-calls, arms swapped, k++ placement,
-//   v-temp homing, loader-form phase knobs (2^3 sweep — zero effect). Slot triple is IR temp
-//   numbering = full-TU/endgame territory (Records precedent). NOTE the orig loaders' own
-//   backedge cmp oscillates jg/jl/jg across identical source — MSVC 4.2 phase drift is REAL
-//   in the original binary too; don't chase per-function.]
-//   ⭐ v109 ADDS THREE MEASURED FACTS (all negative, all worth not re-treading).
-//   (a) The slot 3-cycle is now EXACT: orig lineNo@-0x1c base@-0x20 rem@-0x24; ours
-//       base@-0x1c rem@-0x20 lineNo@-0x24. The ebp-slot HISTOGRAMS are otherwise identical
-//       slot-for-slot, so nothing but the assignment of these three names has moved.
-//   (b) The "arm 2 reuses the running `base` instead of recomputing lineNo*10" hypothesis is
-//       REFUTED by the original's own bytes: it emits `lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`
-//       = k + lineNo*10. `idx` as transcribed is right; do not merge it into `base`.
-//   (c) The 16 B is a FAILED CROSS-JUMP, not extra work: the orig loads `base` ONCE before
-//       `cmp esi,9` so both arms start with eax=base and end identically, letting it share the
-//       tail `lea buf; inc esi; push buf; call`. Ours loads `base` per-arm, so the arms land the
-//       buf pointer in different registers (eax vs ecx, and arm 2 then needs EBX -> the extra
-//       `push ebx`), and the tails can no longer merge. Everything downstream follows from that.
-//   Swept flat at 611: `int base;` hoisted to function scope at all 6 leading-decl positions
-//   (incl. the reverse-decl-order PREDICTION that it belongs right after `int rem;`), plus a
-//   rem/lineNo swap without hoisting. Decl SCOPE and ORDER are both INERT here (lesson #38
-//   does not reach it); the live axis is whatever makes cl hoist the `base` load above the cmp.]
+// FUNCTION: YODA 0x00402670  [DIFF(2) x3 (this + Alaska + Oregon) — was 611 B each until v110.
+//   ⭐ THE CRACK (lesson #42, the LICM/CSE-temp dial): the `rem` loop used to read
+//       int idx = k + lineNo * 10;   ... storyHistory*[idx] ...  (in BOTH arms)
+//   A NAMED TEMP for a subexpression that is loop-INVARIANT in part lets cl hoist that part
+//   out of the loop: it materialised lineNo*10 in EBX before the loop (`lea ecx,[eax+eax*4];
+//   lea ebx,[ecx*2]`), which cost a callee-saved register (`push ebx`/`pop ebx`), leaked into
+//   the OTHER loop's arms (arm 2 grabbed EBX for the data pointer, so the two arms landed the
+//   buf pointer in different registers), broke the cross-jump of the shared
+//   [lea buf; inc esi; push buf; call sprintf] tail (+16 B, ours 858 vs orig 842) and rotated
+//   the {lineNo,base,rem} frame slots into a 3-cycle. Repeating the subscript expression
+//   INLINE in both arms instead makes cl CSE it to just above the branch — exactly what the
+//   original does (`mov eax,[lineNo]; cmp esi,edi; lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`,
+//   recomputed every iteration) — and all four symptoms vanish at once: 611 -> 22.
+//   ⇒ When a residual shows an extra callee-saved push + asymmetric if/else arms + a failed
+//   tail merge, suspect a CSE TEMP you introduced that the original never had.
+//   ⭐ Then `k = 0;` AFTER `line += buf;` (not before it) at BOTH init sites: 22 -> 13 -> 2.
+//   Lesson #39 exactly — the increment/zero-store's POSITION relative to the neighbouring call
+//   decides whether cl schedules `xor esi,esi` into the call setup or ahead of it.
+//   RESIDUAL = 2 B, the `k < last` cmp operand order (`cmp esi,edi;jge` vs ours `cmp edi,esi;
+//   jle`) plus, in Alaska/Oregon, the backedge `while (k < rem)` mirror. PARKED, and now for a
+//   MEASURED reason rather than a guess: (i) the three twins DISAGREE WITH EACH OTHER in our
+//   build (Nevada S1 wrong/S2 right, Oregon S1 right/S2 wrong, Alaska both wrong) on identical
+//   source, which is v105's "the source is not the variable" signature; (ii) 8 in-function
+//   spellings (compare mirrors, guard form, do-while/backedge forms, `last` decl position) are
+//   dead flat at 2/4/2; (iii) an UPSTREAM token perturbation in the Load* twins that visibly
+//   moved those functions moved these three by exactly 0 — so the v105/v106 joint-phase lever
+//   does not reach here either. Same family as the 0x401ac0 note below: MSVC 4.2 phase drift
+//   that the ORIGINAL binary exhibits too.]
 // Write storyHistoryNevada back to registry [GameData] Nevada0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
 void CDeskcppDoc::SaveStoryHistoryNevada()
@@ -277,8 +277,8 @@ void CDeskcppDoc::SaveStoryHistoryNevada()
                 sprintf(buf, "%d_", obfKey);
                 line += buf;
                 strcpy(buf, "10_");
-                k = 0;
                 line += buf;
+                k = 0;
                 do {
                     if (k < 9)
                         sprintf(buf, "%d_", storyHistoryNevada[base + k] + obfKey);
@@ -304,16 +304,15 @@ void CDeskcppDoc::SaveStoryHistoryNevada()
             sprintf(buf, "%d_", obfKey);
             line += buf;
             sprintf(buf, "%d_", rem);
-            k = 0;
             line += buf;
+            k = 0;
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    int idx = k + lineNo * 10;
                     if (k < last)
-                        sprintf(buf, "%d_", storyHistoryNevada[idx] + obfKey);
+                        sprintf(buf, "%d_", storyHistoryNevada[k + lineNo * 10] + obfKey);
                     else
-                        sprintf(buf, "%d", storyHistoryNevada[idx] + obfKey);
+                        sprintf(buf, "%d", storyHistoryNevada[k + lineNo * 10] + obfKey);
                     k++;
                     line += buf;
                 } while (k < rem);
@@ -355,8 +354,8 @@ void CDeskcppDoc::SaveStoryHistoryAlaska()
                 sprintf(buf, "%d_", obfKey);
                 line += buf;
                 strcpy(buf, "10_");
-                k = 0;
                 line += buf;
+                k = 0;
                 do {
                     if (k < 9)
                         sprintf(buf, "%d_", storyHistoryAlaska[base + k] + obfKey);
@@ -382,16 +381,15 @@ void CDeskcppDoc::SaveStoryHistoryAlaska()
             sprintf(buf, "%d_", obfKey);
             line += buf;
             sprintf(buf, "%d_", rem);
-            k = 0;
             line += buf;
+            k = 0;
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    int idx = k + lineNo * 10;
                     if (k < last)
-                        sprintf(buf, "%d_", storyHistoryAlaska[idx] + obfKey);
+                        sprintf(buf, "%d_", storyHistoryAlaska[k + lineNo * 10] + obfKey);
                     else
-                        sprintf(buf, "%d", storyHistoryAlaska[idx] + obfKey);
+                        sprintf(buf, "%d", storyHistoryAlaska[k + lineNo * 10] + obfKey);
                     k++;
                     line += buf;
                 } while (k < rem);
@@ -433,8 +431,8 @@ void CDeskcppDoc::SaveStoryHistoryOregon()
                 sprintf(buf, "%d_", obfKey);
                 line += buf;
                 strcpy(buf, "10_");
-                k = 0;
                 line += buf;
+                k = 0;
                 do {
                     if (k < 9)
                         sprintf(buf, "%d_", storyHistoryOregon[base + k] + obfKey);
@@ -460,16 +458,15 @@ void CDeskcppDoc::SaveStoryHistoryOregon()
             sprintf(buf, "%d_", obfKey);
             line += buf;
             sprintf(buf, "%d_", rem);
-            k = 0;
             line += buf;
+            k = 0;
             if (rem > 0) {
                 int last = rem - 1;
                 do {
-                    int idx = k + lineNo * 10;
                     if (k < last)
-                        sprintf(buf, "%d_", storyHistoryOregon[idx] + obfKey);
+                        sprintf(buf, "%d_", storyHistoryOregon[k + lineNo * 10] + obfKey);
                     else
-                        sprintf(buf, "%d", storyHistoryOregon[idx] + obfKey);
+                        sprintf(buf, "%d", storyHistoryOregon[k + lineNo * 10] + obfKey);
                     k++;
                     line += buf;
                 } while (k < rem);
