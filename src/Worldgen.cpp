@@ -42,20 +42,25 @@ int gNeedleTable[26] = {
 
 
 // FUNCTION: YODA 0x0041bfa0
-// [EFFECTIVE: align=12 — clean ESI/EDI rename + one arg-marshal slot at the recursion call
-// (orig loads visible into CX and sel into EAX; ours AX/ECX). Twin 0x41c0b0 scores align=0
-// with the identical source shape → TU-phase tie-break, joint pass.]
+// [v105 lesson #37 (declaration scope): EXACT. The 17-byte residual was a 3-register rotation,
+// and the fix is that the original's scoping is ASYMMETRIC: `nCount` is function-scope (both
+// branches assign the ONE variable) and so is the ELSE branch's `i`, but the sel!=0 branch
+// declares its OWN `i`, shadowing it. Do not "tidy" this: hoisting both `i`s gives 8 B,
+// declaring `i` before `nCount` gives 5 B, leaving all four in-block is the original 17 B.
+// `pObj`'s scope is free (measured inert either way); hoisting `nObjs` costs 2 B.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in providedItemsA (sel==0)
 // or providedItemsB? Boolean twin of ZoneFindInIzxList.
 int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
 {
+    int nCount;
+    int i;
     int found = 0;
     Zone *pZone = GetZoneById(zoneId);
     if (pZone == NULL)
         return 0;
     if (sel != 0)
     {
-        int nCount = pZone->providedItemsB.GetSize();
+        nCount = pZone->providedItemsB.GetSize();
         int i = 0;
         if (nCount > 0)
         {
@@ -72,8 +77,8 @@ int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
     }
     else
     {
-        int nCount = pZone->providedItemsA.GetSize();
-        int i = 0;
+        nCount = pZone->providedItemsA.GetSize();
+        i = 0;
         if (nCount > 0)
         {
             do
