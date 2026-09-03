@@ -180,7 +180,7 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **255 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **255 exact / 99.17 % transcribed** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
@@ -762,7 +762,12 @@ Example: `http://localhost:8089/decompile_function?program=YodaDemo.exe&address=
 
 ## Tooling (`tools/`, Python, run from repo root)
 
-Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) ·
+Byte-match harness (anchor checks): **`progress.py`** (headline dashboard. ⚠ v111 fixed its
+PERCENTAGES: numerator was our COMDAT lengths (EH funclets + jump tables IN), denominator was
+Ghidra body sizes (funclets OUT), so it printed "124.88 % transcribed; −24.88 % left" for many
+sessions — flagged in a comment beside the print and shipped anyway. Everything is now on the
+ONE extent basis (`toolchain/test/app_funcs.txt`, 410 funcs / 156054 B) and the tool ASSERTS
+exact+partial+todo == total. The EXACT COUNT and the exactness predicate never changed) ·
 **`savescan.py [--all]`** (⭐ v110 — the CALLEE-SAVE SET of every non-exact residual vs the
 original's; the cheapest "what is actually wrong here" read in the project, and the instrument
 behind all four v110 wins. Currently 0 mismatches — re-run on newly-transcribed functions.

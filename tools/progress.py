@@ -11,12 +11,23 @@ tiers against the total app-function bytes:
 
 Everything else still needs DECOMPILING. Functions carried by more than one TU
 (e.g. the retired src/Dta duplicates of Worldgen parsers) are deduped by
-address, an exact copy in any TU winning. Partial byte counts use the compiled
-COMDAT's trimmed length as a proxy for the original function size (close, but
-can drift a few bytes on length-shifted bodies — dashboard precision only).
+address, an exact copy in any TU winning.
 
-Denominator (128158 bytes, 534 funcs in 0x401000-0x429000) is from Ghidra:
-sum of function body sizes. Update TOTAL if the app-region function set changes.
+⚠ ONE BASIS, EVERYWHERE (v111). EXACTNESS is decided by the reloc-masked byte
+compare over our trimmed COMDAT length — that predicate is unchanged and is what
+every other tool copies. The BYTE ACCOUNTING is a separate question, and it now
+attributes each function its Ghidra EXTENT (toolchain/test/app_funcs.txt, 410
+funcs / 156054 bytes, INCLUDING EH funclets and embedded jump tables) in both the
+numerator and the denominator, so EXACT + PARTIAL + TO DO == TOTAL exactly and
+`% transcribed` equals `marker coverage` by construction.
+
+It did not use to. The numerator was our COMDAT lengths (funclets + tables IN)
+and the denominator was Ghidra body sizes (funclets + tables OUT), so the report
+claimed ">>> 124.88% transcribed; -24.88% left to decompile <<<". The mismatch
+was even flagged in a comment beside the print and still shipped for many
+sessions — a reminder that a visibly impossible number is a bug, not a quirk.
+The legacy body-only totals survive as BODY_ONLY_* for reference only; never
+divide extent-basis byte counts by them.
 
 Usage:  tools/progress.py
 """
@@ -26,8 +37,25 @@ import match   # reuse coff_functions / trim_pad / mask / diff logic
 import verify  # reuse owner_of / LIB_OWNERS (MFC base-class COMDAT filter)
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TOTAL_APP_BYTES = 128158        # Ghidra: sum of app-region (0x401000-0x429000) function body sizes
-TOTAL_APP_FUNCS = 534
+# Legacy BODY-ONLY totals (Ghidra function bodies, EXCLUDING EH funclets and jump tables).
+# Kept for reference only — never mix these with byte counts measured on the extent basis
+# below, which is what produced the old ">>> 124.88% transcribed; -24.88% left <<<" line.
+BODY_ONLY_BYTES = 128158
+BODY_ONLY_FUNCS = 534
+EXTENTS_PATH = os.path.join(ROOT, "toolchain", "test", "app_funcs.txt")
+
+
+def load_extents():
+    """{va: true_extent} — Ghidra function extents INCLUDING EH funclets + jump tables.
+    This is the one basis the dashboard reports against; regenerate via the
+    run_script_inline dump if the app-region function set changes."""
+    table = {}
+    if os.path.exists(EXTENTS_PATH):
+        for ln in open(EXTENTS_PATH):
+            p = ln.split()
+            if len(p) == 2:
+                table[int(p[0], 16)] = int(p[1])
+    return table
 CL = os.path.join(ROOT, "toolchain/bin/cl")
 FLAGS = "/nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS".split()
 EXE = open(os.path.join(ROOT, "YodaDemo/YodaDemo.exe"), "rb").read()
@@ -57,6 +85,7 @@ def compile_obj(cpp):
 def main():
     # addr -> (exact, nbytes): dedupe functions carried by more than one TU
     # (exact beats partial; among equals keep the first seen).
+    extents = load_extents()          # load ONCE — see the basis rule below
     by_addr = {}
     rows = []
     for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "**", "*.cpp"), recursive=True)):
@@ -90,7 +119,7 @@ def main():
             diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
             exact = diffs == 0 and len(orig) == L
             if exact:
-                mb += L; mf += 1
+                mb += extents.get(va, L); mf += 1
             else:
                 pf += 1
             prev = by_addr.get(va)
@@ -98,52 +127,83 @@ def main():
                 by_addr[va] = (exact, L)
         rows.append((rel, "%d+%d/%d" % (mf, pf, len(funcs)), mb, len(funcs)))
 
-    exact_bytes = sum(L for e, L in by_addr.values() if e)
+    # ⚠ THE BASIS RULE (v111). Byte percentages must have the SAME basis in numerator and
+    # denominator. `L` here is OUR trimmed COMDAT length, which INCLUDES EH funclets and
+    # embedded jump tables; the old denominator (BODY_ONLY_BYTES) excluded both. Dividing one
+    # by the other reported ">>> 124.88% transcribed; -24.88% left to decompile <<<" — a
+    # number that had been visibly impossible for many sessions. Everything below is measured
+    # against the Ghidra EXTENT table, which is on the same (funclets-included) basis as L and
+    # is what the marker-coverage figure has always used.
     exact_funcs = sum(1 for e, L in by_addr.values() if e)
-    partial_bytes = sum(L for e, L in by_addr.values() if not e)
     partial_funcs = sum(1 for e, L in by_addr.values() if not e)
+    # bytes on the extent basis; a marker with no extent entry is NOT silently dropped
+    exact_bytes = sum(extents[va] for va, (e, L) in by_addr.items() if e and va in extents)
+    partial_bytes = sum(extents[va] for va, (e, L) in by_addr.items()
+                        if not e and va in extents)
+    no_extent = sorted(va for va in by_addr if va not in extents)
 
     print("=" * 60)
     print(" Yodecomp completion — app region (0x401000-0x429000)")
     print("=" * 60)
-    print("  %-26s %-12s %8s" % ("", "exact+part", "exact B"))
+    print("  %-26s %-12s %8s" % ("", "exact+part", "exact B"))   # extent basis
     for rel, note, mb, nf in rows:
         print("  %-26s %-12s %6d B" % (rel, note, mb))
     print("-" * 60)
-    e_pct = 100.0 * exact_bytes / TOTAL_APP_BYTES
-    p_pct = 100.0 * partial_bytes / TOTAL_APP_BYTES
-    t_pct = e_pct + p_pct
+    if not extents:
+        print("  EXACT    %6d funcs  — byte-matched" % exact_funcs)
+        print("  PARTIAL  %6d funcs  — transcribed, needs byte-matching" % partial_funcs)
+        print("  !! %s missing — byte percentages need it for a consistent basis"
+              % os.path.relpath(EXTENTS_PATH, ROOT))
+        return
+    total_bytes = sum(extents.values())
+    todo_funcs = len(extents) - (exact_funcs + partial_funcs) + len(no_extent)
+    todo_bytes = total_bytes - exact_bytes - partial_bytes
+    e_pct = 100.0 * exact_bytes / total_bytes
+    p_pct = 100.0 * partial_bytes / total_bytes
+    d_pct = 100.0 * todo_bytes / total_bytes
     print("  EXACT    %6d bytes  (%d funcs)  — byte-matched" % (exact_bytes, exact_funcs))
     print("  PARTIAL  %6d bytes  (%d funcs)  — transcribed, needs byte-matching"
           % (partial_bytes, partial_funcs))
-    print("  TOTAL    %6d bytes  (%d funcs in app region)" % (TOTAL_APP_BYTES, TOTAL_APP_FUNCS))
+    print("  TO DO    %6d bytes  (%d funcs)  — no // FUNCTION marker yet"
+          % (todo_bytes, todo_funcs))
+    print("  TOTAL    %6d bytes  (%d funcs in app region, Ghidra extents incl. funclets"
+          "/tables)" % (total_bytes, len(extents)))
     print("  >>> %.2f%% exact + %.2f%% partial = %.2f%% transcribed; "
-          "%.2f%% left to decompile <<<" % (e_pct, p_pct, t_pct, 100.0 - t_pct))
-    # HONEST transcription coverage (v23): the PARTIAL sum above uses OUR COMDAT
-    # lengths (EH funclets + jump tables included), which overcounts against the
-    # 128158 denominator. Measure marker coverage against TRUE Ghidra extents
-    # (toolchain/test/app_funcs.txt, regenerate via the run_script_inline dump).
-    ext_path = os.path.join(ROOT, "toolchain", "test", "app_funcs.txt")
-    if os.path.exists(ext_path):
-        table = {}
-        for ln in open(ext_path):
-            p = ln.split()
-            if len(p) == 2:
-                table[int(p[0], 16)] = int(p[1])
-        marked = set()
-        for cpp in glob.glob(os.path.join(ROOT, "src", "**", "*.cpp"), recursive=True):
-            for m in re.finditer(r"FUNCTION:\s*YODA\s+0x0*([0-9a-fA-F]+)",
-                                 open(cpp).read()):
-                marked.add(int(m.group(1), 16))
-        tot = sum(table.values())
-        cov = sum(sz for va, sz in table.items() if va in marked)
-        un = sorted((sz, va) for va, sz in table.items() if va not in marked)
-        print("  --- Ghidra-extent basis (%d funcs, %d bytes incl. funclets/tables) ---"
-              % (len(table), tot))
-        print("  >>> marker coverage %.2f%% (%d bytes); largest unclaimed:" 
-              % (100.0 * cov / tot, cov))
-        for sz, va in un[-6:][::-1]:
-            print("      %#x  %d bytes" % (va, sz))
+          "%.2f%% left to decompile <<<" % (e_pct, p_pct, e_pct + p_pct, d_pct))
+    # SELF-CHECK (v111): the tiers must partition the basis exactly. A dashboard that can
+    # print an impossible percentage is a dashboard nobody reads carefully — this is the
+    # assert that would have caught the old >100% line on the day it appeared.
+    assert exact_bytes + partial_bytes + todo_bytes == total_bytes, \
+        "basis mismatch: %d + %d + %d != %d" % (exact_bytes, partial_bytes,
+                                                todo_bytes, total_bytes)
+    assert 0.0 <= e_pct + p_pct <= 100.0 and 0.0 <= d_pct <= 100.0
+    if no_extent:
+        print("  (%d marked function(s) have no extent entry, excluded from the bytes above: %s)"
+              % (len(no_extent), ", ".join("%#x" % v for v in no_extent)))
+    # The per-TU column double-counts a function that is exact in more than one TU; the EXACT
+    # total dedupes by address. Say so rather than leave two near-equal numbers unexplained.
+    col = sum(mb for _, _, mb, _ in rows)
+    if col != exact_bytes:
+        print("  (per-TU column sums to %d B — %d B more than EXACT: functions carried by "
+              "more than one TU," % (col, col - exact_bytes))
+        print("   counted once in the total, once per TU in the column.)")
+    # Marker coverage: which app-region functions carry a // FUNCTION marker at all. This is
+    # the same extent table as above (v111 — it used to be loaded a SECOND time here, which is
+    # how the two bases drifted apart in the first place), so `marker coverage` and
+    # `% transcribed` now agree by construction rather than by coincidence.
+    marked = set()
+    for cpp in glob.glob(os.path.join(ROOT, "src", "**", "*.cpp"), recursive=True):
+        for m in re.finditer(r"FUNCTION:\s*YODA\s+0x0*([0-9a-fA-F]+)", open(cpp).read()):
+            marked.add(int(m.group(1), 16))
+    cov = sum(sz for va, sz in extents.items() if va in marked)
+    un = sorted((sz, va) for va, sz in extents.items() if va not in marked)
+    print("  >>> marker coverage %.2f%% (%d bytes); largest unclaimed:"
+          % (100.0 * cov / total_bytes, cov))
+    for sz, va in un[-6:][::-1]:
+        print("      %#x  %d bytes" % (va, sz))
+    print("  (legacy body-only basis, funclets/tables EXCLUDED: %d bytes / %d funcs — do NOT"
+          % (BODY_ONLY_BYTES, BODY_ONLY_FUNCS))
+    print("   divide extent-basis byte counts by it; that is what produced the old >100% line.)")
 
 
 if __name__ == "__main__":
