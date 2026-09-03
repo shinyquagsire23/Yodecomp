@@ -145,7 +145,13 @@ def compile_diff(full_text, addr, workdir, base, target_name, name_hint=None):
         # Graded, register-rename-aware score (asmscore) as the oracle: gives the
         # hill-climb a real gradient instead of the flat raw-byte-diff plateau.
         res = asmscore.score(orig, code[:L], relocs, exact_len=tgt)
-        cand = (0 if res.exact else 1, res.total, name, res.byte_diff)
+        # ⚠ v102: the SUCCESS test must be the ANCHOR's definition of exact (progress.py's
+        # reloc-masked raw BYTE compare), not asmscore's disassembly-derived byte_diff — a
+        # function carrying an embedded switch JUMP TABLE decodes the table as instructions
+        # and reports a phantom diff on provably byte-exact code (v100). asmscore stays as
+        # the hill-climb GRADIENT; it just no longer decides when we've won.
+        exact = (L == tgt and match.mask(code, relocs, tgt)[:tgt] == match.mask(orig, relocs, tgt)[:tgt])
+        cand = (0 if exact else 1, res.total, name, res.byte_diff)
         if best is None or cand < best:
             best = cand
     return best

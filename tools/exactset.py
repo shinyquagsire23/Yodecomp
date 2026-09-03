@@ -5,7 +5,7 @@ Honors the VCDIR env override (via toolchain/bin/cl) so you can A/B compiler bui
   VCDIR=$PWD/toolchain/vc40 python3 tools/exactset.py > /tmp/e40.txt
   comm -13 <(sort /tmp/e42.txt) <(sort /tmp/e40.txt)      # funcs the candidate wins
 Reuses match/verify like progress.py; recompiles every src/**/*.cpp into build/."""
-import os,sys,glob,subprocess
+import os,re,sys,glob,subprocess
 ROOT="/Users/maxamillion/workspace/Yodecomp"
 sys.path.insert(0, os.path.join(ROOT,"tools"))
 import match, verify
@@ -26,8 +26,15 @@ for cpp in sorted(glob.glob(os.path.join(ROOT,"src","**","*.cpp"),recursive=True
     obj=compile_obj(cpp)
     if not obj: continue
     text=open(cpp).read()
+    # ⚠ v102: keep a lib-owned COMDAT that a marker EXPLICITLY names by mangled hint — without
+    # this exception the filtered COMDAT makes its marker fall back POSITIONALLY inside
+    # pair_by_name, stealing the COMDAT the NEXT marker wanted and CASCADING mis-pairs through
+    # the TU (v100). Identical block to progress.py/verify.py/dialsweep.py — keep in sync.
+    hinted=set(re.findall(
+        r"//\s*FUNCTION:\s*YODA\s+0x[0-9a-fA-F]+[^\n]*?(\?\?(?:_[A-Z]|[0-9])\w+@@)", text))
     funcs=[f for f in match.coff_functions(obj)
-           if verify.owner_of(f[0]) not in verify.LIB_OWNERS
+           if (verify.owner_of(f[0]) not in verify.LIB_OWNERS
+               or any(h in f[0] for h in hinted))
            and not f[0].lstrip("?").startswith(("_$E","$E"))]
     for va,name,code,relocs in match.pair_by_name(text,funcs):
         L=match.trim_pad(code); foff=(va-match.TEXT_VA)+match.TEXT_RAW
