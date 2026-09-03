@@ -3281,3 +3281,111 @@ bullet in CLAUDE.md. Landed `IactScript::~IactScript` (7→0), `Zone::~Zone` (12
 census** over every residual (does ONE consistent reg→reg renaming explain the whole diff?) — 10 of
 138 residuals are in that class, and it is the class the lever addresses. Three source park notes
 claiming "no source lever reaches this" were retracted by measurement.
+
+---
+
+## ⏮ v104 PICKUP (demoted at v105, 2026-09-03) — 240 → 244 via lesson #37
+
+**Was:** NEXT SESSION PICKUP (2026-09-02 v104 — **240 → 244**, +4 gained / 0 lost, all real
+matching, plus `FindObjectAt` 11 B → 2 B. All 5 oracles green (244 exact / link 0-0-exit0 /
+bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN); build-sdl + build-sdl-indy relinked.
+v103 log demoted to PLAN_COMPLETED.md ⏮.)
+
+**▶ WHAT LANDED — one new lever, lesson #37: A LOCAL'S DECLARATION SCOPE IS A REG-ALLOC DIAL.**
+Full write-up is the standing bullet in this file; the short version is that a residual explained
+ENTIRELY by a register RENAMING (esi↔edi, ebx↔ebp) is usually a decl-scope bug, not a compiler
+ceiling. Landed exact: `IactScript::~IactScript` 0x4187e0 (7→0), `Zone::~Zone` 0x4054d0 (12→0),
+`PlaceZoneObjectTiles` 0x403140 (22→0, needed `z`/`o`/`t` hoisted IN THAT ORDER **and** `t2`
+merged into one `t`), `LoadZoneRecursive` 0x403450 (fell out alongside). Improved:
+`FindObjectAt` 0x405330 11→2 (whole 3-register rotation gone; last 2 B is `test edi,edi` vs
+`cmp edi,eax`, proven inert over 7 more spellings). New tool **`tools/hoisttest.py`**.
+
+**▶ RETRACTIONS — three park notes in the source said "no source lever reaches this". All wrong:**
+`FindObjectAt` ("no stmt/decl/cmp lever, one leading decl"), `~IactScript` ("phase drift,
+dial/endgame"), `PlaceZoneObjectTiles` ("proven correct; settles at G1"). ⇒ A park note is a
+record of which axis was probed, NOT proof of irreducibility (same shape as v103's lesson #36).
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ Finish the decl-scope seam — it is NOT exhausted.** 111 of 138 residuals have inner-block
+   declarations. Unprobed PERM-class targets: `ParseZax3` 0x423190 (11 B, bp→di→si 3-cycle),
+   `DetonateAdjacentTiles` 0x428680 (60 B, di↔si), `~CDeskcppDoc` 0x41b2f0 (6 B, di↔si — ⚠ plain
+   hoisting makes it WORSE, so its `p` is genuinely loop-scoped; the lever must be something else).
+   Then the wider block-decl list ranked by ndiff (`ZoneHasIzxItemMaybe` 0x41bfa0 17 B/6 decls,
+   `WorldgenAssignTransitItemMaybe` 0x41d480 13 B/9, `ReadSavedState` 0x405bd0 21 B/10).
+   Recipe: `tools/hoisttest.py <tu.cpp> <addr> --expect N` (N from `tools/bytediff.py`).
+2. **`Zone::WriteSavedState` 0x405f30 sits at 13 B with a 7 B spelling available** (any PAIR of
+   {o,e,p,k} hoisted). NOT applied — 7 B is not a match and I would not churn a shared TU on
+   suggestive-only evidence. Finish it (the waypoint `p`/`k` loop is the untouched part) or drop it.
+   ⚠ its candidate list includes decls inside the `#ifdef GAME_INDY` branch, which are INERT for
+   the anchor but real for the Indy build — check which sites you are actually moving.
+3. **Proven INERT at v104 — do not re-tread:** `DifficultyDlg::OnHScroll` 0x417fa0 (13 spellings:
+   member-call form, assign-in-condition, sub/fold, cmp order — its 6 B is a cmp-swap + a
+   mov/cmp order in the SB_PAGEUP arm; PAGEDOWN matches only because `add` folds into `lea`),
+   `SetCurrentToIntroZone` 0x423d20 (9 loop spellings), `ReadIzon` 0x405ae0 (`char tag[5..16]`
+   sizes + all decl orders — sizes 5/6/8 identical, 9+ worse), `WorldgenCollectZoneRefs` 0x41f8e0,
+   `ZoneRequiresItemMaybe` 0x41c0b0, `SaveZoneRecursive` 0x4033b0.
+4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
+5. **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a source file — always `git diff --stat src/`
+AFTER each one. ⚠ **v104 caught two real traps here:** (a) a sweep piped through `grep` that the
+harness BACKGROUNDED at its 600 s limit left `src/Iact.cpp` in a variant state despite vartest's
+atexit restore — run sweeps with `run_in_background` writing to a LOG FILE, never through a pipe;
+(b) `git checkout <file>` to undo a probe silently reverted an ALREADY-LANDED fix in the same file,
+and the next three measurements were quietly wrong. Restore a single function from
+`git show HEAD:<file>`, not the whole file. Never run two sweeps concurrently or one while
+`progress.py` is in flight (they fight over the source AND `build/*.obj`).
+
+
+## ⭐ v105 (2026-09-03) — 244 → 247; lesson #38 and the JOINT-PHASE finding
+
+**Landed (exactset diff, +3 / −0):** `ZoneHasIzxItemMaybe` 0x41bfa0 17 B → 0 (the targeted
+match); `CheckZoneItemsAvailable` 0x41f830 and `DetonateAdjacentTiles` 0x428680 fell out on the
+resulting TU shift.
+
+**⭐ LESSON #38 — the decl dial is a SET *and* an ORDER, and it can be ASYMMETRIC.**
+Lesson #37 / `hoisttest.py` ask a yes/no question per declaration. That is too coarse: the real
+input is *which* locals sit at function scope and *in what order*, and the answer can differ
+between two textually identical branches of the same function. Winning configuration for
+0x41bfa0: `nCount` at function scope (both branches assign the one variable), the **else**
+branch's `i` at function scope, and the `sel!=0` branch keeping its **own** `i` that shadows it,
+declared `int nCount; int i;` in that order. Measured descent — 17 → 10 (`nCount` before `i`;
+`i` first is 14) → 8 (3-name subset) → 7 (only `nCount`, from both branches) → **0**. Plain
+all-hoist never gets below 8, and `--max-hoist 1` reads completely flat (17/17/22/16/17/19).
+⚠ So a flat single-hoist probe is NOT a dead end; escalate to a set×order sweep before parking.
+The exact family also includes `pObj` either way and the B branch's `i` renamed instead of
+shadowing; `nObjs` hoisted costs 2 B.
+
+**⭐ THE JOINT-PHASE FINDING — a TU's register allocation is NOT per-function.**
+The clean control: `ParseZaux` 0x423110, `ParseZax3` 0x423190 and `ParseZax2` 0x423210 are
+textually identical (only the `ReadZaux`/`ReadZax2`/`ReadZax3` callee differs — and those three
+are declared identically in `GameObjectClasses.h`). Every emitted instruction matches; only
+register NAMES differ. Yet each image allocates differently and a *different* sibling deviates in
+each: the original's odd one out is `ParseZax3`, ours is `ParseZaux`, and our `ParseZax3`'s
+codegen IS the original `ParseZaux`'s allocation ({offset,i,pFile} = {esi,ebp,edi}).
+Corroboration: (a) `DetonateAdjacentTiles` gained on a 5-line shift ~5000 lines earlier, after
+measuring inert to all 12 of its own decl-scope subsets; (b) `ZoneFindInIzxList`'s exact spelling
+costs exactly the same 4 downstream functions whether the edit is line-neutral or +11 lines — so
+it is the TOKEN change re-rolling the phase, not lesson #23.
+⇒ (1) "intrinsic / not source-steerable" park notes record an axis probed, never irreducibility;
+v39's on 0x428680 is RETRACTED. (2) Before grinding a PERM residual, look for a textually
+identical SIBLING in the TU — if one is exact and the other is not, the source is not the
+variable. (3) Greedy per-function search hits trades; a saturated TU needs a JOINT search.
+(4) Always measure with `tools/exactset.py` + `comm`, not progress.py's total.
+
+**Parked with full data — `ZoneFindInIzxList` 0x41c490 (+2 / −4 = 245, deliberately not landed).**
+Exact spelling known: hoist all inner locals to function scope, order `nCount, i, nObjs, j, pObj`
+BEFORE `v` (in-block 21 B; `i` before `nCount` 14 B; decls after `v` 19 B; exact family
+{+nObjs, +nObjs+j, +all}, all with an identical project-wide footprint). Under that phase:
+`RemoveItem` 0x429150 → **EXACT** by hoisting `InvItem *pEntry`; `CheckZoneItemsAvailable`
+0x41f830 → 2 B (cmp operand order, guard form, pObj hoist and decl swap ALL inert);
+`ParseTnam` 0x423380 → 5 B (all 9 decl-scope subsets/orders inert); `DetonateAdjacentTiles`
+→ 77 B. So the phase reaches 246 with two known fixes and needs 2 of the remaining 3 to beat 247.
+
+**Proven inert at v105 (do not re-tread):** `ParseZax3` 0x423190 over 18 spellings (decl scope,
+buffer sizes 9/10/12/16, `i` as short/uint, `nCount` int/uncast, while-form, `!pZone` / `NULL ==`,
+cmp order, pre/post-increment) — every faithful spelling gives exactly 11, only wrong
+length-changing ones move it. `ParseZaux` 0x423110's "78 of 116 bytes" (v101) is misleading: it is
+a ONE-byte length change (`mov eax,[ebp+0]` vs `mov eax,[edi]`, ebp needing a disp8) cascading
+through the rest — the same PERM class, not 78 independent differences.
