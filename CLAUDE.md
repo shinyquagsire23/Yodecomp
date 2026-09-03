@@ -508,6 +508,15 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    first call/branch) keeps the decode inside real prologue bytes and reports 0 mismatches.
    ⇒ Same family as #2: **two plausible implementations of "the same" measurement can disagree,
    and the one that decodes MORE of the function is the one that will lie.**
+7. **v111 — the headline dashboard itself, for MONTHS, in plain sight.** `progress.py` printed
+   ">>> 124.88 % transcribed; −24.88 % left to decompile <<<" because its numerator (our COMDAT
+   lengths, EH funclets + jump tables IN) and denominator (Ghidra body sizes, funclets OUT) were
+   different bases. The mismatch was DESCRIBED IN A COMMENT directly beneath the offending print,
+   and the correct figure was computed a few lines further down and reported separately as
+   "marker coverage" — nobody reconciled the two. Fixed onto one extent basis, with an assert
+   that the tiers partition the total. ⇒ **A visibly impossible number is a bug, not a quirk of
+   the metric** — and a known-wrong line you keep printing next to a right one will outlive
+   every session that reads past it. Give a tool an invariant it can assert about itself.
 ⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
 stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
 re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
