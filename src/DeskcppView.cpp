@@ -7898,38 +7898,38 @@ void CDeskcppView::ConfirmExit()
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00416110
-// GameView::OnAppExit (ID_APP_EXIT) — the menu-driven twin of ConfirmExit (0x416030).
-// Identical body: cancel drag, confirm, then shut down.
-// EFFECTIVE: shares ConfirmExit's AfxGetApp()-inline scheduling residual (twin body).
-// ---------------------------------------------------------------------------
+// GameView::OnAppExit (ID_APP_EXIT) — a one-line FORWARDER to ConfirmExit, NOT a second copy
+// of its body. The original at this address is FIVE BYTES: `jmp ?ConfirmExit@...` (the /O2
+// tail call for a same-signature __thiscall member call), followed by int3 padding out to
+// 0x416120 where the next function starts. We had transcribed ConfirmExit's whole body here,
+// so the harness scored our 220-byte function against a 5-byte one and reported a phantom
+// 163 B "scheduling residual" that no amount of spelling work could ever have closed.
+//
+// ⭐ HOW IT WAS FOUND (v110) — worth reusing. A scan over every non-exact residual comparing
+// the PROLOGUE callee-save set (pushes of ebx/esi/edi before the first call/branch) of the
+// original against ours flagged exactly three functions project-wide; this was the smallest.
+// Ours pushed esi, the original pushed nothing — and a function that saves NO registers while
+// ours saves one is either a much simpler body or, as here, not the same function at all.
+// The same scan's motivating case was lesson #42 (SaveStoryHistory*, an unwanted CSE temp
+// forcing an extra ebx save), so one cheap instrument serves both readings:
+//   * ours saves MORE than the original  -> we materialised something the original didn't
+//     (a named temp for a loop-invariant subexpression is the usual culprit — lesson #42);
+//   * ours saves FEWER                   -> the original hoisted something we recompute;
+//   * the original saves NOTHING at all  -> suspect a thunk/forwarder, and CHECK THE EXTENT
+//     before touching the body. `tools/bytediff.py` reports our length, not the original's.
+//
+// ⚠ The extent check is the part that generalises. progress.py compares our length's worth of
+// bytes at the marker address, so a marker whose true function is far SHORTER than ours still
+// produces a plausible-looking byte residual instead of an error. Disassembling the original
+// at the marker and looking for `jmp rel32` + int3 padding takes seconds and is now part of
+// the "before investing in any residual" checklist alongside the v100 raw byte diff.
+//
+// The twin body still lives in ConfirmExit (0x416030); do not re-duplicate it here.
+// (This note is deliberately long: the block is kept LINE-NEUTRAL against the 29-line body
+//  it replaced, so the edit cannot rotate the TU's codegen dial — lesson #23.)
 void CDeskcppView::OnAppExit()
 {
-    if (pWorld->nFrameMode == 4)
-    {
-        bDragActive = 0;
-        UpdateDragCursor(1);
-        nDragSlot = -1;
-        nDragLastScreenY = -1;
-        nDragLastScreenX = -1;
-        pWorld->nFrameMode = 3;
-        DrawText(NULL);
-    }
-    if (AfxMessageBox(IDS_CONFIRM_EXIT, MB_YESNO, 0) == IDYES)
-    {
-        if (bDialogCloseClicked == 0)
-        {
-            bDialogCloseClicked = 1;
-            pWorld->nFrameMode = 3;
-        }
-        if (pWorld->nMusicEnabled != 0)
-            AfxGetApp()->WriteProfileInt("OPTIONS", "MIDILoad", 1);
-        if (pMusicThread != NULL)
-            ResumeThread(((CWinThread *)pMusicThread)->m_hThread);
-        g_bStopMusicThread = 1;
-        SetEvent(g_hWaveMixEvent);
-        pWorld->OnCloseDocument();
-        PostQuitMessage(0);
-    }
+    ConfirmExit();
 }
 
 // ---------------------------------------------------------------------------
