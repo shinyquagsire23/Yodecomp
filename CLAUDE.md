@@ -357,7 +357,12 @@ this. New **`tools/declorder.py <tu.cpp> <0xADDR> --expect N`** permutes the lea
 function-scope decl block (line-neutral by construction, measurement delegated to `vartest.py`
 verbatim so the anchor's predicate and the `--expect` guard are inherited, per v100/v101).
 ⚠ **Mined out on the small residuals**: a 17-target sweep over every residual ≤13 B produced
-**0 improvements** (11 of them have no permutable block at all). Re-run it on newly-transcribed
+**0 improvements** — a verdict v109 RE-CONFIRMED after fixing the tool. ⛔ but the parenthetical
+"11 of them have no permutable block at all" was **partly the tool lying**: its `DECL` regex did
+not match ARRAY declarators, so any function whose first local is a buffer (`char buf[32];`)
+reported an EMPTY block. Fixed at v109 — it unblocked 9 residuals, all of them LARGE
+(SaveStoryHistory* ×3, ReadZax2/3, ReadIzon, 0x41f960). Aim the tool at those, not at the
+≤13 B list. Re-run it on newly-transcribed
 functions, not on the current census. Confirmed re-flat this session and NOT worth re-treading:
 `FindTile` 0x403aa0 (5 perms, `r` before `i` pinned at 4 B), `GetZoneIndex` 0x423dc0 (10 loop/
 compare spellings, all 2 B — the guarded do-while form is confirmed by LENGTH), `BlitMasked`
@@ -438,6 +443,14 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    ⇒ The baseline rule applies to throwaway greps too: **print a positive control** (here: "141
    residual addrs parsed, e.g. 0x403450") before believing an empty result. An empty result from a
    scan you just wrote is a bug hypothesis, not a finding.
+5. **v109 — a SIXTH, in `tools/declorder.py`, and it manufactured a PARK rather than a target.**
+   Its `DECL` regex had no clause for an array extent, so `char buf[32];` was not a declaration;
+   `leading_block()` starts at the first body line and breaks on the first non-declaration, so a
+   function whose first local is a buffer reported **"no permutable block"** instead of an 8-decl
+   one. That is precisely the sentence v108 published ("11 of 17 have no permutable block"). The
+   failure mode to generalise: **a harness that reports NOTHING TO DO is as suspect as one that
+   reports a finding** — the v103 positive-control rule applies to emptiness too. Caught by
+   hand-checking one function (`SaveStoryHistoryNevada`) whose source visibly HAS a decl block.
 ⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
 stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
 re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
@@ -726,73 +739,85 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v108 — **250 → 251**, +1 gained / 0 lost, no trades.
-All 5 oracles green (251 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
-msg 11 CLEAN); build-sdl relinked clean. v107 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v109 — **251 → 251**, +0 / −0, no trades. A HARNESS-BUG
+session: one real tool fix, four measured-flat axes, one refuted hypothesis, one root cause
+nailed. All 5 oracles green (251 exact / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN /
+msg 11 CLEAN). v108 log demoted to PLAN_COMPLETED.md.)
 
 **▶ WHAT LANDED.**
-1. **`ParseTilesMaybe` 0x41a030 DIFF(3) → EXACT (+1/−0)** — the G1-era note ("backedge cmp
-   direction … operand flip proven inert") was right about its own axis and wrong about the
-   function. The lever is **decl ORDER at function scope** (lesson #38): `int i;` BEFORE
-   `int n = nBytes / 0x404;`. Every order with `n` first costs 40–43 B; `pNew,i,n` and
-   `i,pNew,n` both give 0 (a FAMILY — kept `pNew` first as the minimal change from the
-   transcribed form, lesson #36 discipline).
-2. **⭐ NEW LESSON #41 + `tools/declorder.py`** — see the standing bullet above. The finding
-   that generalises: **a FLAT sweep is a signal to CHANGE AXIS, not a park.** Here the loop-form
-   sweep (lesson #40) came back dead flat across 8 spellings and that is exactly what pointed at
-   the decl dial. Cycle scope (#37) → set+order (#38) → loop form (#40) before parking anything.
-   `declorder.py` closes a structural gap: `hoisttest.py` only decides whether an INNER-BLOCK
-   local should be hoisted; it never permutes the block already at function scope.
+1. **⭐ `tools/declorder.py` was BLIND TO ARRAY DECLARATORS — a 6th entry in the "harness can
+   lie" family.** Its `DECL` regex accepted `int n;` and `int n = expr;` but not `char buf[32];`,
+   and because `leading_block()` walks from the first body line and BREAKS on the first
+   non-declaration, a function whose first local is a buffer reported **"no permutable block"**
+   — the exact shape of v108's "11 of 17 targets have no permutable leading block at all".
+   **9 residuals were silently unreachable**, incl. all three `SaveStoryHistory*` (611 B each),
+   the `ReadZax2`/`ReadZax3` pair, `ReadIzon`, and `LoadStoryHistoryNevada`. Fixed (one regex
+   clause; the tool now finds an 8-decl block in SaveStoryHistoryNevada where it saw none).
+   ⚠ **Honest bottom line: the fix did NOT overturn v108's conclusion for the ≤13 B census** —
+   of the small residuals only 0x401ac0 and ReadIzon were newly reachable, and 0x401ac0 swept
+   flat. What it unblocked is the BIG untouched functions, which is where it should now be aimed.
+2. **`SaveStoryHistoryNevada` 0x402670 — root cause NAILED (still 611 B, but no longer vague).**
+   (a) The slot 3-cycle is exact: orig `lineNo@-0x1c base@-0x20 rem@-0x24`, ours
+   `base@-0x1c rem@-0x20 lineNo@-0x24`; the ebp-slot histograms are otherwise identical
+   slot-for-slot. (b) The **16 B is a FAILED CROSS-JUMP**: the original loads `base` ONCE before
+   `cmp esi,9`, so both `sprintf` arms start with `eax=base`, end identically, and share the tail
+   `lea buf; inc esi; push buf; call`. Ours loads `base` per-arm → the arms land the buf pointer
+   in different registers (arm 2 additionally needs EBX, hence the extra `push ebx` at +0x1e) →
+   the tails cannot merge. (c) **REFUTED by the original's own bytes**: the tempting "arm 2 should
+   reuse the running `base` instead of recomputing `lineNo*10`" — the orig emits
+   `lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`, i.e. it DOES compute `k + lineNo*10`. `idx` as
+   transcribed is correct; do not merge it into `base`.
+3. **Four axes measured FLAT (record, don't re-tread):** SaveStoryHistoryNevada — `int base;`
+   hoisted to all 6 leading-decl positions (including the reverse-decl-order PREDICTION that it
+   belongs right after `int rem;`) plus a rem/lineNo swap, all 611. `ReadZax2` 0x406410 — **all
+   120** decl permutations flat at 47 (so its +3 B `mov ax,mem; movsx ebp,ax` survives both the
+   v99 statement sweep and the decl axis; same verdict for its textual twin `ReadZax3` 0x406490).
+   `LoadStoryHistoryNevada` 0x401ac0 — its one permutation flat at 2.
+4. **`CalcSolvedScore` 0x401780 — a POSITIVE result inside a park.** The decl-order axis is
+   genuinely LIVE here (unlike the three above): `x` must lead (moving it costs 16 B) and `solved`
+   must precede `total` (swapping costs 15, full reversal 18); the other 10 of 14 swaps are inert
+   at 13. The current transcription is therefore at the axis's optimum — measured evidence now,
+   not an untested guess. Still parked on the x87 2-accumulator axis.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⚠ The decl-order axis looks MINED OUT on the current census.** A `declorder` sweep over
-   the residuals ≤13 B gave **0 improvements** across its first 17 targets (11 of which have no
-   permutable leading block at all). It reached ~24 targets, but everything past #18 overlapped
-   with other work (see the ⚠ harness trap below) and is PROVISIONAL — re-run those cleanly
-   before trusting them. The tool's value is now on NEWLY-transcribed functions and on the big
-   untouched ones, not on this list.
-2. **The WorldgenHelpers JOINT SEARCH** (unchanged from v107, still the best structural lead):
-   recover `LoadZoneRecursive` 0x403450's last 1 B without giving up SaveZoneRecursive. Bounded
-   by v106 downstream-only ⇒ the compensating edit must sit UPSTREAM of line 613. Already probed
-   and inert: `RemoveEmptyZonesFromPlacedList` 0x403070, LoadZoneRecursive's own 16 spellings,
-   and now `FindTile` 0x403aa0 (5 decl perms). `LoadStoryHistoryNevada` 0x401ac0 (2 B) has **no
-   leading decl block** — it needs a hand-written spelling sweep. The three
-   `SaveStoryHistory*` (611 B each) remain the big untouched upstream target; they are
-   copy-paste siblings, so one crack pays 3×.
-3. **Parked partials, unchanged:** `WorldgenCollectZoneRefs` 0x41f8e0 (9 → 7 B via countdown,
-   land only inside a joint pass) and `PlacePuzzle` 0x421620 (32 → 29 B via hoisting `i`).
-4. **Do NOT re-tread** the v106/v107 closed table PLUS the v108 additions: `FindTile` 0x403aa0
-   (decl perms flat at 4), `GetZoneIndex` 0x423dc0 (10 loop/compare spellings flat at 2 — the
-   guarded do-while is confirmed by emitted LENGTH), `BlitMasked` 0x408240 (11 spellings flat at
-   4; a moved `s = src` costs 47 B, which positively confirms the current statement order).
-   `ReadIzon` 0x405ae0 stays parked as header-phase displacement (v36 root-cause; do not mangle).
-5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
-   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
-   `sizeof` dial note).
-6. **Phase-H goals 2-5 untouched** this session.
+1. **Aim `declorder.py` where the fix actually opened ground: the BIG functions.** The ≤13 B
+   census is genuinely mined out; the newly-reachable mass is large residuals whose first local is
+   a buffer. Untried: `Worldgen.cpp` 0x41f960 (5704 B, block starts `short aOrder[100];` — and
+   per lesson #36 that extent is itself a free variable), `Iact.cpp` 0x406270 (111 B, 5-decl
+   block), `RefreshZone` 0x403ae0 (70 B), `StartGame` 0x4037a0 (79 B).
+2. **SaveStoryHistoryNevada's live axis is now identified, so it is no longer a blind grind:**
+   find the spelling that makes cl hoist the `base` LOAD above `cmp esi,9` (that single change
+   cascades into the shared tail and the whole 16 B). Decl scope/order are proven inert, so this
+   is a statement-order / expression-shape question — lesson #39 territory. Pays 3× (Alaska,
+   Oregon are textual twins). ⚠ `int idx = base + k;` before the `if` is NOT it: the original
+   duplicates `add eax,esi` in each arm and only shares the LOAD.
+3. **The WorldgenHelpers JOINT SEARCH** (carried from v107, still the best structural lead):
+   recover `LoadZoneRecursive` 0x403450's last 1 B without giving up SaveZoneRecursive; bounded by
+   v106 downstream-only ⇒ the compensating edit must sit UPSTREAM of line 613. The three
+   `SaveStoryHistory*` are that upstream region — item 2 is the way in.
+4. **Parked partials, unchanged:** `WorldgenCollectZoneRefs` 0x41f8e0 (9 → 7 B via countdown) and
+   `PlacePuzzle` 0x421620 (32 → 29 B via hoisting `i`) — land only inside a joint pass.
+5. **Do NOT re-tread** the v106/v107/v108 closed table, plus the v109 additions in item 3 above.
+   `ReadIzon` 0x405ae0 stays parked as header-phase displacement (v36 root-cause; do not mangle)
+   — it now HAS a detectable block, so resist the temptation.
+6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
+7. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v107 rules stand, plus v108 additions):** every sweep
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand; v108's trap RE-CONFIRMED).** Every sweep
 MUTATES a source file — always `git status --porcelain src/` AFTER each one; run sweeps with
 `run_in_background` writing to a LOG FILE; restore a single function from `git show HEAD:<file>`,
 never `git checkout <file>` mid-sweep; never run two sweeps concurrently, or one while
-`progress.py`/`exactset.py`/`residuals.py` is in flight (they all share `build/*.obj`). Measure
-with **`tools/exactset.py` + `comm`**, never progress.py's total alone.
-**NEW v108 — ⭐ (a) A "BACKGROUND COMMAND COMPLETED" NOTIFICATION DOES NOT MEAN THE SWEEP IS
-DONE.** A `nohup`'d batch launched with `run_in_background` reported **exit code 0** while its
-process tree kept running for another ~10 minutes. Everything run after that notification — a
-second `vartest` sweep AND all five anchor oracles — executed CONCURRENTLY with a sweep that was
-actively mutating `src/` and sharing `build/*.obj`, silently invalidating every one of those
-numbers. It surfaced only because a stray ` M src/Worldgen.cpp` appeared in `git status` at
-commit time; `ps aux | grep vartest` then showed the batch still alive on target #24.
-⇒ **Never trust the completion notification for a detached sweep — confirm with
-`ps aux | grep -E "vartest|declorder"` AND by finding the driver's own DONE marker in its log
-before running anything else.** A driver's per-target dirty-tree guard cannot help here: it runs
-only BETWEEN targets and cannot see a concurrent external command. (Corollary: the mid-sweep
-`git checkout <file>` ban is doubly load-bearing — a live vartest's working copy of `Score.cpp`
-got clobbered while mis-diagnosing the batch as dead.) Everything reported in this pickup was
-RE-MEASURED serially afterwards against a clean tree. (b) `residuals.py --csv <path>` sorts by the **`ndiff`** column — there is no
-`diff` column, and a wrong key silently yields "0 residuals" (positive-control rule, v103).
-
+`progress.py`/`exactset.py`/`residuals.py` is in flight (they share `build/*.obj`). Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone.
+⭐ **v108's "completion notification lies" trap REPRODUCED VERBATIM this session** — the
+`declorder` run on 0x406410 was reported `completed (exit code 0)` with only 12 of 120 variants
+logged, and `ps aux` showed it still running for ~16 more minutes. **Always gate on BOTH `ps aux`
+and the driver's own DONE marker**; the wait loop that works is
+`while ! (grep -q DRIVER-DONE log && ! pgrep -f 'declorder|vartest'); do sleep 5; done`.
+⚠ **Adding COMMENT lines to a byte-matched TU is a lesson-#23 risk, not a free action** — this
+session added 4 note blocks (Iact/Score/WorldgenHelpers) and re-ran all five oracles to prove
+the per-TU counts were unchanged. Do that, don't assume.
 ---
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)

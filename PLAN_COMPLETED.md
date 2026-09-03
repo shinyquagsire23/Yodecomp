@@ -3641,3 +3641,20 @@ suspecting the generator.
 
 ---
 
+
+## ⏮ v108 (2026-09-03) — 250 → 251 (+1 gained / 0 lost)
+
+- **`ParseTilesMaybe` 0x41a030 DIFF(3) → EXACT** via **decl ORDER at function scope** (lesson #38):
+  `int i;` BEFORE `int n = nBytes / 0x404;`. Every order with `n` first costs 40–43 B; `pNew,i,n`
+  and `i,pNew,n` both give 0 (a FAMILY — kept `pNew` first as the minimal change, lesson #36).
+- **Lesson #41 + `tools/declorder.py`**: a FLAT sweep is a signal to CHANGE AXIS, not to park. The
+  loop-form sweep (#40) came back dead flat across 8 spellings, and that is what pointed at the
+  decl dial. Cycle scope (#37) → set+order (#38) → loop form (#40) before parking.
+- **Harness trap (a)**: a "BACKGROUND COMMAND COMPLETED" notification does NOT mean a detached
+  sweep is done — a `nohup`'d batch reported exit 0 while its process tree ran ~10 more minutes,
+  silently invalidating a second sweep AND all five oracles run alongside it. Confirm with
+  `ps aux` AND the driver's own DONE marker. (b) `residuals.py --csv` sorts by `ndiff`, not `diff`.
+- Decl-order axis reported MINED OUT over residuals ≤13 B (0 improvements / 17 targets, 11 with
+  "no permutable block"). ⚠ **v109 showed that last figure was partly a tool bug** — see below.
+
+---

@@ -363,6 +363,10 @@ void Zone::ReadZaux(CFile *pFile)
 
 // FUNCTION: YODA 0x00406410
 // Parses an IZX2 record: one word list into genCandidateA.
+// v109: ALL 120 leading-decl permutations (tag,size,i,n,count) are flat at 47 B, so lesson #38
+// is closed here as well — the +3B `mov ax,mem; movsx ebp,ax` vs our single `movsx ebp,word mem`
+// survives BOTH the statement axis (v99, 20+ forms) and the decl axis. Applies to ReadZax3
+// 0x00406490 too: that function is this one textually, differing only in genCandidateA/B.
 void Zone::ReadZax2(CFile *pFile)
 {
     char  tag[5];

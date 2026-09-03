@@ -36,8 +36,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TYPES = (r"int|short|char|long|float|double|void|BOOL|UINT|DWORD|WORD|BYTE|LONG|"
          r"[A-Z]\w+")
-# a whole single-line declaration, capturing the declared name for labelling
+# a whole single-line declaration, capturing the declared name for labelling.
+# The trailing declarator is either an ARRAY extent (`char buf[32];` — v109: these were
+# silently unmatched, and because a buffer is so often the FIRST local the block detector
+# bailed on line 1 and reported "no permutable block" for 9 residuals, three of them the
+# SaveStoryHistory* family) or an optional initializer.
 DECL = re.compile(r"^\s+(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:%s)[\s\*]+(\w+)"
+                  r"(?:\s*\[[^\];]*\])*"
                   r"(?:\s*=[^;]*)?;\s*$" % TYPES)
 # things that end the leading decl block even though they look declaration-ish
 BAD = re.compile(r"\breturn\b|\bcase\b|\bgoto\b|::|\(\s*\)|\w+\s*\(")

@@ -73,6 +73,11 @@ int CDeskcppDoc::CalcScoreFromCounter()
 
 // FUNCTION: YODA 0x00401780  [logic-complete; NOT byte-exact — x87 2-accumulator
 // register/slot allocation differs (~9 bytes). Permuter-immune park (see CLAUDE.md).]
+// v109: the decl-ORDER axis is LIVE here (unlike the other v109 targets) but the CURRENT order
+// is already its optimum, which POSITIVELY CONFIRMS the transcription: `x` must lead (moving it
+// costs 16 B) and `solved` must precede `total` (swapping costs 15 B; full reversal 18 B). The
+// other 10 of 14 swaps are inert at 13. Still parked on the x87 accumulator axis — but the decl
+// block is now measured evidence rather than an untested guess.
 int CDeskcppDoc::CalcSolvedScore()
 {
     int   x;

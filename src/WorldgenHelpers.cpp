@@ -37,7 +37,8 @@ __inline void CDeskcppDoc::DemoDisable(CCmdUI *p)
 //   [count];jl); ours emits jl x3. Both while-forms + a 2^3 combo sweep canonicalize to jl —
 //   the choice is TU-phase, not source. Ours matches Alaska; N+O carry 2B each. Endgame item.
 //   order (cmp [count],eax vs cmp eax,[count]); both source directions + do-while emit ours.
-//   Lesson-#6 instruction selection. Cracks that got here: GetProfileString(...,"0") default,
+//   Lesson-#6 instruction selection. Cracks that got here: GetProfileString(...,"0") default,//   v109: the decl axis is closed too — the leading block is only {buf,pApp} and its single
+//   permutation is flat at 2 B, consistent with the phase-drift reading above.
 //   Find("_") > 0 arm inline-first, int v = atoi(left) - obfKey (int-width sub + temp-slot
 //   sharing), guarded do-while.]
 // Load the planet-1 story history from registry [GameData] Nevada0..N. Line format
@@ -229,6 +230,22 @@ void CDeskcppDoc::Nop1()
 //   numbering = full-TU/endgame territory (Records precedent). NOTE the orig loaders' own
 //   backedge cmp oscillates jg/jl/jg across identical source — MSVC 4.2 phase drift is REAL
 //   in the original binary too; don't chase per-function.]
+//   ⭐ v109 ADDS THREE MEASURED FACTS (all negative, all worth not re-treading).
+//   (a) The slot 3-cycle is now EXACT: orig lineNo@-0x1c base@-0x20 rem@-0x24; ours
+//       base@-0x1c rem@-0x20 lineNo@-0x24. The ebp-slot HISTOGRAMS are otherwise identical
+//       slot-for-slot, so nothing but the assignment of these three names has moved.
+//   (b) The "arm 2 reuses the running `base` instead of recomputing lineNo*10" hypothesis is
+//       REFUTED by the original's own bytes: it emits `lea edx,[eax+eax*4]; lea edx,[esi+edx*2]`
+//       = k + lineNo*10. `idx` as transcribed is right; do not merge it into `base`.
+//   (c) The 16 B is a FAILED CROSS-JUMP, not extra work: the orig loads `base` ONCE before
+//       `cmp esi,9` so both arms start with eax=base and end identically, letting it share the
+//       tail `lea buf; inc esi; push buf; call`. Ours loads `base` per-arm, so the arms land the
+//       buf pointer in different registers (eax vs ecx, and arm 2 then needs EBX -> the extra
+//       `push ebx`), and the tails can no longer merge. Everything downstream follows from that.
+//   Swept flat at 611: `int base;` hoisted to function scope at all 6 leading-decl positions
+//   (incl. the reverse-decl-order PREDICTION that it belongs right after `int rem;`), plus a
+//   rem/lineNo swap without hoisting. Decl SCOPE and ORDER are both INERT here (lesson #38
+//   does not reach it); the live axis is whatever makes cl hoist the `base` load above the cmp.]
 // Write storyHistoryNevada back to registry [GameData] Nevada0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
 void CDeskcppDoc::SaveStoryHistoryNevada()
