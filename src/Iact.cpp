@@ -58,7 +58,7 @@ void Zone::ReadIzon(CFile *pFile)
 // Called by World::LoadZoneRecursive.
 void Zone::ReadSavedState(CFile *pFile, int bFull)
 {
-    int count;
+    ZoneObj *o; int count;
     int i;
 
 #ifdef GAME_INDY
@@ -137,12 +137,12 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
     if (n < count) {
         int add = count - n;
         for (i = 0; i < add; i++) {
-            ZoneObj *o = new ZoneObj;
+            o = new ZoneObj;
             objects.SetAtGrow(objects.GetSize(), o);
         }
     }
     for (i = 0; i < count; i++) {
-        ZoneObj *o = (ZoneObj *)objects[i];
+        o = (ZoneObj *)objects[i];
         pFile->Read(&o->state, 2);
         pFile->Read(&o->arg, 2);
         pFile->Read(&o->type, 4);
