@@ -593,8 +593,12 @@ void CDeskcppDoc::SaveZoneRecursive(CFile *f, short zoneId, int bFull)
     }
 }
 
-// FUNCTION: YODA 0x00403450  [EFFECTIVE MATCH: DIFF(6) at exact length — residual register roles;
-//   the child-local (o->arg cached across the Reads) was the structural crack, cf. HitEntityAt.]
+// FUNCTION: YODA 0x00403450  [EFFECTIVE MATCH: DIFF(1) at exact length — v102: was DIFF(7). The
+//   crack was EVALUATION ORDER, not register roles: pre-caching `o->arg` into the local hoisted
+//   its load ABOVE the type test, where cl emits it after. Assigning inside the && keeps the
+//   callee-saved cache across the Reads AND the original's order (7 B -> 1 B). Mirrors
+//   SaveZoneRecursive above, which already reads o->arg inside the condition. The last byte is
+//   the savedId/child cmp operand order — a pure commutative tie-break, canonicalized either way.]
 // .wld load mirror: read + verify each door child id before recursing.
 void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
 {
@@ -605,8 +609,8 @@ void CDeskcppDoc::LoadZoneRecursive(CFile *f, short zoneId, int bFull)
     int n = z->objects.GetSize();
     for (int i = 0; i < n; i++) {
         ZoneObj *o = (ZoneObj *)z->objects[i];
-        short child = o->arg;      // cached in a callee-saved reg across the Read calls
-        if (o->type == 9 && child >= 0) {
+        short child;               // cached in a callee-saved reg across the Read calls
+        if (o->type == 9 && (child = o->arg) >= 0) {
             f->Read(&savedId, 2);
 #ifdef GAME_INDY
             { short sfull; f->Read(&sfull, 2); savedFull = sfull; }   // retail Indy full-flag is 16-bit
