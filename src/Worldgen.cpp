@@ -5020,13 +5020,19 @@ void CDeskcppDoc::Serialize(CArchive &ar)
 }
 
 // FUNCTION: YODA 0x00423d20
+// [EXACT at v107 via lesson #38 (decl SET + ORDER). Both `i` and `pZone` must sit at
+// FUNCTION scope, in that order, and nCount must be initialised in its declaration:
+// hoisting `i` alone = 5 B, `pZone` alone = 9 B, `pZone` before `i` = 9-11 B, and the
+// all-top form with `nCount` assigned separately = 5 B. Inert: zones[i] vs GetAt(i),
+// the cmp mirror, and an early-`continue` body. A do-while countdown emits 53 B vs the
+// original's 60 — structurally ruled out.]
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
 void CDeskcppDoc::SetCurrentToIntroZone()
 {
-    int nCount = zones.GetSize();
-    for (int i = 0; i < nCount; i++)
+    int nCount = zones.GetSize(), i; Zone *pZone;
+    for (i = 0; i < nCount; i++)
     {
-        Zone *pZone = (Zone *)zones.GetAt(i);
+        pZone = (Zone *)zones.GetAt(i);
         if (pZone->type == ZONE_TYPE_INTRO)
         {
             currentZone = pZone;
