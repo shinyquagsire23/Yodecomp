@@ -485,19 +485,24 @@ void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
         placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), keep[j]);
 }
 
-// FUNCTION: YODA 0x00403140  [DIAL-SENSITIVE: byte-exact under the 2026-07-06 RecordClasses.h
-//   decl set; DIFF(10) again since the real-GameView.h de-dup (step 5, 2026-07-07) rotated the
-//   TU dial. Proven correct; settles at G1.]
+// FUNCTION: YODA 0x00403140
 // Stamp a zone's visible objects into tile layer 1. Types 0/1/2/5/6/7/8 place their tile if
 // active and the cell is empty; type 0xb forces tile 0x1cb.
+// NOTE: `z`/`o`/`t` are declared at FUNCTION scope in THIS order, and ONE `t` serves both switch
+//   arms. All three facts are load-bearing (loop-body-scoped `o`/`t` or a second `t2` costs 22 B;
+//   declaring `z` after `o` costs 22 B). See CLAUDE.md "declaration SCOPE is a reg-alloc dial".
 void CDeskcppDoc::PlaceZoneObjectTiles(short zoneId)
 {
+    Zone *z;
+    ZoneObj *o;
+    int t;
+
     if (zoneId >= 0) {
-        Zone *z = zoneObjects[zoneId];
+        z = zoneObjects[zoneId];
         if (z != 0) {
             int n = z->objects.GetSize();
             for (int i = 0; i < n; i++) {
-                ZoneObj *o = (ZoneObj *)z->objects[i];
+                o = (ZoneObj *)z->objects[i];
                 switch (o->type) {
                 case 0:
                 case 1:
@@ -507,7 +512,7 @@ void CDeskcppDoc::PlaceZoneObjectTiles(short zoneId)
                 case 7:
                 case 8:
                     if (o->state == 1 && o->arg >= 0) {
-                        int t = (short)z->GetTile(o->x, o->y, 1);
+                        t = (short)z->GetTile(o->x, o->y, 1);
                         if (t < 0)
                             z->SetTile(o->x, o->y, 1, o->arg);
                     }
@@ -515,8 +520,8 @@ void CDeskcppDoc::PlaceZoneObjectTiles(short zoneId)
                 case 0xb:
                     if (o->state == 1) {
                         o->arg = 0x1cb;
-                        int t2 = (short)z->GetTile(o->x, o->y, 1);
-                        if (t2 < 0)
+                        t = (short)z->GetTile(o->x, o->y, 1);
+                        if (t < 0)
                             z->SetTile(o->x, o->y, 1, 0x1cb);
                     }
                     break;

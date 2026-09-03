@@ -126,25 +126,25 @@ IactScript::IactScript()
 
 // FUNCTION: YODA 0x004187c0  (compiler-generated scalar-deleting destructor ??_GIactScript)
 
-// FUNCTION: YODA 0x004187e0  [EFFECTIVE MATCH: DIFF(7) — loop-1 walker/counter ESI<->EDI 2-cycle.
-//   The ORIGINAL's own two (source-identical) loops use OPPOSITE allocations (loop1 walker=ESI,
-//   loop2 walker=EDI); ours emits loop2's allocation twice. Same phase-drift class as the
-//   GameData loader jg/jl/jg triple. Probes inert: decl order, i=0-before-n. Dial/endgame.]
+// FUNCTION: YODA 0x004187e0
 // Delete the owned condition/command objects (virtual dtor via delete), then empty both arrays.
+// NOTE: `p` is declared at FUNCTION scope, 1997-C style, not inside the loop bodies. That is
+//   load-bearing for the byte match: a loop-body-scoped `p` flips loop 1's walker/counter pair
+//   from ESI/EDI to EDI/ESI (7 B). See CLAUDE.md "declaration SCOPE is a register-allocation dial".
 IactScript::~IactScript()
 {
     int n, i;
-
+    CObject *p;
     n = conditions.GetSize();
     for (i = 0; i < n; i++) {
-        CObject *p = conditions[i];
+        p = conditions[i];
         if (p)
             delete p;
     }
     conditions.SetSize(0, -1);
     n = commands.GetSize();
     for (i = 0; i < n; i++) {
-        CObject *p = commands[i];
+        p = commands[i];
         if (p)
             delete p;
     }

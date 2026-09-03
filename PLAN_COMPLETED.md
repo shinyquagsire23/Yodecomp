@@ -3253,3 +3253,31 @@ regressions. Mechanism = standing lesson #35 in CLAUDE.md. Also `LoadZoneRecursi
 inside the `&&` restores cl's order — the parked note blamed "residual register roles", wrong).
 New instrument `tools/vartest.py` (batch-A/B source spellings vs the anchor byte oracle,
 `--expect N` enforces the baseline rule on itself) landed both wins.
+
+---
+
+### ⏮ v103 (2026-09-02) — 237 → 240, +3 gained / 0 lost (demoted from CLAUDE.md at v104)
+
+1. **`ParseSnds` 0x4233f0 (5 B → EXACT) — a buffer's DECLARED SIZE is a dial.** `char fname[9]`
+   (DOS 8.3 basename + NUL), not `[12]`. v36 had exhaustively permuted all 24 decl ORDERS and
+   parked it as irreducible; it never varied sizes. Standing lesson #36.
+2. **`OnEraseBkgnd` 0x413b20 (6 B → EXACT) — `pDC->PatBlt(...)`, lesson #35.** The residual was
+   the TAIL FUNCLET ORDER, an axis the old note declared "not source-steerable". It is.
+3. **`CyclePalette` 0x415af0 (6 B → EXACT) — `pWorld->pPalette->AnimatePalette(...)`.** The
+   conversion is NON-MONOTONIC: both calls = 6 B, first only = 0 B, both + DC members = 0 B.
+4. **`DrawDirectionArrows` 0x4270f0 28 B → 21 B** via `pDC->FillRect(&rc, &br)`. Its last block's
+   x/y decl order re-probed and CONFIRMED correct (swapping = 27 B); pOldPal-first head is inert.
+5. **microfx gained `CDC::PatBlt`** (afxwin.h) for the portable build.
+6. Harness lie #4 found: `tools/residuals.py --csv` writes `va` in DECIMAL; an ad-hoc scan parsed
+   it with `int(va, 16)`, reported zero member-call sites, and nearly closed that seam. Corrected
+   scan found 28. ⇒ print a positive control before believing an empty result.
+
+### ⏮ v104 (2026-09-02) — 240 → 244, +4 gained / 0 lost
+
+New lesson **#37: a local's DECLARATION SCOPE is a register-allocation dial** — see the standing
+bullet in CLAUDE.md. Landed `IactScript::~IactScript` (7→0), `Zone::~Zone` (12→0),
+`PlaceZoneObjectTiles` (22→0), `LoadZoneRecursive` (fell out alongside); improved `FindObjectAt`
+11→2. New tool `tools/hoisttest.py`. Method note: the productive move was a **register-permutation
+census** over every residual (does ONE consistent reg→reg renaming explain the whole diff?) — 10 of
+138 residuals are in that class, and it is the class the lever addresses. Three source park notes
+claiming "no source lever reaches this" were retracted by measurement.

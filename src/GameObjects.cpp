@@ -463,16 +463,16 @@ Zone::Zone(short w, short h)
 
 // FUNCTION: YODA 0x00405300  (compiler-generated scalar-deleting destructor ??_GZone -- MATCH, no source)
 
-// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(13). PERMUTER-CONFIRMED (2026-07-05) as pure
-//   register allocation: asmscore drops to align=0 (instructions 1:1 identical), residual is a clean
-//   3-register rotation (ecx/edx/esi for walk-ptr/x/obj -- orig reuses the dead `this` in ECX for the
-//   walk, mine for the obj) + loop guard `test edi,edi` vs `cmp edi,eax` + counter-cmp operand order.
-//   No stmt/decl/cmp lever reaches it (one leading decl). Semantically identical.]
+// FUNCTION: YODA 0x00405330  [EFFECTIVE MATCH: DIFF(2). `obj` is declared at FUNCTION scope and that
+//   is load-bearing: a loop-body-scoped `obj` costs 11 B (a clean ecx/edx/esi 3-register rotation for
+//   walk-ptr/x/obj). ⚠ RETRACTS this note's old "no stmt/decl/cmp lever reaches it" — the decl-SCOPE
+//   lever does (CLAUDE.md lesson #37). Last 2 B = loop guard: orig `test edi,edi`, ours `cmp edi,eax`
+//   (cl reusing the zeroed `result`); source-inert over 7 more spellings. Keep this block LINE-NEUTRAL.]
 ZoneObj *Zone::FindObjectAt(int x, int y)
 {
-    ZoneObj *result = 0;
+    ZoneObj *result = 0; ZoneObj *obj;
     for (int i = 0; i < objects.GetSize(); i++) {
-        ZoneObj *obj = (ZoneObj *)objects[i];
+        obj = (ZoneObj *)objects[i];
         if (obj->x == x && obj->y == y && obj->state == 1) {
             result = obj;
             break;
@@ -508,22 +508,23 @@ void Zone::SetTile(int x, int y, int layer, short val)
         tiles[(y * ZONE_WIDTH + x) * ZONE_LAYERS + layer] = val;
 }
 
-// FUNCTION: YODA 0x004054d0  [EFFECTIVE MATCH: DIFF(12) on 506 bytes -- pure ESI<->EDI reg-alloc
-//   (count vs offset register) in the 3 element-deletion loops; the objects loop matches, iact/
-//   entities drew the opposite phase. Structurally identical.]
+// FUNCTION: YODA 0x004054d0
 // Destructor: delete the CObject* elements of objects/iactScripts/entities (virtual dtor via delete),
 // SetSize(0,-1) each, then SetSize the 4 CDWordArray scratch lists; members auto-destruct after.
+// NOTE: `p` is declared at FUNCTION scope, not inside the loop bodies — load-bearing for the byte
+//   match (a body-scoped `p` flips the count/offset pair to EDI/ESI in 2 of the 3 loops, 12 B).
 Zone::~Zone()
 {
     int i, n;
+    CObject *p;
     n = objects.GetSize();
-    for (i = 0; i < n; i++) { CObject *p = objects[i]; if (p) delete p; }
+    for (i = 0; i < n; i++) { p = objects[i]; if (p) delete p; }
     objects.SetSize(0, -1);
     n = iactScripts.GetSize();
-    for (i = 0; i < n; i++) { CObject *p = iactScripts[i]; if (p) delete p; }
+    for (i = 0; i < n; i++) { p = iactScripts[i]; if (p) delete p; }
     iactScripts.SetSize(0, -1);
     n = entities.GetSize();
-    for (i = 0; i < n; i++) { CObject *p = entities[i]; if (p) delete p; }
+    for (i = 0; i < n; i++) { p = entities[i]; if (p) delete p; }
     entities.SetSize(0, -1);
     providedItemsA.SetSize(0, -1);
     providedItemsB.SetSize(0, -1);

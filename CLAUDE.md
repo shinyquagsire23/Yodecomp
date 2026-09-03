@@ -9,9 +9,9 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#35 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103 (REAL MATCHES))
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **240 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **244 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -180,17 +180,18 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **240 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **244 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **240 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103; all five oracles re-run in the
+⚠ **244 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104; all five oracles re-run in the
 same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
-v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form). The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
+v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
+v104: four via DECLARATION SCOPE, lesson #37). The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
 never let it drift.
 
 ⭐ **THE MFC MEMBER-CALL FORM IS A MATCHING LEVER (lesson #35; v102 — the argument-ordering
@@ -240,6 +241,33 @@ underlying cl 10.20 key stays opaque — name 13 and 16 have identical padded sl
 matches. So pick the idiomatic value inside the measured window and say so; don't invent a sort rule.
 (Method note: solve the frame by tracking `esp` through the prologue/pushes and normalising every
 `[esp+N]`; every byte of the original's 0xac frame accounted for exactly.)
+
+⭐ **A LOCAL'S DECLARATION SCOPE IS A REGISTER-ALLOCATION DIAL (v104, lesson #37) — the lever that
+cracks the "pure register permutation" class.** cl 10.20 assigns registers differently depending on
+whether a local is declared at FUNCTION scope or inside an inner block (loop body / if body /
+for-init), even when the emitted work is instruction-for-instruction identical. Fingerprint:
+**the residual is explained ENTIRELY by a consistent register renaming** (esi↔edi, ebx↔ebp, a
+3-cycle) — same mnemonics, same schedule, same operand order, only register NAMES swapped. A
+permutation census found **10 of 138 residuals** in that class; the lever landed 4 of them.
+- ✅ Landed at v104: `IactScript::~IactScript` 0x4187e0 (7 B→0, hoist `CObject *p`),
+  `Zone::~Zone` 0x4054d0 (12 B→0, same), `PlaceZoneObjectTiles` 0x403140 (22 B→0),
+  `LoadZoneRecursive` 0x403450 (fell out exact alongside), `FindObjectAt` 0x405330 (11 B→2 B).
+- ⚠ **It is DIRECTIONAL, not a free knob.** `CDeskcppDoc::~CDeskcppDoc` 0x41b2f0 really does scope
+  `p` to the loop body — hoisting DOUBLES its residual (6→12). `WorldgenCollectZoneRefs` 0x41f8e0
+  likewise (9→16). That asymmetry is what makes a win EVIDENCE about the 1997 source rather than a
+  number to game: the author wrote C-style "declare at the top" in some functions and not others.
+- ⭐ **Two refinements, both measured.** (1) **Decl ORDER at function scope matters**:
+  PlaceZoneObjectTiles is exact with `Zone *z` declared BEFORE `ZoneObj *o`, and 22 B with it after.
+  (2) **The original sometimes reused ONE variable where we had two** — PlaceZoneObjectTiles needed
+  `t2` merged into a single `t` serving both switch arms; hoisting alone only got it 22→10.
+- Sometimes only a PAIR of hoists moves anything (`Zone::WriteSavedState` 0x405f30: every single
+  hoist = 13 B, any pair = 7 B), because the count/order of function-scope decls is itself the input.
+⇒ Tool: **`tools/hoisttest.py <tu.cpp> <0xADDR> --expect N`** enumerates the hoist subsets (and both
+decl orders) and delegates measurement to `vartest.py` verbatim, inheriting the anchor's exact
+predicate + the `--expect` baseline guard. ⚠ Its variants are line-neutral by construction (decls are
+crammed onto the first body line); when you APPLY a win, re-check the WHOLE TU — a +4-line natural
+reformat of `FindObjectAt` cost a DIFFERENT function in the same TU (lesson #23 in the wild), while
+the line-neutral spelling of the same change cost nothing.
 
 ⭐ **PROBE SPELLINGS, DON'T REASON ABOUT SCHEDULES (v102 method).** Both wins this session came
 from enumerating ~10 ways the 1997 author could have SPELLED one statement and letting
@@ -570,55 +598,56 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-02 v103 — **237 → 240**, +3 gained / 0 lost, all real
-matching, plus a 28 B→21 B improvement. All 5 oracles green (240 exact / link 0-0-exit0 /
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v104 — **240 → 244**, +4 gained / 0 lost, all real
+matching, plus `FindObjectAt` 11 B → 2 B. All 5 oracles green (244 exact / link 0-0-exit0 /
 bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN); build-sdl + build-sdl-indy relinked.
-v102 log demoted to PLAN_COMPLETED.md ⏮.)
+v103 log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT LANDED.**
-1. **`ParseSnds` 0x4233f0 (5 B → EXACT) — a buffer's DECLARED SIZE is a dial.** `char fname[9]`
-   (DOS 8.3 basename + NUL), not `[12]`. v36 had exhaustively permuted all 24 decl ORDERS and
-   parked it as irreducible; it never varied sizes. New standing lesson #36 in CLAUDE.md (incl.
-   the method: solve the original's frame by normalising `[esp+N]` through the prologue).
-2. **`OnEraseBkgnd` 0x413b20 (6 B → EXACT) — `pDC->PatBlt(...)`, lesson #35.** The residual was
-   the TAIL FUNCLET ORDER, an axis the old note declared "not source-steerable". It is.
-3. **`CyclePalette` 0x415af0 (6 B → EXACT) — `pWorld->pPalette->AnimatePalette(...)`.** ⚠ the
-   conversion is NON-MONOTONIC: both calls = 6 B, first only = 0 B, both + DC members = 0 B.
-4. **`DrawDirectionArrows` 0x4270f0 28 B → 21 B** via `pDC->FillRect(&rc, &br)`. Its last block's
-   x/y decl order re-probed and CONFIRMED correct (swapping = 27 B); pOldPal-first head is inert.
-5. **microfx gained `CDC::PatBlt`** (afxwin.h) for the portable build.
+**▶ WHAT LANDED — one new lever, lesson #37: A LOCAL'S DECLARATION SCOPE IS A REG-ALLOC DIAL.**
+Full write-up is the standing bullet in this file; the short version is that a residual explained
+ENTIRELY by a register RENAMING (esi↔edi, ebx↔ebp) is usually a decl-scope bug, not a compiler
+ceiling. Landed exact: `IactScript::~IactScript` 0x4187e0 (7→0), `Zone::~Zone` 0x4054d0 (12→0),
+`PlaceZoneObjectTiles` 0x403140 (22→0, needed `z`/`o`/`t` hoisted IN THAT ORDER **and** `t2`
+merged into one `t`), `LoadZoneRecursive` 0x403450 (fell out alongside). Improved:
+`FindObjectAt` 0x405330 11→2 (whole 3-register rotation gone; last 2 B is `test edi,edi` vs
+`cmp edi,eax`, proven inert over 7 more spellings). New tool **`tools/hoisttest.py`**.
+
+**▶ RETRACTIONS — three park notes in the source said "no source lever reaches this". All wrong:**
+`FindObjectAt` ("no stmt/decl/cmp lever, one leading decl"), `~IactScript` ("phase drift,
+dial/endgame"), `PlaceZoneObjectTiles` ("proven correct; settles at G1"). ⇒ A park note is a
+record of which axis was probed, NOT proof of irreducibility (same shape as v103's lesson #36).
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ Keep mining the member-call seam — it is NOT exhausted.** Regenerate the census
-   (`tools/residuals.py --csv out.csv`) then scan for global-form `::Call(` sites inside non-exact
-   functions. ⚠ **`va` in that CSV is DECIMAL — parse with `int(va)`, not base 16** (that exact bug
-   made a v103 scan report zero hits and nearly closed this seam; see harness-lies item 4).
-   At v103 the scan found 28 such functions; still unconverted and ranked by ndiff:
-   `OnInitialUpdate` 0x426c40 (14, `::SetTimer(m_hWnd,…)` — trivial object, low odds),
-   `UpdateDragCursor` 0x412cc0 (379, `::SetBitmapBits((HBITMAP)pBitmap->m_hObject,…)` →
-   `pBitmap->SetBitmapBits(…)`, and `::BitBlt(pDC->m_hDC, …, dcMem.m_hDC, …)` → `pDC->BitBlt(…, &dcMem, …)`),
-   `DrawHealthNeedle` 0x4278a0 (803, `penA.Attach(::CreatePen(…))` → `penA.CreatePen(…)`, same for
-   `CreateSolidBrush`), `OnNewDocument` 0x41bb10 (537, `pPal->Attach(::CreatePalette(…))`),
-   `AddItemToInv` 0x428f50 (381) + `OnTimer` 0x40d470 (2870) (`::SetScrollRange(pInvScrollBar->m_hWnd,…)`).
-   Prefer PONTER-CHAIN objects; `m_hWnd`/`pDC->m_hDC` roots are usually inert.
-2. **Proven INERT at v103 — do not re-tread:** `GetZoneIndex` 0x423dc0 (9 loop spellings; the
-   do-while shape IS right — pre-test loops are 42 B vs the original's 44 B), `ParseTilesMaybe`
-   0x41a030 (6 spellings; the old note's "operand flip proven inert" was CORRECT), both MainFrm
-   palette handlers 0x4193f0/0x419460 (8 member+boolean variants, all 54 B), `DrawIcon` member form.
-   ⇒ The **cmp-swap / jcc-mirror class is now source-inert 3-for-3** — residuals.py's `tie=True`
-   flag (top 6 rows) is trustworthy; skip those rows.
-3. **Remaining cheap residuals, unexamined:** `~CDeskcppDoc` 0x41b2f0 (6 B — pure esi↔edi 2-cycle
-   on a count/index loop), `SetCurrentToIntroZone` 0x423d20 (7), `~IactScript` 0x4187e0 (7),
-   `ReadIzon` 0x405ae0 (7), `GetFrameTile` 0x404850 (2, tie=True). `SaveZoneRecursive` 0x4033b0 is
-   the documented ebx↔ebp 2-cycle — skip.
+1. **⭐ Finish the decl-scope seam — it is NOT exhausted.** 111 of 138 residuals have inner-block
+   declarations. Unprobed PERM-class targets: `ParseZax3` 0x423190 (11 B, bp→di→si 3-cycle),
+   `DetonateAdjacentTiles` 0x428680 (60 B, di↔si), `~CDeskcppDoc` 0x41b2f0 (6 B, di↔si — ⚠ plain
+   hoisting makes it WORSE, so its `p` is genuinely loop-scoped; the lever must be something else).
+   Then the wider block-decl list ranked by ndiff (`ZoneHasIzxItemMaybe` 0x41bfa0 17 B/6 decls,
+   `WorldgenAssignTransitItemMaybe` 0x41d480 13 B/9, `ReadSavedState` 0x405bd0 21 B/10).
+   Recipe: `tools/hoisttest.py <tu.cpp> <addr> --expect N` (N from `tools/bytediff.py`).
+2. **`Zone::WriteSavedState` 0x405f30 sits at 13 B with a 7 B spelling available** (any PAIR of
+   {o,e,p,k} hoisted). NOT applied — 7 B is not a match and I would not churn a shared TU on
+   suggestive-only evidence. Finish it (the waypoint `p`/`k` loop is the untouched part) or drop it.
+   ⚠ its candidate list includes decls inside the `#ifdef GAME_INDY` branch, which are INERT for
+   the anchor but real for the Indy build — check which sites you are actually moving.
+3. **Proven INERT at v104 — do not re-tread:** `DifficultyDlg::OnHScroll` 0x417fa0 (13 spellings:
+   member-call form, assign-in-condition, sub/fold, cmp order — its 6 B is a cmp-swap + a
+   mov/cmp order in the SB_PAGEUP arm; PAGEDOWN matches only because `add` folds into `lea`),
+   `SetCurrentToIntroZone` 0x423d20 (9 loop spellings), `ReadIzon` 0x405ae0 (`char tag[5..16]`
+   sizes + all decl orders — sizes 5/6/8 identical, 9+ worse), `WorldgenCollectZoneRefs` 0x41f8e0,
+   `ZoneRequiresItemMaybe` 0x41c0b0, `SaveZoneRecursive` 0x4033b0.
 4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
    `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
 5. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
-atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
-while a `progress.py` is in flight: they fight over the header AND `build/*.obj`. Verify a clean tree
-with `git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
+**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a source file — always `git diff --stat src/`
+AFTER each one. ⚠ **v104 caught two real traps here:** (a) a sweep piped through `grep` that the
+harness BACKGROUNDED at its 600 s limit left `src/Iact.cpp` in a variant state despite vartest's
+atexit restore — run sweeps with `run_in_background` writing to a LOG FILE, never through a pipe;
+(b) `git checkout <file>` to undo a probe silently reverted an ALREADY-LANDED fix in the same file,
+and the next three measurements were quietly wrong. Restore a single function from
+`git show HEAD:<file>`, not the whole file. Never run two sweeps concurrently or one while
+`progress.py` is in flight (they fight over the source AND `build/*.obj`).
 
 ---
 
