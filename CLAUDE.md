@@ -6,13 +6,14 @@ into real, buildable C++/MFC source, plus an extended multi-game engine built on
 modify this file with any useful notes that will aid other/later Claudes.
 
 **Deep history lives in `PLAN_COMPLETED.md`** — the full phased plan (A–G), TU/struct status tables, the
-v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#33 + MFC-matching lessons** (cite as
+v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#35 + MFC-matching lessons** (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; byte count re-baselined 217→234 at v100 — MEASUREMENT FIX)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102 (REAL MATCHES))
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **234 functions byte-exact / 99.17 % coverage** (v100: +17 is a
-**MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; see v100 pickup),
+Phases A–G (byte-matching YodaDemo.exe's app region): **237 functions byte-exact / 99.17 % coverage** (v100's
++17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
+real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
 oracles green.
 
@@ -179,17 +180,40 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **234 exact / 99.17 %** |
+| exact count | `python3 tools/progress.py` | **237 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
-⚠ **234 is the CURRENT baseline (re-baselined at v100 from 217, ALL five oracles re-run in the same
-pass).** ⭐ **The +17 is a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions were
-ALREADY byte-exact and were being scored against the WRONG addresses. Do not read it as progress on
-matching. The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
+⚠ **237 is the CURRENT baseline (234 at v100, +3 REAL matches at v102; all five oracles re-run in the
+same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
+were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
+matching. **v102's +3 IS matching** (the TextDialog scroll family, via `CWnd::SendMessage`). The project-wide per-TU count is the thing that must never drop; re-baseline deliberately,
 never let it drift.
+
+⭐ **THE MFC MEMBER-CALL FORM IS A MATCHING LEVER (lesson #35; v102 — the argument-ordering
+guise of lesson #34).** `pWnd->SendMessage(msg, w, l)` and `::SendMessage(pWnd->m_hWnd, msg, w, l)` are
+semantically identical and MFC's member is a thin inline — but they are NOT codegen-identical when
+the object expression is non-trivial. The member's implicit `this` (here the `pParentView->ctrl`
+address) must be evaluated BEFORE the argument pushes; the global form lets cl fold the `m_hWnd`
+load in among them. Fingerprint: **same instruction count, same registers, one load sitting 1–2
+bytes earlier/later around a run of `push`es** (`align 12`, `reg_pen 0`). That signature had three
+TextDialog functions parked as "EFFECTIVE — schedule shift" since G1; switching to the member form
+made all three exact (+3, zero regressions). ⇒ when a residual is a load shifting across argument
+pushes, **try the MFC member wrapper before touching the schedule**. Corollary measured the same
+session: where the object expression is a bare `m_hWnd` (this-relative) or a plain `CScrollBar*`
+with a constant `SB_CTL`, the two forms fold to identical bytes — inert, so don't churn those.
+
+⭐ **PROBE SPELLINGS, DON'T REASON ABOUT SCHEDULES (v102 method).** Both wins this session came
+from enumerating ~10 ways the 1997 author could have SPELLED one statement and letting
+`tools/vartest.py` measure each against the anchor's byte oracle. Most spellings fold to identical
+codegen — that "source-inert" verdict is a real result, and it retires a residual honestly instead
+of leaving it open. Proven inert this way so far: `FindTile` 0x403aa0 (cast placement, `void**`
+walk, cmp operand order, decl order, for-vs-do-while), `BlitMasked` 0x408240 (every associativity
+of `pData + destX + canvasW * destY`), and the `savedId != child` compare in `LoadZoneRecursive`.
+⚠ keep variants LINE-NEUTRAL — a line-count change mid-TU rotates the dial on its own (lesson #23)
+and confounds the measurement.
 
 ⭐ **THE INSTRUMENT ITSELF CAN LIE — verify the harness before chasing its targets (v100, two real
 tool bugs found in one session).** Both silently manufactured work that did not exist:
@@ -224,7 +248,7 @@ re-derive `_want_key` per marker and assert it appears in the paired COMDAT name
 ⇒ ⭐ **A measurement tool must AGREE WITH THE ANCHOR AT BASELINE before any of its deltas mean
 anything.** All three bugs would have been caught on day one by one assert: run the tool with a
 null/zero perturbation and check it reports the same number as `progress.py`. Any new harness gets
-that check first. (`bytediff.py`/`residuals.py` share progress.py's exact filtering + pairing code
+that check first. (`bytediff.py`/`residuals.py`/`vartest.py`/`exactset.py` share progress.py's filtering + pairing code
 for this reason — copy that block, never re-derive it.)
 
 ⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
@@ -475,7 +499,10 @@ Example: `http://localhost:8089/decompile_function?program=YodaDemo.exe&address=
 Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) · **`bytediff.py <src.cpp>
 [0xADDR...]`** (⭐ the ANCHOR's own definition of exact for ONE function — reloc-masked BYTE diff +
 hexdump of each differing run; run this BEFORE investing in any residual, per v100) ·
-**`residuals.py`** (⭐ census of all 144 non-exact functions RANKED by byte-diff, with a
+**`vartest.py <tu.cpp> <0xADDR> <variants.py> --expect N`** (⭐ batch-A/B a set of source SPELLINGS for
+ONE function against the anchor's byte oracle — the instrument that landed both v102 wins; ALWAYS pass
+`--expect`, it hard-fails when its own baseline disagrees with the anchor) ·
+**`residuals.py`** (⭐ census of the non-exact functions RANKED by byte-diff, with a
 commutative/tie-break classifier; the trustworthy replacement for sorting idiomscan's class D) ·
 **`verify.py <src.cpp>`** /
 **`match.py`** (per-TU marker compare, reloc-masked; best-fit can mis-pair clones — confirm name-keyed) ·
@@ -488,7 +515,7 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
 
-1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (234)
+1. **Orient:** read the ⏭ pickup block below; run `python3 tools/progress.py` to confirm the anchor (237)
    reproduces BEFORE changing anything (if not, a header drifted — bisect first).
 2. **Work** the pickup goals. Ghidra writes: always `program=`. Anchor rule for every shared-TU edit
    (ifdef fall-through = original tokens); re-run the anchor oracles after shared-code changes.
@@ -499,53 +526,53 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-02 v101 — worked pickup #2 (cheap class-D targets) and it led
-straight into a THIRD harness bug, this one in `tools/dialsweep.py`. Net: the v96 "compiler hunt
-re-opened / find the seven missing symbols" quest is **RETRACTED** — it was measuring the v100
-cascade. No src/ changes; anchor unmoved at **234**, all 5 oracles green. Two new tools shipped.
-v100 log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v102 — finished the v101 harness audit (a 4th and 5th tool
+bug), then got REAL MATCHING MOVEMENT for the first time since v99: **234 → 237**, +3 gained /
+0 lost, from a genuine source-fidelity fact. All 5 oracles green; build-sdl + build-sdl-indy
+re-linked. v101 log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT HAPPENED.** Took the pickup's cheap targets, but honoured its own instruction #1 —
-"re-verify with a raw reloc-masked byte diff" — which had no tool. Built one (`tools/bytediff.py`),
-then a full census (`tools/residuals.py`). Chasing the cheapest residuals surfaced that
-`dialsweep.py` had never been given the v100 `hinted` fix.
-
-**▶ ⭐ THE HEADLINE — v96's "215, +4 gained / 0 lost" DOES NOT EXIST** (full write-up:
-docs/compiler-hunt.md v101; summarised at the top of this file). `dialsweep.exact_set()` carried the
-pre-v100 COMDAT filter, and `membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure through
-it, so EVERY sweep number this project published was computed on the 28-mis-pair cascade. Fixed in
-the one shared place → dialsweep's baseline now equals the anchor's 234 (pre-fix: 211). Re-measured
-`Worldgen.h` n=0..8 for extern/struct/typedef: the three kinds still agree exactly with each other
-(the dial IS pure symbol count — that part of v96 is real), but **no position beats baseline**; n=7
-is 227 with **+0/−7**. `0x40ebe0`+`0x40fca0` (v96's claimed DeskcppView gains) are **already exact**
-at the corrected baseline — two of the 17 v100 recovered. `ParseZaux` 0x423110 differs in **78 of
-116 bytes**. ⇒ **Do not resume the missing-symbols hunt.**
-
-**▶ ⭐ THE TIE-BREAK FAMILY IS SMALL — quantified, so stop guessing at it.** `tools/residuals.py`
-classifies all 144 residuals by the anchor's byte oracle: **only 5 are pure commutative/selection
-tie-breaks**, all 2-byte, and all are source-INERT (I re-probed `GetZoneIndex` 0x423dc0 and
-`ParseTilesMaybe` 0x41a030 myself this session — flipping the source comparison is canonicalized
-away; `GetFrameTile`/`LoadWorldStateFile`/`Serialize` were already documented). So that seam's total
-upside is +5 and it has no known lever. The other **139 need real source/structure work**:
-74 differ in instruction COUNT or length (genuine structural difference — the honest place to dig),
-and the diff-site histogram is mov-operand=127, mov/lea=65, inc/add=32, jcc=31, cmp-swap=22.
+**▶ WHAT LANDED.**
+1. **Harness audit CLOSED (pickup item #1, 5-for-5 on finding bugs).** `exactset.py` had the SAME
+   pre-v100 COMDAT filter as progress/idiomscan/dialsweep — reported 218, not 234, with 28
+   positional-fallback warnings. Fixed. `permute.py`'s SUCCESS test was asmscore's
+   disassembly-derived byte_diff (the v100 "two definitions of exact" trap, so it could never
+   declare a win on a jump-table function) — now the anchor's byte compare; asmscore stays as the
+   gradient. `survey.py`/`frontier.py`/`asmscore.py` audited CLEAN. Incidental: **`/D _MBCS` is
+   not cosmetic** — it changes code in 5 of WorldgenHelpers.cpp's 27 COMDATs.
+2. **⭐ THE WIN — the original called `CWnd::SendMessage`, not `::SendMessage`.** The three
+   TextDialog scroll helpers (0x417c90 / 0x417d30 / 0x417dc0), parked since G1 as a shared
+   "pParentView-load schedule shift", were a CALL-FORM difference, not a schedule one. All 16
+   `::SendMessage(<CWnd>.m_hWnd, …)` sites converted to the member form (line-neutral). +3 exact,
+   0 regressions — the ✅ free-gain signature. Full mechanism: the new standing lesson "THE MFC
+   MEMBER-CALL FORM IS A MATCHING LEVER" above.
+3. **`LoadZoneRecursive` 0x403450: 7 B → 1 B.** Pre-caching `short child = o->arg;` hoisted the
+   load above the type test; assigning inside the `&&` restores cl's order. The parked note
+   blamed "residual register roles" — wrong, and it would have sent you hunting the wrong thing.
+   Corroborated by its mirror `SaveZoneRecursive`, which already had the original's shape.
+4. **`tools/vartest.py`** — the instrument behind both wins (batch-A/B source spellings vs the
+   anchor's byte oracle). It enforces the baseline rule on itself via `--expect N`; always pass it.
 
 **▶ NEXT — concrete, in priority order.**
-1. **Audit the remaining harnesses against the baseline rule** (see the new ⇒ bullet under "THE
-   INSTRUMENT ITSELF CAN LIE"): any tool that reports an exact-count must equal `progress.py` at
-   zero perturbation. `asmscore.py`, `permute.py`, `frontier.py`, `exactset.py`, `survey.py` are
-   UNAUDITED and several predate v100. Cheap, and this is now 3-for-3 on finding real bugs.
-2. **Work the 74 instruction-count-differing residuals**, not the tie-breaks. Start where the count
-   delta is smallest — `tools/residuals.py --csv out.csv`, then `tools/bytediff.py <tu> <addr>` for
-   the hexdump and `asmscore.py --dump` for the instruction view. Cheapest unexamined:
-   `FindTile` 0x403aa0 (4 B/53 B), `BlitMasked` 0x408240 (4 B), `ParseSnds` 0x4233f0 (5 B),
-   `UpdateDialogButtons` 0x417dc0 (6 B).
-3. **Re-run the v97 member conclusions** if anyone wants them — "members are INERT" was measured
-   through the broken `exact_set()` and v99 already contradicted it. `membertest.py` is fixed now.
+1. **Hunt more member-call sites.** The idiom is confirmed but only SendMessage is converted.
+   Non-trivial-object candidates still on the global form: `::SetScrollRange/SetScrollPos`
+   on `pInvScrollBar->m_hWnd` (DeskcppView.cpp 3513/3516/3526/3531, Worldgen.cpp 7889/7894),
+   `pCtrl->m_hWnd` in the three `OnInitDialog`s (8935/8936, 9025/9026, 9115/9116),
+   `::PostMessage(pFrame->m_hWnd, …)` (Worldgen.cpp 7656), and the `::BringWindowToTop`/
+   `::IsIconic(g_pExistingInstance->m_hWnd)` cluster (Deskcpp.cpp 89-94). ⚠ MEASURED INERT and
+   already reverted: the 36 `pScrollBar->m_hWnd` sites in the three `OnHScroll` bodies (a plain
+   `CScrollBar*` + constant `SB_CTL` folds identically) — don't redo that one.
+2. **Keep working residuals with `vartest.py`, not by reasoning.** Re-census first
+   (`tools/residuals.py --csv out.csv`); confirm the target with `tools/bytediff.py <tu> <addr>`
+   and pass that number as `--expect`. Unexamined and cheap: `ParseSnds` 0x4233f0 (5 B),
+   `OnEraseBkgnd` 0x413b20 (6 B), `CyclePalette` 0x415af0 (6 B), `~CDeskcppDoc` 0x41b2f0 (6 B),
+   `ParseTilesMaybe` 0x41a030 (3 B), `GetFrameTile` 0x404850 (2 B).
+3. **Do NOT re-tread these — proven source-inert this session:** `FindTile` 0x403aa0 (8 variants),
+   `BlitMasked` 0x408240 (6 variants; its sibling `BlitFast` 0x408110 is exact with the identical
+   expression), the `savedId != child` compare in `LoadZoneRecursive`. `SaveZoneRecursive`
+   0x4033b0 is a pure ebx↔ebp 2-cycle — the documented reg-coloring ceiling, skip it.
 4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
    `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
-5. **Not touched this session:** `build-sdl`/`build-sdl-indy` (no game-code change, so no portable
-   risk — but rebuild if you touch shared headers next). Phase-H goals 2-5 untouched.
+5. **Phase-H goals 2-5 untouched** this session.
 
 **▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
 atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one

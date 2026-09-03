@@ -3106,3 +3106,130 @@ bit-identical old-vs-new; `verify.py` independently reports the same 80.
 `membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure through — and its correction
 RETRACTED the v96 "215 / +4 gained / 0 lost / find the seven missing symbols" programme
 entirely. See docs/compiler-hunt.md v101.
+
+
+---
+
+### ⏮ v101 (2026-09-02) — the dialsweep cascade bug; the v96 "missing symbols" quest RETRACTED
+
+Condensed from the v101 ⏭ pickup (demoted at v102). Headline: `tools/dialsweep.py`'s
+`exact_set()` still carried the pre-v100 COMDAT filter, and `membertest.py`/`headersweep.py`/
+`enumfieldtest.py` all measure THROUGH it — so every sweep number the project ever published was
+computed on the 28-mis-pair positional cascade. Fixed; dialsweep's baseline then agreed with the
+anchor at 234 (pre-fix it said 211). Re-measured `Worldgen.h` n=0..8 for extern/struct/typedef:
+the three kinds agree exactly with each other (**the dial IS pure symbol count** — that part of
+v96 survives), but **no position beats baseline**; n=7 gives 227 with **+0 gained / −7 lost**, not
+the claimed 215 / +4 / −0. The two functions v96 said DeskcppView.cpp was "6-8 symbols short" of
+gaining (0x40ebe0, 0x40fca0) were **already byte-exact** at the corrected baseline — two of the 17
+the v100 fix recovered — and `ParseZaux` 0x423110 differs in **78 of 116 bytes**, not a
+one-declaration near-miss. ⇒ the "find the real seven missing symbols" quest is CLOSED.
+
+Also shipped at v101: `tools/bytediff.py` (the anchor's own definition of exact for ONE function —
+reloc-masked byte diff + hexdump of each differing run) and `tools/residuals.py` (census of the
+non-exact functions ranked by byte diff, with a commutative/tie-break classifier). The census
+quantified the tie-break seam: **only 5 residuals are pure commutative/selection tie-breaks**, all
+2-byte and all source-inert, so that seam's total upside is +5 and it has no known lever. The other
+~139 need real source/structure work — 74 differ in instruction COUNT or length. Diff-site
+histogram: mov-operand 127, mov/lea 65, inc/add 32, jcc 31, cmp-swap 22.
+
+Full detail: docs/compiler-hunt.md v101. The verbatim v101 pickup block follows.
+
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v101 — worked pickup #2 (cheap class-D targets) and it led
+straight into a THIRD harness bug, this one in `tools/dialsweep.py`. Net: the v96 "compiler hunt
+re-opened / find the seven missing symbols" quest is **RETRACTED** — it was measuring the v100
+cascade. No src/ changes; anchor unmoved at **234**, all 5 oracles green. Two new tools shipped.
+v100 log demoted to PLAN_COMPLETED.md ⏮.)
+
+**▶ WHAT HAPPENED.** Took the pickup's cheap targets, but honoured its own instruction #1 —
+"re-verify with a raw reloc-masked byte diff" — which had no tool. Built one (`tools/bytediff.py`),
+then a full census (`tools/residuals.py`). Chasing the cheapest residuals surfaced that
+`dialsweep.py` had never been given the v100 `hinted` fix.
+
+**▶ ⭐ THE HEADLINE — v96's "215, +4 gained / 0 lost" DOES NOT EXIST** (full write-up:
+docs/compiler-hunt.md v101; summarised at the top of this file). `dialsweep.exact_set()` carried the
+pre-v100 COMDAT filter, and `membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure through
+it, so EVERY sweep number this project published was computed on the 28-mis-pair cascade. Fixed in
+the one shared place → dialsweep's baseline now equals the anchor's 234 (pre-fix: 211). Re-measured
+`Worldgen.h` n=0..8 for extern/struct/typedef: the three kinds still agree exactly with each other
+(the dial IS pure symbol count — that part of v96 is real), but **no position beats baseline**; n=7
+is 227 with **+0/−7**. `0x40ebe0`+`0x40fca0` (v96's claimed DeskcppView gains) are **already exact**
+at the corrected baseline — two of the 17 v100 recovered. `ParseZaux` 0x423110 differs in **78 of
+116 bytes**. ⇒ **Do not resume the missing-symbols hunt.**
+
+**▶ ⭐ THE TIE-BREAK FAMILY IS SMALL — quantified, so stop guessing at it.** `tools/residuals.py`
+classifies all 144 residuals by the anchor's byte oracle: **only 5 are pure commutative/selection
+tie-breaks**, all 2-byte, and all are source-INERT (I re-probed `GetZoneIndex` 0x423dc0 and
+`ParseTilesMaybe` 0x41a030 myself this session — flipping the source comparison is canonicalized
+away; `GetFrameTile`/`LoadWorldStateFile`/`Serialize` were already documented). So that seam's total
+upside is +5 and it has no known lever. The other **139 need real source/structure work**:
+74 differ in instruction COUNT or length (genuine structural difference — the honest place to dig),
+and the diff-site histogram is mov-operand=127, mov/lea=65, inc/add=32, jcc=31, cmp-swap=22.
+
+**▶ NEXT — concrete, in priority order.**
+1. **Audit the remaining harnesses against the baseline rule** (see the new ⇒ bullet under "THE
+   INSTRUMENT ITSELF CAN LIE"): any tool that reports an exact-count must equal `progress.py` at
+   zero perturbation. `asmscore.py`, `permute.py`, `frontier.py`, `exactset.py`, `survey.py` are
+   UNAUDITED and several predate v100. Cheap, and this is now 3-for-3 on finding real bugs.
+2. **Work the 74 instruction-count-differing residuals**, not the tie-breaks. Start where the count
+   delta is smallest — `tools/residuals.py --csv out.csv`, then `tools/bytediff.py <tu> <addr>` for
+   the hexdump and `asmscore.py --dump` for the instruction view. Cheapest unexamined:
+   `FindTile` 0x403aa0 (4 B/53 B), `BlitMasked` 0x408240 (4 B), `ParseSnds` 0x4233f0 (5 B),
+   `UpdateDialogButtons` 0x417dc0 (6 B).
+3. **Re-run the v97 member conclusions** if anyone wants them — "members are INERT" was measured
+   through the broken `exact_set()` and v99 already contradicted it. `membertest.py` is fixed now.
+4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
+5. **Not touched this session:** `build-sdl`/`build-sdl-indy` (no game-code change, so no portable
+   risk — but rebuild if you touch shared headers next). Phase-H goals 2-5 untouched.
+
+**▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
+atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one
+while a `progress.py` is in flight: they fight over the header AND `build/*.obj`. Verify a clean tree
+with `git diff --stat src/` + `grep -rn "DIALSWEEP GENERATED" src/` before trusting any number.
+
+
+---
+
+### ⭐ KEY codegen lesson #35 — the MFC MEMBER-CALL FORM (v102)
+
+The argument-ordering guise of lesson #34. `pWnd->SendMessage(msg, w, l)` and
+`::SendMessage(pWnd->m_hWnd, msg, w, l)` are semantically identical, and MFC's member is a thin
+inline — but they are NOT codegen-identical when the object expression is non-trivial. The
+member's implicit `this` (the `pParentView->ctrl` subobject address) must be evaluated BEFORE the
+argument pushes; the global form lets cl fold the `m_hWnd` load in among them.
+
+**Fingerprint:** same instruction count, same registers, one load sitting 1-2 bytes earlier or
+later around a run of `push`es — `asmscore` reports `align 12, reg_pen 0, identity_miss 0`. This
+looks exactly like an unreachable scheduling tie-break, which is why the three TextDialog scroll
+helpers (ScrollTextLine 0x417c90, ScrollTextLine2 0x417d30, UpdateDialogButtons 0x417dc0) sat
+parked as "EFFECTIVE — cl schedules the pParentView load two bytes earlier than ours" from G1
+through v101. A prior session had tried caching `pParentView` in a local and made it far worse
+(align 120) and stopped there.
+
+**Rule:** when a residual is a load shifting across argument pushes, try the MFC member wrapper
+BEFORE touching the schedule. Converting all 16 `::SendMessage(<CWnd>.m_hWnd, …)` sites to the
+member form made all three exact: 234 → 237, +3 gained / 0 lost (the ✅ free-gain signature).
+
+**Corollary (measured the same session, so don't churn it):** where the object expression is a
+bare `m_hWnd` (this-relative), or a plain `CScrollBar*` with a constant `SB_CTL`, the two forms
+fold to identical bytes. The 36 `pScrollBar->m_hWnd` sites in the three `OnHScroll` bodies were
+converted, measured byte-for-byte inert, and reverted.
+
+### ⭐ Method lesson — PROBE SPELLINGS, DON'T REASON ABOUT SCHEDULES (v102)
+
+Both v102 wins came from enumerating ~10 ways the 1997 author could have SPELLED one statement and
+measuring each against the anchor's byte oracle (`tools/vartest.py`), rather than reasoning about
+what the scheduler "should" do. Reasoning had already failed on both of these for multiple
+sessions; the batch A/B took minutes.
+
+Most spellings fold to identical codegen. That **"source-inert" verdict is a real result** — it
+retires a residual honestly instead of leaving it open with a speculative note. Proven inert this
+way: `FindTile` 0x403aa0 (cast placement, `void**` walk, cmp operand order, decl order,
+for-vs-do-while — all 8 fold to the same 4-byte ECX/EDX tie-break), `BlitMasked` 0x408240 (every
+associativity and operand ordering of `pData + destX + canvasW * destY`; note its sibling
+`BlitFast` 0x408110 is byte-exact with the identical expression), and the `savedId != child`
+compare in `LoadZoneRecursive`.
+
+⚠ Keep variants LINE-NEUTRAL — a line-count change mid-TU rotates the dial on its own (lesson #23)
+and confounds the measurement. And `vartest.py` enforces the v100/v101 baseline rule on itself:
+`--expect N` hard-fails when its own zero-perturbation measurement disagrees with the anchor.
