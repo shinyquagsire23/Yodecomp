@@ -22,6 +22,11 @@ Also runs two controls, because a tool that can only confirm itself is worthless
 
 Usage:  tools/enumfieldtest.py [--tu src/Worldgen.cpp] [--header src/Worldgen.h] [--max 12]
 The header is ALWAYS restored (atexit + finally).
+
+⚠ v101: this tool measures through dialsweep.exact_set(), which until v101 carried the
+pre-v100 COMDAT filter and therefore the 28-mis-pair positional cascade. EVERY RESULT THIS
+TOOL PRODUCED BEFORE v101 IS UNVERIFIED and should be re-run before being cited (notably
+v97's "members are INERT", which v99 already contradicted). See docs/compiler-hunt.md v101.
 """
 import os, sys, atexit, shutil
 

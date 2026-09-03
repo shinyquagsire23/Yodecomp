@@ -79,7 +79,59 @@ proves the mixed-toolchain (interim-cl + 4.2 libs) theory. Until then the app-cl
 compiler lever is parked.
 ⚠ **v96: the app-cl axis is now effectively SETTLED as pure-4.2** — the 2 remaining discordant
 functions are 4.2-reachable via the declaration dial, so no mixed toolchain is required to explain
-the data. And "211 stands as the achievable exact count with our toolchain" is RETRACTED: 215.
+the data. ~~And "211 stands as the achievable exact count with our toolchain" is RETRACTED: 215.~~
+⛔ **v101: that last sentence is itself RETRACTED — 215 was a harness artifact (see the v101 section
+below). No dial position beats the baseline.** The pure-4.2 conclusion is unaffected: it rests on the
+static-library fingerprint (v52), not on the dial.
+
+## ⛔ v101 (2026-09-02) — THE v96 RE-OPENING IS RETRACTED: "+4/−0 at 215" WAS A HARNESS ARTIFACT
+
+**Verdict: there is NO free-gain dial position. 234 (the v100-corrected count) is the BEST position
+known, and every perturbation only LOSES.** The v96 "seven missing symbols" quest is closed.
+
+**Root cause — a THIRD instance of the v100 "the instrument itself can lie" bug, in the one tool the
+whole re-opening rested on.** `tools/dialsweep.py`'s `exact_set()` still carried the PRE-v100 COMDAT
+filter: it dropped lib-owned COMDATs *even when a marker explicitly names one by mangled hint*. Those
+markers then fell back POSITIONALLY inside `match.pair_by_name`, each stealing the COMDAT the next
+marker wanted — the same 28-mis-pair cascade through `DeskcppView.cpp` that v100 fixed in
+`progress.py`/`idiomscan.py`. ⚠ `membertest.py`, `headersweep.py` and `enumfieldtest.py` ALL measure
+through `dialsweep.exact_set()`, so **every sweep number this project has ever published inherited the
+bug.** Fixed in the one shared place (v101); `dialsweep`'s baseline now agrees with the anchor at 234
+(pre-fix it reported the familiar 211).
+
+**Re-measured on the corrected instrument** (`--all-tus`, dial header `Worldgen.h`, n=0..8):
+
+| n | v96 claimed | v101 extern | v101 struct | v101 typedef |
+|---|---|---|---|---|
+| 0 | 211 baseline | **234** | 234 | 234 |
+| 3 | 213 (+0x423110) | 228 (−6, +0) | 228 (−6, +0) | 228 (−6, +0) |
+| 6 | 214 | 227 (−7, +0) | 227 (−7, +0) | 227 (−7, +0) |
+| 7 | **215, +4 gained / 0 lost** | 227 (−7, **+0**) | 227 (−7, **+0**) | 227 (−7, **+0**) |
+| 8 | 214 | 229 (−5, +0) | 229 (−5, +0) | 229 (−5, +0) |
+
+The three kinds still agree exactly with each other (v96's "validated 4 ways" property — the dial IS
+pure symbol count, that part survives). What does NOT survive is the **+4/−0 free gain**, i.e. precisely
+the signature CLAUDE.md designates as "the fingerprint of truth". The only function ever made exact by
+any position is `0x40a320` (BlitTile), always at a cost of 8 losses — a TRADE, i.e. the fingerprint of
+PADDING. Nothing here justifies adding a declaration.
+
+**Why v96 saw a gain that was not there.** v96b decomposed the deficit as "`DeskcppView.cpp` is ~6-8
+symbols short → gains `0x40ebe0`, `0x40fca0`". **Both of those functions are ALREADY BYTE-EXACT at the
+corrected baseline** — they are among the 17 that the v100 pairing fix recovered. The dial positions
+that appeared to "gain" them were just positions where the mis-pairing cascade happened to land
+differently. The `Worldgen.cpp` half is likewise unsupported: `0x423110` (ParseZaux) is still non-exact
+with **78 differing bytes out of 116** — not a near-miss that one declaration could flip — and
+`0x41f830` (CheckZoneItemsAvailable) sits at 9.
+
+**Consequences.**
+- The "find the real seven symbols" hunt has no evidence behind it. Do not resume it. (Adding a
+  genuinely-missing declaration remains correct on its own merits — just not to chase a number.)
+- The v97 "members are INERT" result was measured through the same broken `exact_set()` and should be
+  treated as UNVERIFIED (v99 had already partially retracted it from the other direction: adding a
+  member FUNCTION to `CDeskcppView` demonstrably rotated Worldgen.cpp).
+- The de-facto rule stands and is now better evidenced: **the dial is an instrument, never a knob.**
+
+**Reproduce:** `YODA_PAIR_WARN=0 python3 tools/dialsweep.py --all-tus --kinds extern --max 8`.
 
 ## ⭐ v96 (2026-07-26) — HUNT RE-OPENED, then the discriminator FAILED (honestly): idiom test has NO POWER
 
@@ -192,10 +244,13 @@ fabricated a whole function of phantom "idiom delta"). The tool now ASSERTS that
 instruction counts implies an empty mnemonic delta, so that class of bug fails loudly.
 
 **⛔ HUNT CLOSED (2026-07-08) — no obtainable interim compiler exists on ANY accessible source.**
-⚠ **SUPERSEDED v96: closing it was right, but for the wrong reason — see the v96 section above.**
-No interim compiler is NEEDED. Both surviving 4.0-only functions go byte-exact under our own 4.2 at
-the right dial position, and 215 > 211 is reachable with zero regressions. Do not resume compiler
-hunting; DO resume the residual hunt, on the header/declaration axis. archive.org
+⚠ **SUPERSEDED v96 / RE-CORRECTED v101: closing it was right, and the v96 reason was WRONG.**
+~~Both surviving 4.0-only functions go byte-exact under our own 4.2 at the right dial position, and
+215 > 211 is reachable with zero regressions.~~ ⛔ v101: measured on a fixed `dialsweep`, no dial
+position is reachable with zero regressions at all, and `0x423110` differs in 78 of its 116 bytes.
+Do not resume compiler hunting (that verdict stands on the v52 static-library fingerprint); do NOT
+resume the "missing symbols" hunt either — pursue the residuals as ordinary source-fidelity work
+(`tools/residuals.py` ranks them on the anchor's own byte oracle). archive.org
 (public VC presses = 4.0/4.1/4.2, all tested; Jan-96 MSDN Level-2 = no VC) AND BetaArchive (user searched 4.0a /
 4.0 subscription / 4.1 beta → nothing) are both exhausted. The app-cl question (interim-cl mixed-toolchain vs
 pure-4.2 + 3 source-locked funcs) is therefore UNFALSIFIABLE with available artifacts — do NOT spend more time

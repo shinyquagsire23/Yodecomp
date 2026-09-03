@@ -69,8 +69,17 @@ def exact_set(tu):
     if not obj:
         return None
     text = open(tu).read()
+    # ⚠ v100: keep a lib-owned COMDAT that a marker EXPLICITLY names by mangled hint. Without
+    # this exception the filtered COMDAT makes its marker fall back POSITIONALLY inside
+    # pair_by_name, stealing the COMDAT the NEXT marker wanted and CASCADING mis-pairs through
+    # the rest of the TU (28 of them in DeskcppView.cpp). progress.py/idiomscan.py/verify.py
+    # all carry this exception; dialsweep had drifted — and membertest/headersweep/enumfieldtest
+    # all measure through exact_set(), so every sweep result before v101 inherited the bug.
+    hinted = set(re.findall(
+        r"//\s*FUNCTION:\s*YODA\s+0x[0-9a-fA-F]+[^\n]*?(\?\?(?:_[A-Z]|[0-9])\w+@@)", text))
     funcs = [f for f in match.coff_functions(obj)
-             if verify.owner_of(f[0]) not in verify.LIB_OWNERS
+             if (verify.owner_of(f[0]) not in verify.LIB_OWNERS
+                 or any(h in f[0] for h in hinted))
              and not f[0].lstrip("?").startswith(("_$E", "$E"))]
     res = {}
     for va, name, code, relocs in match.pair_by_name(text, funcs):
@@ -81,6 +90,25 @@ def exact_set(tu):
         diffs = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
         res[va] = (diffs == 0 and len(orig) == L)
     return res
+
+
+# ⭐ v101 GUARD. All three harness bugs (v100 x2, v101 x1) would have been caught immediately by
+# one check: a measurement tool must AGREE WITH THE ANCHOR AT ZERO PERTURBATION before any of its
+# deltas mean anything. dialsweep silently reported 211 while progress.py said 234, and on that
+# broken baseline it manufactured a "+4 gained / 0 lost" free gain that does not exist — which is
+# what the whole v96 "seven missing symbols" programme was chasing. Keep this in sync with
+# CLAUDE.md's anchor table; a mismatch is a HARNESS bug until proven otherwise, not a discovery.
+ANCHOR_EXACT = 234
+
+
+def check_baseline(n):
+    if n != ANCHOR_EXACT:
+        sys.stderr.write(
+            "\n!! BASELINE MISMATCH: dialsweep says %d exact, the anchor says %d.\n"
+            "!! Every delta below is UNTRUSTWORTHY. Fix the harness (compare this tool's COMDAT\n"
+            "!! filtering + match.pair_by_name usage against progress.py) before reading results.\n"
+            "!! If the anchor itself moved, re-baseline ANCHOR_EXACT deliberately.\n\n" % (n, ANCHOR_EXACT))
+    return n
 
 
 def project_exact(tus):
@@ -130,7 +158,7 @@ def main():
             if base_exact is None:
                 raise SystemExit("baseline compile failed")
             print("baseline: %d exact PROJECT-WIDE (%d TUs, deduped by address)"
-                  % (len(base_exact), len(tus)))
+                  % (check_baseline(len(base_exact)), len(tus)))
         else:
             base = exact_set(tu)
             if base is None:

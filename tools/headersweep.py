@@ -19,6 +19,11 @@ That makes a position cost (reach x ~8s) instead of a full 13-TU rebuild.
 that gains with ZERO losses is evidence of a real missing fact.
 
 Usage:  tools/headersweep.py [--max N] [--headers a.h,b.h] [--csv out.csv]
+
+⚠ v101: this tool measures through dialsweep.exact_set(), which until v101 carried the
+pre-v100 COMDAT filter and therefore the 28-mis-pair positional cascade. EVERY RESULT THIS
+TOOL PRODUCED BEFORE v101 IS UNVERIFIED and should be re-run before being cited (notably
+v97's "members are INERT", which v99 already contradicted). See docs/compiler-hunt.md v101.
 """
 import os, sys, re, glob, json, atexit
 from collections import defaultdict

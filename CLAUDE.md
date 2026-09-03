@@ -16,19 +16,23 @@ Phases A–G (byte-matching YodaDemo.exe's app region): **234 functions byte-exa
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
 oracles green.
 
-⭐ **RE-OPENED v96 (2026-07-26) — the "compiler wall" was WRONG; 211 is a plateau, not a ceiling.**
-The prior text here said the gap was "a compiler-intrinsic register-coloring wall — do NOT re-chase
-it, every lever proven dead". That is **retracted**. `tools/dialsweep.py` reaches **215 exact
-project-wide with FOUR GAINED AND ZERO LOST**, from nothing but 7 extra file-scope symbols visible
-through `Worldgen.h` — validated 4 ways (struct/typedef/extern/6-field-enum all land on exactly 215)
-plus a determinism repeat. Both surviving "only VC 4.0 can make these" functions (`ParseZaux`
-0x423110, `ZoneHasIzxItemMaybe` 0x41bfa0) go byte-exact under **our own VC 4.2**, so the
-interim-compiler hypothesis is dead (docs/compiler-hunt.md v96). ⚠ the +7 is currently PLACEHOLDER
-declarations and is deliberately NOT committed as source — it is a **measurement** saying the
-original's headers carried ~7 more symbols than ours. The work is finding the real seven; **never
-pad to hit a number** (see "the dial is an instrument" below). **v97 (same day): the search is NARROWED — members are INERT (only file-scope symbols / enum ENUMERATORS dial; `tools/membertest.py`) — ⚠ **PARTLY
-RETRACTED at v99: adding a member FUNCTION to `CDeskcppView` demonstrably rotated Worldgen.cpp's exact set
-(net +10/−6 project-wide). membertest.py tested member DATA; member functions are NOT inert**, and the Ghidra globals inventory found the one real unmodelled worldgen global = the DTA record-tag table (0x00456890, SHIPPED at EOF of Worldgen.cpp) + TileFlags TILE_PLAYER/ENEMY/FRIENDLY enumerators (SHIPPED). Real additions did NOT reproduce the +7 extern sweep → 211 is the honest plateau, 0x41f830 still gated on the exact ~7 (see ⏭ v97).**
+⛔ **CLOSED AGAIN at v101 (2026-09-02) — the v96 re-opening was a HARNESS ARTIFACT.** v96 claimed
+`tools/dialsweep.py` reached "215 exact project-wide with FOUR GAINED AND ZERO LOST" from ~7 missing
+file-scope symbols, and set the standing quest "find the real seven". **That is retracted.**
+`dialsweep.exact_set()` still carried the PRE-v100 COMDAT filter (no `hinted` exception) → the same
+28-mis-pair positional cascade v100 fixed elsewhere; and `membertest.py`/`headersweep.py`/
+`enumfieldtest.py` ALL measure through it, so **every sweep number ever published here inherited the
+bug** (v97's "members are INERT" included — treat as UNVERIFIED; v99 had already dented it).
+Fixed in the one shared place; dialsweep's baseline now agrees with the anchor at **234** (pre-fix it
+said 211). Re-measured: extern/struct/typedef all agree with each other (the dial IS pure symbol
+count — that part of v96 survives) but **no position beats baseline** — n=7 gives 227 with **+0
+gained / −7 lost**, not 215/+4/−0. The two functions v96 said DeskcppView.cpp was "6-8 symbols short"
+of gaining (`0x40ebe0`, `0x40fca0`) are **already byte-exact at the corrected baseline** — they were
+among the 17 the v100 fix recovered; and `ParseZaux` 0x423110 differs in **78 of 116 bytes**, not a
+one-declaration near-miss. The only ever-gained function (`0x40a320`) always costs 8 losses — a TRADE,
+i.e. the fingerprint of padding. ⇒ **Do not resume the "missing symbols" hunt.** 234 is the honest
+plateau; the residuals are ordinary source-fidelity work (`tools/residuals.py`). Detail:
+docs/compiler-hunt.md v101.
 
 Phase H (extension — functional correctness, not byte-matching) status:
 - **H1 CMake build** ✅ (docs/cmake-build.md) — config matrix `YODA_GAME`(YODA|INDY) × `YODA_VARIANT`(DEMO|FULL)
@@ -178,7 +182,7 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 | exact count | `python3 tools/progress.py` | **234 exact / 99.17 %** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
-| vtables | `python3 tools/vtcheck.py` | 15 classes CLEAN |
+| vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 
 ⚠ **234 is the CURRENT baseline (re-baselined at v100 from 217, ALL five oracles re-run in the same
@@ -208,9 +212,20 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    idiomscan now uses the byte test. ⇒ **before investing in any residual, confirm it is non-exact
    with a raw reloc-masked byte diff**, and cross-check a per-TU number against `verify.py`
    (it disagreed with progress.py for 3 sessions and verify.py was right).
+3. **v101 — THE SAME BUG, A THIRD TIME, in `tools/dialsweep.py`.** Its `exact_set()` still had the
+   pre-v100 filter, and `membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure THROUGH it —
+   so every sweep result the project ever published was computed on the cascade. It had been silently
+   under-reporting the baseline by the same 23 (211 vs 234) and, worse, **manufacturing a free
+   +4/−0 gain that does not exist** — the entire v96 "find the seven missing symbols" quest. Fixed;
+   dialsweep now reproduces the anchor's 234 exactly.
 ⇒ A cluster of functions sharing an identical residual signature is the productive seam (v99's five
 stubs were real) — but confirm the cluster is not a pairing artifact FIRST. Audit script pattern:
 re-derive `_want_key` per marker and assert it appears in the paired COMDAT name.
+⇒ ⭐ **A measurement tool must AGREE WITH THE ANCHOR AT BASELINE before any of its deltas mean
+anything.** All three bugs would have been caught on day one by one assert: run the tool with a
+null/zero perturbation and check it reports the same number as `progress.py`. Any new harness gets
+that check first. (`bytediff.py`/`residuals.py` share progress.py's exact filtering + pairing code
+for this reason — copy that block, never re-derive it.)
 
 ⭐ **THE DIAL IS AN INSTRUMENT, NOT A KNOB (v96 — the rule that keeps this honest).** The exact
 count is steerable by ambient declaration state, which means it can be *gamed*. Do not.
@@ -222,9 +237,12 @@ count is steerable by ambient declaration state, which means it can be *gamed*. 
   because it happens to score better. That encodes a NUMBER, not a fact, and poisons the source as a
   reference. Every position in the v96 sweep that *traded* (+3/−3) is that kind of position — a trade
   is the fingerprint of padding, a free gain is the fingerprint of truth.
-Use `tools/dialsweep.py` to MEASURE how many symbols are missing and which TUs see them, then go
-find them. See docs/compiler-hunt.md v96 for the mechanism (pure symbol count; identifier length
-irrelevant; enum = tag + field count; macros are free because they never enter the symbol table).
+`tools/dialsweep.py` MEASURES the mechanism (pure symbol count; identifier length irrelevant;
+enum = tag + field count; macros are free — they never enter the symbol table). ⛔ **v101: do NOT use
+it to hunt "missing symbols" any more.** On the fixed tool every position LOSES and the baseline is
+the best known, so there is no deficit to go find — the v96 "+4/−0 / seven symbols" reading was the
+cascade bug talking (docs/compiler-hunt.md v101). The ✅/❌ rule above still governs if a real
+declaration ever turns up on independent evidence.
 
 ⚠ Objects live in **`build/`** (repo root), not next to sources: compile with
 `cd src && ../toolchain/bin/cl /nologo /c /MT /W3 /GX /O2 /D WIN32 /D NDEBUG /D _WINDOWS /D _MBCS /Fo../build/<File>.obj <File>.cpp`.
@@ -454,7 +472,12 @@ Example: `http://localhost:8089/decompile_function?program=YodaDemo.exe&address=
 
 ## Tooling (`tools/`, Python, run from repo root)
 
-Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) · **`verify.py <src.cpp>`** /
+Byte-match harness (anchor checks): **`progress.py`** (headline dashboard) · **`bytediff.py <src.cpp>
+[0xADDR...]`** (⭐ the ANCHOR's own definition of exact for ONE function — reloc-masked BYTE diff +
+hexdump of each differing run; run this BEFORE investing in any residual, per v100) ·
+**`residuals.py`** (⭐ census of all 144 non-exact functions RANKED by byte-diff, with a
+commutative/tie-break classifier; the trustworthy replacement for sorting idiomscan's class D) ·
+**`verify.py <src.cpp>`** /
 **`match.py`** (per-TU marker compare, reloc-masked; best-fit can mis-pair clones — confirm name-keyed) ·
 **`asmscore.py <src.cpp> 0xADDR [--dump]`** (graded disasm scorer; `--dump`: LEFT=original, RIGHT=ours;
 recompiles the TU itself) · **`bugscan.py`** / **`vtcheck.py`** / **`msgcheck.py`** (correctness oracles —
@@ -476,56 +499,53 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-02 v100 — pickup #4 (mine class D for repeated signatures) was worked as written and immediately hit a **broken instrument**: the top "cluster" it surfaced was a PAIRING ARTIFACT. Fixing the harness re-baselined the anchor **217 → 234 (a MEASUREMENT CORRECTION, not new matching)** and removed 26 phantom class-D targets. All 5 oracles GREEN on 234. No game-code change: the only src/ edit is 3 marker-hint COMMENTS, proven bit-identical across all 140 DeskcppView COMDATs. v99 log demoted to PLAN_COMPLETED.md ⏮.)
+### ⏭ NEXT SESSION PICKUP (2026-09-02 v101 — worked pickup #2 (cheap class-D targets) and it led
+straight into a THIRD harness bug, this one in `tools/dialsweep.py`. Net: the v96 "compiler hunt
+re-opened / find the seven missing symbols" quest is **RETRACTED** — it was measuring the v100
+cascade. No src/ changes; anchor unmoved at **234**, all 5 oracles green. Two new tools shipped.
+v100 log demoted to PLAN_COMPLETED.md ⏮.)
 
-**▶ WHAT HAPPENED.** Followed v99's advice — re-ran `idiomscan.py --all --csv`, sorted class D by
-`align`, looked for repeated signatures. A clean cluster appeared: five `??_G` scalar-deleting-dtor
-thunks (CButton/CEdit/InvScrollBar/CBitmap/CBitmapButton), same shape as v99's five-stub win.
-**It was fake.** The source marker at 0x40a560 says `??_GCBitmap@@`, but the CSV called it
-`??_GCButton@@`. Chasing that name would have been days of work on functions that do not exist.
+**▶ WHAT HAPPENED.** Took the pickup's cheap targets, but honoured its own instruction #1 —
+"re-verify with a raw reloc-masked byte diff" — which had no tool. Built one (`tools/bytediff.py`),
+then a full census (`tools/residuals.py`). Chasing the cheapest residuals surfaced that
+`dialsweep.py` had never been given the v100 `hinted` fix.
 
-**▶ ⭐ TWO REAL TOOL BUGS FOUND AND FIXED** (full write-up = CLAUDE.md "THE INSTRUMENT ITSELF CAN
-LIE"; both were silently manufacturing work):
-1. **Marker-pairing CASCADE.** `progress.py`/`idiomscan.py` filtered lib-owned COMDATs BEFORE
-   `pair_by_name`, dropping ones that markers explicitly name. Those markers then fell back
-   POSITIONALLY, each stealing the COMDAT the NEXT marker wanted → **28 mis-pairs cascading through
-   DeskcppView.cpp**. `verify.py` had the correct `hinted` exception all along and had been
-   reporting the true 80/124 for DeskcppView while progress.py said 63 — **the cross-check that
-   would have caught this years earlier.** Ported the exception; fixed 3 stale marker hints
-   (`??_GGameView`, `?DrawTextA@GameView` → `CDeskcppView`; added an explicit `??_GInvScrollBar@@`
-   hint to 0x408690, whose two stacked markers both derived `??1InvScrollBar@@`). `pair_by_name`
-   now WARNS on every positional fallback — audit is now **0/378 mis-paired** (was 28).
-2. **Two definitions of "exact".** `idiomscan` used `asmscore`'s disassembly verdict; the anchor
-   uses a reloc-masked BYTE compare. Functions with an embedded switch JUMP TABLE decode the table
-   as instructions → phantom `byte_diff` on **8 provably byte-exact functions** (OnUpdateGameSpeedUi,
-   OnUpdateDifficultyUi, ClassifyTile, StepDetonatorEffect, OnChar, OnUpdateNewWorld, OnUpdatePauseUi,
-   ZoneObj::Read). idiomscan now uses the byte test. Class D: 129 → **103**.
+**▶ ⭐ THE HEADLINE — v96's "215, +4 gained / 0 lost" DOES NOT EXIST** (full write-up:
+docs/compiler-hunt.md v101; summarised at the top of this file). `dialsweep.exact_set()` carried the
+pre-v100 COMDAT filter, and `membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure through
+it, so EVERY sweep number this project published was computed on the 28-mis-pair cascade. Fixed in
+the one shared place → dialsweep's baseline now equals the anchor's 234 (pre-fix: 211). Re-measured
+`Worldgen.h` n=0..8 for extern/struct/typedef: the three kinds still agree exactly with each other
+(the dial IS pure symbol count — that part of v96 is real), but **no position beats baseline**; n=7
+is 227 with **+0/−7**. `0x40ebe0`+`0x40fca0` (v96's claimed DeskcppView gains) are **already exact**
+at the corrected baseline — two of the 17 v100 recovered. `ParseZaux` 0x423110 differs in **78 of
+116 bytes**. ⇒ **Do not resume the missing-symbols hunt.**
 
-**▶ HONESTY NOTE (important).** 234 − 217 = 17 functions that were ALREADY byte-exact and were being
-scored against the WRONG addresses. **No new matching happened this session.** Per-TU: only
-DeskcppView.cpp moved (63+61/127 → 80+44/130). Verified three ways: source diff is comments only;
-all 140 COMDATs bit-identical old-vs-new (COFF timestamp makes md5 differ — compare code sections,
-not the file); and `verify.py` independently reports the same 80.
+**▶ ⭐ THE TIE-BREAK FAMILY IS SMALL — quantified, so stop guessing at it.** `tools/residuals.py`
+classifies all 144 residuals by the anchor's byte oracle: **only 5 are pure commutative/selection
+tie-breaks**, all 2-byte, and all are source-INERT (I re-probed `GetZoneIndex` 0x423dc0 and
+`ParseTilesMaybe` 0x41a030 myself this session — flipping the source comparison is canonicalized
+away; `GetFrameTile`/`LoadWorldStateFile`/`Serialize` were already documented). So that seam's total
+upside is +5 and it has no known lever. The other **139 need real source/structure work**:
+74 differ in instruction COUNT or length (genuine structural difference — the honest place to dig),
+and the diff-site histogram is mov-operand=127, mov/lea=65, inc/add=32, jcc=31, cmp-swap=22.
 
-**▶ NEXT — the class-D seam is still the right one, now with a trustworthy list**
-(`/private/tmp/.../idiom_v100final.csv`; regenerate with `tools/idiomscan.py --all --csv`):
-1. **Re-verify before investing.** For any candidate, first confirm it is REALLY non-exact with a
-   raw reloc-masked byte diff (`match.mask` both sides, compare) — that is the anchor's definition.
-2. **Cheap unexamined class-D targets** (post-fix, none are v99 aftershock or parked):
-   `ParseTilesMaybe` 0x41a030 (bytes=3), `ParseChwp` 0x423300 (bytes=7), `AddHealth` 0x427690
-   (bytes=6), `FindObjectAt` 0x405330 (bytes=11, idiom `{test:1}`), `HitEntityAt` 0x4059d0
-   (bytes=16), `CalcSolvedScore` 0x401780 (bytes=17), `InitInstance` 0x4198c0 (bytes=25 over 998 B).
-3. **Biggest coherent cluster = SaveStoryHistory Nevada/Alaska/Oregon** (0x402670/0x4029c0/0x402d10,
-   ~110 B each, identical delta: we emit 6 extra insns, `{lea:2}` + `{jg,jl,mov,push:2,pop}`).
-   ⚠ **documented-exhausted** — the note at WorldgenHelpers.cpp:220 lists the sweep already done and
-   calls the {lineNo,base,rem} slot 3-cycle "IR temp numbering = full-TU/endgame territory".
-   `bugscan` corroborates: consistent 4-byte ebp shifts (orig −0x20/−0x24 vs ours −0x1c/−0x20), i.e.
-   the original has ONE extra local slot. Don't re-chase without a genuinely new lever.
+**▶ NEXT — concrete, in priority order.**
+1. **Audit the remaining harnesses against the baseline rule** (see the new ⇒ bullet under "THE
+   INSTRUMENT ITSELF CAN LIE"): any tool that reports an exact-count must equal `progress.py` at
+   zero perturbation. `asmscore.py`, `permute.py`, `frontier.py`, `exactset.py`, `survey.py` are
+   UNAUDITED and several predate v100. Cheap, and this is now 3-for-3 on finding real bugs.
+2. **Work the 74 instruction-count-differing residuals**, not the tie-breaks. Start where the count
+   delta is smallest — `tools/residuals.py --csv out.csv`, then `tools/bytediff.py <tu> <addr>` for
+   the hexdump and `asmscore.py --dump` for the instruction view. Cheapest unexamined:
+   `FindTile` 0x403aa0 (4 B/53 B), `BlitMasked` 0x408240 (4 B), `ParseSnds` 0x4233f0 (5 B),
+   `UpdateDialogButtons` 0x417dc0 (6 B).
+3. **Re-run the v97 member conclusions** if anyone wants them — "members are INERT" was measured
+   through the broken `exact_set()` and v99 already contradicted it. `membertest.py` is fixed now.
 4. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
-   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note);
-   reclaiming ParseZaux 0x423110 via a dial-sweep position (optional, NEVER pad to a number).
-5. **Not yet done this session:** `build-sdl` / `build-sdl-indy` were NOT rebuilt (no game-code
-   change, so no portable-build risk — but rebuild if you touch shared headers next).
+   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
+5. **Not touched this session:** `build-sdl`/`build-sdl-indy` (no game-code change, so no portable
+   risk — but rebuild if you touch shared headers next). Phase-H goals 2-5 untouched.
 
 **▶ HOW TO WORK THE DIAL SAFELY:** every sweep MUTATES a header — always restore (the tools do, via
 atexit+finally, and leave a `.bak` if restore fails). ⚠ never run two sweeps concurrently or start one

@@ -3076,3 +3076,33 @@ FUNCTIONS are NOT inert** — adding one to CDeskcppView rotated Worldgen.cpp's 
    so the CSE'd 1 is live in our build too and the compiler just preferred `inc mem` over the
    equal-length `add mem,ecx`. The original's own else-arm uses `inc` where no 1-register is live.
    ⇒ pure peephole tie-break. Note expanded in place above the function.
+
+---
+
+### ⏮ v100 PICKUP (2026-09-02) — harness bugs #1 and #2; anchor re-baselined 217 → 234
+
+Worked v99's advice (mine idiomscan class D for repeated signatures) and the top "cluster" it
+surfaced — five `??_G` scalar-deleting-dtor thunks — turned out to be a **pairing artifact**.
+Two real tool bugs, both silently manufacturing work that did not exist:
+
+1. **Marker-pairing CASCADE.** `progress.py`/`idiomscan.py` filtered lib-owned COMDATs BEFORE
+   `pair_by_name`, dropping ones that markers explicitly name by mangled hint. Those markers fell
+   back POSITIONALLY, each stealing the COMDAT the next marker wanted → **28 mis-pairs cascading
+   through DeskcppView.cpp**, scoring 17 already-exact functions against wrong addresses.
+   `verify.py` had the correct `hinted` exception all along and had been reporting the true 80/124
+   while progress.py said 63 — the cross-check that would have caught it years earlier. Ported the
+   exception; fixed 3 stale marker hints (`??_GGameView`, `?DrawTextA@GameView` → `CDeskcppView`;
+   explicit `??_GInvScrollBar@@` on 0x408690). `pair_by_name` now WARNS on positional fallback.
+2. **Two definitions of "exact".** `idiomscan` used asmscore's DISASSEMBLY verdict; the anchor uses
+   a reloc-masked BYTE compare. A function with an embedded switch JUMP TABLE decodes the table as
+   instructions → phantom `byte_diff` on **8 provably byte-exact functions**. Class D: 129 → 103.
+
+**Honesty note:** 234 − 217 = 17 functions that were ALREADY byte-exact and were being scored
+against the WRONG addresses. **No new matching happened.** Only DeskcppView.cpp moved
+(63+61/127 → 80+44/130). Verified 3 ways: source diff is comments only; all 140 COMDATs
+bit-identical old-vs-new; `verify.py` independently reports the same 80.
+
+**Sequel (v101):** the SAME bug was found a third time in `tools/dialsweep.py` — which
+`membertest.py`/`headersweep.py`/`enumfieldtest.py` all measure through — and its correction
+RETRACTED the v96 "215 / +4 gained / 0 lost / find the seven missing symbols" programme
+entirely. See docs/compiler-hunt.md v101.
