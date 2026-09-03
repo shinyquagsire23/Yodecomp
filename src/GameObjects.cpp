@@ -467,7 +467,12 @@ Zone::Zone(short w, short h)
 //   is load-bearing: a loop-body-scoped `obj` costs 11 B (a clean ecx/edx/esi 3-register rotation for
 //   walk-ptr/x/obj). ⚠ RETRACTS this note's old "no stmt/decl/cmp lever reaches it" — the decl-SCOPE
 //   lever does (CLAUDE.md lesson #37). Last 2 B = loop guard: orig `test edi,edi`, ours `cmp edi,eax`
-//   (cl reusing the zeroed `result`); source-inert over 7 more spellings. Keep this block LINE-NEUTRAL.]
+//   (cl reusing the zeroed `result`); source-inert over 7 more spellings. Keep this block LINE-NEUTRAL.
+//   ⚠ v107 also closes the LOOP-FORM axis here (the lever that cracked SaveZoneRecursive 0x4033b0):
+//   the guarded `i++/n--` countdown emits 77 bytes against the original's 79 — structurally ruled
+//   out — and caching `objects.GetSize()` into a local costs 13 B either way, so the uncached call
+//   in the loop condition is confirmed correct. Hoisting `i` and swapping result/obj decl order are
+//   inert. Floor stays 2 B over 15 spellings total.]
 ZoneObj *Zone::FindObjectAt(int x, int y)
 {
     ZoneObj *result = 0; ZoneObj *obj;

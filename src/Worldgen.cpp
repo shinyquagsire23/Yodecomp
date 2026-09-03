@@ -2384,6 +2384,14 @@ int CDeskcppDoc::CheckZoneItemsAvailable(short zoneId)
 }
 
 // FUNCTION: YODA 0x0041f8e0
+// [EFFECTIVE: DIFF(9). ⚠ v107 PARTIAL, deliberately NOT landed: the guarded `i++/nObjs--`
+// countdown loop form (the lever that cracked SaveZoneRecursive 0x4033b0) takes this 9 B -> 7 B
+// at identical length, and all four countdown spellings agree — so the countdown is very likely
+// the original's form here too. It is parked because 7 B is not exact and applying it would
+// re-roll this TU's joint register phase (v105) for every function downstream of line 2388 in
+// exchange for no gain. Land it only as part of a JOINT pass that also closes the remaining 7 B.
+// ⚠ decl-scope goes the WRONG way here: hoisting i and/or pObj to function scope costs 16 B
+// (v104 measured the single hoist the same way). operator[] vs GetAt is inert.]
 // Recursively gather all zones a quest branch references into the ref-zone dedup set.
 void CDeskcppDoc::WorldgenCollectZoneRefs(short zoneId)
 {
