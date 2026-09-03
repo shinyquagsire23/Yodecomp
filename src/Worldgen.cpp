@@ -6740,7 +6740,7 @@ void CDeskcppView::OnInitialUpdate()
         CFont *pFont = CFont::FromHandle(hFont);
         if (pFont != NULL)
             wFont = (WPARAM)pFont->m_hObject;
-        ::SendMessage(wndDialogText.m_hWnd, WM_SETFONT, wFont, 1);
+        wndDialogText.SendMessage(WM_SETFONT, wFont, 1);
         wndDialogText.ShowWindow(0);
     }
 }

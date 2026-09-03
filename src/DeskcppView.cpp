@@ -8310,10 +8310,10 @@ int TextDialog::Run()
     pParentView->btnDialogClose.ShowWindow(0);
     pParentView->btnDialogDown.ShowWindow(0);
     pParentView->btnDialogUp.ShowWindow(0);
-    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogClose.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogDown.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogUp.m_hWnd, WM_SETREDRAW, 0, 0);
+    pParentView->wndDialogText.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogClose.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogDown.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogUp.SendMessage(WM_SETREDRAW, 0, 0);
     HDC hdc = pParentView->pWorld->pCanvas->hdc;
     HFONT h = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, g_pszDialogFont);
     SelectObject(hdc, h);
@@ -8322,7 +8322,7 @@ int TextDialog::Run()
     nLineHeight = tm.tmHeight;
     nCharWidth = tm.tmAveCharWidth;
     pParentView->wndDialogText.SetWindowText(strText);
-    LRESULT nLines = ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_GETLINECOUNT, 0, 0);
+    LRESULT nLines = pParentView->wndDialogText.SendMessage(EM_GETLINECOUNT, 0, 0);
     nTotalLines = nLines;
     nVisibleLines = nLines;
     bTimerActive = 0;
@@ -8496,10 +8496,10 @@ int TextDialog::Run()
     }
     if (bTimerActive != 0)
         KillTimer(pParentView->m_hWnd, 1);
-    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogClose.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogDown.m_hWnd, WM_SETREDRAW, 0, 0);
-    ::SendMessage(pParentView->btnDialogUp.m_hWnd, WM_SETREDRAW, 0, 0);
+    pParentView->wndDialogText.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogClose.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogDown.SendMessage(WM_SETREDRAW, 0, 0);
+    pParentView->btnDialogUp.SendMessage(WM_SETREDRAW, 0, 0);
     pParentView->wndDialogText.ShowWindow(0);
     pParentView->btnDialogClose.ShowWindow(0);
     pParentView->btnDialogDown.ShowWindow(0);
@@ -8684,7 +8684,7 @@ void TextDialog::Layout(int x, int y)
     ::RoundRect(hdc, rectBox.left, rectBox.top, rectBox.right, rectBox.bottom, 0x10, 0x10);
     ReleaseDC(pParentView->m_hWnd, pDC->m_hDC);
     pParentView->wndDialogText.MoveWindow(rectText.left, rectText.top, nTextW, nTextH, TRUE);
-    nTotalLines = ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_GETLINECOUNT, 0, 0);
+    nTotalLines = pParentView->wndDialogText.SendMessage(EM_GETLINECOUNT, 0, 0);
 
     TriPoint point[3];
     int bx = nBoxX;
@@ -8809,7 +8809,7 @@ void TextDialog::Layout(int x, int y)
 tail:
     ReleaseDC(pParentView->m_hWnd, pDC->m_hDC);
     pParentView->DrawGameArea(0);
-    ::SendMessage(pParentView->wndDialogText.m_hWnd, WM_SETREDRAW, 1, 0);
+    pParentView->wndDialogText.SendMessage(WM_SETREDRAW, 1, 0);
     pParentView->wndDialogText.ShowWindow(5);
     pParentView->btnDialogClose.ShowWindow(5);
 }
@@ -8824,7 +8824,7 @@ void TextDialog::ScrollTextLine()
 {
     if (nScrollLine < nTotalLines)
     {
-        ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_LINESCROLL, 0, 1);
+        pParentView->wndDialogText.SendMessage(EM_LINESCROLL, 0, 1);
         nScrollLine++;
     }
     if (nTotalLines == nScrollLine)
@@ -8851,7 +8851,7 @@ void TextDialog::ScrollTextLine2()
 {
     if (5 < nScrollLine)
     {
-        ::SendMessage(pParentView->wndDialogText.m_hWnd, EM_LINESCROLL, 0, -1);
+        pParentView->wndDialogText.SendMessage(EM_LINESCROLL, 0, -1);
         nScrollLine--;
     }
     if (nScrollLine == 5)
@@ -8875,13 +8875,13 @@ void TextDialog::ScrollTextLine2()
 // schedule shift as the scroll helpers. G1.
 void TextDialog::UpdateDialogButtons(int nUnused)
 {
-    UINT st = ::SendMessage(pParentView->btnDialogUp.m_hWnd, BM_GETSTATE, 0, 0);
+    UINT st = pParentView->btnDialogUp.SendMessage(BM_GETSTATE, 0, 0);
     if (pParentView->btnDialogUp.IsWindowEnabled() && (st & 4))
     {
         ScrollTextLine();
         return;
     }
-    st = ::SendMessage(pParentView->btnDialogDown.m_hWnd, BM_GETSTATE, 0, 0);
+    st = pParentView->btnDialogDown.SendMessage(BM_GETSTATE, 0, 0);
     if (pParentView->btnDialogDown.IsWindowEnabled() && (st & 4))
         ScrollTextLine2();
 }
