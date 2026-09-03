@@ -4196,27 +4196,45 @@ void CDeskcppView::UpdateItemObjectsMaybe()
 }
 
 // FUNCTION: YODA 0x0040f060  (?DrawTextA@CDeskcppView@@QAEXPAVCDC@@@Z — windows.h renames DrawText)
-// GameView::DrawText — paints the 7-slot inventory panel (rectUnk3284):
-// for each visible row, fill the 32x32 drag canvas with the button-face
-// color, blit the item tile into it (skipped for the slot being dragged),
-// frame the icon cell + name cell with the bevel DrawRect, blit the icon,
-// and TextOut the item name in MS Sans Serif. pDC==NULL = self-service
-// GetDC + palette select (bReleaseDC arm).
-// EFFECTIVE MATCH (285/284 insns, align=172 = one coherent reg-role
-// rotation echoed ~30x + slot-order fallout): every structural element
-// aligned — the EH frame, the cached SelectObject vcall (vtbl/fnptr slots
-// -0x44/-0x3c), the inventory byte-offset walker, rc/rc2 slots, all call
-// shapes. Residual: pTile rides EBX (orig EDI), freeing EDI for a pWorld
-// CSE the orig doesn't do (2-insn delta), + this/pDC reload role noise.
-// pItem/pTile decl order inert. CRACKS (new lessons): (a) MFC 4.2's ONLY
-// virtual CDC::SelectObject overload is (CFont*) — the +0x30 vcall proves
-// the source used CFont::FromHandle (CGdiObject* selects the non-virtual
-// INLINE overload -> m_hObject extraction, wrong shape); write the
-// FromHandle result to a local first (evaluate-callee-first). (b) the
-// GetAt walker needed a dedicated `int slot = nScroll;` IV (SR to
-// scroll<<2 byte walker) while the bounds tests spell nScroll + i.
-// (c) windows.h renames DrawText->DrawTextA: marker carries the mangled
-// hint, asmscore now parses it.
+// GameView::DrawText — paints the 7-slot inventory panel (rectUnk3284): for each visible row,
+// fill the 32x32 drag canvas with the button-face color, blit the item tile into it (skipped
+// for the slot being dragged), frame the icon cell + name cell with the bevel DrawRect, blit
+// the icon, and TextOut the item name in MS Sans Serif. pDC==NULL = self-service GetDC +
+// palette select (bReleaseDC arm).
+// DIFF(2) — was 663 B until v110, when three independent levers landed in sequence. The
+// v110 entry point was a scan for a PROLOGUE CALLEE-SAVE MISMATCH: the original saves
+// esi+edi, ours saved ebx+esi+edi. That extra `push ebx` at +0x22 shifted EVERY later byte
+// by one, which is why two thirds of the function "differed" over a handful of real
+// decisions. ⇒ when a large residual starts with an extra callee-save push, fix THAT first;
+// the rest of the diff is usually an artifact of the shift.
+//   1. ⭐ `pWorld->pPalette->GetNearestPaletteIndex(GetSysColor(COLOR_BTNFACE))` instead of
+//      `::GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, ...)` — lesson #35,
+//      the MFC member wrapper, with the object expression a POINTER CHAIN (exactly the
+//      targeting rule v103 wrote down). The global form let cl keep `pWorld` alive in EDI
+//      across the GetSysColor call as a CSE, which pushed pTile out to EBX; the member form
+//      makes cl reload [this+0x44] after the call, as the original does. 663 -> 60, and the
+//      save set became esi+edi. Every other spelling of that statement (explicit ::, no
+//      cast, literal 15, extra (int) cast) is INERT — it is the member form that matters.
+//   2. `pDC->PatBlt(...)` for BOTH PatBlt calls (lesson #35 again, the v103 OnEraseBkgnd
+//      case). Selectivity is real, as v103 warned: first only = 54, second only = 30,
+//      both = 24.
+//   3. ⭐ The `CBrush` lives in an EXPLICIT INNER SCOPE that closes before the loop
+//      increments. The original emits `mov [ebp-4],-1; call ~CBrush` BEFORE
+//      `y += 0x20; slot++; i++`, which a brush declared directly in the do-body cannot
+//      produce — its destructor must run at the body's closing brace, i.e. after the
+//      increments. Wrapping everything from `CBrush brush(...)` through the TextOut in a
+//      nested block: 24 -> 2. ⚠ the scope must extend to the END of the drawing work;
+//      closing it 2 or 3 statements earlier costs 690+ and loses the edi save.
+// RESIDUAL = 2 B, the `nDragSlot - i != nScroll` compare: orig `sub eax,[i]; cmp eax,[nScroll]`,
+// ours the mirror. TEN spellings measured dead flat (operand order both ways, != both ways,
+// nScroll+i form, (int) cast, `- i - nScroll != 0`, negated ==), and the i/y/slot declaration
+// order is at its optimum already (two of the six permutations cost 4 B, none beats 2).
+// Commutative tie-break family; park.
+// Superseded v110 notes kept for the record: pItem/pTile decl order and SCOPE are inert here
+// (9 hoist/order variants flat at 663). The two older cracks still stand — (a) MFC 4.2's ONLY
+// virtual CDC::SelectObject overload is (CFont*), so the +0x30 vcall proves the source used
+// CFont::FromHandle into a local; (b) the GetAt walker needs its own `int slot = nScroll;` IV
+// (strength-reduced to a slot<<2 byte walker) while the bounds tests spell nScroll + i.
 void CDeskcppView::DrawText(CDC *pDC)
 {
     int bReleaseDC = 0;
@@ -4250,30 +4268,32 @@ void CDeskcppView::DrawText(CDC *pDC)
         {
             pItem = (InvItem *)pWorld->inventory.GetAt(slot);
             pTile = pItem->pTile;
-            pDragTileCanvas->Fill((char)GetNearestPaletteIndex((HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_BTNFACE)));
+            pDragTileCanvas->Fill((char)pWorld->pPalette->GetNearestPaletteIndex(GetSysColor(COLOR_BTNFACE)));
             if (nDragSlot - i != nScroll)
                 pDragTileCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, 0, 0, 0);
         }
-        CBrush brush(GetSysColor(COLOR_BTNFACE));
-        CBrush *pOldBrush = pDC->SelectObject(&brush);
-        rc.top = pWorld->rectUnk3284.top + y;
-        rc.bottom = rc.top + 0x20;
-        rc.left = pWorld->rectUnk3284.left;
-        rc.right = rc.left + 0x20;
-        if (nCount <= nScroll + i)
-            PatBlt(pDC->m_hDC, rc.left, rc.top, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, PATCOPY);
-        pWorld->DrawRect(pDC, &rc, 1, 1);
-        if (nScroll + i < nCount)
-            pDragTileCanvas->BitBlt(pDC, rc.left + 1, rc.top + 1, 0x1e, 0x1e, 1, 1);
-        rc.left += 0x21;
-        rc.right = pWorld->rectUnk3284.right;
-        RECT rc2;
-        CopyRect(&rc2, &rc);
-        PatBlt(pDC->m_hDC, rc2.left, rc2.top, rc2.right - rc2.left, rc2.bottom - rc2.top, PATCOPY);
-        pDC->SelectObject(pOldBrush);
-        pWorld->DrawRect(pDC, &rc, 1, 1);
-        if (nScroll + i < nCount)
-            pDC->TextOut(rc.left + 4, rc.top + 8, pItem->name);
+        {
+            CBrush brush(GetSysColor(COLOR_BTNFACE));
+            CBrush *pOldBrush = pDC->SelectObject(&brush);
+            rc.top = pWorld->rectUnk3284.top + y;
+            rc.bottom = rc.top + 0x20;
+            rc.left = pWorld->rectUnk3284.left;
+            rc.right = rc.left + 0x20;
+            if (nCount <= nScroll + i)
+                pDC->PatBlt(rc.left, rc.top, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, PATCOPY);
+            pWorld->DrawRect(pDC, &rc, 1, 1);
+            if (nScroll + i < nCount)
+                pDragTileCanvas->BitBlt(pDC, rc.left + 1, rc.top + 1, 0x1e, 0x1e, 1, 1);
+            rc.left += 0x21;
+            rc.right = pWorld->rectUnk3284.right;
+            RECT rc2;
+            CopyRect(&rc2, &rc);
+            pDC->PatBlt(rc2.left, rc2.top, rc2.right - rc2.left, rc2.bottom - rc2.top, PATCOPY);
+            pDC->SelectObject(pOldBrush);
+            pWorld->DrawRect(pDC, &rc, 1, 1);
+            if (nScroll + i < nCount)
+                pDC->TextOut(rc.left + 4, rc.top + 8, pItem->name);
+        }
         y += 0x20;
         slot++;
         i++;
