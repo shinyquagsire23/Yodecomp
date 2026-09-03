@@ -7594,24 +7594,37 @@ pickup_item:
 
 // ---------------------------------------------------------------------------
 // FUNCTION: YODA 0x00415820
-// GameView::CheckCheat — called after a cheat string is typed into strCheatBuffer
-// (built up by OnChar). "goyoda" ⇒ invincibility; "gojedi" ⇒ the full weapon set
-// (tiles 0x1ff-0x202) + a Super-Jedi banner. On a hit, strCheatBuffer is reset to "".
-// On no match, returns without resetting (the goto skips the reset). The two inline
-// strcmps are the /Oi intrinsic (the sbb (1-b)-(b!=0) idiom).
-// EFFECTIVE (align 232, was 366 before the per-arm `strCheatBuffer=""; return;`
-// copy): the residual is a whole-function register-role swap - the original keeps
-// this in esi and reads strCheatBuffer this-relative ([esi+0x17c]), while ours CSEs
-// &strCheatBuffer into a callee-saved reg (this -> edi). That reallocation cascades
-// (playerX/Y coord LEA-vs-shl+add scheduling). Minimal-TU-probe / G1 dial territory.
-// ---------------------------------------------------------------------------
+// GameView::CheckCheat — called after a cheat string is typed into strCheatBuffer (built up by
+// OnChar). "goyoda" ⇒ invincibility; "gojedi" ⇒ the full weapon set (tiles 0x1ff-0x202) + a
+// Super-Jedi banner. On a hit, strCheatBuffer is reset to "". On no match, returns without
+// resetting (the goto skips the reset). The two inline strcmps are the /Oi intrinsic (the
+// sbb (1-b)-(b!=0) idiom).
+// ⭐ BYTE-EXACT since v110 (was 372 B, parked as "a whole-function register-role swap /
+// minimal-TU-probe / G1 dial territory"). The lever was the LESSON-#42 SCAN RUN IN REVERSE:
+// the original saves ebx+esi+edi and ours saved only esi+edi, i.e. the ORIGINAL materialised
+// something we did not. It is the two ShowTextDialog coordinates: the original computes
+// playerX*7+18 into EDI and playerY*7+18 into EBX *before* the `str = "..."` CString
+// assignment, so both must survive that call in callee-saved registers. Source-level cause =
+// they are LOCALS assigned before the message string, not argument expressions:
+//     int x = pWorld->playerX * LOCATOR_CELL_SIZE + 18;
+//     int y = pWorld->playerY * LOCATOR_CELL_SIZE + 18;
+//     str = "Invincible!";
+//     ShowTextDialog(str, x, y, 1);
+// Both call sites need it (first arm alone: 372 -> 68; second arm too: -> 0). ORDER matters
+// and pins the transcription: x before y (y first = 4 B), and the pair must precede the
+// `str =` assignment (after it = 379 B / 52 B — strictly worse than doing nothing).
+// ⇒ Generalisation worth reusing: "ours saves FEWER callee-saved registers than the original"
+// means the original kept a value alive across a call that we recompute — look for an
+// argument expression that wants to be a named local, the exact mirror of lesson #42.
 void CDeskcppView::CheckCheat()
 {
     CString str = "goyoda";
     if (strcmp(str, strCheatBuffer) == 0)
     {
+        int x = pWorld->playerX * LOCATOR_CELL_SIZE + 18;
+        int y = pWorld->playerY * LOCATOR_CELL_SIZE + 18;
         str = "Invincible!";
-        ShowTextDialog(str, pWorld->playerX * LOCATOR_CELL_SIZE + 18, pWorld->playerY * LOCATOR_CELL_SIZE + 18, 1);
+        ShowTextDialog(str, x, y, 1);
         bInvincibleCheat = 1;
         strCheatBuffer = "";
         return;
@@ -7627,8 +7640,10 @@ void CDeskcppView::CheckCheat()
     AddItemToInv(pWorld->GetTileData(0x202));
     AddItemToInv(pWorld->GetTileData(0x202));
     AddItemToInv(pWorld->GetTileData(0x202));
+    int x = pWorld->playerX * LOCATOR_CELL_SIZE + 18;
+    int y = pWorld->playerY * LOCATOR_CELL_SIZE + 18;
     str = "Super Jedi!";
-    ShowTextDialog(str, pWorld->playerX * LOCATOR_CELL_SIZE + 18, pWorld->playerY * LOCATOR_CELL_SIZE + 18, 1);
+    ShowTextDialog(str, x, y, 1);
     strCheatBuffer = "";
 }
 
@@ -7684,9 +7699,16 @@ void CDeskcppView::OnDestroy()
 // slower rings/swaps. NO locals for pWorld/the tables: every store goes through
 // PALETTEENTRY*/RGBQUAD* lvalues that may alias them, so the compiler reloads
 // [this+0x44] / [pWorld+0x326c] per statement — exactly the original shape.
-// EFFECTIVE (first compile: 304/304 insns, align=0, 6B): one eax<->ecx role swap in the
-// FIRST ::AnimatePalette's setup only — the orig's two IDENTICAL statements get OPPOSITE
-// allocations by position (the ZTS<->WES parity-crossing family, not source-steerable). G1.
+// BYTE-EXACT. ⚠ The two AnimatePalette calls take DIFFERENT forms and that is load-bearing,
+// not sloppiness: the FIRST is the MFC member wrapper, the SECOND the global ::AnimatePalette.
+// v103 measured exactly this (both member = 6 B, first only = 0 B) and v110 re-measured all 16
+// call-form combinations (member/global x AnimatePalette x2, RealizePalette, SelectPalette)
+// and re-confirmed it — mgmm is the unique 0, everything else is 6, 12 or worse, and the
+// decl form of pDC/pOldPal is inert across all of them. The function's own note used to call
+// this "one eax<->ecx role swap ... not source-steerable"; it is steerable, by lesson #35.
+// ⚠ It is also PHASE-SENSITIVE: it fell out to 12 B when an unrelated edit elsewhere in the
+// TU re-rolled the register allocator, and came back on the same spelling. If it ever reads
+// 6 or 12 again, re-run the 16-combination sweep before believing anything else moved.
 // ---------------------------------------------------------------------------
 void CDeskcppView::CyclePalette()
 {
@@ -7852,7 +7874,7 @@ void CDeskcppView::CyclePalette()
     CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
-    pWorld->pPalette->AnimatePalette(160, 86, &pWorld->sysPalette[160]);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
     pDC->RealizePalette();
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
