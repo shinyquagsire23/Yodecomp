@@ -4928,13 +4928,13 @@ void CDeskcppDoc::LoadWorldStateFile()
             if (bDtaLoaded == 0)
             {
                 ReadStupCanvas(pFile);
-                nDone++;
                 unk50 = 0;
                 bHidePlayer = 1;
                 bWorldReadyMaybe = 1;
                 unk3378 = 0;
                 nMapChangeReason = 1;
                 nFrameMode = 7;
+                nDone++;
             }
             else
                 nDone++;
@@ -4995,13 +4995,13 @@ void CDeskcppDoc::Serialize(CArchive &ar)
                 if (bDtaLoaded == 0)
                 {
                     ReadStupCanvas(pFile);
-                    nDone++;
                     unk50 = 0;
                     bHidePlayer = 1;
                     bWorldReadyMaybe = 1;
                     unk3378 = 0;
                     nMapChangeReason = 1;
                     nFrameMode = 7;
+                    nDone++;
                 }
                 else
                     nDone++;
