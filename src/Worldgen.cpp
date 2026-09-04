@@ -4761,9 +4761,16 @@ int CDeskcppDoc::ParseZax3Indy(CFile *pFile)
 #endif
 
 // FUNCTION: YODA 0x00423290
-// [EFFECTIVE: block-layout — original parks the nDone++ arm at function end; ours inlines
-// it (arm-order/continue knobs proven inert). Plus one reg rotation. See the v116 sweep
-// recorded on the ParseChwp twin below: LESSON #47 DOES NOT APPLY to this shape.]
+// [EFFECTIVE 41 B -> 11 B at v116 via the CONTAINER ACCESS FORM (`characters[id]`, not
+// `characters.GetAt(id)`) — see the full write-up on the ParseChwp twin below, which the same
+// one-character change took to BYTE-EXACT. Arm-order/continue knobs proven inert here too;
+// lesson #47 does not apply to this shape.
+// RESIDUAL 11 B is a pure 3-cycle register bijection at matching length: the original holds
+// {this=ESI, pFile=EBX, nDone=EDI}, ours {this=EDI, pFile=ESI, nDone=EBX}. Same mnemonics,
+// same schedule, same save set — the lesson-#44 scratch-bijection class. ⚠ its twin ParseChwp
+// is byte-EXACT from character-identical source (only the callee name and one extra Read
+// differ), which is the v105 "textually identical SIBLING" signature: the source is not the
+// variable, so do not grind this one.]
 // CAUX chunk: per-character damage words, -1-terminated id list.
 int CDeskcppDoc::ParseCaux(CFile *pFile)
 {
@@ -4774,7 +4781,7 @@ int CDeskcppDoc::ParseCaux(CFile *pFile)
         pFile->Read(&id, 2);
         if (id >= 0)
         {
-            Character *pChar = (Character *)characters.GetAt(id);
+            Character *pChar = (Character *)characters[id];
             if (pChar == NULL)
                 return 0;
             pFile->Read(&pChar->damage, 2);
@@ -4788,18 +4795,23 @@ int CDeskcppDoc::ParseCaux(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00423300
-// [EFFECTIVE: same nDone++-arm layout family as ParseCaux; registers exact. The whole 47 B is
-//  block layout: the original runs the body as the FALLTHROUGH and `jmp`s over a trailing
-//  `inc edi` parked just above the do-while backedge; ours emits the nDone++ arm first.
-//  ⛔ v116 MEASURED NEGATIVE — this is NOT lesson #47, do not re-open it. tools/armscan.py
-//  ranked this the cleanest arm-order candidate in the project (two-armed AND aligned: the
-//  jcc flip IS the first differing byte), and 15 spellings across two sweeps are DEAD FLAT
-//  at 47 B: the arm swap in 5 spellings, the condition negated without the swap, an explicit
-//  `continue` on either arm, a `goto` over the increment, `while (!nDone)`, and pChar hoisted.
-//  Rivals are refuted by LENGTH, which confirms the current shape: `nDone = 1` emits 121 B and
-//  a `for(;;)` loop 115 B, against the original's 117. The sibling ParseTnam 0x423380 is
-//  BYTE-EXACT while spelling its arms the OTHER way round — so cl normalises the arm order in
-//  this shape and the layout is not reachable from this function's own source.]
+// [v116: BYTE-EXACT. The lever was the CONTAINER ACCESS FORM — `characters[id]`, not
+//  `characters.GetAt(id)`. MFC 4.2's CObArray::operator[] is the inline `{ return
+//  GetAt(nIndex); }` and folds identically almost everywhere, but here it does not, and it
+//  took the whole 47 B block-layout residual with it (the original runs the body as the
+//  FALLTHROUGH and `jmp`s over a trailing `inc edi` parked above the do-while backedge).
+//  ⚠ INSTRUCTIVE FAILURE, worth keeping. Earlier in the SAME session this was written off as
+//  a measured negative: tools/armscan.py ranked it the cleanest IF/ELSE ARM ORDER candidate in
+//  the project (two-armed AND aligned — the jcc flip IS the first differing byte), 15 control-
+//  flow spellings across two sweeps came back DEAD FLAT at 47 B, and the conclusion drawn was
+//  "the layout is not reachable from this function's own source". The 15 spellings were real
+//  and the arm-order verdict was correct — lesson #47 genuinely does not apply here, and the
+//  sibling ParseTnam 0x423380 is byte-exact while spelling its arms the other way round. What
+//  was wrong was the leap from "this axis is flat" to "this function is closed": the lever was
+//  in the BODY, not the control flow. That is exactly lesson #41 (a flat sweep is a signal to
+//  change axis, never a park) and it is easy to forget when the flat axis is the one a scanner
+//  pointed you at. Rivals still refuted by LENGTH: `nDone = 1` emits 121 B, `for(;;)` 115 B,
+//  against the original's 117.]
 // CHWP chunk: per-character weapon id + health, -1-terminated id list.
 int CDeskcppDoc::ParseChwp(CFile *pFile)
 {
@@ -4810,7 +4822,7 @@ int CDeskcppDoc::ParseChwp(CFile *pFile)
         pFile->Read(&id, 2);
         if (id >= 0)
         {
-            Character *pChar = (Character *)characters.GetAt(id);
+            Character *pChar = (Character *)characters[id];
             if (pChar == NULL)
                 return 0;
             pFile->Read(&pChar->weaponCharId, 2);
@@ -5607,7 +5619,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = questItemsA.GetAt(i);
+                short v = questItemsA[i];
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nCount);
@@ -5619,7 +5631,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = questItemsB.GetAt(i);
+                short v = questItemsB[i];
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nCount);
@@ -5759,7 +5771,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = (short)FindTile(((InvItem *)inventory.GetAt(i))->pTile);
+                short v = (short)FindTile(((InvItem *)inventory[i])->pTile);
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nInv);
@@ -5781,7 +5793,7 @@ void CDeskcppDoc::OnSaveWorld()
             {
                 do
                 {
-                    if ((Character *)characters.GetAt(i) == currentWeapon)
+                    if ((Character *)characters[i] == currentWeapon)
                     {
                         short vi = (short)i;
                         pFile->Write(&vi, 2);
