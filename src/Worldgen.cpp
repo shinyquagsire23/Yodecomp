@@ -7369,11 +7369,11 @@ void CDeskcppView::DrawHealthNeedle(CDC *pDC)
 //    `x + dx*2, y + dy*2` (step2 blaster: 32-bit LEAs, mem-first),
 //    `dx*3 + x, dy*3 + y` (step3 blaster: 16-bit IMUL, mul-first).
 //  - decl order `nType, bRifle, bSaber` puts nType in ESI (matches orig; probed all 6
-//    orders + 3 placements — the rest of the head is order-insensitive).
-// RESIDUAL: orig promotes dy->EBX, dx->EDI, this->EBP (x/y stay memory); ours promotes
-// y->EBX, x->EBP, this->EDI (dx/dy stay memory). Root: the SECOND flag zero picks EDI
-// (orig) vs EBX (ours) and the whole assignment cascades. Proven NOT steerable by decl
-// order/placement (9 probes) and NOT TU-position (identical score in a minimal
+//    orders + 3 placements). ⚠ v118 REFUTES this note's "the rest of the head is
+//    order-insensitive" AND its "not steerable by decl order/placement (9 probes)":
+//    `pOldPal` belongs LAST in the head block and `nAX` before `nAY` in the step-3 block,
+//    together 1536 B -> 1068 with the LENGTH going 2383 -> 2390 = the Ghidra extent. The
+//    9 probes covered the first 3 decls only. The rest is NOT TU-position (identical in a
 // one-function TU) => it is the GameView class-decl DIAL (Worldgen.h carries ~19 of the
 // ~60+ real methods; Phase E completes it). All align hits are this flip's echoes:
 // dx-tests as cmp-mem vs test-reg, x+nAX as lea [ebp+esi] vs add-from-mem, 16-bit adds
@@ -7392,10 +7392,10 @@ void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
     int bRifle = 0;
     int bSaber = 0;
     CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
-    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     CDeskcppDoc *pW = pWorld;
     Tile *pSavedItem = pW->equippedItem;
     Character *pWeapon = pW->currentWeapon;
+    CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pW->equippedItem = (Tile *)pW->tiles.GetAt(pWeapon->frames[7]);
     int nDmg = pWeapon->damage;
     int nDiff = pWorld->difficulty;
@@ -7609,8 +7609,8 @@ void CDeskcppView::UseWeapon(int x, int y, int dx, int dy, int nStep)
         }
         case 2:
         {
-            int nAY = 0;
             int nAX = 0;
+            int nAY = 0;
             if (dx != 0 && dy == 0)
             {
                 nTile = pWorld->currentZone->GetTile(x + dx, y + 1, 1);
