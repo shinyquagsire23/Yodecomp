@@ -18,7 +18,16 @@ Classification is done ONLY on the instructions covering the differing bytes: ou
 both streams are byte-identical, so a jump table elsewhere in the function cannot desync us
 (the whole-function-alignment approach silently mis-classified LoadStoryHistoryNevada).
 
-Usage:  tools/residuals.py [--top N] [--tie-only] [--csv out.csv]
+⭐ v117 — THE LENGTH COLUMN WAS VACUOUS, AND FIXING IT OPENS A NEW TARGET LIST. `lenmis` used
+to be `len(orig) != L` where `orig` is EXE sliced to OUR OWN trimmed length, so it could never
+be True and every residual ever published read lenmis=False. It now compares our length to
+GHIDRA'S EXTENT (toolchain/test/app_funcs.txt), which is independent. That matters because
+lesson #46/#48 make LENGTH the stronger structural signal: a function whose length already
+matches has a register/schedule problem, while one whose length is off by N has a real
+STRUCTURAL defect (a missing/extra construct), and no amount of decl-order sweeping will fix
+it. `--lenmis` ranks the residuals by |our length - extent| to give that seam directly.
+
+Usage:  tools/residuals.py [--top N] [--tie-only] [--lenmis] [--csv out.csv]
 """
 import os, sys, re, glob, csv as _csv
 from collections import Counter, defaultdict
@@ -32,6 +41,31 @@ import progress as prog
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXE = prog.EXE
 _md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+
+# ⭐ Ghidra's own extent per function — the ONLY honest length oracle (v117).
+# `orig` below is EXE[foff:foff+L] sliced to OUR trimmed length L, so the old
+# `lenmis = len(orig) != L` could never be True except at the very end of .text:
+# a column that cannot disagree is not a measurement (the v100/v109/v111 family).
+# Lesson #46/#48 want our length vs the ORIGINAL's extent, which is independent.
+# ⚠ 18 of the 410 entries are Ghidra STUBS (extent == 1 where the real body is tens or
+# hundreds of bytes — e.g. 0x415a50 OnKeyUp reads 1 but truly ends at 0x415ab8, 104 B,
+# which is exactly our length), and a few extents OVERLAP their successor's address.
+# Trusting those verbatim manufactures "structural defects" that do not exist — the same
+# fabricated-target failure as v100/v110. Drop any extent that is 1 or that runs past the
+# next function's start; EXTENT_BAD keeps them for reporting so the gap is never silent.
+EXTENT, EXTENT_BAD = {}, {}
+_raw = []
+for _l in open(os.path.join(ROOT, "toolchain/test/app_funcs.txt")):
+    _p = _l.split()
+    if len(_p) == 2:
+        _raw.append((int(_p[0], 16), int(_p[1])))
+_raw.sort()
+for _i, (_a, _n) in enumerate(_raw):
+    _gap = _raw[_i + 1][0] - _a if _i + 1 < len(_raw) else None
+    if _n <= 1 or (_gap is not None and _n > _gap):
+        EXTENT_BAD[_a] = _n
+    else:
+        EXTENT[_a] = _n
 
 # a jcc and its operand-swapped mirror encode the SAME predicate once the cmp is reversed
 MIRROR = {"jl": "jg", "jg": "jl", "jle": "jge", "jge": "jle",
@@ -70,6 +104,21 @@ def classify(a, b):
     if a.mnemonic == "mov":
         return "mov-operand"
     return None
+
+
+def has_jumptable(code, va):
+    """True if this function embeds a switch JUMP TABLE.
+
+    ⚠ Ghidra's extents in app_funcs.txt run to the function's last RET; a switch's
+    trailing jump table (plus its alignment NOP) sits AFTER that and is inside OUR
+    COMDAT length. So for such functions `our_len - extent` measures the table, not a
+    structural defect — e.g. TriggerHotspotsMaybe 0x40ec30 reads +36 purely because of
+    a 5-entry table at +316. Verified by hand against the disassembly.
+    """
+    for i in _md.disasm(bytes(code), va):
+        if i.mnemonic == "jmp" and "[" in i.op_str and "*4" in i.op_str:
+            return True
+    return False
 
 
 def _cover(insns):
@@ -116,10 +165,15 @@ def scan():
                     continue
                 kinds.add(classify(a, b) or "UNCLASSIFIED")
             kinds.discard("IDENT")
-            lenmis = len(orig) != L
+            ext = EXTENT.get(va)
+            if ext is not None and has_jumptable(code[:L], va) and L > ext:
+                ext = None          # length not comparable: trailing jump table
+            ldelta = None if ext is None else L - ext
+            lenmis = bool(ldelta)
             rows.append(dict(cpp=os.path.relpath(cpp, ROOT), va=va, name=name, L=L,
                              ndiff=len(offs), span=(offs[-1] - offs[0] + 1) if offs else 0,
-                             lenmis=lenmis, kinds=",".join(sorted(kinds)),
+                             lenmis=lenmis, ext=ext, ldelta=ldelta,
+                             kinds=",".join(sorted(kinds)),
                              tie=bool(kinds) and kinds <= TIE_KINDS and not lenmis))
     rows.sort(key=lambda r: (r["ndiff"], r["L"]))
     return rows
@@ -130,6 +184,28 @@ def main():
         return sys.argv[sys.argv.index(flag) + 1] if flag in sys.argv else d
     top = int(opt("--top", "40"))
     rows = scan()
+    if "--lenmis" in sys.argv:
+        sel = sorted([r for r in rows if r["ldelta"]],
+                     key=lambda r: (-abs(r["ldelta"]), r["ndiff"]))
+        print("# residuals whose LENGTH disagrees with Ghidra's extent = STRUCTURAL defects\n"
+              "# (a length-matched residual is a register/schedule problem; this list is not)")
+        print("%-24s %-10s %6s %6s %7s %6s  %s"
+              % ("TU", "addr", "ours", "extent", "delta", "ndiff", "name"))
+        for r in sel[:top]:
+            print("%-24s %#010x %6d %6d %+7d %6d  %s"
+                  % (os.path.basename(r["cpp"]), r["va"], r["L"], r["ext"],
+                     r["ldelta"], r["ndiff"], r["name"][:44]))
+        tot = sum(abs(r["ldelta"]) for r in sel)
+        noext = [r for r in rows if r["ext"] is None]
+        print("\n%d of %d residuals have a LENGTH mismatch (%d bytes of structural error "
+              "total); %d are length-EXACT and so are schedule/allocation work only"
+              % (len(sel), len(rows) - len(noext), tot,
+                 len(rows) - len(noext) - len(sel)))
+        print("%d residual(s) have NO comparable extent (Ghidra stub, overlapping entry, or "
+              "a trailing switch JUMP TABLE inside our COMDAT but outside the extent) and are "
+              "excluded, not scored:\n    %s"
+              % (len(noext), ", ".join("%#x" % r["va"] for r in noext) or "none"))
+        return
     sel = [r for r in rows if r["tie"]] if "--tie-only" in sys.argv else rows
     print("%-24s %-10s %5s %5s %5s  %-28s %s"
           % ("TU", "addr", "len", "ndif", "span", "kinds", "name"))
