@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -216,7 +216,7 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **255 exact / 99.17 % transcribed** |
+| exact count | `python3 tools/progress.py` | **257 exact / 99.17 % transcribed** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | **1 HIGH (known benign) / 0 SHIFT** |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
@@ -234,7 +234,7 @@ IDENTICAL. ⇒ Do not "fix" it, and do not add a suppression list to bugscan (hi
 finding is the wrong direction for an instrument — see the harness-can-lie lessons);
 the verdict is recorded in the function's source note.
 
-⚠ **255 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116; all five oracles
+⚠ **257 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
@@ -479,6 +479,56 @@ edits land together: `DrawRect` 0x424010 sits EARLIER in the file than `OnSaveWo
 neither ParseChwp+ParseCaux nor ParseChwp+OnSaveWorld disturbs it — **only all three
 together do**, costing it 60 B → 463 and its length match. The phase is a genuine
 INTERACTION. Check upstream functions too after a multi-function landing.
+
+⭐ **A CACHED LOCAL ALIAS FOR A POINTER MEMBER IS A DIAL — AND IT SUPPRESSES A RELOAD THE
+ORIGINAL MAKES (v118, lesson #50) — `tools/aliasscan.py`.** cl 10.20 keeps a member load
+(`this->pWorld`, i.e. `mov ecx,[edi+0x44]`) as a memory CSE, and **any store made through that
+pointer invalidates it**, so the original RELOADS the member before the next use. A local alias
+— `CDeskcppDoc *pW = pWorld;` — lives in a register and can never be invalidated, so our code
+emits one load where the original emits two, and comes out SHORT. `AddHealth` 0x427690 was
+exactly this: the entire 49-byte residual was ONE missing 3-byte `mov ecx,[edi+0x44]` between
+the two `= 1` stores in its death tail, and its length read 517 against an extent of 520.
+⇒ **Fingerprint: we are SHORT by a small multiple of 3-4 bytes, and the diff shows the original
+re-loading a member you hold in a local.** Read it straight off `residuals.py --lenmis`.
+⚠ **Dropping the alias is necessary but NOT sufficient, and alone it is usually a big LOSS.**
+Removing the decl also perturbs the decl set, and on AddHealth every naive respelling measured
+**421 B** (worse than the 49 it started at) because cl then hoisted `pWorld` into a callee-saved
+EBX across the whole function. The fix only appears when the alias removal is swept JOINTLY with
+the block's decl ORDER (lesson #45's interaction, one level down): `pTile,bFound,i` gives **0 B
+at length 520 = the extent**, while the other five orders give 117-421. Land nothing on the
+alias axis alone.
+⚠ **It is NOT universal — the store is load-bearing.** `TextDialog::Position` 0x417570 holds
+`pW = pParentView->pWorld` and is also 3 B short, but all 7 alias/decl variants are **dead flat
+at 100 B**: its uses are pure READS, so there is no store to invalidate the CSE and the alias is
+codegen-free. ⇒ require a store THROUGH the alias (or through `this`) before investing.
+⭐ **`tools/aliasscan.py`** is the target list (READ-ONLY; takes a cached `--exact` set):
+**61 hits** in non-exact functions, of which **6 also have a LENGTH mismatch** — that
+intersection is the strong form. Best unworked: `UseWeapon` 0x427d20 (−7, six aliases),
+`OnNewDocument` 0x41bb10 (−29).
+
+⭐ **THE INNER-BLOCK DECL ORDER WAS UNREACHABLE BY EVERY TOOL IN THE PROJECT UNTIL v118 —
+`declorder.py --inner`.** `hoisttest.py` asks about a decl's SCOPE; `declorder.py` permuted only
+the LEADING function-scope run. Neither could permute the decls at the top of an `if`/loop body,
+and that is precisely the axis that landed AddHealth (+2 with `DetonateAdjacentTiles` 0x428680
+falling out for free — one of the three functions the v114 re-baseline cost). It paid twice the
+same session: `BlitViewportDither` 0x428e30 went **125 B → 55** with its length moving 237 → 238
+toward an extent of 242, purely by declaring the inner `prod` before `x`.
+⚠ **The cheap band stays closed on this axis too** (0x41c200, 0x403aa0 flat; 0x423d20 / 0x405330
+/ 0x423dc0 have no permutable inner block at all) — consistent with the standing v111–v117
+verdict, now extended to inner blocks. Aim it at the MID and LARGE residuals: **45 non-exact
+functions have an inner permutable block, 521 legal permutations** — a whole-seam sweep is
+affordable, and it is the single most concrete unworked item for the next session.
+⚠ **`--inner` SKIPS permutations that move a decl ahead of one its initializer needs** (v118) —
+without that filter 16 of 23 orders on 0x41a1c0 came back `COMPILE FAILED`, burning most of the
+compiles and burying the real (flat) result; the raw seam is 1435 permutations, the legal one
+521. The dependency scan strips MEMBER names first (`mapGrid[i].id` otherwise makes the field
+`id` look like a dependency of the local `idw`, a phantom CYCLE that skipped ALL 23 orders — the
+v109/v111 "nothing to do" family again), and it SELF-CHECKS that the source's own order is legal
+before filtering anything, disabling itself if not.
+⚠ **Measured flat on this axis** (do not re-tread): 0x41a1c0, 0x408e70, 0x409c10, 0x40ec30,
+0x40f060, 0x41d260. Two moved but stayed below the landing bar of lesson #48 — `BlitTile`
+0x40a320 13 B → 12 (`sy` before `sx`) and `ZoneProvidesItem` 0x41c3b0 17 B → 15 (`j` before
+`nObjs`, length already exact at 214) — both recorded here rather than landed.
 
 ⭐ **LENGTH FIRST: A RESIDUAL WHOSE EMITTED LENGTH IS WRONG IS A STRUCTURAL DEFECT, AND THE
 REGISTER DIFFERENCE YOU SEE IS ITS CONSEQUENCE (v117, lesson #49) — `tools/residuals.py
@@ -1115,8 +1165,14 @@ each hit tagged `arg`/`recv`/`other`. Reproduces the v110 hand-derived list exac
 first draft had TWO bugs, both caught by a known-answer positive control: the `cast()->` regex
 missed the canonical PARENTHESIZED `((T *)p)->m` form, and restricting hits to argument lists
 dropped both actual v110 wins, which were a receiver and an assignment RHS) ·
-**`armscan.py [<tu.cpp>]`** (⭐ v116 — the IF/ELSE ARM ORDER target list, lesson #47: offsets where the ORIGINAL's jcc is the exact INVERSE of ours at the same instruction boundary. Ranks real if/else DIAMONDS above one-armed early-outs and flags sites past the first differing byte as `~unaligned`. 10 hits project-wide. ⚠ COMPILES — don't run it during a sweep) · **`dtorscan.py [<tu.cpp>]`** (⭐ v116 — the DESTRUCTOR-POSITION target list v110 opened by hand: an EH-state store `mov [ebp-4],imm` sitting on the other side of a loop's induction increments reads out how the author SCOPED an object. With v110's three filters applied the seam is **4 functions, not the ~20 estimated**. ⚠ a hit can be a SYMPTOM of a call-form difference, not a scoping error — `DamageEntityAt`'s cleared when lesson #48 was applied. ⚠ COMPILES) · **`unrotscan.py [--exact <file>|--all]`** (⭐ v114 — READ-ONLY target list for the loop ROTATION dial, sibling of loopform.py; currently 1 hit project-wide, i.e. MINED OUT) · **`loopform.py [--exact <file>|--all]`** (⭐ v113 — READ-ONLY target list for the LOOP-FORM dial: the original's countdown backedges vs our `for` spellings. Safe to run during a sweep; a hit is a candidate, not a defect) · **`jointdecl.py <spec.py> --expect-exact N`** (⭐ v112 — the JOINT search: applies a combination of WHOLE-FUNCTION source variants, compiles the TU once, prints the byte-diff for EVERY marker in it. Cheap because TUs compile separately, so an edit here cannot move another TU. ⚠ its first run is a NEGATIVE result — 54 combinations over Iact.cpp moved no column but the edited function's own; see lesson #45's second half before reaching for it) · **`declorder.py <tu.cpp> <0xADDR> --expect N`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
-decl block; the axis `hoisttest.py` structurally cannot reach, and the one that landed
+**`armscan.py [<tu.cpp>]`** (⭐ v116 — the IF/ELSE ARM ORDER target list, lesson #47: offsets where the ORIGINAL's jcc is the exact INVERSE of ours at the same instruction boundary. Ranks real if/else DIAMONDS above one-armed early-outs and flags sites past the first differing byte as `~unaligned`. 10 hits project-wide. ⚠ COMPILES — don't run it during a sweep) · **`dtorscan.py [<tu.cpp>]`** (⭐ v116 — the DESTRUCTOR-POSITION target list v110 opened by hand: an EH-state store `mov [ebp-4],imm` sitting on the other side of a loop's induction increments reads out how the author SCOPED an object. With v110's three filters applied the seam is **4 functions, not the ~20 estimated**. ⚠ a hit can be a SYMPTOM of a call-form difference, not a scoping error — `DamageEntityAt`'s cleared when lesson #48 was applied. ⚠ COMPILES) · **`unrotscan.py [--exact <file>|--all]`** (⭐ v114 — READ-ONLY target list for the loop ROTATION dial, sibling of loopform.py; currently 1 hit project-wide, i.e. MINED OUT) · **`loopform.py [--exact <file>|--all]`** (⭐ v113 — READ-ONLY target list for the LOOP-FORM dial: the original's countdown backedges vs our `for` spellings. Safe to run during a sweep; a hit is a candidate, not a defect) · **`jointdecl.py <spec.py> --expect-exact N`** (⭐ v112 — the JOINT search: applies a combination of WHOLE-FUNCTION source variants, compiles the TU once, prints the byte-diff for EVERY marker in it. Cheap because TUs compile separately, so an edit here cannot move another TU. ⚠ its first run is a NEGATIVE result — 54 combinations over Iact.cpp moved no column but the edited function's own; see lesson #45's second half before reaching for it) · **`aliasscan.py --exact <file> | --all`** (⭐ v118 — READ-ONLY target list for the MEMBER-ALIAS
+dial, lesson #50: non-exact functions holding a cached `T *p = <member>;` that suppresses the
+reload the original makes after a store through it. 61 hits; cross with `residuals.py --lenmis`
+for the 6 that are also length-mismatched. Safe to run during a sweep) ·
+**`declorder.py <tu.cpp> <0xADDR> --expect N [--inner]`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
+decl block; ⭐ v118 `--inner` permutes EVERY brace-block's decl run, the axis NO tool in the
+project could reach (hoisttest asks about SCOPE, not order) — it landed AddHealth 0x427690 and
+cut BlitViewportDither 125 B → 55; the axis `hoisttest.py` structurally cannot reach, and the one that landed
 ParseTilesMaybe. ⚠ v111 fixed it AGAIN: it could not see a line holding SEVERAL declarations) · **`hoisttest.py <tu.cpp> <0xADDR> --expect N`** (decl SCOPE: hoist
 inner-block locals. ⚠ v110: it only sees decls WITH an initializer, so a bare `Tile *pTile;`
 is invisible to it — its "1 spelling" answer on DrawTextA was a tool limit, not a result;

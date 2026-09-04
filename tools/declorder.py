@@ -129,6 +129,44 @@ def inner_blocks(body):
     return out
 
 
+def deps_of(blk, body):
+    """{slot: set(slots it must follow)} — a decl whose INITIALIZER mentions a name declared
+    earlier in the same block cannot be moved ahead of it.
+
+    ⭐ v118: without this the sweep spends most of its compiles on permutations that cannot
+    build (`int idw = ...; int id = idw + 1;` reversed), and reports a wall of COMPILE FAILED.
+    On 0x41a1c0 that was 16 of 23 permutations — honest, but pure waste, and it buried the
+    real (flat) result.
+    """
+    names = {}
+    for slot, (k, label) in enumerate(blk):
+        for nm in label.split("+"):
+            names[nm] = slot
+    deps = {}
+    for slot, (k, label) in enumerate(blk):
+        init = body[k].split("=", 1)[1] if "=" in body[k] else ""
+        # ⚠ strip MEMBER names first: `mapGrid[i].id` would otherwise make the local `id`
+        # look like a dependency of `idw`, and the resulting phantom CYCLE skipped all 23
+        # permutations of 0x41a1c0 — a harness reporting "nothing to do" (v109/v111 family).
+        init = re.sub(r"(?:\.|->)\s*\w+", "", init)
+        need = set()
+        for nm in re.findall(r"\b\w+\b", init):
+            if nm in names and names[nm] != slot:
+                need.add(names[nm])
+        deps[slot] = need
+    return deps
+
+
+def base_order_of(blk):
+    return tuple(range(len(blk)))
+
+
+def legal(p, deps):
+    """True if permutation p (p[k] = which decl lands in slot k) respects every dependency."""
+    pos = {src: k for k, src in enumerate(p)}
+    return all(pos[d] < pos[slot] for slot, ds in deps.items() for d in ds)
+
+
 def permutations_of(n, maxp):
     perms = list(itertools.permutations(range(n)))
     if len(perms) > maxp:                      # deterministic fallback: swaps + reversal
@@ -190,9 +228,21 @@ def main():
         idx = [k for k, _ in blk]
         n = len(blk)
         base_order = tuple(range(n))
+        deps = deps_of(blk, body)
+        # self-check: the SOURCE's own order must satisfy the dependencies it just derived.
+        # If it does not, the dependency scan is wrong -- disable it rather than silently
+        # skipping every permutation (v100/v101: a tool must agree with reality at zero
+        # perturbation before any of its filtering means anything).
+        if not legal(base_order_of(blk), deps):
+            print("   (%s: dependency self-check FAILED — filter disabled)" % label)
+            deps = {}
+        skipped = 0
         for p in permutations_of(n, budget):
             if p == base_order:
                 continue                       # vartest measures the unmodified body as BASELINE
+            if not legal(p, deps):
+                skipped += 1                   # would not compile: an initializer dependency
+                continue
             b = list(body)
             for slot, src in zip(idx, p):
                 b[slot] = body[idx[src]]
@@ -202,6 +252,9 @@ def main():
             seen.add(text)
             name = ",".join(blk[s][1] for s in p)[:30]
             variants.append(("%s:%s" % (label, name) if inner else name, text))
+        if skipped:
+            print("   (%s: %d permutation(s) skipped — initializer dependency)"
+                  % (label, skipped))
 
     print("\n%d permutations\n" % len(variants))
 
