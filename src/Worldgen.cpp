@@ -2859,14 +2859,19 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     }
     questItemsA.SetSize(nStepsA + 1, -1);
     questItemsB.SetSize(nStepsB + 1, -1);
+    // Container ADD FORM (lesson #48): `Add(v)`, not `SetAtGrow(a.GetSize(), v)`. The evidence
+    // is NOT in this function (it moves only 5710 -> 5704 here) — it is in `DrawRect` 0x424010
+    // downstream, which this spelling takes from DIFF(387)/len 651 to DIFF(60)/len 654, and 654
+    // IS Ghidra's extent. Cost: `LoadWorld` 0x421fd0 +6. Measured v117; the sibling conversions
+    // in ParsePuz2 and AddItemToInv are REFUTED by length (both land 8 B short) — see v116.
     if (completionCount < 1)
     {
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xbd);
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+        storyHistoryAlaska.Add(0xbd);
+        storyHistoryAlaska.Add(0xc5);
     }
     else if (completionCount < 10)
     {
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+        storyHistoryAlaska.Add(0xc5);
     }
 #if defined(YODA_FULL) || defined(GAME_INDY)
     // Full game / Indy: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal.
@@ -2892,18 +2897,18 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     Puzzle *pPuz = (Puzzle *)puzzles.GetAt(goal);
     startItem = pPuz->itemA;
     startItem2Maybe = pPuz->itemB;
-    goalTileList.SetAtGrow(goalTileList.GetSize(), goal);
+    goalTileList.Add(goal);
     nCurrentGoalItem = goal;
     switch (currentPlanet)
     {
     case 1:
-        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
+        storyHistoryNevada.Add(goal);
         break;
     case 2:
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), goal);
+        storyHistoryAlaska.Add(goal);
         break;
     case 3:
-        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), goal);
+        storyHistoryOregon.Add(goal);
         break;
     }
     int j;
@@ -5296,6 +5301,14 @@ void CDeskcppDoc::UpdateCamera()
 }
 
 // FUNCTION: YODA 0x00424010
+// ⚠ THIS FUNCTION'S RESIDUAL IS SET BY THE TU PHASE, NOT BY ITS OWN BODY (v117). It sits at
+// DIFF(60) with LENGTH 654 == Ghidra's extent only while `Generate` 0x41f960 spells its story/
+// goal appends as `Add(v)`; with the `SetAtGrow(a.GetSize(), v)` spelling it rotates to
+// DIFF(387) at length 651, i.e. 3 bytes SHORT of the extent. v116 reverted that conversion on
+// Generate's OWN evidence ("6 bytes of diff on a 5710 B residual is noise") without checking
+// collateral, and silently cost this function 327 bytes + its length match for four commits.
+// ⇒ Do not judge a container-call-form conversion by the edited function alone (lesson #48),
+// and re-measure THIS marker after any Worldgen.cpp edit upstream of it.
 // [EFFECTIVE MATCH: insns 243/243, align residual = one frame-slot pair (orig homes pPenTL at
 // ebp-0x14 = pen A's raw-new temp slot; ours picks ebp-0x10 — usage-count slot ranking, the
 // ParseSnds family) + three clean 2-cycle reg rotations (EBX/EDI edge2, ESI/EDI edges 3-4).
