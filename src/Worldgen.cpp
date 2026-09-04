@@ -235,8 +235,30 @@ int CDeskcppDoc::PickUnplacedItemMaybe(short zoneId)
 }
 
 // FUNCTION: YODA 0x0041c3b0
-// [PARKED reg-alloc: original keeps `found` in EDI and spills the objects-loop index; ours
-// allocates the reverse. Structure/insn-count converged; joint TU pass territory.]
+// [DIFF(17), was 214 B — cracked v117 by the new LENGTH seam (`tools/residuals.py --lenmis`),
+// NOT by a register dial. The old note here read "original keeps `found` in EDI and spills the
+// objects-loop index; ours allocates the reverse ... joint TU pass territory", which named the
+// SYMPTOM and then parked on it. The cause was two structural defects, both visible as a
+// LENGTH overshoot of +25 (ours 239 vs Ghidra's extent 214) that no register sweep can explain:
+//   1. ⭐ The `itemId == -1` arm RETURNS DIRECTLY and never touches `found`. The original emits
+//      `test eax,eax; mov eax,1; jg <epilogue>` / `xor eax,eax; <epilogue>` — a literal
+//      `if (nCount > 0) return 1; return 0;`. We wrote `found = 1; if (nCount <= 0) return 0;`,
+//      and that one extra ASSIGNMENT is what cost `found` its register: with it, cl spills
+//      `found` to [esp+0x10] and every later test becomes a memory form. 200 B -> 17 B and the
+//      length lands exactly on 214. ⚠ the oracle pins a FAMILY (`return (nCount > 0);` and the
+//      ternary both give 17/214, lesson #36) — the house `if/return 1/return 0` is chosen. The
+//      rival `if (nCount <= 0) return 0; return 1;` is REFUTED by length (217, and 151 B).
+//   2. The inner early-exit is `break;`, not `return found;`. The `return` spelling makes cl
+//      emit a SECOND full epilogue instead of branching to the shared one at +202 (`mov eax,edi;
+//      pop ebp/edi/esi/ebx; add esp,0xc; ret 8`). 239 -> 225 on its own. Positively confirmed by
+//      the byte-EXACT sibling ZoneHasIzxItemMaybe 0x41bfa0, which spells it `break;`.
+// RESIDUAL = 15-17 B at 82/82 insns and the CORRECT length: a pure eax/ecx/edx scratch bijection
+// on `nCount` plus the two backedge cmp mirrors — lesson #44's source-closed class. Measured
+// floor: all 4 compare-direction combinations are DEAD FLAT (lesson #45 again — a cmp mirror is
+// never the condition's spelling), `i`'s scope is inert, and hoisting `j` to function scope
+// reaches 15 but is only a 2 B bijection shift with no structural support, so the natural
+// inner-scope decl is kept. ⚠ this function does NOT follow its siblings' decl idiom: their
+// `int j = 0;` before `if (found == 0)` measures 27 B here, i.e. strictly worse.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateB (IZX3)?
 // itemId == -1 means "any": the list just has to be non-empty.
 int CDeskcppDoc::ZoneProvidesItem(short zoneId, short itemId)
@@ -248,9 +270,9 @@ int CDeskcppDoc::ZoneProvidesItem(short zoneId, short itemId)
     int nCount = pZone->genCandidateB.GetSize();
     if (itemId == -1)
     {
-        found = 1;
-        if (nCount <= 0)
-            return 0;
+        if (nCount > 0)
+            return 1;
+        return 0;
     }
     else
     {
@@ -281,7 +303,7 @@ int CDeskcppDoc::ZoneProvidesItem(short zoneId, short itemId)
                         if (pObj->arg >= 0)
                             found = ZoneProvidesItem(pObj->arg, itemId);
                         if (found == 1)
-                            return found;
+                            break;
                     }
                     j++;
                 } while (j < nObjs);
