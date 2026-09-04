@@ -5524,6 +5524,16 @@ void CDeskcppDoc::OnNewWorld()
 }
 
 // FUNCTION: YODA 0x00424540
+// [⛔ v116 MEASURED NEGATIVE on the CONTAINER ACCESS FORM, and a METHOD WARNING worth more
+//  than the result: a TU-wide `X.GetAt(i)` -> `X[i]` sweep reported this function improving
+//  2022 B -> 1956 B, but converting ITS OWN four sites in isolation moves it NOT AT ALL
+//  (2022 -> 2022) — the apparent gain came from OTHER functions' conversions rotating the TU
+//  phase. Worse, taking it cost DrawRect 0x424010 sixty bytes -> 463 AND its length match
+//  (654 -> 651), even though DrawRect sits EARLIER in the file. ⇒ two rules: (a) a per-TU
+//  sweep's per-function delta is NOT attributable to that function's own sites — isolate
+//  before landing; (b) v106's "the TU joint phase is DOWNSTREAM-ONLY" does not survive a
+//  THREE-WAY combination: neither ParseChwp+ParseCaux nor ParseChwp+OnSaveWorld disturbs
+//  DrawRect, only all three together do. Not converted here.]
 // [EFFECTIVE-WIP: insns 892/900, align=352 mostly echo; len 2670/2672. Residual autopsy:
 // (1) this-reload reg color (orig ECX, ours EAX) — single consistent bijection, cascades
 // into the pDlg test-eax + FindTile/SaveZoneRecursive push colors; (2) the open-fail
@@ -5619,7 +5629,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = questItemsA[i];
+                short v = questItemsA.GetAt(i);
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nCount);
@@ -5631,7 +5641,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = questItemsB[i];
+                short v = questItemsB.GetAt(i);
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nCount);
@@ -5771,7 +5781,7 @@ void CDeskcppDoc::OnSaveWorld()
         {
             do
             {
-                short v = (short)FindTile(((InvItem *)inventory[i])->pTile);
+                short v = (short)FindTile(((InvItem *)inventory.GetAt(i))->pTile);
                 pFile->Write(&v, 2);
                 i++;
             } while (i < nInv);
@@ -5793,7 +5803,7 @@ void CDeskcppDoc::OnSaveWorld()
             {
                 do
                 {
-                    if ((Character *)characters[i] == currentWeapon)
+                    if ((Character *)characters.GetAt(i) == currentWeapon)
                     {
                         short vi = (short)i;
                         pFile->Write(&vi, 2);
