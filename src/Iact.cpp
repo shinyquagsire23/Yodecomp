@@ -61,7 +61,13 @@ void Zone::ReadIzon(CFile *pFile)
 //   several at 18), all 32 hoist subsets of {n,add,e,p,k} (floor 12, monotonically worse with
 //   more hoists), and 9 loop/named-local spellings — the countdown and unguarded do-while are
 //   refuted by LENGTH (860/857 vs 862), confirming the `for`, and a named `IactScript *s` for the
-//   cast chain costs 2 B. Read as the v105 TU-joint phase: the lever is not in this body.]
+//   cast chain costs 2 B. Read as the v105 TU-joint phase: the lever is not in this body.
+//   ⚠ v112 re-opened this as a SET x ORDER INTERACTION and closed it again: the write mirror
+//   went 20 -> 7 on exactly that (>=5 function-scope decls AND `i` last), so the same 51
+//   configurations were measured here — every hoist subset of {n,add,e,p,k} with `i` pinned
+//   LAST, at two orders. Floor is still 12 (11 configs tie it, the rest are 14-27). The two
+//   mirror functions genuinely respond differently to the same dial; that asymmetry is the
+//   v105 joint-phase reading, not a missed spelling.]
 // Read this zone's runtime state from a .wld: vars + tile grid (bFull), activatedFlag,
 // objects (grown with new ZoneObj as needed), entities, IACT script done-flags.
 // Called by World::LoadZoneRecursive.
@@ -198,13 +204,29 @@ void Zone::ReadSavedState(CFile *pFile, int bFull)
     }
 }
 
-// FUNCTION: YODA 0x00405f30
+// FUNCTION: YODA 0x00405f30  [DIFF(20) -> DIFF(7) at v112, via lesson #38 (the decl SET
+//   AND ORDER). Two levers, each killing an identifiable defect: (1) declaring `i` BEFORE
+//   `count` fixed the backedge compare FORM in all three count loops at once (orig
+//   `cmp [esp+count],reg; jg`, ours `cmp reg,[esp+count]; jl`) -> 20 to 14; (2) hoisting the
+//   three object pointers to function scope, with `i` LAST, fixed the iactScripts loop's
+//   ebx<->edi bijection -> 14 to 7. The oracle pins a FAMILY (any >=5 function-scope decls
+//   with `i` last measure 7; which names are hoisted is irrelevant) so this is the idiomatic
+//   member, chosen to mirror ReadSavedState's own block -- lesson #36 discipline.
+//   Everything else is REFUTED BY LENGTH, which is what makes the surviving shape evidence:
+//   inline cast chains instead of `o` emit 808 B, `objects.GetAt(i)` 826 B, and staging
+//   `count = objects.GetSize()` before the activatedFlag write costs 53 B (all vs 830).
+//   A separate index variable for the first loop is INERT, so the dial is not a second `i`.
+//   Compare-operand order (`count > i`) is source-inert: 15/15 flat. Loop FORM inert too
+//   (for/while/do-while all 830 B, 7 B). Residual = the objects loop's index/walker pair
+//   only (orig edi=i, ebx=scaled walker; ours swapped) -- lesson #44's bijection class, and
+//   the v112 joint search over this TU (54 combinations) proves no other function's decl
+//   configuration reaches it.]
 // Write mirror of ReadSavedState (counts staged through a local). Called by
 // World::SaveZoneRecursive.
 void Zone::WriteSavedState(CFile *pFile, int bFull)
 {
-    int count;
-    int i;
+    ZoneObj *o; MapEntity *e; int *p;
+    int count; int i;
 
 #ifdef GAME_INDY
     // Mirror of the GAME_INDY branch in ReadSavedState — writes the retail Indy 16-bit record
@@ -275,7 +297,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
     count = objects.GetSize();
     pFile->Write(&count, 4);
     for (i = 0; i < count; i++) {
-        ZoneObj *o = (ZoneObj *)objects[i];
+        o = (ZoneObj *)objects[i];
         pFile->Write(&o->state, 2);
         pFile->Write(&o->arg, 2);
         pFile->Write(&o->type, 4);
@@ -286,7 +308,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
         count = entities.GetSize();
         pFile->Write(&count, 4);
         for (i = 0; i < count; i++) {
-            MapEntity *e = (MapEntity *)entities[i];
+            e = (MapEntity *)entities[i];
             pFile->Write(&e->charId, 2);
             pFile->Write(&e->x, 2);
             pFile->Write(&e->y, 2);
@@ -310,7 +332,7 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
             pFile->Write(&e->numItems, 4);
             pFile->Write(&e->timer, 2);
             pFile->Write(&e->wanderDir, 2);
-            int *p = e->waypoints;
+            p = e->waypoints;
             for (int k = 4; k > 0; k--) {
                 pFile->Write(p, 4);
                 pFile->Write(p + 1, 4);
