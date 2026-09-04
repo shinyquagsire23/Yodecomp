@@ -1209,9 +1209,10 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-04 v118 — **255 → 257 exact, REAL MATCHES; +2/−0 by
-`exactset.py` + `comm` after every landing**. Two new standing lessons, one new dial
-(#50), one new tool, and the closure of a decl axis NO tool in the project could reach.
+### ⏭ NEXT SESSION PICKUP (2026-09-04 v118 — **255 → 257 exact, REAL MATCHES; +2/−0**. Two new
+standing lessons, one new dial (#50), two new tools, the closure of a decl axis NO tool
+in the project could reach, and **three functions cut by 1054 bytes of residual with two
+of them reaching their exact Ghidra LENGTH**.
 All oracles green: 257 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign)
 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches / build-sdl links.
 v117 log demoted to PLAN_COMPLETED.md.)
@@ -1220,7 +1221,8 @@ v117 log demoted to PLAN_COMPLETED.md.)
 bullet under it on **`declorder.py --inner`**. Both ⚠ clauses on #50 matter: dropping an
 alias ALONE is usually a big LOSS, and the dial needs a STORE through the pointer.
 
-**▶ WHAT LANDED.**
+**▶ WHAT LANDED** (4 commits; the anchor was re-measured with `exactset.py` + `comm` after
+every one, and all five oracles + build-sdl re-run at the end).
 1. **`AddHealth` 0x427690 byte-EXACT (49 B → 0, length 517 → 520 = the extent).** Found by
    `residuals.py --lenmis` (lesson #49 paying for the second session running). The whole
    residual was ONE missing `mov ecx,[edi+0x44]`: the original RELOADS the `pWorld` member
@@ -1232,6 +1234,13 @@ alias ALONE is usually a big LOSS, and the dial needs a STORE through the pointe
 2. **`BlitViewportDither` 0x428e30: 125 B → 55**, length 237 → 238 against an extent of
    242 — purely by declaring the inner `prod` before `x`. Landed on lesson #48's bar (a
    large cut WITH the length improving), +0/−0.
+3. **`UseWeapon` 0x427d20: 1536 B → 1068, and its LENGTH 2383 → 2390 = the extent.**
+   `pOldPal` belongs LAST in the head block (the initializers it moves past are pure
+   reads, so `SelectPalette` still precedes all drawing), and `nAX` before `nAY` in the
+   step-3 block stacks on top. ⚠ This REFUTED two claims in the function's own v15 note
+   ("the rest of the head is order-insensitive"; "proven NOT steerable by decl
+   order/placement, 9 probes") — both true only of the 3 decls those probes covered.
+   Note corrected in place. Further orders are worth 5 B and were left (tuning).
 
 **▶ NEW TOOLS / FIXES.**
 - **`declorder.py --inner`** — permutes EVERY brace-block's decl run, not just the leading
@@ -1261,31 +1270,45 @@ alias ALONE is usually a big LOSS, and the dial needs a STORE through the pointe
   (lesson #44). The G1 note already records that goto/epilogue variants were flat.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ SWEEP THE INNER-BLOCK SEAM WHOLE — it is now affordable.** 45 non-exact functions,
-   **521 legal permutations** (1435 before the dependency filter). A batch script pattern is
-   in this session's scratch; run it per TU with `run_in_background` to a log, and NEVER
-   concurrently with another sweep. Unstarted targets include 0x4260e0, 0x428f50, 0x41c580,
-   0x41c730, 0x421930, 0x40a3a0, 0x40f4b0, 0x427d20, 0x41cf10, 0x41d480, 0x412250, 0x40a710.
-2. **Work `aliasscan.py` ∩ `residuals.py --lenmis`** (lesson #50's strong form). Best
-   unworked: **`UseWeapon` 0x427d20** (−7, SIX aliases incl. pW/pW2/pW3) and
-   **`OnNewDocument` 0x41bb10** (−29, and its note already says "pPalette loaded into a local
-   BEFORE ::CreatePalette" was a CRACK — re-read that against the length).
-3. **Keep working `residuals.py --lenmis` top-down.** Still unworked, negative first:
+1. **⭐ `AddItemToInv` 0x428f50 IS THE BEST SINGLE LEAD — 381 B → 141 on `nInv,i`, but
+   HELD BACK.** Its length moves 505 → 502, i.e. AWAY from the extent of 506, which is the
+   exact rule that forced its revert at v116 — so it was NOT landed. A 63 % diff cut is far
+   too large to be noise: the decl order is almost certainly right and something else is
+   4 bytes short. **Find the missing 4 bytes, then land both together.** Start with
+   `asmscore --dump` on the variant, not on the baseline.
+2. **⭐ FINISH THE INNER-BLOCK SEAM.** 45 non-exact functions / **521 legal permutations**
+   (1435 before the dependency filter), of which ~17 functions were swept this session.
+   Run it per TU with `run_in_background` to a log, NEVER concurrently with another sweep.
+   ⚠ Worldgen.cpp compiles are slow (~2-4 min/function) — budget accordingly.
+   Already swept, FLAT or below the bar (do not re-tread): 0x4260e0, 0x421930, 0x424fc0,
+   0x423df0, 0x412250, 0x40a710, 0x40f4b0, 0x4270f0, 0x41a1c0, 0x408e70, 0x409c10,
+   0x40ec30, 0x40f060, 0x41d260, 0x41c200, 0x403aa0; plus 0x41d480 (9→7), 0x41c490 (21→19),
+   0x40a320 (13→12), 0x41c3b0 (17→15) all BELOW lesson #48's landing bar.
+   ⚠ `0x41c580` / `0x41c730` / `0x41cf10` each have a variant that cuts diff but SHORTENS
+   the length away from the extent — same shape as AddItemToInv, same verdict: not yet.
+3. **Work `aliasscan.py` ∩ `residuals.py --lenmis`** (lesson #50's strong form). Best
+   unworked now: **`OnNewDocument` 0x41bb10** (−29, and its note already says "pPalette
+   loaded into a local BEFORE ::CreatePalette" was a CRACK — re-read that against the
+   length). `UseWeapon` 0x427d20 was worked this session via the decl axis, not the alias
+   one; its six aliases are still untested as aliases.
+4. **Keep working `residuals.py --lenmis` top-down.** Still unworked, negative first:
    `ScrollZoneTransition` 0x411180 (−62), `Layout` 0x4176f0 (−35), `DrawHealthNeedle`
    0x4278a0 (−17), `DrawHealthDial` 0x427490 (−16), `OnUpdate` 0x408e70 (−11),
    `WorldgenPlacePuzzles` 0x421930 (−11); then positive: `ShowWinMessage` 0x40f4b0 (+36),
    `IactProbeMove` 0x406550 (+26), `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13).
+   `UseWeapon` 0x427d20 is now OFF this list — its length matches.
    ⚠ hand-disassemble two hits before investing (v117's own first census ranked 3 artifacts).
-4. **Re-read every "PARKED / register permutation / not source-steerable" note against the
+5. **Re-read every "PARKED / register permutation / not source-steerable" note against the
    LENGTH.** AddHealth is now the SECOND such park cracked in two sessions (ZoneProvidesItem
-   was the first) — both notes were describing a symptom.
-5. **The container CALL-FORM seam (lesson #48) is still only partly worked** — ~80
+   was the first), and UseWeapon's note is the THIRD to be refuted — all three were
+   accurate about the axis they probed and wrong about being exhaustive.
+6. **The container CALL-FORM seam (lesson #48) is still only partly worked** — ~80
    `SetAtGrow` + ~277 `GetAt` sites, and `a[i] = v` vs `a.SetAt(i, v)` is untouched. The
    cheap Worldgen band is closed, so aim it at the LARGER residuals.
-6. **`dtorscan.py`'s two live hits**: `Load` 0x422670 (1634 B), `ParsePuz2` 0x422fd0 (165 B).
-7. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that
+7. **`dtorscan.py`'s two live hits**: `Load` 0x422670 (1634 B), `ParsePuz2` 0x422fd0 (165 B).
+8. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that
    verdict now rests on ~20 functions across v111–v118, inner blocks included.
-8. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+9. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
