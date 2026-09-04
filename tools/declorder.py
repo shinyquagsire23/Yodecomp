@@ -24,7 +24,10 @@ Permutations are LINE-NEUTRAL by construction: the block keeps its original line
 lines are re-appended), so lesson #23 can't confound the measurement.
 
 Usage:
-    tools/declorder.py <tu.cpp> <0xADDR> --expect N [--max-perm K] [--keep]
+    tools/declorder.py <tu.cpp> <0xADDR> --expect N [--inner] [--max-perm K] [--keep]
+
+--inner (v118) permutes EVERY brace-block's decl run, not just the leading function-scope one.
+That axis landed AddHealth 0x427690 and no other tool in the project can reach it.
 
 --expect N is REQUIRED (get it from tools/bytediff.py). K caps the permutation count (default
 120); with more decls than that fits, a random-free deterministic subset (adjacent swaps plus
@@ -96,12 +99,56 @@ def leading_block(body):
     return out
 
 
+def inner_blocks(body):
+    """[(label, [(line_index, name), ...]), ...] for EVERY decl run that opens a brace-block.
+
+    ⭐ v118 (lesson #50's enabler): this tool only ever permuted the LEADING function-scope
+    block, so an inner block's decl order — inside an `if`/loop body — was unreachable by any
+    harness in the project (`hoisttest.py` asks about SCOPE, not order). That axis is real and
+    it is not small: `AddHealth` 0x427690 became byte-EXACT only with the death tail's inner
+    block ordered pTile,bFound,i; the other five orders give 117-421 B. body[0] is the
+    function's own `{`, so the leading block comes out of this scan too.
+    """
+    out = []
+    for k, ln in enumerate(body):
+        if ln.strip() != "{":
+            continue
+        run = []
+        for m in range(k + 1, len(body)):
+            s = body[m].split("//")[0].rstrip()
+            if not s.strip():
+                if run:
+                    break                     # blank line ends the run
+                continue                      # ...but a leading comment/blank does not
+            names = decl_names(s)
+            if names is None:
+                break
+            run.append((m, "+".join(names)))
+        if len(run) >= 2:
+            out.append(("block@%d" % k, run))
+    return out
+
+
+def permutations_of(n, maxp):
+    perms = list(itertools.permutations(range(n)))
+    if len(perms) > maxp:                      # deterministic fallback: swaps + reversal
+        perms = [tuple(range(n))]
+        for a in range(n - 1):
+            p = list(range(n)); p[a], p[a + 1] = p[a + 1], p[a]; perms.append(tuple(p))
+        for a in range(n):                     # each decl rotated to the front and to the back
+            p = [x for x in range(n) if x != a]
+            perms.append(tuple([a] + p)); perms.append(tuple(p + [a]))
+        perms.append(tuple(reversed(range(n))))
+    return perms
+
+
 def main():
     args = sys.argv[1:]
     expect = None
     maxp = 120
     keep = "--keep" in args
-    args = [a for a in args if a != "--keep"]
+    inner = "--inner" in args
+    args = [a for a in args if a not in ("--keep", "--inner")]
     for flag in ("--expect", "--max-perm"):
         if flag in args:
             i = args.index(flag)
@@ -120,39 +167,42 @@ def main():
     j = next(k for k in range(o, len(lines)) if lines[k] == "}")
     body = lines[o:j + 1]
 
-    blk = leading_block(body)
-    if len(blk) < 2:
-        raise SystemExit("%s has %d leading function-scope decl(s) — nothing to permute"
-                         % (mk, len(blk)))
-    idx = [k for k, _ in blk]
-    print("leading decl block (%d):" % len(blk))
-    for k, n in blk:
-        print("   %-14s  %s" % (n, body[k].strip()[:66]))
+    if inner:
+        blocks = inner_blocks(body)
+        if not blocks:
+            raise SystemExit("%s has no brace-block with >= 2 declarations — nothing to permute"
+                             % mk)
+    else:
+        blk = leading_block(body)
+        if len(blk) < 2:
+            raise SystemExit("%s has %d leading function-scope decl(s) — nothing to permute"
+                             % (mk, len(blk)))
+        blocks = [("leading", blk)]
 
-    n = len(blk)
-    perms = list(itertools.permutations(range(n)))
-    if len(perms) > maxp:                      # deterministic fallback: swaps + reversal
-        perms = [tuple(range(n))]
-        for a in range(n - 1):
-            p = list(range(n)); p[a], p[a + 1] = p[a + 1], p[a]; perms.append(tuple(p))
-        for a in range(n):                     # each decl rotated to the front and to the back
-            p = [x for x in range(n) if x != a]
-            perms.append(tuple([a] + p)); perms.append(tuple(p + [a]))
-        perms.append(tuple(reversed(range(n))))
-    base_order = tuple(range(n))
+    for label, blk in blocks:
+        print("%s decl block (%d):" % (label, len(blk)))
+        for k, n in blk:
+            print("   %-14s  %s" % (n, body[k].strip()[:66]))
 
     seen, variants = set(), []
-    for p in perms:
-        if p == base_order:
-            continue                           # vartest measures the unmodified body as BASELINE
-        b = list(body)
-        for slot, src in zip(idx, p):
-            b[slot] = body[idx[src]]
-        text = "\n".join(b)
-        if text in seen:
-            continue
-        seen.add(text)
-        variants.append((",".join(blk[s][1] for s in p)[:34], text))
+    budget = max(1, maxp // len(blocks))
+    for label, blk in blocks:
+        idx = [k for k, _ in blk]
+        n = len(blk)
+        base_order = tuple(range(n))
+        for p in permutations_of(n, budget):
+            if p == base_order:
+                continue                       # vartest measures the unmodified body as BASELINE
+            b = list(body)
+            for slot, src in zip(idx, p):
+                b[slot] = body[idx[src]]
+            text = "\n".join(b)
+            if text in seen:
+                continue
+            seen.add(text)
+            name = ",".join(blk[s][1] for s in p)[:30]
+            variants.append(("%s:%s" % (label, name) if inner else name, text))
+
     print("\n%d permutations\n" % len(variants))
 
     # NOT under tools/ — an interrupted run would leave a stray tmp*.py in the repo

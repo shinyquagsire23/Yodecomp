@@ -7986,9 +7986,9 @@ void CDeskcppView::DrawWeaponIcon(CDC *pDC)
 }
 
 // FUNCTION: YODA 0x00428e30
-// [EFFECTIVE: insns 80/78; residual = IV zero-init placement + a reg rotation in the
-// BitBlt arg block (pWorld-reload color). Offset-form outer loop (while nOff < 0x51000)
-// is decompile-literal; the x*y%2 signed-mod dance comes from the prod-accumulator.]
+// [EFFECTIVE-WIP: 125 B -> 55 at v118 (len 237 -> 238 vs extent 242) purely by declaring the
+// inner block `prod` BEFORE `x` (declorder.py --inner). Residual = ONE missing zero-init (orig
+// zeroes 3 regs, we zero 2 — hoisting prod/x is flat 53-56) + the BitBlt arg-block reload.]
 // Dim the 576x576 canvas with a multiplicative checkerboard (zero where x*y is even), blit
 // the visible 288x288 window to the screen at (8,7), then restore the palette.
 void CDeskcppView::BlitViewportDither()
@@ -8002,8 +8002,8 @@ void CDeskcppView::BlitViewportDither()
         int y = 0;
         do
         {
-            int x = 0;
             int prod = 0;
+            int x = 0;
             do
             {
                 if (prod % 2 == 0)
