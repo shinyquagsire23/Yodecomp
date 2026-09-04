@@ -855,10 +855,30 @@ void CDeskcppDoc::OnReplayStory()
     nFrameMode = savedMode;
 }
 
-// FUNCTION: YODA 0x004037a0  [WIP: DIFF(79), align=34, insns 178/178 — was DIFF(254) under the
-//   old SHIFTED MapZone stub, whose off-by-4 grid displacements were silently poisoning every
-//   cell store; the vptr-true MapZone.h de-dup (2026-07-07) fixed those. Remaining residuals:
-//   grid-store increment placement, gen-loop layout, early-out jcc direction (as before).]
+// FUNCTION: YODA 0x004037a0  [WIP: DIFF(69) at v115 (was 79), insns 178/178, len 667/667. The
+//   lever was the generate loop's IF/ELSE ARM ORDER: the original tests Generate(seed) != 0 and
+//   puts the `ok = ok + 1` arm FIRST (fallthrough at +0x24b), spilling Randomize() to the else;
+//   ours had the arms the other way round and emitted the mirrored jcc. The family is pinned
+//   from the other side by LENGTH — `ok = 1` emits 671 B and `while (ok < 1)` 668 against the
+//   original's 667 — so `ok = ok + 1` / `while (ok == 0)` are confirmed, while `ok++` and
+//   `!Generate(...)` are source-inert (79 B either way, i.e. the increment/negation SPELLING is
+//   not the lever, only the arm ORDER is).
+//   ⚠ MEASURED NEGATIVE, do not re-sweep: the remaining 69 B is the grid loop's eax/ecx/edx
+//   3-cycle (orig {pg:ecx, mz:edx, col:eax}, ours {pg:eax, mz:ecx, col:edx}). The original
+//   anchors the mz induction pointer at &zones[0].id (0x4b4) and hoists `mz++` to the loop top
+//   with negative displacements; ours anchors at &zones[0] (0x4b0) and hoists `pg++` instead.
+//   All 10 spellings of the two increments' PLACEMENT plus the pg/mz decl ORDER are flat at
+//   68-72 B with IDENTICAL length (667) and save set — the lesson-#44 scratch-register
+//   bijection, source-closed. (Decl swap is strictly worse at 72, so the current order is
+//   positively confirmed.) ⚠ `bugscan.py --all` reports this lea as its single HIGH finding
+//   (base=esi orig=0x4b4 ours=0x4b0). It is a PROVEN FALSE POSITIVE, and it PRE-DATES v115
+//   (HEAD reports the identical line): all 30 grid stores resolve to IDENTICAL effective
+//   addresses, because ours_disp == orig_disp + 4 for every one of them, exactly cancelling
+//   the 4-byte anchor difference. bugscan compares the (base, displacement) SPLIT, which a
+//   differently-anchored induction pointer changes without moving a single byte of data.
+//   Was DIFF(254) under the old SHIFTED MapZone stub, whose off-by-4
+//   grid displacements silently poisoned every cell store; the vptr-true MapZone.h de-dup
+//   (2026-07-07) fixed those.]
 // Begin a game session: reset player state, walk-in animation, camera/inventory reset, clear both
 // map grids, load assets, then (unless restoring a save) generate + populate the world.
 int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
@@ -972,13 +992,13 @@ int CDeskcppDoc::StartGame(unsigned int nSeed, int bSkipGenerate)
             // to the original (anchor-safe). Without this guard, New World -> StartGame ran the
             // Yoda Generate, which never converges on Indy data -> infinite reseed loop.
 #ifdef GAME_INDY
-            if (IndyGenerate(seed) == 0)
+            if (IndyGenerate(seed) != 0)
 #else
-            if (Generate(seed) == 0)
+            if (Generate(seed) != 0)
 #endif
-                seed = Randomize();
-            else
                 ok = ok + 1;
+            else
+                seed = Randomize();
         } while (ok == 0);
 #ifndef GAME_INDY
         BackupZoneGrid();

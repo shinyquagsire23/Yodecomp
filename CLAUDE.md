@@ -208,9 +208,21 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 |---|---|---|
 | exact count | `python3 tools/progress.py` | **252 exact / 99.17 % transcribed** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
-| field/slot bugs | `python3 tools/bugscan.py --all` | 0 HIGH / 0 SHIFT |
+| field/slot bugs | `python3 tools/bugscan.py --all` | **1 HIGH (known benign) / 0 SHIFT** |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
+
+⚠ **The bugscan green state is 1 HIGH, not 0 — corrected at v115.** The finding is
+`StartGame` 0x4037a0 `@+0x14a lea base=esi orig=0x4b4 ours=0x4b0`, and it is a PROVEN
+FALSE POSITIVE that pre-dates v115 (measured at HEAD too, so earlier pickups recording
+"0 HIGH" were stale). bugscan compares the (base, displacement) SPLIT of a field access;
+the original anchors the grid loop's `mz` induction pointer at `&zones[0].id` (0x4b4,
+because it hoists `mz++` above the first store and uses negative displacements) while we
+anchor at `&zones[0]` (0x4b0). Every one of the 30 grid stores has `ours_disp ==
+orig_disp + 4`, exactly cancelling the anchor difference — the effective addresses are
+IDENTICAL. ⇒ Do not "fix" it, and do not add a suppression list to bugscan (hiding a
+finding is the wrong direction for an instrument — see the harness-can-lie lessons);
+the verdict is recorded in the function's source note.
 
 ⚠ **252 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions

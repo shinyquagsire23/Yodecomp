@@ -573,15 +573,23 @@ int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
     return 0;
 }
 
-// FUNCTION: YODA 0x00406780  [STRUCTURALLY COMPLETE: 569/569 insns, 512 identical (90%).
-//   Residual = pure tie-breaks, no length drift: reg-rename 2/3-cycles (AllEnemiesDead loop,
-//   index-temp eax/ecx/edx), cmp operand directions (TempVarEq/Ne, loop backedges jl<->jg),
-//   BumpTile's first compare add-vs-sub form, je/jne polarity (DragWrongItem 0x12), QuestSpot
-//   xor placement + zero-reg reuse, CheckCellItems itemA/itemB emit order. All rotate with TU
-//   phase (proven: probes inert or mirrored) — joint endgame. KEY CRACKS: the two-return tail
+// FUNCTION: YODA 0x00406780  [STRUCTURALLY COMPLETE: DIFF(1538) at v115 (was 1548), len
+//   2408/2408 — no length drift, so the whole residual is local redistribution + tie-breaks:
+//   reg-rename 2/3-cycles (AllEnemiesDead loop, index-temp eax/ecx/edx), cmp operand directions
+//   (TempVarEq/Ne, loop backedges jl<->jg), je/jne polarity (DragWrongItem 0x12), QuestSpot xor
+//   placement + zero-reg reuse, CheckCellItems itemA/itemB emit order. All rotate with TU phase
+//   (proven: probes inert or mirrored) — joint endgame. KEY CRACKS: the two-return tail
 //   (duplicated epilogue) also fixed the {result,itemB,nScripts} slot 3-cycle (slot order is
-//   usage-driven, NOT decl-driven); (ty = y + dy) in-condition assignment forces the add-form
-//   compare + index CSE.]
+//   usage-driven, NOT decl-driven); and BOTH of BumpTile's compares are IN-CONDITION
+//   ASSIGNMENTS — (ty = y + dy) landed at G1, and v115 added (tx = dx + x), which killed the
+//   long-standing add-vs-sub form at +0x14b (orig `mov eax,[dx]; add eax,[x]; cmp eax,[args0]`;
+//   ours had emitted the algebraically-rewritten `mov eax,[args0]; sub eax,[dx]; cmp eax,[x]`).
+//   ⚠ The original does NOT reuse tx in the tile index — it recomputes `dx + x` there, PROVEN
+//   by length: every variant that substitutes tx into the subscript emits 2404 B, 4 short of
+//   the original's 2408 (and 1800 B of diff). ⚠ MEASURED NEGATIVE at +0x15e (orig adds y then
+//   dy, ours dy then y): all 7 spellings of the ty condition — (ty = dy + y), the reversed
+//   compare direction, and both tx/ty decl orders — are DEAD FLAT at 1538, while dropping ty
+//   entirely costs 252 B. Per lesson #45 a mirrored compare is never the condition's spelling.]
 // The IACT condition interpreter: for each of the zone's scripts whose trigger conditions all
 // pass for this frame event (1=walk-step 2=BumpTile 3=DragItem 4=enter-zone 5=enter-vehicle),
 // run its commands. Runs with nFrameMode forced to 1 (script-busy); restores the caller's mode
@@ -643,8 +651,8 @@ int Zone::IactRun(int event, int x, int y, int dx, int dy, int a5, CDC *pDC, CDe
                         matched = 0;
                     break;
                 case COND_BumpTile: {
-                    int ty;
-                    if (event != 2 || dx + x != pCond->args[0] || pCond->args[1] != (ty = y + dy)
+                    int tx; int ty;
+                    if (event != 2 || (tx = dx + x) != pCond->args[0] || pCond->args[1] != (ty = y + dy)
                         || tiles[(ty * ZONE_WIDTH + dx + x) * ZONE_LAYERS + 1] != pCond->args[2])
                         matched = 0;
                     break; }
