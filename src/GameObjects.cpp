@@ -551,9 +551,14 @@ void Zone::FlagQuestObjects()
 
 // FUNCTION: YODA 0x00405710  [EFFECTIVE MATCH: structure fully recovered — 229/230 insns, 132
 //   identical; the residual is one `this`-reload (our allocator puts n in ECX, killing this) plus
-//   the ECX<->EDX role swap cascading through the body. True length 690 vs ours 696. All source
-//   shapes tried (n/nChars order, id-local, shared-return-1 nesting, drop=int, single no-var);
-//   allocator tie-break — same parked class as Puzzle/MapEntity ctors.]
+//   the ECX<->EDX role swap cascading through the body. All source shapes tried (n/nChars order,
+//   id-local, shared-return-1 nesting, drop=int, single no-var); allocator tie-break — same
+//   parked class as Puzzle/MapEntity ctors.
+//   ⭐ v116: 556 B -> 51 B, and the LENGTH now matches (690 = 690; the park's "true length 690
+//   vs ours 696" was the very symptom). The lever was the CONTAINER ADD FORM — both appends are
+//   `objects.Add(no)`, not `objects.SetAtGrow(objects.GetSize(), no)`; see ParseChar 0x421e70
+//   for the mechanism. This function was also a tools/dtorscan.py hit, and the EH-state store
+//   moved back to the original's side of the loop increments with the same fix.]
 // Apply weapon damage to the entity at (x,y). On kill: clear the projectile tile, then drop
 // the carried item (or the zone's quest item) as a new type-6 ZoneObj on layer 1.
 int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, CDeskcppDoc *pWorld, CDeskcppView *pView)
@@ -596,7 +601,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, CDeskcpp
                                 no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
                                 no->arg = drop;
                                 no->state = 1;
-                                objects.SetAtGrow(objects.GetSize(), no);
+                                objects.Add(no);
                                 SetTile(x, y, 1, drop);
                                 pView->DrawZoneCell((short)x, (short)y);
                             }
@@ -604,7 +609,7 @@ int Zone::DamageEntityAt(int x, int y, CObArray *paChars, short damage, CDeskcpp
                             no = new ZoneObj(6, (unsigned short)x, (unsigned short)y);
                             no->arg = e->item - 1;
                             no->state = 1;
-                            objects.SetAtGrow(objects.GetSize(), no);
+                            objects.Add(no);
                             SetTile(x, y, 1, e->item - 1);
                             pView->DrawZoneCell((short)x, (short)y);
                         }

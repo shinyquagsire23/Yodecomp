@@ -491,9 +491,13 @@ void CDeskcppDoc::Nop2()
 //   Loop 2 keeps the plain `for`: its guard reads keep.m_nSize from MEMORY and reloads it,
 //   which our current spelling already produces. Both countdown spellings of loop 2 are
 //   WORSE (27-29 B) and the register-guarded form is REFUTED BY LENGTH (204 vs 206).
-//   PARKED at 24 B: a clean ebx<->edi 2-cycle (orig n->ebx i->edi; ours reversed) plus an
-//   entry schedule shift (the original loads n between the callee-save pushes). Closed axes:
-//   32 decl set x order configurations over {i,id,j,m} x i-position — all flat at 24.]
+//   ⭐ v116: BYTE-EXACT. The last 24 B was NOT the ebx<->edi 2-cycle it was parked as — it was
+//   the CONTAINER ADD FORM. Both appends here are `X.Add(v)`, not `X.SetAtGrow(X.GetSize(), v)`;
+//   MFC 4.2's inline CObArray/CWordArray::Add reads m_nSize straight off the object and takes
+//   its address with a LEA, where the SetAtGrow spelling evaluates GetSize() as an ordinary
+//   argument (see ParseChar 0x421e70 for the full write-up). Fixing the form also settled the
+//   register assignment the park blamed. ⚠ the park's "32 decl configurations, all flat at 24"
+//   was accurate and still is — it was simply searching the wrong axis, the lesson-#41 shape.]
 // Rebuild placedZoneIds in place, dropping zones whose type is Empty(1).
 void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
 {
@@ -504,7 +508,7 @@ void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
         do {
             unsigned short id = placedZoneIds[i];
             if (zoneObjects[id]->type != 1)
-                keep.SetAtGrow(keep.GetSize(), id);
+                keep.Add(id);
             i++;
             n--;
         } while (n != 0);
@@ -512,7 +516,7 @@ void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
     placedZoneIds.SetSize(0, -1);
     int m = keep.GetSize();
     for (int j = 0; j < m; j++)
-        placedZoneIds.SetAtGrow(placedZoneIds.GetSize(), keep[j]);
+        placedZoneIds.Add(keep[j]);
 }
 
 // FUNCTION: YODA 0x00403140

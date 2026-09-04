@@ -200,7 +200,7 @@ int CDeskcppDoc::PickUnplacedItemMaybe(short zoneId)
             {
                 int v = pZone->genCandidateB.GetAt(i);
                 if (IsItemPlaced(v) == 0)
-                    paItems.SetAtGrow(paItems.GetSize(), v);
+                    paItems.Add(v);
                 i++;
                 nCount--;
             } while (nCount != 0);
@@ -2861,12 +2861,12 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     questItemsB.SetSize(nStepsB + 1, -1);
     if (completionCount < 1)
     {
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xbd);
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+        storyHistoryAlaska.Add(0xbd);
+        storyHistoryAlaska.Add(0xc5);
     }
     else if (completionCount < 10)
     {
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
+        storyHistoryAlaska.Add(0xc5);
     }
 #if defined(YODA_FULL) || defined(GAME_INDY)
     // Full game / Indy: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal.
@@ -2892,18 +2892,18 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     Puzzle *pPuz = (Puzzle *)puzzles.GetAt(goal);
     startItem = pPuz->itemA;
     startItem2Maybe = pPuz->itemB;
-    goalTileList.SetAtGrow(goalTileList.GetSize(), goal);
+    goalTileList.Add(goal);
     nCurrentGoalItem = goal;
     switch (currentPlanet)
     {
     case 1:
-        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
+        storyHistoryNevada.Add(goal);
         break;
     case 2:
-        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), goal);
+        storyHistoryAlaska.Add(goal);
         break;
     case 3:
-        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), goal);
+        storyHistoryOregon.Add(goal);
         break;
     }
     int j;
@@ -4655,7 +4655,7 @@ int CDeskcppDoc::ParsePuz2(CFile *pFile)
             }              // closes the TRY macro's outer (link-scope) brace
             if (pNew == NULL)
                 return 0;
-            puzzles.SetAtGrow(puzzles.GetSize(), pNew);
+            puzzles.Add(pNew);
             pNew->Read(pFile);
         }
         if (nDone != 0)
@@ -8024,7 +8024,7 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
             else
             {
                 if (pWorld->inventory.GetSize() <= 1)
-                    pWorld->inventory.SetAtGrow(pWorld->inventory.GetSize(), pNew);
+                    pWorld->inventory.Add(pNew);
                 else
                     pWorld->inventory.InsertAt(2, pNew, 1);
             }
