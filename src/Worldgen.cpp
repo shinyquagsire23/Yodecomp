@@ -167,9 +167,20 @@ int CDeskcppDoc::ZoneRequiresItemMaybe(short zoneId, short itemId)
 }
 
 // FUNCTION: YODA 0x0041c200
-// [EFFECTIVE: align=12 — one mov/xor scheduling transposition at the recursion-loop head +
-// ESI/EDI/EBX 3-cycle role rotation. Structure proven: `int v` (hoisted xor zero-extend),
-// `nAvail <= 0` (TEST/JG), j declared inside the guard. Tie-break family, joint pass.]
+// [PARKED at DIFF(13) with measured evidence — v113. align=12; one mov/xor scheduling
+// transposition at the recursion-loop head + an ESI/EDI role swap in loop 1 (orig i->EDI
+// nCount->ESI; ours reversed). This is lesson #44's bijection class: matching LENGTH (310),
+// matching callee-save set (ebx+edi+esi), pure register rename.
+// CLOSED AXES (55 configurations, all dead flat at 13 unless noted):
+//   * decl SCOPE/SET (#37/#38): 9 hoist subsets over {v,nAvail,j,nObjs,pObj}. Hoisting the
+//     loop-2 locals is strictly WORSE and positively confirms the current spelling —
+//     `j` at function scope costs 7 B (20), `nObjs` costs 8 B (21).
+//   * index POSITION (#45): i first / second / last is INERT in every one of those subsets,
+//     so v112's set x order interaction does NOT generalise to this function.
+//   * inner decl ORDER: j-before-nObjs vs nObjs-before-j — inert.
+//   * loop-2 FORM (#40): do-while(nObjs > j) / (j < nObjs) / for / while all fold to 13;
+//     the guarded countdown is REFUTED BY LENGTH (311 vs the original's 310).
+// The lever is not in this body — see the TU-joint phase (v105/v112).]
 // Pick a random item from zoneId's genCandidateB (IZX3) that IsItemPlaced hasn't seen yet;
 // falls back to DOOR_IN-linked child zones. Returns the item id or -1.
 int CDeskcppDoc::PickUnplacedItemMaybe(short zoneId)

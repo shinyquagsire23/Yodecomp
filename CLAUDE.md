@@ -11,7 +11,14 @@ v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-match
 
 ## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES))
 
-⚠ v111 and v112 both held at **255** — no new byte-match. v112 was still productive:
+⚠ v111, v112 and v113 all held at **255** — no new byte-match. v113 was still productive:
+`RemoveEmptyZonesFromPlacedList` 0x403070 went 26 B → 24 B on the LOOP FORM (lesson #40) and the
+fix was structural, not cosmetic — `this` moved into ESI as the original has it. Three cheap-band
+residuals were swept to a measured floor with zero gain (135 configurations total), and the
+`tools/loopform.py` scan that found the win is now checked in. Read a flat exact count as "the
+cheap band is search-limited", not "nothing happened".
+
+⚠ v112 note:
 `WriteSavedState` 0x405f30 went 20 B → 7 B (lesson #45), and the joint search v111 asked for is
 built and returned a measured NEGATIVE. Read a flat exact count as "the cheap band is
 search-limited", not "nothing happened".
@@ -394,6 +401,32 @@ on newly-transcribed functions). Read the two directions differently:
 jump table or EH data, so large functions report an empty set. It flagged six functions whose
 originals visibly DO push ebx+esi+edi in their first 0x20 bytes. Another instance of the v100
 "the instrument itself can lie" family; savescan.py's positive control is the guard.
+
+⭐ **THE LOOP FORM CAN FIX A REGISTER THE LOOP DOESN'T OWN — AND LENGTH DOES NOT ALWAYS
+REFUTE (v113, sharpening lesson #40) — `tools/loopform.py`.** v107 gave two rules for the loop
+dial that both needed narrowing:
+- **"Wrong forms are refuted instantly by emitted LENGTH" is not universal.** On
+  `RemoveEmptyZonesFromPlacedList` 0x403070 the `for` and the guarded countdown emit **exactly
+  the same 206 bytes**, because cl 10.20 already strength-reduces `for (i = 0; i < n; i++)` into
+  `add edi,2; dec ebx; jne`. The emitted LOOP was never the problem. Length still refutes where
+  it differs (loop 2's register-guarded countdown: 204 vs 206), so keep using it — just don't
+  read "same length" as "same form".
+- **What the source form actually moved was `this`.** Writing loop 1 as the house
+  `if (n > 0) { int i = 0; do { ...; i++; n--; } while (n != 0); }` put `this` in ESI, matching
+  the original, and four unrelated **this-relative load diffs** disappeared with it
+  (+0x03e/+0x069/+0x084/+0x093). 26 B → 24 B, +0/−0. ⇒ a loop-form probe is worth running even
+  when the loop bytes already match, and its payoff can land nowhere near the loop.
+⭐ **`tools/loopform.py`** is the target list: it disassembles the ORIGINAL, classifies every
+BACKWARD branch as countdown (`dec`/`sub` feeding the test) or compare (`cmp`), and reports the
+non-exact functions whose original uses a countdown while OUR source spells
+`for (x = 0; x < n; x++)`. It is **READ-ONLY** — no compile, no `build/*.obj` — so it is safe to
+run while a `vartest.py` sweep is in flight (pass a cached `--exact` file from `exactset.py`).
+⚠ **A hit is a CANDIDATE, not a defect**: cl lowers most of our `for` loops to countdowns by
+itself, so confirm with `bytediff.py` before investing. Strongest signal = **orig-cmp 0 with
+our-for > 0** (the original uses no compare loop at all). Current list, best first: `~CDeskcppDoc`
+0x41b2f0 (7 cd / 0 cmp — but at DIFF(6) with 405/405 insns matching, its loops already agree;
+this is the known register-phase park), `BlitMasked` 0x408240, `OnNewDocument` 0x41bb10,
+`WorldgenCollectZoneRefs` 0x41f8e0.
 
 ⭐ **THE DECL DIAL IS AN INTERACTION, NOT TWO SEPARATE KNOBS — SWEEP SET x ORDER JOINTLY
 (v112, lesson #45).** Lesson #38 already said "the SET of function-scope locals AND their
@@ -888,7 +921,7 @@ each hit tagged `arg`/`recv`/`other`. Reproduces the v110 hand-derived list exac
 first draft had TWO bugs, both caught by a known-answer positive control: the `cast()->` regex
 missed the canonical PARENTHESIZED `((T *)p)->m` form, and restricting hits to argument lists
 dropped both actual v110 wins, which were a receiver and an assignment RHS) ·
-**`jointdecl.py <spec.py> --expect-exact N`** (⭐ v112 — the JOINT search: applies a combination of WHOLE-FUNCTION source variants, compiles the TU once, prints the byte-diff for EVERY marker in it. Cheap because TUs compile separately, so an edit here cannot move another TU. ⚠ its first run is a NEGATIVE result — 54 combinations over Iact.cpp moved no column but the edited function's own; see lesson #45's second half before reaching for it) · **`declorder.py <tu.cpp> <0xADDR> --expect N`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
+**`loopform.py [--exact <file>|--all]`** (⭐ v113 — READ-ONLY target list for the LOOP-FORM dial: the original's countdown backedges vs our `for` spellings. Safe to run during a sweep; a hit is a candidate, not a defect) · **`jointdecl.py <spec.py> --expect-exact N`** (⭐ v112 — the JOINT search: applies a combination of WHOLE-FUNCTION source variants, compiles the TU once, prints the byte-diff for EVERY marker in it. Cheap because TUs compile separately, so an edit here cannot move another TU. ⚠ its first run is a NEGATIVE result — 54 combinations over Iact.cpp moved no column but the edited function's own; see lesson #45's second half before reaching for it) · **`declorder.py <tu.cpp> <0xADDR> --expect N`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
 decl block; the axis `hoisttest.py` structurally cannot reach, and the one that landed
 ParseTilesMaybe. ⚠ v111 fixed it AGAIN: it could not see a line holding SEVERAL declarations) · **`hoisttest.py <tu.cpp> <0xADDR> --expect N`** (decl SCOPE: hoist
 inner-block locals. ⚠ v110: it only sees decls WITH an initializer, so a bare `Tile *pTile;`
@@ -918,45 +951,56 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v112 — **255 → 255 exact, but a REAL fidelity gain:
-`WriteSavedState` 0x405f30 went 20 B → 7 B**, and the joint search v111 asked for is BUILT,
-RUN, and came back EMPTY. All 5 oracles green (255 exact / 99.17 %, exact set IDENTICAL
-before/after via `exactset.py` + `comm` at every step / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT
-/ vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches). v111 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v113 — **255 → 255 exact, one REAL fidelity gain:
+`RemoveEmptyZonesFromPlacedList` 0x403070 went 26 B → 24 B on the LOOP FORM**, plus three
+cheap-band residuals swept to a measured floor (135 configurations, zero gain) and a new
+read-only instrument, `tools/loopform.py`. All oracles green (255 exact / 99.17 % / exact set
+IDENTICAL to the session baseline via `exactset.py` + `comm`, +0/−0 / link 0-0-exit0 / bugscan
+0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches over 123 residuals).
+v112 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST: the two new standing lessons above** — "THE DECL DIAL IS AN INTERACTION"
-(#45, the win) and "THE TU-JOINT PHASE IS NOT REACHABLE BY DECL CONFIGURATION, AND NOT
-POSITIONAL" (the two negatives that should stop the next session repeating this one).
+**▶ READ FIRST: the new standing lesson above** — "THE LOOP FORM CAN FIX A REGISTER THE LOOP
+DOESN'T OWN — AND LENGTH DOES NOT ALWAYS REFUTE". It narrows two of v107's rules and describes
+`tools/loopform.py`.
 
 **▶ WHAT LANDED.**
-1. **`WriteSavedState` 0x405f30: 20 → 7 B** (lesson #45). Two levers that are each invisible
-   to the other's sweep: `i` declared before `count` fixed the backedge compare form in all
-   three count loops at once (20→14), then hoisting the three object pointers with `i` LAST
-   fixed the iactScripts loop's bijection (14→7). Rival shapes all refuted by LENGTH.
-2. **`tools/jointdecl.py`** — the joint search. Works, baseline-guarded, agrees with
-   `verify.py` at zero perturbation. Its first run is the negative result above.
-3. **Three well-evidenced PARKS**, each with the closed axes written into the source note:
-   `ReadSavedState` 0x405bd0 (12 B — the #45 interaction re-opened it and 51 configurations
-   re-closed it), `RemoveZoneEntry` 0x41d740 (13 B — the cleanest sibling case in the project;
-   see below), and `WriteSavedState`'s own remaining 7 B (the objects loop's index/walker pair).
+1. **`RemoveEmptyZonesFromPlacedList` 0x403070: 26 → 24 B.** Loop 1 is the house guarded
+   countdown, not a `for`. The gain is structural: `this` moved into ESI as the original has
+   it, killing four this-relative load diffs. Loop 2 correctly stays a plain `for` — both
+   countdown spellings are worse (27-29 B) and the register-guarded form is refuted by LENGTH
+   (204 vs 206). Applied with natural +5-line formatting and re-verified +0/−0 (the lesson-#23
+   reformat hazard did NOT bite here, but it was checked, not assumed).
+2. **`tools/loopform.py`** — read-only, positive-controlled, safe to run during a sweep.
+
+**▶ MEASURED NEGATIVES — do NOT re-tread** (all written into the functions' source notes):
+- **`PickUnplacedItemMaybe` 0x41c200 at 13 B, 55 configurations.** Lesson #45's index-position
+  interaction **does NOT generalise**: i-first/second/last is INERT across 9 hoist subsets.
+  Hoisting the loop-2 locals is strictly WORSE (`j` +7 B, `nObjs` +8 B), which positively
+  confirms the current spelling. Loop-2 form (4 spellings) and inner decl order both inert;
+  countdown refuted by length. Lesson #44 bijection class.
+- **`RemoveEmptyZonesFromPlacedList` 0x403070's remaining 24 B** — 32 decl set × order
+  configurations over {i,id,j,m}, all flat. A clean ebx↔edi 2-cycle plus an entry schedule
+  shift (the original loads `n` between the callee-save pushes).
+- **`CalcSolvedScore` 0x401780 at 13 B, 48 configurations.** v109 permuted only the decls
+  already at function scope; this session swept the axis it could not reach (`pct` lives in an
+  inner block) — 6 orders × pct at 7 function-scope positions plus inner. `pct`'s position is
+  COMPLETELY INERT; only `y`-before-`x` moves and it costs 3 B, re-confirming "x must lead"
+  from a second direction. The residual is the x87 2-accumulator allocation.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ Apply lesson #45's sweep shape to the rest of the cheap band.** This is the one axis
-   with a fresh win behind it, and no existing tool performs it: for each residual, enumerate
-   (hoist subset) × (position of the loop index, especially LAST). Best candidates, all
-   confirmed pure bijections by `bytediff.py` and all with several inner-block locals:
-   `PickUnplacedItemMaybe` 0x41c200 (13, esi↔edi + one schedule shift), `CalcSolvedScore`
-   0x401780 (13), `Populate` 0x425e30 (13), `BlitTile` 0x40a320 (13),
-   `RemoveEmptyZonesFromPlacedList` 0x403070 (26), `WorldgenAddZoneEntry` 0x41d800 (27).
-   ⚠ Do NOT reach for `hoisttest.py`/`declorder.py` for this — they structurally ask only one
-   of the two questions. Drive `vartest.py` with a generated set×order variant file, as this
-   session did (the four `wss_*.py` sweeps are the template).
-2. **⛔ Do NOT build another joint/decl search.** Both bounding negatives are measured now.
-3. **The dtor-position probe (v110 item 2) is still the best UNEXPLOITED seam** — an
-   `[ebp-4]` EH-state store among the DIFFERING instructions, ~20 real candidates. Cheapest:
-   `PickUnplacedItemMaybe` 0x41c200 (13), `RemoveEmptyZonesFromPlacedList` 0x403070 (26),
-   0x404c80 (73). ⚠ "a call appears in the diff" is NOT a filter (83 of 123 hit it).
-   ⚠ `Puzzle::Puzzle` 0x4042b0 is already refuted as a dtor case.
+1. **⭐ Work `tools/loopform.py`'s list** — it is the one axis with a fresh win behind it.
+   Confirm each hit with `bytediff.py` FIRST (most `for` loops already lower to countdowns).
+   Untouched hits with a compare loop in the original too, so the form is genuinely in
+   question: `0x4037a0` (2 cd / 2 cmp / 4 for), `0x406780` (4/3/5), `0x421930` (2/3/2),
+   `0x4070e0` (2/4/3), `0x406270` (2/1/1), `0x41ef90` (1/1/1).
+2. **⛔ Do NOT run another per-function decl sweep on the cheap band.** v111 swept six to a
+   floor, v113 swept three more (135 configurations). Below ~25 B the decl dials are mined
+   out — that verdict now rests on nine functions, not one.
+3. **The dtor-position probe (v110 item 2) is STILL the best unexploited seam** — an `[ebp-4]`
+   EH-state store among the DIFFERING instructions, ~20 real candidates. ⚠ note that
+   `[ebp-4]` holding a REGISTER is a spill/EH-state-zero reuse, not a dtor-position tell; look
+   for `mov [ebp-4], imm` or a dtor CALL sitting earlier than our source allows.
+   ⚠ "a call appears in the diff" is NOT a filter. ⚠ `Puzzle::Puzzle` 0x4042b0 already refuted.
 4. **Worldgen.cpp still holds the biggest residual mass and is still untouched** (`Generate`
    0x41f960 at 5704 B, `OnInitialUpdate` 0x426c40, `PlaceQuestNode`) — transcription-level
    work, not a dial. ⚠ `declorder` on `Generate` is NOT the move (1 permutation).
@@ -965,26 +1009,25 @@ POSITIONAL" (the two negatives that should stop the next session repeating this 
    `sizeof` dial note).
 6. **Phase-H goals 2-5 untouched** this session.
 
-**▶ PARKED WITH MEASURED EVIDENCE THIS SESSION — do NOT re-tread** (closed axes are in each
-function's source note): `WriteSavedState` 0x405f30 at 7 B · `ReadSavedState` 0x405bd0 at
-12 B · `RemoveZoneEntry` 0x41d740 at 13 B. The last is worth reading in full before working
-any bijection: its twin `RemoveZoneEntry2` 0x41d7a0 is byte-EXACT from CHARACTER-IDENTICAL
-source, the two ORIGINALS also differ from each other, and swapping the two definitions in the
-file changes nothing — statement order is positively confirmed (i-first is worse, 18 B), loop
-form is inert, the countdown is refuted by length.
-
 **▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand, all re-confirmed this session).** Every
 sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
 sweeps with `run_in_background` writing to a LOG FILE and gate on BOTH `pgrep` and the driver's
 own DONE marker; restore a single function from `git show HEAD:<file>`, never `git checkout
 <file>` mid-sweep; never run two sweeps concurrently, or one while `progress.py`/`exactset.py`/
-`residuals.py`/`jointdecl.py` is in flight (they share `build/*.obj`). Measure with
-`tools/exactset.py` + `comm`, never progress.py's total alone. ⚠ A `vartest.py` BASE must be
-UNIQUE in the file — **four functions in Iact.cpp share `char tag[5]; int size; int i;`
-verbatim**, so anchor a decl-block BASE on the function SIGNATURE (this bit twice this session).
-⚠ Prefer a WHOLE-FUNCTION BASE when a variant must change both a decl and its body use — the
-two spans have to stay coupled. ⚠ A comment rewrite is a LINE-COUNT change; verify with the
-exact-set diff (this session added ~40 comment lines across 2 byte-matched TUs: +0/−0, verified).
+`residuals.py`/`jointdecl.py` is in flight (they share `build/*.obj`).
+⭐ **v113 additions, both learned the hard way this session:**
+- **A variants file that reads the SOURCE to build its BASE must read `git show HEAD:<file>`,
+  not the working tree** — if a sweep is running, the working tree holds a MUTATED variant and
+  the BASE silently fails to match.
+- **`vartest.py` can be stopped cleanly mid-sweep with SIGINT** (`pkill -INT -f tools/vartest.py`),
+  which runs its atexit/finally restore; verify with `git status --porcelain src/` before doing
+  anything else. SIGKILL would leave the source mutated. Worth knowing when a sweep's first
+  ~30 rows have already answered the question — a 96-variant run is ~45 min.
+- Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. ⚠ A `vartest.py`
+  BASE must be UNIQUE in the file — anchor a decl-block BASE on the function SIGNATURE, or use
+  a WHOLE-FUNCTION base (required when a variant changes both a decl and its body use).
+  ⚠ A comment rewrite is a LINE-COUNT change; this session added ~40 comment lines across three
+  byte-matched TUs and verified +0/−0 with the exact-set diff.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

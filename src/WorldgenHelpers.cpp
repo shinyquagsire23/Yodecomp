@@ -481,17 +481,33 @@ void CDeskcppDoc::Nop2()
 {
 }
 
-// FUNCTION: YODA 0x00403070  [EFFECTIVE MATCH: DIFF(24) — i/n register 2-cycle (ebx/edi) in both
-//   loops + funclet-window skew (len 206 incl. our EH stubs vs Ghidra body 188). Probes inert.]
+// FUNCTION: YODA 0x00403070  [DIFF(26) -> DIFF(24) at v113 via the LOOP FORM (lesson #40).
+//   Loop 1 is the house guarded countdown, NOT a `for (i = 0; i < n; i++)`: the original's
+//   backedge is `add edi,2; dec ebx; jne` under a `test ebx,ebx; jle` guard. Switching to it
+//   fixed a REAL defect, not just a byte count — `this` now lands in ESI as the original has
+//   it, which removed four this-relative load diffs (+0x03e/+0x069/+0x084/+0x093).
+//   ⚠ LENGTH does not discriminate here (both forms emit 206), because cl already strength-
+//   reduces our `for` into a countdown; the register assignment is what moves.
+//   Loop 2 keeps the plain `for`: its guard reads keep.m_nSize from MEMORY and reloads it,
+//   which our current spelling already produces. Both countdown spellings of loop 2 are
+//   WORSE (27-29 B) and the register-guarded form is REFUTED BY LENGTH (204 vs 206).
+//   PARKED at 24 B: a clean ebx<->edi 2-cycle (orig n->ebx i->edi; ours reversed) plus an
+//   entry schedule shift (the original loads n between the callee-save pushes). Closed axes:
+//   32 decl set x order configurations over {i,id,j,m} x i-position — all flat at 24.]
 // Rebuild placedZoneIds in place, dropping zones whose type is Empty(1).
 void CDeskcppDoc::RemoveEmptyZonesFromPlacedList()
 {
     int n = placedZoneIds.GetSize();
     CWordArray keep;
-    for (int i = 0; i < n; i++) {
-        unsigned short id = placedZoneIds[i];
-        if (zoneObjects[id]->type != 1)
-            keep.SetAtGrow(keep.GetSize(), id);
+    if (n > 0) {
+        int i = 0;
+        do {
+            unsigned short id = placedZoneIds[i];
+            if (zoneObjects[id]->type != 1)
+                keep.SetAtGrow(keep.GetSize(), id);
+            i++;
+            n--;
+        } while (n != 0);
     }
     placedZoneIds.SetSize(0, -1);
     int m = keep.GetSize();

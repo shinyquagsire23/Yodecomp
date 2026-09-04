@@ -3938,3 +3938,75 @@ when the decl block is a common shape (4 functions in Iact.cpp share `char tag[5
 and remember `str.count()` is a SUBSTRING test, so a 4-space decl matches inside an 8-space one.
 ⚠ A comment rewrite is a LINE-COUNT change; keep it line-neutral or verify with the exact-set
 diff (this session added 19 comment lines across 3 byte-matched TUs: +0/-0, verified).
+
+---
+
+### ⏮ v112 PICKUP (2026-09-03, demoted at v113)
+
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v112 — **255 → 255 exact, but a REAL fidelity gain:
+`WriteSavedState` 0x405f30 went 20 B → 7 B**, and the joint search v111 asked for is BUILT,
+RUN, and came back EMPTY. All 5 oracles green (255 exact / 99.17 %, exact set IDENTICAL
+before/after via `exactset.py` + `comm` at every step / link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT
+/ vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches). v111 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST: the two new standing lessons above** — "THE DECL DIAL IS AN INTERACTION"
+(#45, the win) and "THE TU-JOINT PHASE IS NOT REACHABLE BY DECL CONFIGURATION, AND NOT
+POSITIONAL" (the two negatives that should stop the next session repeating this one).
+
+**▶ WHAT LANDED.**
+1. **`WriteSavedState` 0x405f30: 20 → 7 B** (lesson #45). Two levers that are each invisible
+   to the other's sweep: `i` declared before `count` fixed the backedge compare form in all
+   three count loops at once (20→14), then hoisting the three object pointers with `i` LAST
+   fixed the iactScripts loop's bijection (14→7). Rival shapes all refuted by LENGTH.
+2. **`tools/jointdecl.py`** — the joint search. Works, baseline-guarded, agrees with
+   `verify.py` at zero perturbation. Its first run is the negative result above.
+3. **Three well-evidenced PARKS**, each with the closed axes written into the source note:
+   `ReadSavedState` 0x405bd0 (12 B — the #45 interaction re-opened it and 51 configurations
+   re-closed it), `RemoveZoneEntry` 0x41d740 (13 B — the cleanest sibling case in the project;
+   see below), and `WriteSavedState`'s own remaining 7 B (the objects loop's index/walker pair).
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ Apply lesson #45's sweep shape to the rest of the cheap band.** This is the one axis
+   with a fresh win behind it, and no existing tool performs it: for each residual, enumerate
+   (hoist subset) × (position of the loop index, especially LAST). Best candidates, all
+   confirmed pure bijections by `bytediff.py` and all with several inner-block locals:
+   `PickUnplacedItemMaybe` 0x41c200 (13, esi↔edi + one schedule shift), `CalcSolvedScore`
+   0x401780 (13), `Populate` 0x425e30 (13), `BlitTile` 0x40a320 (13),
+   `RemoveEmptyZonesFromPlacedList` 0x403070 (26), `WorldgenAddZoneEntry` 0x41d800 (27).
+   ⚠ Do NOT reach for `hoisttest.py`/`declorder.py` for this — they structurally ask only one
+   of the two questions. Drive `vartest.py` with a generated set×order variant file, as this
+   session did (the four `wss_*.py` sweeps are the template).
+2. **⛔ Do NOT build another joint/decl search.** Both bounding negatives are measured now.
+3. **The dtor-position probe (v110 item 2) is still the best UNEXPLOITED seam** — an
+   `[ebp-4]` EH-state store among the DIFFERING instructions, ~20 real candidates. Cheapest:
+   `PickUnplacedItemMaybe` 0x41c200 (13), `RemoveEmptyZonesFromPlacedList` 0x403070 (26),
+   0x404c80 (73). ⚠ "a call appears in the diff" is NOT a filter (83 of 123 hit it).
+   ⚠ `Puzzle::Puzzle` 0x4042b0 is already refuted as a dtor case.
+4. **Worldgen.cpp still holds the biggest residual mass and is still untouched** (`Generate`
+   0x41f960 at 5704 B, `OnInitialUpdate` 0x426c40, `PlaceQuestNode`) — transcription-level
+   work, not a dial. ⚠ `declorder` on `Generate` is NOT the move (1 permutation).
+5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+6. **Phase-H goals 2-5 untouched** this session.
+
+**▶ PARKED WITH MEASURED EVIDENCE THIS SESSION — do NOT re-tread** (closed axes are in each
+function's source note): `WriteSavedState` 0x405f30 at 7 B · `ReadSavedState` 0x405bd0 at
+12 B · `RemoveZoneEntry` 0x41d740 at 13 B. The last is worth reading in full before working
+any bijection: its twin `RemoveZoneEntry2` 0x41d7a0 is byte-EXACT from CHARACTER-IDENTICAL
+source, the two ORIGINALS also differ from each other, and swapping the two definitions in the
+file changes nothing — statement order is positively confirmed (i-first is worse, 18 B), loop
+form is inert, the countdown is refuted by length.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand, all re-confirmed this session).** Every
+sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
+sweeps with `run_in_background` writing to a LOG FILE and gate on BOTH `pgrep` and the driver's
+own DONE marker; restore a single function from `git show HEAD:<file>`, never `git checkout
+<file>` mid-sweep; never run two sweeps concurrently, or one while `progress.py`/`exactset.py`/
+`residuals.py`/`jointdecl.py` is in flight (they share `build/*.obj`). Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone. ⚠ A `vartest.py` BASE must be
+UNIQUE in the file — **four functions in Iact.cpp share `char tag[5]; int size; int i;`
+verbatim**, so anchor a decl-block BASE on the function SIGNATURE (this bit twice this session).
+⚠ Prefer a WHOLE-FUNCTION BASE when a variant must change both a decl and its body use — the
+two spans have to stay coupled. ⚠ A comment rewrite is a LINE-COUNT change; verify with the
+exact-set diff (this session added ~40 comment lines across 2 byte-matched TUs: +0/−0, verified).

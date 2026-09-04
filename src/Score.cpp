@@ -78,6 +78,13 @@ int CDeskcppDoc::CalcScoreFromCounter()
 // costs 16 B) and `solved` must precede `total` (swapping costs 15 B; full reversal 18 B). The
 // other 10 of 14 swaps are inert at 13. Still parked on the x87 accumulator axis — but the decl
 // block is now measured evidence rather than an untested guess.
+// v113: the one axis v109 could NOT reach is now closed too. v109 permuted only the decls
+// ALREADY at function scope; `pct` lives in an inner block, so the decl SET was never varied
+// (lesson #45 says set x order must be swept JOINTLY). Swept 6 orders x pct at each of 7
+// function-scope positions plus inner = 48 configurations: floor is 13 and `pct`'s position is
+// COMPLETELY INERT (identical within every order). Only `y`-before-`x` moves, and it costs
+// 3 B (16) — re-confirming "x must lead" from a second direction. The residual is the x87
+// 2-accumulator allocation, and it is not decl-reachable.
 int CDeskcppDoc::CalcSolvedScore()
 {
     int   x;
