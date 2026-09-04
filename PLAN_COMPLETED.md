@@ -4136,3 +4136,34 @@ with the exact-set diff afterwards.
 - **`jointdecl.py` is the right tool for "did my fix break anything downstream in this TU?"** —
   one compile per variant, a byte-diff column for EVERY marker. Far cheaper than an
   `exactset.py` run per variant, and it shows the damage vector rather than just a total.
+
+
+---
+
+### ⏮ v115 PICKUP (2026-09-04 — condensed at v116; anchor 252, +0/−0)
+
+Held at **252 exact**; no new byte-match, but two residuals cut and lesson #47 named.
+1. **`StartGame` 0x4037a0: 79 B → 69 B** — the IF/ELSE ARM ORDER (lesson #47, new). The
+   original emits the `ok = ok + 1` arm as the FALLTHROUGH, pinning
+   `if (Generate(seed) != 0) ok = ok + 1; else seed = Randomize();`. The negation/increment
+   SPELLING is inert (`!Generate(...)`, `ok++` both 79 B) — only the ORDER moves anything.
+   Rivals refuted by LENGTH: `ok = 1` emits 671 B, `while (ok < 1)` 668, original 667.
+2. **`IactRun` 0x406780: 1548 B → 1538 B** — `(tx = dx + x)` in the COND_BumpTile condition,
+   the twin of the `(ty = y + dy)` trick from G1.
+3. **Oracle correction:** bugscan's green state is **1 HIGH (known benign)**, not 0 — the
+   `StartGame @+0x14a lea orig=0x4b4 ours=0x4b0` finding, a proven false positive (all 30
+   grid stores have `ours_disp == orig_disp + 4`, exactly cancelling). It had been recorded
+   wrong for an unknown number of sessions. ⇒ **a stale GREEN STATE is as dangerous as a
+   broken tool; re-measure at HEAD (`git stash push -- src/`) before assuming a regression.**
+
+v115 measured negatives (all still recorded in the functions' source notes): `StartGame`'s
+remaining 69 B is source-closed (10 spellings flat at 68–72, decl swap strictly worse);
+`IactRun`'s +0x15e is flat across 7 `ty` spellings and dropping `ty` costs 252 B;
+`IactRun`'s `tx` is NOT reused in the tile subscript (refuted by length, 2404 vs 2408);
+`WorldgenPlacePuzzles` 0x421930's +0x05f movsx site had three hypotheses refuted, confirming
+`a4` is `short`; `ReadZaux` 0x406270 is the double-swept `mov ax`/`movsx` park.
+
+⚠ v116 note: v115's pickup item #1 (build the lesson-#47 scanner) was DONE — `armscan.py`,
+10 hits, 6 two-armed, nearly mined out. Item #2 (the dtor-position seam) was scanned by
+`dtorscan.py` and turned out to be 4 functions, not ~20. Item #4 (`TriggerHotspotsMaybe`)
+was CLOSED with a bounding negative.
