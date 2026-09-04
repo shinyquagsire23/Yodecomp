@@ -4031,7 +4031,17 @@ int CDeskcppDoc::GetZoneGridOrder(int x, int y)
 }
 
 // FUNCTION: YODA 0x00421e70
-// [EFFECTIVE: 17B — SetAtGrow call-site this-reg {EAX,ECX} swap (lea vs add) + one NOP.]
+// [v116: BYTE-EXACT. The residual (110 B, long recorded as a stale 17 B) was the SetAtGrow
+//  call FORM. The original emits `mov edx,[eax+0xd8]; lea ecx,[eax+0xd0]` — it reads
+//  m_nSize straight off the object and takes &characters with a LEA — which is exactly
+//  how MFC 4.2's inline CObArray::Add expands ({ int nIndex = m_nSize;
+//  SetAtGrow(nIndex, newElement); return nIndex; }). Spelling it `characters.SetAtGrow(
+//  characters.GetSize(), pNew)` instead makes cl evaluate the GetSize() call as an
+//  ordinary argument, loading pNew first and computing &characters with `add ecx,0xd0`
+//  plus a NOP. The oracle pins a FAMILY (Add, or a named index local feeding SetAtGrow,
+//  all 0 B) so the idiomatic member is used here; routing through a `CObArray *` local
+//  is refuted at 13 B. Sibling of the lesson-#35 member-call lever: the object
+//  expression is the same, but the ARGUMENT is what forces the reload.]
 // CHUNK chunk: allocate + read Character records, -1-terminated id list.
 int CDeskcppDoc::ParseChar(CFile *pFile)
 {
@@ -4060,7 +4070,7 @@ int CDeskcppDoc::ParseChar(CFile *pFile)
             }              // closes the TRY macro's outer (link-scope) brace
             if (pNew == NULL)
                 return 0;
-            characters.SetAtGrow(characters.GetSize(), pNew);
+            characters.Add(pNew);
             pNew->Read(pFile);
         }
     } while (nDone == 0);

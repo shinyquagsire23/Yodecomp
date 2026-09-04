@@ -4005,6 +4005,14 @@ void CDeskcppView::ReenableHotspotObjects()
 // inert (CSE identical); n/i decl order inert. Countdown recipe (separate
 // nCount guard + n counter) and per-arm duplicated calls (vehicle pair kept
 // separate, xwing pair cross-jumped by cl) both required.
+// ⛔ v116 CLOSED — the last untried axis (the ORDER of the opening statements) is a
+// measured negative, and a sharply bounding one: all 10 line-neutral permutations of
+// {nResult decl, bBusy = 1, tx/ty, the nCount==0 early return, n/i} are strictly WORSE at
+// 42-290 B, so the CURRENT order is the unique minimum and is positively confirmed as the
+// original's. Moving `int nResult = 0;` below the early returns alone costs 55 B; moving it
+// to just above the loop costs 272. `i` before `n` is inert (re-confirmed). What remains is
+// a lesson-#44 scratch bijection (pWorld/nCount ESI<->ECX) at matching length and save set —
+// not reachable from this function's own source. Do not re-sweep; see lesson #44.
 int CDeskcppView::TriggerHotspotsMaybe()
 {
     int nResult = 0;
