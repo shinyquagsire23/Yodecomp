@@ -4037,3 +4037,102 @@ SAFELY"):** a variants file that reads the SOURCE to build its BASE must read
 `git show HEAD:<file>`, not the working tree; `vartest.py` can be stopped cleanly mid-sweep with
 SIGINT (`pkill -INT -f tools/vartest.py`), which runs its restore — SIGKILL would leave the
 source mutated.
+
+---
+
+### ⏮ v114 SESSION LOG (2026-09-04 — **255 → 252 exact: a DELIBERATE, USER-APPROVED
+RE-BASELINE DOWN**, bought with one large length-PROVEN fidelity gain. `WorldgenShuffleList`
+0x41ef90 went **269 B → 16 B** on a NEW dial (loop ROTATION, lesson #46) plus decl ORDER, and
+`PlaceQuestNode` 0x41f120 gained 432 B → 405 B alongside it; three downstream functions lost
+byte-exactness to the v105 TU-joint phase. Also fixed a build break that had been sitting in
+`build-sdl` since v110. All oracles green at the new baseline (252 exact / 99.17 % / link
+0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches over
+126 residuals). v113 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST, IN THIS ORDER:** (1) the re-baseline note at the TOP of this file — 252 is the
+new floor and reverting 0x41ef90 to "fix" it back to 255 is the wrong move; (2) the new standing
+lesson **"THE LOOP FORM IS TWO DIALS, NOT ONE — ROTATION IS THE SECOND, AND LENGTH SETTLES IT"**.
+
+**▶ WHAT LANDED.**
+1. **`WorldgenShuffleList` 0x41ef90: 269 B → 16 B**, two levers. The init loop is
+   `for (;;) { if (i >= nSize) break; ... }`, not a `while` — the original does not ROTATE it
+   (test at top, unconditional `jmp` back, no duplicated bottom test). Proven from outside the
+   byte diff: Ghidra's extent is **396 B**, the `while` spelling emits **400**, this one emits
+   **396**. Then `short i` declared BEFORE `short nSize` killed all three backedge cmp mirrors
+   at once (22 → 16), while all 8 ways of respelling those three conditions were dead flat.
+2. **`tools/unrotscan.py`** — read-only, positive-controlled sibling of `loopform.py` for the
+   rotation dial. ⚠ **1 hit project-wide (0x41ef90 itself) ⇒ the lever is MINED OUT.** Re-run it
+   only on newly-transcribed functions.
+3. **`build-sdl` was BROKEN since v110 and nobody noticed.** Lesson #42's `DrawTextA` win
+   switched `DeskcppView.cpp:4271` to `pWorld->pPalette->GetNearestPaletteIndex(...)`, and
+   microfx's `CPalette` had no such member. Added it (`microfx/include/afxwin.h`); build-sdl and
+   all six harnesses link again, `worldgen_smoke` runs. ⇒ **The anchor is not the only oracle:
+   build `build-sdl` after ANY call-form edit** — this is the second time that rule has been
+   proven in anger (v95 was the first).
+
+**▶ MEASURED NEGATIVES — do NOT re-tread** (all written into the functions' source notes):
+- **Recovery of the three phase-displaced functions is IMPOSSIBLE from their own bodies.**
+  `SetCurrentToIntroZone` 0x423d20 (2 B): 12 decl SET × ORDER configs + the cmp mirror + the
+  `zones[i]` subscript form, floor 2. `CheckZoneItemsAvailable` 0x41f830 (9 B): 5 decl configs,
+  floor 9. `DetonateAdjacentTiles` 0x428680 (60 B): proven phase-only at v39 AND v105.
+- **The re-roll is driven by EMITTED CODE, not token count.** All 8 unrotated spellings of
+  0x41ef90's loop produce BYTE-IDENTICAL damage vectors across every marker in Worldgen.cpp.
+- **Third confirmation of v112's "no cross-function coupling from decl configuration":** a
+  30-combination `jointdecl.py` grid over 0x41ef90 × 0x41f830 separates perfectly — each
+  function's column depends only on its OWN edit.
+- **0x41ef90's last 16 B** is the `{pSlot,m}` ecx↔eax 2-cycle + the `GetAt(k)` zero-extend
+  register (lesson #44, source-closed). `int m` before `pSlot` measures 15 — one byte better,
+  but it contradicts the original's load ORDER, so it was not taken; `m = nSize` (24 B) and
+  `short m` (195 B) positively confirm `int m = nInt`.
+
+**▶ NEXT — concrete, in priority order.**
+1. **`tools/loopform.py`'s list is still the axis with fresh wins behind it** (v113 and v114 both
+   came out of loop shape). Untouched hits, confirm each with `bytediff.py` FIRST:
+   `0x4037a0` StartGame (79 B — its tail also has a clean je/jne POLARITY diff at +0x249:
+   orig `test eax,eax; je; inc edi` vs ours `test eax,eax; jnz; mov ecx,esi; call`, i.e. the
+   original's `if/else` arms are the other way round), `0x406780` IactRun, `0x421930`,
+   `0x4070e0`, `0x406270`, `0x41ef90` (now worked).
+2. **`IactRun` 0x406780 has TWO cheap source-visible items** inside its 1548 B (the rest is a
+   ±9 B local length redistribution): at +0x14a the original computes `dx + x` and compares
+   (`mov eax,[dx]; add eax,[x]; cmp eax,[args0]`) where ours emits a SUBTRACT
+   (`mov eax,[args0]; sub eax,[dx]; cmp eax,[x]`); at +0x15b the original adds `y + dy` in that
+   order and ours emits `dy + y`. Its header note already documents the `(ty = y + dy)`
+   in-condition assignment that fixed the second compare — the same trick for `x` is untried.
+3. **⛔ Do NOT run another per-function decl sweep on the cheap band.** v111 swept six to a
+   floor, v113 three more, v114 three more (0x423d20, 0x41f830, and 0x41ef90's tail). Below
+   ~25 B the decl dials are mined out; that verdict now rests on twelve functions.
+4. **The dtor-position probe (v110 item 2) is STILL the best unexploited seam** — an `[ebp-4]`
+   EH-state store among the DIFFERING instructions, ~20 real candidates. ⚠ `[ebp-4]` holding a
+   REGISTER is a spill/EH-state-zero reuse, not a dtor-position tell; look for
+   `mov [ebp-4], imm` or a dtor CALL sitting earlier than our source allows. ⚠ "a call appears
+   in the diff" is NOT a filter. ⚠ `Puzzle::Puzzle` 0x4042b0 already refuted.
+5. **Worldgen.cpp still holds the biggest residual mass** (`Generate` 0x41f960 at 5710 B,
+   `OnInitialUpdate` 0x426c40, `PlaceQuestNode` 0x41f120 now at 405 B) — transcription-level
+   work, not a dial. ⚠ `declorder` on `Generate` is NOT the move (1 permutation).
+6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+7. **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v113 rules all stand and were all re-used this session).**
+Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
+sweeps with `run_in_background` writing to a LOG FILE and gate on BOTH `pgrep` and the driver's
+own DONE marker; restore a single function from `git show HEAD:<file>`, never `git checkout
+<file>` mid-sweep; never run two sweeps concurrently, or one while `progress.py`/`exactset.py`/
+`residuals.py`/`jointdecl.py` is in flight (they share `build/*.obj`). A variants file that reads
+the SOURCE to build its BASE must read `git show HEAD:<file>`. `vartest.py` stops cleanly on
+SIGINT (`pkill -INT -f tools/vartest.py`), which runs its restore. Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a line-count
+change (lesson #23) — this session added ~50 comment lines to Worldgen.cpp and verified +0/−0
+with the exact-set diff afterwards.
+⭐ **v114 additions:**
+- **`run_in_background` + `nohup ... &` returns immediately and the harness reports the LAUNCHER
+  as "exited with code 0" while the sweep is still running.** Confirm with `pgrep -f
+  tools/vartest.py` before concluding anything; a mutated `git status` at that moment is the
+  sweep working, not a crash.
+- **An unquoted bash heredoc runs BACKTICKS as commands.** A generator script whose comments
+  contained `` `cmp reg, mem` `` silently executed them and wrote empty text into the generated
+  file. Quote the heredoc delimiter (`<<'EOF'`) whenever the body contains backticks.
+- **`jointdecl.py` is the right tool for "did my fix break anything downstream in this TU?"** —
+  one compile per variant, a byte-diff column for EVERY marker. Far cheaper than an
+  `exactset.py` run per variant, and it shows the damage vector rather than just a total.

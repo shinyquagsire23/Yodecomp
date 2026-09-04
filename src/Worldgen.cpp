@@ -3778,7 +3778,22 @@ cleanup:
 // flag-if with the direct-call arm first and `if (bRetry == 0) call else nZoneId=nBanned`
 // inner shape, i++/n-- countdown recipes for the pending-free and teleporter scans,
 // n++ before the lastX/lastY stores in all four accept copies, dead x/y stores in the
-// final forced-partner block.]
+// final forced-partner block.
+// v115 MEASURED NEGATIVES on the +0x05f site (orig `movsx ecx,[pEntry+4]` hoisted ABOVE the
+// `cmp eax,1` and pushed as the a4 argument; ours emits a 16-bit `mov ax,[pEntry+4]` AFTER
+// the branch and pushes eax). Three hypotheses, all refuted — do not re-tread:
+//   (1) the lesson-#43 NAMED LOCAL (`int nZoneRef = pEntry->zoneId;` beside the existing
+//       `int nVal`, which is the same house idiom one line up): all 5 spellings are refuted
+//       by LENGTH — they emit 1294-1295 B against the original's 1299 — and the diff roughly
+//       DOUBLES to 1095-1114.
+//   (2) an explicit `(int)pEntry->zoneId` cast at the call: source-INERT (633 B), because the
+//       value is immediately narrowed again by the `short a4` parameter.
+//   (3) `a4` being `int` rather than `short` in the signature: this DOES produce the movsx,
+//       but it is refuted from both sides — 0x421930 gets WORSE (633 -> 636) and
+//       PlaceQuestNode 0x41f120's own body more than doubles (405 -> 880). a4 is short.
+// ⇒ The movsx must be a CSE of some other int-context use of pEntry->zoneId in the original,
+// not a property of this call. Worth ~3-10 B of a 633 B residual either way; the bulk remains
+// the OPEN block-sinking family above.]
 // Puzzle/teleporter placement pass: seed the pending list with the two quest anchors
 // (0x1ff order 2, 0x1a5 order 1), place each pending puzzle via PlacePuzzle+PlaceQuestNode
 // (cell code 306 marks it in the plan grid), free the pending list, then sweep the plan grid

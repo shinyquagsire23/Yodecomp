@@ -6,10 +6,10 @@ into real, buildable C++/MFC source, plus an extended multi-game engine built on
 modify this file with any useful notes that will aid other/later Claudes.
 
 **Deep history lives in `PLAN_COMPLETED.md`** — the full phased plan (A–G), TU/struct status tables, the
-v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (cite as
+v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -24,6 +24,13 @@ impossible: 12 decl configs on 0x423d20 and 5 on 0x41f830 bottom out at their cu
 0x428680 was proven phase-only at v39 and v105, and all 8 unrotated spellings give
 BYTE-IDENTICAL downstream damage. `PlaceQuestNode` 0x41f120 also GAINED (432 B → 405 B).
 ⇒ **252 is the new floor. Do not "fix" it back to 255 by reverting 0x41ef90.**
+
+⚠ **v115 held at 252** — no new byte-match, but two residuals were cut and a NEW dial named:
+`StartGame` 0x4037a0 went 79 B → 69 B on the IF/ELSE ARM ORDER (lesson #47, new) and `IactRun`
+0x406780 went 1548 B → 1538 B on a second in-condition assignment. Both functions are far too
+large to reach exact, so a flat count here means "the wins landed in big functions", not
+"nothing happened". v115 also CORRECTED a stale oracle expectation: bugscan's green state is
+**1 HIGH (known benign)**, not 0, and it had been wrong for an unknown number of sessions.
 
 ⚠ v111, v112 and v113 all held at **255** — no new byte-match. v113 was still productive:
 `RemoveEmptyZonesFromPlacedList` 0x403070 went 26 B → 24 B on the LOOP FORM (lesson #40) and the
@@ -427,6 +434,26 @@ on newly-transcribed functions). Read the two directions differently:
 jump table or EH data, so large functions report an empty set. It flagged six functions whose
 originals visibly DO push ebx+esi+edi in their first 0x20 bytes. Another instance of the v100
 "the instrument itself can lie" family; savescan.py's positive control is the guard.
+
+⭐ **THE IF/ELSE ARM ORDER IS A DIAL, AND IT IS NOT THE CONDITION'S SPELLING (v115,
+lesson #47).** A `test/cmp` followed by the WRONG-POLARITY jcc, where the two arms appear in
+the opposite order to the original's, is not a scheduler tie-break and not a negation-spelling
+problem — it is which arm the 1997 author wrote FIRST. cl 10.20 emits the *then* arm as the
+FALLTHROUGH and branches over it to the *else*, so the arm order is directly readable off the
+disassembly. On `StartGame` 0x4037a0's generate loop the original emits `test eax,eax; je;
+inc edi; jmp` — the `ok = ok + 1` arm falling through — which pins the source as
+`if (Generate(seed) != 0) ok = ok + 1; else seed = Randomize();`. We had the arms the other way
+round. **79 B → 69 B.**
+- ⚠ **The negation/increment SPELLING is inert and will mislead you**: `!Generate(...)` and
+  `ok++` both measure 79 B, i.e. identical to baseline. Only the ORDER moves anything.
+- The oracle pins a FAMILY (`!= 0`, bare truth-test and `while (!ok)` all give 69), so pick the
+  idiomatic member — and the rivals are refuted by LENGTH: `ok = 1` emits 671 B and
+  `while (ok < 1)` 668 against the original's 667, positively confirming `ok = ok + 1` /
+  `while (ok == 0)`.
+⇒ **When a residual is a jcc POLARITY flip with both arms present, swap the arms in the source
+before touching anything else.** It is the cheapest probe in the family and it is orthogonal to
+the loop dials (#40/#46) and the decl dials (#37/#38/#45). ⚠ Distinguish it from an
+`if (!x) return;` early-out, which has only one arm and no order to vary.
 
 ⭐ **THE LOOP FORM IS TWO DIALS, NOT ONE — ROTATION IS THE SECOND, AND LENGTH SETTLES IT
 (v114, lesson #46) — `tools/unrotscan.py`.** Lessons #40/#43 covered the backedge SHAPE
@@ -1002,81 +1029,85 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-04 v114 — **255 → 252 exact: a DELIBERATE, USER-APPROVED
-RE-BASELINE DOWN**, bought with one large length-PROVEN fidelity gain. `WorldgenShuffleList`
-0x41ef90 went **269 B → 16 B** on a NEW dial (loop ROTATION, lesson #46) plus decl ORDER, and
-`PlaceQuestNode` 0x41f120 gained 432 B → 405 B alongside it; three downstream functions lost
-byte-exactness to the v105 TU-joint phase. Also fixed a build break that had been sitting in
-`build-sdl` since v110. All oracles green at the new baseline (252 exact / 99.17 % / link
-0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches over
-126 residuals). v113 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-04 v115 — **252 exact, unchanged (+0/−0, verified by
+`exactset.py` + `comm`)**. Two residuals cut on the `loopform.py` list the v114 pickup pointed
+at — `StartGame` 0x4037a0 **79 B → 69 B** on a NEW dial (IF/ELSE ARM ORDER, lesson #47) and
+`IactRun` 0x406780 **1548 B → 1538 B** via a second in-condition assignment. Neither function
+is small enough to reach exact, so the count did not move. Also CORRECTED a stale oracle
+expectation: bugscan's green state is **1 HIGH (known benign)**, not 0. All oracles green at
+the recorded state (252 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH known-benign, 0 SHIFT
+/ vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches over 126 residuals / build-sdl links,
+worldgen_smoke converges). v114 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST, IN THIS ORDER:** (1) the re-baseline note at the TOP of this file — 252 is the
-new floor and reverting 0x41ef90 to "fix" it back to 255 is the wrong move; (2) the new standing
-lesson **"THE LOOP FORM IS TWO DIALS, NOT ONE — ROTATION IS THE SECOND, AND LENGTH SETTLES IT"**.
+**▶ READ FIRST:** the new standing lesson **"THE IF/ELSE ARM ORDER IS A DIAL, AND IT IS NOT
+THE CONDITION'S SPELLING"** (#47), and the ⚠ bugscan note under the oracle table — a future
+session must not "fix" that HIGH or suppress it in the tool.
 
 **▶ WHAT LANDED.**
-1. **`WorldgenShuffleList` 0x41ef90: 269 B → 16 B**, two levers. The init loop is
-   `for (;;) { if (i >= nSize) break; ... }`, not a `while` — the original does not ROTATE it
-   (test at top, unconditional `jmp` back, no duplicated bottom test). Proven from outside the
-   byte diff: Ghidra's extent is **396 B**, the `while` spelling emits **400**, this one emits
-   **396**. Then `short i` declared BEFORE `short nSize` killed all three backedge cmp mirrors
-   at once (22 → 16), while all 8 ways of respelling those three conditions were dead flat.
-2. **`tools/unrotscan.py`** — read-only, positive-controlled sibling of `loopform.py` for the
-   rotation dial. ⚠ **1 hit project-wide (0x41ef90 itself) ⇒ the lever is MINED OUT.** Re-run it
-   only on newly-transcribed functions.
-3. **`build-sdl` was BROKEN since v110 and nobody noticed.** Lesson #42's `DrawTextA` win
-   switched `DeskcppView.cpp:4271` to `pWorld->pPalette->GetNearestPaletteIndex(...)`, and
-   microfx's `CPalette` had no such member. Added it (`microfx/include/afxwin.h`); build-sdl and
-   all six harnesses link again, `worldgen_smoke` runs. ⇒ **The anchor is not the only oracle:
-   build `build-sdl` after ANY call-form edit** — this is the second time that rule has been
-   proven in anger (v95 was the first).
+1. **`StartGame` 0x4037a0: 79 B → 69 B.** The generate loop's arms were the other way round
+   from the original. `if (Generate(seed) != 0) ok = ok + 1; else seed = Randomize();` — the
+   original emits the `inc edi` arm as the FALLTHROUGH. Family pinned by LENGTH (`ok = 1` = 671
+   B, `while (ok < 1)` = 668, original 667); `ok++` and `!Generate(...)` are inert at 79.
+2. **`IactRun` 0x406780: 1548 B → 1538 B.** `(tx = dx + x)` in the COND_BumpTile condition,
+   the twin of the `(ty = y + dy)` trick that landed at G1 and which the header note had
+   flagged as untried for x. Kills the add-vs-sub form at +0x14b.
+3. **Oracle correction.** bugscan reports 1 HIGH — `StartGame @+0x14a lea orig=0x4b4
+   ours=0x4b0` — and it PRE-DATES v115 (measured at HEAD). Proven false positive: all 30 grid
+   stores have `ours_disp == orig_disp + 4`, exactly cancelling the induction-anchor
+   difference, so every effective address is IDENTICAL. Recorded, deliberately NOT suppressed.
 
 **▶ MEASURED NEGATIVES — do NOT re-tread** (all written into the functions' source notes):
-- **Recovery of the three phase-displaced functions is IMPOSSIBLE from their own bodies.**
-  `SetCurrentToIntroZone` 0x423d20 (2 B): 12 decl SET × ORDER configs + the cmp mirror + the
-  `zones[i]` subscript form, floor 2. `CheckZoneItemsAvailable` 0x41f830 (9 B): 5 decl configs,
-  floor 9. `DetonateAdjacentTiles` 0x428680 (60 B): proven phase-only at v39 AND v105.
-- **The re-roll is driven by EMITTED CODE, not token count.** All 8 unrotated spellings of
-  0x41ef90's loop produce BYTE-IDENTICAL damage vectors across every marker in Worldgen.cpp.
-- **Third confirmation of v112's "no cross-function coupling from decl configuration":** a
-  30-combination `jointdecl.py` grid over 0x41ef90 × 0x41f830 separates perfectly — each
-  function's column depends only on its OWN edit.
-- **0x41ef90's last 16 B** is the `{pSlot,m}` ecx↔eax 2-cycle + the `GetAt(k)` zero-extend
-  register (lesson #44, source-closed). `int m` before `pSlot` measures 15 — one byte better,
-  but it contradicts the original's load ORDER, so it was not taken; `m = nSize` (24 B) and
-  `short m` (195 B) positively confirm `int m = nInt`.
+- **`StartGame`'s remaining 69 B is source-closed.** 10 spellings of the grid loop's two
+  induction increments' PLACEMENT plus the pg/mz decl ORDER are flat at 68–72 B with identical
+  length and save set — lesson #44. Decl swap is strictly WORSE (72), positively confirming the
+  current order.
+- **`IactRun`'s +0x15e** (orig adds `y` then `dy`, ours `dy` then `y`): all 7 ty spellings dead
+  flat at 1538; dropping `ty` costs 252 B. Third confirmation of lesson #45 — a mirrored
+  compare is never the condition's spelling.
+- **`IactRun`'s tx is NOT reused in the tile subscript.** Every variant substituting `tx` there
+  emits 2404 B against the original's 2408 — refuted by length.
+- **`WorldgenPlacePuzzles` 0x421930's +0x05f movsx site: THREE hypotheses refuted.** The
+  lesson-#43 named local (5 spellings, all 1294–1295 B vs the original's 1299 — refuted by
+  length, diff doubles to ~1100); an explicit `(int)` cast (inert at 633); and `a4` being `int`
+  in `PlaceQuestNode`'s signature — that one DOES emit the movsx but 0x421930 gets worse
+  (633 → 636) and 0x41f120's own body more than doubles (405 → 880). **a4 is `short`.**
+- **`ReadZaux` 0x406270 is the known `mov ax`/`movsx` park**, already double-swept (v99: 20+
+  statement forms; v109: all 120 decl permutations) across its ReadZax2/ReadZax3 clones. Its
+  111 B is that +3 B pair × 2 plus the resulting tail misalignment. Don't re-open without a
+  genuinely new mechanism.
 
 **▶ NEXT — concrete, in priority order.**
-1. **`tools/loopform.py`'s list is still the axis with fresh wins behind it** (v113 and v114 both
-   came out of loop shape). Untouched hits, confirm each with `bytediff.py` FIRST:
-   `0x4037a0` StartGame (79 B — its tail also has a clean je/jne POLARITY diff at +0x249:
-   orig `test eax,eax; je; inc edi` vs ours `test eax,eax; jnz; mov ecx,esi; call`, i.e. the
-   original's `if/else` arms are the other way round), `0x406780` IactRun, `0x421930`,
-   `0x4070e0`, `0x406270`, `0x41ef90` (now worked).
-2. **`IactRun` 0x406780 has TWO cheap source-visible items** inside its 1548 B (the rest is a
-   ±9 B local length redistribution): at +0x14a the original computes `dx + x` and compares
-   (`mov eax,[dx]; add eax,[x]; cmp eax,[args0]`) where ours emits a SUBTRACT
-   (`mov eax,[args0]; sub eax,[dx]; cmp eax,[x]`); at +0x15b the original adds `y + dy` in that
-   order and ours emits `dy + y`. Its header note already documents the `(ty = y + dy)`
-   in-condition assignment that fixed the second compare — the same trick for `x` is untried.
-3. **⛔ Do NOT run another per-function decl sweep on the cheap band.** v111 swept six to a
-   floor, v113 three more, v114 three more (0x423d20, 0x41f830, and 0x41ef90's tail). Below
-   ~25 B the decl dials are mined out; that verdict now rests on twelve functions.
-4. **The dtor-position probe (v110 item 2) is STILL the best unexploited seam** — an `[ebp-4]`
+1. **Lesson #47 is BRAND NEW and has not been swept project-wide.** Build the target list the
+   way `loopform.py`/`unrotscan.py` were built: READ-ONLY, positive-controlled — disassemble
+   each non-exact residual's ORIGINAL, find `test`/`cmp` + jcc pairs whose two arms are both
+   present, and flag the ones where OUR jcc has the opposite polarity with the same arm
+   contents. `StartGame` was found by eye; a scan should find the rest. This is the cheapest
+   unexploited lever right now.
+2. **The dtor-position probe (v110 item 2) is STILL the best unexploited seam** — an `[ebp-4]`
    EH-state store among the DIFFERING instructions, ~20 real candidates. ⚠ `[ebp-4]` holding a
    REGISTER is a spill/EH-state-zero reuse, not a dtor-position tell; look for
    `mov [ebp-4], imm` or a dtor CALL sitting earlier than our source allows. ⚠ "a call appears
    in the diff" is NOT a filter. ⚠ `Puzzle::Puzzle` 0x4042b0 already refuted.
-5. **Worldgen.cpp still holds the biggest residual mass** (`Generate` 0x41f960 at 5710 B,
-   `OnInitialUpdate` 0x426c40, `PlaceQuestNode` 0x41f120 now at 405 B) — transcription-level
-   work, not a dial. ⚠ `declorder` on `Generate` is NOT the move (1 permutation).
-6. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+3. **`loopform.py`'s remaining untouched hits**, confirmed with `bytediff.py` FIRST:
+   `0x4070e0` IactRunCommands (1401 B), `0x41bb10` OnNewDocument (537 B), `0x403c80`
+   BuildQuestPathMaybe (1121 B). ⚠ `0x4037a0`, `0x406780` and `0x406270` are now worked/parked.
+4. **`TriggerHotspotsMaybe` 0x40ec30 (17 B)** is a clean pWorld/nCount ESI↔ECX role swap in the
+   PROLOGUE only (orig loads `this->pWorld` BEFORE `mov edi,ecx`). Its note already records the
+   `World*` local probe and n/i decl order as inert; what is NOT yet probed is the ORDER of the
+   opening statements (`int nResult = 0;` position, `bBusy = 1;` position, tx/ty vs the early
+   return). Cheap.
+5. **⛔ Do NOT run another per-function decl sweep on the cheap band.** v111 swept six to a
+   floor, v113 three, v114 three, v115 re-confirmed two more. Below ~25 B the decl dials are
+   mined out; that verdict now rests on fourteen functions.
+6. **Worldgen.cpp still holds the biggest residual mass** (`Generate` 0x41f960 at 5710 B,
+   `OnInitialUpdate` 0x426c40, `WorldgenPlacePuzzles` 0x421930 at 633 B whose bulk is the OPEN
+   block-sinking family) — transcription-level work, not a dial.
+7. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note).
-7. **Phase-H goals 2-5 untouched** this session.
+8. **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v113 rules all stand and were all re-used this session).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v114 rules all stand and were all re-used this session).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
 sweeps with `run_in_background` writing to a LOG FILE and gate on BOTH `pgrep` and the driver's
 own DONE marker; restore a single function from `git show HEAD:<file>`, never `git checkout
@@ -1085,19 +1116,20 @@ own DONE marker; restore a single function from `git show HEAD:<file>`, never `g
 the SOURCE to build its BASE must read `git show HEAD:<file>`. `vartest.py` stops cleanly on
 SIGINT (`pkill -INT -f tools/vartest.py`), which runs its restore. Measure with
 `tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a line-count
-change (lesson #23) — this session added ~50 comment lines to Worldgen.cpp and verified +0/−0
-with the exact-set diff afterwards.
-⭐ **v114 additions:**
-- **`run_in_background` + `nohup ... &` returns immediately and the harness reports the LAUNCHER
-  as "exited with code 0" while the sweep is still running.** Confirm with `pgrep -f
-  tools/vartest.py` before concluding anything; a mutated `git status` at that moment is the
-  sweep working, not a crash.
-- **An unquoted bash heredoc runs BACKTICKS as commands.** A generator script whose comments
-  contained `` `cmp reg, mem` `` silently executed them and wrote empty text into the generated
-  file. Quote the heredoc delimiter (`<<'EOF'`) whenever the body contains backticks.
-- **`jointdecl.py` is the right tool for "did my fix break anything downstream in this TU?"** —
-  one compile per variant, a byte-diff column for EVERY marker. Far cheaper than an
-  `exactset.py` run per variant, and it shows the damage vector rather than just a total.
+change (lesson #23) — this session rewrote three function notes and verified +0/−0 afterwards.
+⭐ **v115 additions:**
+- **A stale GREEN STATE is as dangerous as a broken tool.** The oracle table said bugscan was
+  0 HIGH; it had been 1 HIGH for an unknown number of sessions. Before treating an oracle
+  disagreement as YOUR regression, re-measure it at HEAD — `git stash push -- src/`, run, pop.
+  That one step turned a scary-looking regression into a documentation fix.
+- **`residuals.py --csv` needs a PATH argument** (`--csv out.csv`); bare `--csv` throws an
+  IndexError. Its columns are `cpp,va,name,L,ndiff,span,lenmis,kinds,tie` and **`va` is
+  DECIMAL** (the v103 trap — parse with `int(r['va'])`, never `int(va, 16)`).
+- **`loopform.py --all` includes ALREADY-EXACT functions**; without `--all` it is the
+  non-exact list. Nine of the 25 rows in its `--all` output are exact, so cross-check against
+  `residuals.py` before picking a target.
+
+
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 
