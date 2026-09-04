@@ -2074,23 +2074,44 @@ int CDeskcppDoc::WorldgenSelectPuzzle(short nItem, short nItem2, short nType, in
 }
 
 // FUNCTION: YODA 0x0041ef90
-// [PARKED reg-alloc: the {bAnyEmpty, nMoved, k*2-offset} register contest + the unrotated
-// init loop; structure fully converged (122/122 insns). Joint TU pass territory.]
+// [v114: 269 B -> 16 B, two levers. (1) THE UNROTATED LOOP FORM (new; lesson #46). The init
+// loop is `for (;;) { if (i >= nSize) break; ... }`, NOT a `while` -- the original emits the
+// test at the TOP and an unconditional `jmp` back to it, with no duplicated bottom test. This
+// is refuted by LENGTH from the other side: Ghidra's extent for the original is 396 B, the
+// `while` spelling emits 400, this one emits 396. The rotated spellings all sit at 269-286 B.
+// The two other loops here are already unrotated as written. (2) DECL ORDER (lesson #38):
+// `short i` declared BEFORE `short nSize` kills ALL THREE `cmp mem,reg` vs `cmp reg,mem`
+// backedge mirrors at once (22 B -> 16 B) -- and all 8 combinations of spelling the three
+// conditions the other way round are DEAD FLAT at 22, so the mirror really is a decl-block
+// symptom and never a condition-spelling one (second confirmation of lesson #45).
+// ⚠ COST, taken deliberately (user-approved re-baseline 255 -> 252): landing this re-rolled
+// the TU-joint phase and cost three DOWNSTREAM functions their byte-exactness --
+// CheckZoneItemsAvailable 0x41f830 (9 B), SetCurrentToIntroZone 0x423d20 (2 B) and
+// DetonateAdjacentTiles 0x428680 (60 B), all pure register bijections. Measured, do NOT
+// re-tread: all 8 unrotated spellings give BYTE-IDENTICAL downstream damage (so it is the
+// emitted code re-rolling the phase, not the token count); 12 decl set x order configs on
+// 0x423d20 bottom out at its current 2; 5 on 0x41f830 bottom out at its current 9; 0x428680
+// was proven phase-only at v39 and again at v105. PlaceQuestNode 0x41f120 GAINED here
+// (432 B -> 405 B).
+// Residual 16 B = the {pSlot,m} ecx<->eax 2-cycle and the GetAt(k) zero-extend register
+// (lesson #44, source-closed). Swept: `int m` before `pSlot` measures 15 -- one byte better
+// but it contradicts the original's load ORDER (pSlot's load is emitted first), so it is not
+// taken; `m = nSize` = 24 B and `short m` = 195 B both positively confirm `int m = nInt`.]
 // Fisher-Yates-style shuffle of a CWordArray: scatter each element into a random empty slot of a
 // temp array (0xffff = empty sentinel), then copy back.
 void CDeskcppDoc::WorldgenShuffleList(CWordArray *pList)
 {
-    short nSize = (short)pList->GetSize();
     short i = 0;
+    short nSize = (short)pList->GetSize();
     if (nSize > 0)
     {
         CWordArray temp;
         int nInt = nSize;
         temp.SetSize(nInt, -1);
-        while (i < nSize)
+        for (;;)
         {
-            temp.SetAt(i, 0xffff);
-            i++;
+            if (i >= nSize) break;
+            temp.SetAt(i, 0xffff); i++;
         }
         i = 0;
         short k;
@@ -2377,6 +2398,11 @@ unsigned short CDeskcppDoc::PlaceQuestNode(short nType, short a2, short a3, shor
 }
 
 // FUNCTION: YODA 0x0041f830
+// [WAS byte-exact until v114; now DIFF(9) -- an eax<->ecx bijection plus one backedge cmp
+// mirror. It is NOT a defect in this body: it is the v105 TU-joint phase re-rolling under the
+// WorldgenShuffleList 0x41ef90 loop-form fix upstream (see that function's note). Measured at
+// the new phase: 5 decl SET x ORDER configurations (all_top / i-before-nObjs / pZone-first /
+// i-first) are 21-62 B, i.e. the spelling below IS the floor. Not source-steerable from here.]
 // Recursively verify a quest sub-tree is satisfiable: object types 6-8 must reference items not
 // already placed; DOOR_IN (9) recurses into the child zone.
 int CDeskcppDoc::CheckZoneItemsAvailable(short zoneId)
@@ -5058,7 +5084,12 @@ void CDeskcppDoc::Serialize(CArchive &ar)
 }
 
 // FUNCTION: YODA 0x00423d20
-// [EXACT at v107 via lesson #38 (decl SET + ORDER). Both `i` and `pZone` must sit at
+// [WAS byte-exact v107-v113; now DIFF(2) -- one `cmp edx,eax`/`cmp eax,edx` mirror, the v105
+// TU-joint phase re-rolling under the WorldgenShuffleList 0x41ef90 loop-form fix upstream (see
+// that function's note). Re-swept at the new phase: 12 decl SET x ORDER configurations plus the
+// cmp mirror and the zones[i] subscript form -- floor is 2, i.e. the v107 spelling below is
+// still the best available, so it is kept verbatim. Not source-steerable from here.
+// The v107 finding, still the reason for this exact spelling: both `i` and `pZone` must sit at
 // FUNCTION scope, in that order, and nCount must be initialised in its declaration:
 // hoisting `i` alone = 5 B, `pZone` alone = 9 B, `pZone` before `i` = 9-11 B, and the
 // all-top form with `nCount` assigned separately = 5 B. Inert: zones[i] vs GetAt(i),
@@ -7535,6 +7566,12 @@ done:
 }
 
 // FUNCTION: YODA 0x00428680
+// [WAS byte-exact until v114; back to the v39 state below (DIFF 60) because the v105 TU-joint
+// phase re-rolled under the WorldgenShuffleList 0x41ef90 loop-form fix upstream (see that
+// function's note). This function is the project's cleanest proof that the phase, not the body,
+// owns the allocation: v105 recorded it GAINING on a 5-line shift 5000 lines earlier, and v39
+// proved the residual is not source-steerable without an ABI-breaking param reorder. Nothing
+// below was changed.
 // [EFFECTIVE: align=0, insns 377/377 — pure ESI<->EDI role swap (60 identity bytes). Cracks:
 // nTile is the movsx-IMMEDIATELY int form; DrawZoneCell args are plain int expressions
 // (no short casts/locals at the call sites).

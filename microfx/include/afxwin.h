@@ -471,6 +471,11 @@ public:
         { return ::SetPaletteEntries((HPALETTE)m_hObject, iStart, nEntries, lpPaletteColors); }
     void AnimatePalette(UINT iStart, UINT nEntries, LPPALETTEENTRY lpPaletteColors)
         { ::AnimatePalette((HPALETTE)m_hObject, iStart, nEntries, lpPaletteColors); }
+    // v114: added because DeskcppView.cpp switched to the MFC MEMBER form at v110 (lesson #42,
+    // DrawTextA 663 B -> 60 B) and the portable build had no such member -- build-sdl has been
+    // broken since. The anchor is NOT the only oracle: build build-sdl after any call-form edit.
+    UINT GetNearestPaletteIndex(COLORREF cr) const
+        { return ::GetNearestPaletteIndex((HPALETTE)m_hObject, cr); }
     operator HPALETTE() const { return (HPALETTE)m_hObject; }
 };
 

@@ -4010,3 +4010,30 @@ verbatim**, so anchor a decl-block BASE on the function SIGNATURE (this bit twic
 ⚠ Prefer a WHOLE-FUNCTION BASE when a variant must change both a decl and its body use — the
 two spans have to stay coupled. ⚠ A comment rewrite is a LINE-COUNT change; verify with the
 exact-set diff (this session added ~40 comment lines across 2 byte-matched TUs: +0/−0, verified).
+
+---
+
+### ⏮ v113 (2026-09-03, condensed — demoted from CLAUDE.md at v114)
+
+**255 → 255 exact, one REAL fidelity gain.** `RemoveEmptyZonesFromPlacedList` 0x403070 went
+26 B → 24 B on the LOOP FORM: loop 1 is the house guarded countdown, not a `for`, and the gain
+was structural — `this` moved into ESI as the original has it, killing four this-relative load
+diffs. Loop 2 correctly stays a plain `for` (both countdown spellings are worse at 27-29 B; the
+register-guarded form is refuted by LENGTH, 204 vs 206). Shipped `tools/loopform.py` (read-only,
+positive-controlled target list: the original's countdown backedges vs our `for` spellings).
+
+**Measured negatives, all written into the functions' source notes — do NOT re-tread:**
+- `PickUnplacedItemMaybe` 0x41c200 at 13 B, 55 configurations. Lesson #45's index-position
+  interaction does NOT generalise: i-first/second/last is INERT across 9 hoist subsets, and
+  hoisting the loop-2 locals is strictly WORSE (`j` +7 B, `nObjs` +8 B), which positively
+  confirms the current spelling. Lesson #44 bijection class.
+- `RemoveEmptyZonesFromPlacedList` 0x403070's remaining 24 B — 32 decl set × order
+  configurations over {i,id,j,m}, all flat. An ebx↔edi 2-cycle plus an entry schedule shift.
+- `CalcSolvedScore` 0x401780 at 13 B, 48 configurations. `pct`'s position is COMPLETELY INERT;
+  only `y`-before-`x` moves and it costs 3 B. The residual is the x87 2-accumulator allocation.
+
+**Method rules learned the hard way (still standing, see CLAUDE.md "HOW TO WORK THE DIAL
+SAFELY"):** a variants file that reads the SOURCE to build its BASE must read
+`git show HEAD:<file>`, not the working tree; `vartest.py` can be stopped cleanly mid-sweep with
+SIGINT (`pkill -INT -f tools/vartest.py`), which runs its restore — SIGKILL would leave the
+source mutated.
