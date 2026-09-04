@@ -668,16 +668,34 @@ int CDeskcppDoc::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, shor
 }
 
 // FUNCTION: YODA 0x0041cdc0
+// [EFFECTIVE: 96 B -> 56 B at v116, via TWO dials; the rest is a lesson-#44 scratch bijection.
+//  (1) LESSON #47, the IF/ELSE ARM ORDER -- the genCellItemA/B store below. The original emits
+//      the +0x38c (B) store as the FALLTHROUGH, so the author tested `sel != 0` FIRST, exactly
+//      as the providedItemsA/B branch here already does. 96 -> 93. All three swap spellings
+//      (`sel != 0` / `sel` / `!(sel == 0)`) give 93 and all three no-swap spellings give 96:
+//      the ORDER moves it, the condition's SPELLING is inert. Found by tools/armscan.py.
+//  (2) LESSON #39, statement order around a materialized constant -- `int bFound = 0;` must be
+//      sequenced AFTER the zones.GetAt call. With it above, cl still has the zero live and
+//      folds it into the sel test as `cmp [esp+0x2c],ebx`; the original emits the immediate
+//      form `cmp dword [esp+0x2c],0`. 93 -> 56. Family (all 56): bFound after pZone, bFound
+//      declared uninit and assigned after pZone, or both. Position is precise -- bFound BEFORE
+//      pZone gives 71. `nResult` must stay zeroed at the TOP: moving it emits 349 B against the
+//      original's 336, refuted by LENGTH.
+//  RESIDUAL 56 B = a register bijection, orig {bFound=EBX, i=EBP} vs ours {bFound=EDX, i=EBX};
+//  same length, same save set, same schedule (lesson #44 -- source-closed). PROVEN NEGATIVE:
+//  all 6 decl SET/ORDER variants of nCount/i (hoisted to block scope, i-before-nCount, either
+//  side of bFound) are strictly worse at 238-266 B AND emit 335/337 bytes against the original's
+//  336 -- refuted by length, which positively confirms the CURRENT decl configuration.]
 // Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's providedItemsA (sel==0)
 // or providedItemsB lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
 // DOOR_IN children. nResult lives in EAX end-to-end (0 / 1 / last recursion result).
 int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
 {
     int nResult = 0;
-    int bFound = 0;
     if (zoneId >= 0)
     {
         Zone *pZone = (Zone *)zones.GetAt(zoneId);
+        int bFound = 0;
         if (sel != 0)
         {
             int nCount = pZone->providedItemsB.GetSize();
@@ -724,10 +742,10 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short i
                     if (pObj->type == OBJ_LOCK)
                     {
                         WorldgenAddZoneEntry(itemId, (short)nVal);
-                        if (sel == 0)
-                            genCellItemAScratch = itemId;
-                        else
+                        if (sel != 0)
                             genCellItemBScratch = itemId;
+                        else
+                            genCellItemAScratch = itemId;
                         pObj->arg = itemId;
                         nResult = 1;
                         pObj->state = 1;
@@ -4734,7 +4752,8 @@ int CDeskcppDoc::ParseZax3Indy(CFile *pFile)
 
 // FUNCTION: YODA 0x00423290
 // [EFFECTIVE: block-layout — original parks the nDone++ arm at function end; ours inlines
-// it (arm-order/continue knobs proven inert). Plus one reg rotation.]
+// it (arm-order/continue knobs proven inert). Plus one reg rotation. See the v116 sweep
+// recorded on the ParseChwp twin below: LESSON #47 DOES NOT APPLY to this shape.]
 // CAUX chunk: per-character damage words, -1-terminated id list.
 int CDeskcppDoc::ParseCaux(CFile *pFile)
 {
@@ -4759,7 +4778,18 @@ int CDeskcppDoc::ParseCaux(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00423300
-// [EFFECTIVE: same nDone++-arm layout family as ParseCaux; registers exact.]
+// [EFFECTIVE: same nDone++-arm layout family as ParseCaux; registers exact. The whole 47 B is
+//  block layout: the original runs the body as the FALLTHROUGH and `jmp`s over a trailing
+//  `inc edi` parked just above the do-while backedge; ours emits the nDone++ arm first.
+//  ⛔ v116 MEASURED NEGATIVE — this is NOT lesson #47, do not re-open it. tools/armscan.py
+//  ranked this the cleanest arm-order candidate in the project (two-armed AND aligned: the
+//  jcc flip IS the first differing byte), and 15 spellings across two sweeps are DEAD FLAT
+//  at 47 B: the arm swap in 5 spellings, the condition negated without the swap, an explicit
+//  `continue` on either arm, a `goto` over the increment, `while (!nDone)`, and pChar hoisted.
+//  Rivals are refuted by LENGTH, which confirms the current shape: `nDone = 1` emits 121 B and
+//  a `for(;;)` loop 115 B, against the original's 117. The sibling ParseTnam 0x423380 is
+//  BYTE-EXACT while spelling its arms the OTHER way round — so cl normalises the arm order in
+//  this shape and the layout is not reachable from this function's own source.]
 // CHWP chunk: per-character weapon id + health, -1-terminated id list.
 int CDeskcppDoc::ParseChwp(CFile *pFile)
 {

@@ -94,4 +94,5 @@ def main():
     return 0 if ok else 1
 
 
-sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main())
