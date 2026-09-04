@@ -7103,12 +7103,12 @@ void CDeskcppView::DrawHealthDial(CDC *pDC)
 }
 
 // FUNCTION: YODA 0x00427690
-// [EFFECTIVE: insns 158/158; residual = one consistent nLo/nHi ESI<->EBP bijection + the
-// pTile-vs-m_nSize load order in the death tail + a cross-jumped-vs-duplicated epilogue.
-// Cracks: heal tiers are FLAT >=300/>=200/>=100/else arms with the 1/1 clamp DUPLICATED
-// per tier (compiler cross-jumps them back together — Ghidra re-merges and fakes a goto);
-// damage clamp is `> -1`; death threshold mixes forms (`> 99 && >= 3`); the life-force
-// tail is if/else-if (single exit).]
+// [BYTE-EXACT at v118 (was 49 B; len 517 vs extent 520). LENGTH-FIRST (lesson #49): the entire
+// residual was ONE missing `mov ecx,[edi+0x44]` — the orig RELOADS the pWorld MEMBER between the
+// two `= 1` stores (the first store may alias it). A cached `CDeskcppDoc *pW = pWorld;` defeats
+// that (a local cannot be invalidated), so the death tail must spell pWorld-> at every use, and
+// the decl order pTile,bFound,i is load-bearing (the other 5 orders give 117-421 B). Cracks: the
+// heal tiers are FLAT arms with the 1/1 clamp DUPLICATED per tier; the life-force tail if/else.]
 // Apply a health change (IACT AddHealth; negative = damage, scaled by 100/difficulty).
 // healthLo (0..100) and healthHi (0..3 dial segments) ACCUMULATE damage; 100/3 = dead.
 // Damage tiers -300/-200/-100 bump whole segments; heals reverse them. At the death
@@ -7218,13 +7218,13 @@ void CDeskcppView::AddHealth(int nDelta)
     DrawHealthNeedle(NULL);
     if (nLo > 99 && nHi >= 3)
     {
-        CDeskcppDoc *pW = pWorld;
+        // no cached pWorld alias: the store below must invalidate the member CSE
+        Tile *pTile = (Tile *)pWorld->tiles.GetAt(0x598);
         int bFound = 0;
         int i = 0;
-        Tile *pTile = (Tile *)pW->tiles.GetAt(0x598);
-        if (pW->inventory.GetSize() > 0)
+        if (pWorld->inventory.GetSize() > 0)
         {
-            InvItem **pp = (InvItem **)pW->inventory.GetData();
+            InvItem **pp = (InvItem **)pWorld->inventory.GetData();
             do
             {
                 if ((*pp)->pTile == pTile)
@@ -7234,17 +7234,17 @@ void CDeskcppView::AddHealth(int nDelta)
                 }
                 pp++;
                 i++;
-            } while (i < pW->inventory.GetSize());
+            } while (i < pWorld->inventory.GetSize());
         }
         if (bFound != 0)
         {
-            pW->healthLo = 1;
-            pW->healthHi = 1;
+            pWorld->healthLo = 1;
+            pWorld->healthHi = 1;
             PlaySound(0x3a);
             RemoveItem(pTile);
         }
-        else if (pW->gameState != 1)
-            pW->abortFrame = -1;
+        else if (pWorld->gameState != 1)
+            pWorld->abortFrame = -1;
     }
 }
 
