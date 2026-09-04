@@ -116,8 +116,12 @@ int CDeskcppDoc::ZoneHasIzxItemMaybe(short zoneId, short itemId, int sel)
 }
 
 // FUNCTION: YODA 0x0041c0b0
-// [EFFECTIVE: align=0, pure reg tie-break (8-reg bijection slots) — may flip exact as the
-// TU fills; do not grind.]
+// [EFFECTIVE: align=0, pure reg tie-break — an eax->ecx->edx 3-cycle (orig eax=nCount, ecx=i,
+// edx=walk ptr) among SCRATCH registers, which is why savescan.py sees nothing. v111: 10
+// spellings, floor 8, and the current one is optimal — `i` before nCount costs 14, `i` scoped
+// into the guard 16, dropping the nCount local 13, and the i++/nCount-- countdown is refuted by
+// LENGTH (194 vs 198), confirming the guarded do-while. GetAt vs operator[] and `nCount > i` vs
+// `i < nCount` are both inert. May flip exact as the TU fills; do not grind.]
 // Recursive: does zoneId (or a DOOR_IN-linked child zone) list itemId in genCandidateA (IZAX)?
 int CDeskcppDoc::ZoneRequiresItemMaybe(short zoneId, short itemId)
 {

@@ -19,8 +19,10 @@
 //   which Iact.cpp pulls in). align=0, one pure EBP<->EBX cycle (loop counter i vs the tile
 //   walk-pointer). v36 root-cause + probes: it is Iact's FIRST emitted function, so its coloring
 //   is seeded purely by the TU header/decl CONTEXT, not its body — loop forms (idx/while/do-while/
-//   w-hoist) all INERT; /O2 uniquely correct (flag sweep: /Ox/O1/Og all catastrophic, none flip
-//   it). This is header-phase displacement from a deliberate correctness de-dup (retiring the
+//   w-hoist) all INERT; /O2 uniquely correct (flag sweep: /Ox/O1/Og all catastrophic, none flip it).
+//   v111 closes two MORE axes: tag[5..16] (lesson #36 buffer size) is flat at 7 for 5-8 and only
+//   WORSENS after (20/16), and all 6 decl orders are flat at 7. This is header-phase displacement
+//   from a deliberate correctness de-dup (retiring the
 //   poisoning stub, lesson #22) — reverting would trade correctness for bytes. Joint-fixed-point
 //   (G2 whole-image) resolves it; do NOT mangle this correct body. See tools/frontier.py.]
 // Parses an IZON header up to the tile grid: dims/type/vars + the 18x18x3 tile rows.
@@ -52,7 +54,14 @@ void Zone::ReadIzon(CFile *pFile)
         pFile->Read(&tiles[i * 54], height * 6);
 }
 
-// FUNCTION: YODA 0x00405bd0
+// FUNCTION: YODA 0x00405bd0  [EFFECTIVE MATCH: DIFF(12) — a pure ebx<->esi 2-cycle in the LAST
+//   loop (ebx = the scaled iactScripts index, esi = i), plus the `this` load sitting one push
+//   earlier. Length (862) and the callee-save set both already match, so lesson #42/#43 do not
+//   apply. v111 closed all THREE decl dials and the loop form: 12 decl set+orders (floor 12,
+//   several at 18), all 32 hoist subsets of {n,add,e,p,k} (floor 12, monotonically worse with
+//   more hoists), and 9 loop/named-local spellings — the countdown and unguarded do-while are
+//   refuted by LENGTH (860/857 vs 862), confirming the `for`, and a named `IactScript *s` for the
+//   cast chain costs 2 B. Read as the v105 TU-joint phase: the lever is not in this body.]
 // Read this zone's runtime state from a .wld: vars + tile grid (bFull), activatedFlag,
 // objects (grown with new ZoneObj as needed), entities, IACT script done-flags.
 // Called by World::LoadZoneRecursive.

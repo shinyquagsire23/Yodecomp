@@ -3785,3 +3785,73 @@ IS THE CHEAPEST DIAGNOSTIC IN THE PROJECT".
   upstream perturbation moves them by 0, and the three twins disagree with each other);
   DrawTextA's 2 B (10 spellings flat, decl order already optimal); the three OnHScroll slider
   twins; `ScrollTextLine` 0x417c90.
+
+---
+
+### ⏮ v110 PICKUP (demoted at v111)
+
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v110 — **251 → 255**, +5 gained / −1 lost across the
+session, all deliberate. One new INSTRUMENT drove everything; two new lessons (#42/#43); one
+phantom residual retired. All 5 oracles green (255 exact / link 0-0-exit0 / bugscan 0 HIGH 0
+SHIFT / vt 10 CLEAN / msg 11 CLEAN). v109 log demoted to PLAN_COMPLETED.md.)
+
+**▶ WHAT LANDED — read the new standing-lesson block "THE CALLEE-SAVE SET IS THE CHEAPEST
+DIAGNOSTIC" above first; it is the through-line of the whole session.**
+1. **`SaveStoryHistory{Nevada,Alaska,Oregon}` 611 B → 2/4/2 B** (lesson #42, the CSE-TEMP/LICM
+   dial). A named temp for a partly-loop-invariant subexpression was the whole thing. The
+   phase shift recovered `LoadZoneRecursive` 0x403450's last byte: net +1.
+2. **`OnAppExit` 0x416110 is a 5-byte `jmp ConfirmExit`** — a forwarder, not a copy of the twin
+   body. Retired a phantom 163 B residual. Cost 2 phase losses at the time; both later came back.
+3. **`DrawTextA` 0x40f060 663 B → 2 B** via three composed levers (MFC member form on a pointer
+   chain → PatBlt member form ×2 → an explicit inner scope for the CBrush). +1.
+4. **`CheckCheat` 0x415820 372 B → EXACT** and **`ConfirmExit` 0x416030 10 B → EXACT** via
+   lesson #43 (an argument expression the original held in a named local). **+2.**
+5. **`CyclePalette` 0x415af0** — its two AnimatePalette calls must take DIFFERENT forms (first
+   member, second global); the source carried both as member. Re-measured all 16 combinations.
+6. **New `tools/savescan.py`**; `vartest.py` gained a `saves=` column.
+
+**▶ NEXT — concrete, in priority order.**
+1. **Work the lesson-#43 target list.** `savescan.py` is mined out (0 mismatches), but the
+   *chain* scan that found ConfirmExit is not: non-exact functions carrying `f()->m(...)`,
+   `((T *)p)->m`, `a->b->c(...)` or `->m_hXxx` as an argument. 40 residuals match; the ones
+   NOT yet worked, cheapest first: `ReadSavedState` 0x405bd0 (12, `cast()->` ×2),
+   `OnInitialUpdate` 0x426c40 (14, `call()->`), `WorldEntryStepMaybe` 0x409c10 (18, `a->b->c(`
+   ×4), `WriteSavedState` 0x405f30 (20, `cast()->` ×2), `DrawDirectionArrows` 0x4270f0 (21),
+   `DrawPlayer` 0x41a6d0 (50, `cast()->`), `RefreshZone` 0x403ae0 (70, `cast()->` ×3),
+   `DrawWeaponIcon`/`DrawWeaponBox`/`DrawHealthDial`/`DrawHealthNeedle` (`->m_hXxx` args).
+   The scan script is easy to re-derive (see the v110 session) — a `tools/chainscan.py` is
+   worth writing if you work more than two of these.
+2. **The DTOR-POSITION probe is new and unexploited.** DrawTextA's crack was recognising that a
+   destructor call sitting EARLIER than the source allows proves a narrower scope. Any residual
+   whose diff involves `mov [ebp-4],<state>` / a `call ~Foo` at an unexpected position is a
+   candidate. Grep for stack objects with dtors (`CBrush`, `CPen`, `CString`, `CFont`,
+   `CClientDC`) declared directly in a loop body.
+3. **The v110 wins are all in DeskcppView.cpp / WorldgenHelpers.cpp; Worldgen.cpp is untouched**
+   and holds the biggest residual mass (`Generate` 0x41f960 at 5704 B, `OnInitialUpdate`,
+   `PlaceQuestNode`). Run `savescan.py` again after any transcription work there.
+4. **Parked with MEASURED evidence this session — do NOT re-tread:** the SaveStoryHistory* 2/4 B
+   (8 in-function spellings flat; an upstream token perturbation moves them by 0; the three
+   twins DISAGREE with each other, v105's "source is not the variable" signature);
+   `DrawTextA`'s last 2 B (10 spellings flat, decl order already optimal); the three OnHScroll
+   slider twins 6/111/290 (expression fusion is worse, 4 compare spellings flat);
+   `ScrollTextLine` 0x417c90 (10 spellings, current is the optimum).
+5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+6. **Phase-H goals 2-5 untouched** this session.
+
+**▶ ⚠ ONE STANDING RULE IS NOW KNOWN TO HAVE AN EXCEPTION.** v106's "THE TU JOINT PHASE IS
+DOWNSTREAM-ONLY" does not hold universally: the OnAppExit edit (line-neutral, tokens only)
+moved `CyclePalette` 0x415af0, which sits BEFORE it in both address and file order. Treat
+downstream-only as a useful heuristic for bounding a joint search, not a guarantee — re-run
+`exactset.py` + `comm` over the WHOLE project after any token change, not just the tail.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand).** Every sweep MUTATES a source file —
+always `git status --porcelain src/` AFTER each one; run long sweeps with `run_in_background`
+writing to a LOG FILE and gate on BOTH `ps aux` and the driver's own DONE marker; restore a
+single function from `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run
+two sweeps concurrently, or one while `progress.py`/`exactset.py`/`residuals.py` is in flight
+(they share `build/*.obj`). Measure with `tools/exactset.py` + `comm`, never progress.py's total
+alone — this session had a +2/−1 that the total reported as "+1".
+⚠ A large comment rewrite is a LINE-COUNT change; either keep it line-neutral against what it
+replaces (the OnAppExit note is padded on purpose) or re-run the oracles and check the set.

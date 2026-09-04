@@ -8992,7 +8992,13 @@ BOOL DifficultyDlg::OnInitDialog()
     return TRUE;
 }
 
-// FUNCTION: YODA 0x00417fa0
+// FUNCTION: YODA 0x00417fa0  [EFFECTIVE MATCH: DIFF(6) — the `pCtrl == pScrollBar` cmp operand
+//   order, and in SB_PAGEUP the original subtracts in the value register before copying to the
+//   nVal register (`sub eax,ebp; mov edi,eax`) where ours copies first (`mov edi,eax; sub
+//   edi,ebp`). v111 swept the 2x2x2 of compare operand order x `-=` vs `v = v - p` x guard
+//   direction: ALL EIGHT are flat at 6, so the source operand order does NOT steer the emitted
+//   cmp operand order here. The 12 `pScrollBar->m_hWnd` args are the v103-measured INERT case
+//   (bare CScrollBar* + constant SB_CTL), so lesson #35 does not apply either.]
 void DifficultyDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
     CWnd *pCtrl = GetDlgItem(IDC_DIFFICULTY_SLIDER);

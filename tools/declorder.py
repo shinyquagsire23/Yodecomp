@@ -41,6 +41,15 @@ TYPES = (r"int|short|char|long|float|double|void|BOOL|UINT|DWORD|WORD|BYTE|LONG|
 # silently unmatched, and because a buffer is so often the FIRST local the block detector
 # bailed on line 1 and reported "no permutable block" for 9 residuals, three of them the
 # SaveStoryHistory* family) or an optional initializer.
+# ONE declaration, NOT anchored to end-of-line (v111: the old regex demanded `;\s*$`, so a line
+# carrying SEVERAL declarations -- `ZoneObj *o; int count;`, the line-neutral idiom this project
+# uses everywhere to keep sweeps from rotating the dial (lesson #23) -- matched NOTHING, the block
+# detector bailed on line 1, and the tool reported "nothing to permute". Same shape as the v109
+# array-extent bug and the v110 epilogue-pops bug: a harness reporting NOTHING TO DO is as suspect
+# as one reporting a finding.
+ONE_DECL = re.compile(r"\s*(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:%s)[\s\*]+(\w+)"
+                      r"(?:\s*\[[^\];]*\])*"
+                      r"(?:\s*=[^;]*)?;" % TYPES)
 DECL = re.compile(r"^\s+(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:%s)[\s\*]+(\w+)"
                   r"(?:\s*\[[^\];]*\])*"
                   r"(?:\s*=[^;]*)?;\s*$" % TYPES)
@@ -48,22 +57,42 @@ DECL = re.compile(r"^\s+(?:const\s+)?(?:unsigned\s+|signed\s+)?(?:%s)[\s\*]+(\w+
 BAD = re.compile(r"\breturn\b|\bcase\b|\bgoto\b|::|\(\s*\)|\w+\s*\(")
 
 
+def decl_names(s):
+    """Names declared by line `s` if the WHOLE line is declarations, else None.
+
+    Handles the several-declarations-on-one-line idiom; the line stays ONE permutable unit
+    (whole lines are swapped), so within-line order is NOT explored -- hand-sweep that with
+    tools/vartest.py, per lesson #38.
+    """
+    names, pos = [], 0
+    while pos < len(s):
+        if not s[pos:].strip():
+            break
+        m = ONE_DECL.match(s, pos)
+        if not m:
+            return None
+        seg = s[pos:m.end()]
+        if BAD.search(seg) and "=" not in seg:   # a call-shaped segment is not a decl
+            return None
+        if "," in seg.split("=")[0]:             # multi-declarator: not safely permutable
+            return None
+        names.append(m.group(1))
+        pos = m.end()
+    return names or None
+
+
 def leading_block(body):
-    """[(line_index, name)] for the run of declarations at the top of the body."""
+    """[(line_index, label)] for the run of declarations at the top of the body."""
     out = []
     for k in range(1, len(body)):
         s = body[k].split("//")[0].rstrip()
         if not s.strip():
             if out: break                     # blank line ends the block
             continue
-        m = DECL.match(s)
-        if not m:
+        names = decl_names(s)
+        if names is None:
             break
-        if BAD.search(s) and "=" not in s:     # a call-shaped line is not a decl
-            break
-        if "," in s.split("=")[0]:             # multi-declarator: not safely permutable
-            break
-        out.append((k, m.group(1)))
+        out.append((k, "+".join(names)))
     return out
 
 

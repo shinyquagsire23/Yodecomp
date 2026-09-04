@@ -390,6 +390,30 @@ jump table or EH data, so large functions report an empty set. It flagged six fu
 originals visibly DO push ebx+esi+edi in their first 0x20 bytes. Another instance of the v100
 "the instrument itself can lie" family; savescan.py's positive control is the guard.
 
+⭐ **THE SCRATCH-REGISTER BIJECTION IS A DISTINCT, SOURCE-CLOSED CLASS (v111, lesson #44) —
+and it is what most of the cheap band now IS.** v110 gave the callee-save set as an instrument;
+its blind spot is that it only sees `ebx/esi/edi`. A large share of the remaining SMALL residuals
+are pure bijections among the SCRATCH registers `eax/ecx/edx` — same mnemonics, same schedule,
+same operand order, matching LENGTH, matching save set, only register NAMES rotated. `savescan.py`
+reports 0 mismatches on every one of them BY CONSTRUCTION, so a clean savescan is NOT evidence
+that a residual is untouched work.
+Six functions were swept to a measured floor this session with **zero** gain, across every dial
+the project knows — decl SCOPE (#37), decl SET+ORDER (#38), loop FORM (#40), buffer SIZE (#36),
+the MFC member-call form (#35), the named-local lever (#43), and compare/arithmetic spelling:
+`ReadSavedState` 0x405bd0 (12 B; 12 orders x 32 hoist subsets x 9 loop spellings),
+`ReadIzon` 0x405ae0 (7 B; tag[5..16] x 6 orders), `ZoneRequiresItemMaybe` 0x41c0b0 (8 B; 10
+spellings), `OnHScroll` 0x417fa0 (6 B; the full 2x2x2), plus `FindObjectAt` 0x405330 and
+`LoadStoryHistoryNevada` 0x401ac0 re-confirmed against their existing notes by byte-diff.
+⇒ Two rules follow. (1) **A flat sweep across ALL THREE decl dials PLUS the loop form is no
+longer a signal to change axis (v108's lesson #41) — at this point it is the signature of the
+v105 TU-JOINT PHASE**, i.e. the lever is not in that body at all. Recognise it early: matching
+length + matching save set + a clean register bijection = stop after one sweep, not five.
+(2) The remaining path for this class is the **joint search** v105 called for, made tractable by
+v106's downstream-only property — vary several functions' decl configurations in ONE TU at once
+and score with `exactset.py` + `comm`. Per-function spelling sweeps are mined out below ~25 B.
+⚠ Do NOT read this as "the cheap band is worthless" — read it as "the cheap band needs a
+different SEARCH, not more spellings".
+
 ⭐ **THE DIALS COMPOSE — A FLAT SWEEP IS A SIGNAL TO CHANGE AXIS, NEVER A PARK (v108,
 lesson #41; and the tooling gap it closed).** v107 taught "flat DECL sweep ⇒ vary the LOOP
 FORM". v108 is the converse, measured: `ParseTilesMaybe` 0x41a030 sat at DIFF(3) since G1,
@@ -508,7 +532,23 @@ tool bugs found in one session).** Both silently manufactured work that did not 
    first call/branch) keeps the decode inside real prologue bytes and reports 0 mismatches.
    ⇒ Same family as #2: **two plausible implementations of "the same" measurement can disagree,
    and the one that decodes MORE of the function is the one that will lie.**
-7. **v111 — the headline dashboard itself, for MONTHS, in plain sight.** `progress.py` printed
+7. **v111 — an EIGHTH and NINTH, both "nothing to do" lies, found in one session.**
+   (a) `tools/declorder.py`'s `DECL` regex demanded `;\s*$` — ONE declaration per line. But the
+   line-neutral idiom this project uses everywhere to avoid lesson #23 crams several onto one
+   line (`ZoneObj *o; int count;`), so such a line matched NOTHING, `leading_block()` broke on
+   it, and the tool reported **"0 leading function-scope decls — nothing to permute"** for the
+   very function being worked. Same shape as the v109 array-extent bug it was supposed to have
+   fixed. Fixed with a non-anchored `ONE_DECL` + a `decl_names()` that accepts a whole line of
+   declarations as ONE permutable unit. ⚠ Scope check first: only **4** functions project-wide
+   have a multi-decl leading line and only ONE (`ReadSavedState`) had enough units to permute —
+   so the bug was real but narrow, which is worth measuring before assuming a big seam.
+   (b) `tools/residuals.py` called `main()` at MODULE level (unguarded). Any tool that
+   `import`s it ran the whole census, printed the table, and parsed the IMPORTER's `sys.argv` —
+   which silently swallowed `chainscan.py`'s own flags. Now under `if __name__ == "__main__"`.
+   ⇒ Generalise: **"nothing to permute" / "no hits" / "no mismatches" all need the same positive
+   control as a finding.** Both of this session's new-tool bugs (see `chainscan.py` below) were
+   caught by testing the scan against strings whose answer was already known.
+8. **v111 — the headline dashboard itself, for MONTHS, in plain sight.** `progress.py` printed
    ">>> 124.88 % transcribed; −24.88 % left to decompile <<<" because its numerator (our COMDAT
    lengths, EH funclets + jump tables IN) and denominator (Ghidra body sizes, funclets OUT) were
    different bases. The mismatch was DESCRIBED IN A COMMENT directly beneath the offending print,
@@ -789,9 +829,15 @@ ONE function against the anchor's byte oracle — the instrument that landed bot
 column flagged `(orig X) <-` on a mismatch: a variant that changes the callee-save set has changed
 how many long-lived values the body needs, which is often the real find even when the byte count
 barely moves) ·
+**`chainscan.py [--max-diff N] [--lines]`** (⭐ v111 — the LESSON #43 target list: non-exact
+functions whose source passes a POINTER CHAIN as an argument / call receiver / assignment RHS,
+each hit tagged `arg`/`recv`/`other`. Reproduces the v110 hand-derived list exactly. ⚠ its own
+first draft had TWO bugs, both caught by a known-answer positive control: the `cast()->` regex
+missed the canonical PARENTHESIZED `((T *)p)->m` form, and restricting hits to argument lists
+dropped both actual v110 wins, which were a receiver and an assignment RHS) ·
 **`declorder.py <tu.cpp> <0xADDR> --expect N`** (⭐ v108 — permutes the LEADING FUNCTION-SCOPE
 decl block; the axis `hoisttest.py` structurally cannot reach, and the one that landed
-ParseTilesMaybe) · **`hoisttest.py <tu.cpp> <0xADDR> --expect N`** (decl SCOPE: hoist
+ParseTilesMaybe. ⚠ v111 fixed it AGAIN: it could not see a line holding SEVERAL declarations) · **`hoisttest.py <tu.cpp> <0xADDR> --expect N`** (decl SCOPE: hoist
 inner-block locals. ⚠ v110: it only sees decls WITH an initializer, so a bare `Tile *pTile;`
 is invisible to it — its "1 spelling" answer on DrawTextA was a tool limit, not a result;
 sweep bare decls by hand) ·
@@ -819,61 +865,71 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-03 v110 — **251 → 255**, +5 gained / −1 lost across the
-session, all deliberate. One new INSTRUMENT drove everything; two new lessons (#42/#43); one
-phantom residual retired. All 5 oracles green (255 exact / link 0-0-exit0 / bugscan 0 HIGH 0
-SHIFT / vt 10 CLEAN / msg 11 CLEAN). v109 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-03 v111 — **255 → 255, NO MATCHING GAIN.** A deliberate
+negative-result session: six residuals swept to a measured floor, two harness bugs fixed, one
+new tool. All 5 oracles green (255 exact, set IDENTICAL before/after via `exactset.py` + `comm`
+/ link 0-0-exit0 / bugscan 0 HIGH 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches).
+v110 log demoted to PLAN_COMPLETED.md.)
 
-**▶ WHAT LANDED — read the new standing-lesson block "THE CALLEE-SAVE SET IS THE CHEAPEST
-DIAGNOSTIC" above first; it is the through-line of the whole session.**
-1. **`SaveStoryHistory{Nevada,Alaska,Oregon}` 611 B → 2/4/2 B** (lesson #42, the CSE-TEMP/LICM
-   dial). A named temp for a partly-loop-invariant subexpression was the whole thing. The
-   phase shift recovered `LoadZoneRecursive` 0x403450's last byte: net +1.
-2. **`OnAppExit` 0x416110 is a 5-byte `jmp ConfirmExit`** — a forwarder, not a copy of the twin
-   body. Retired a phantom 163 B residual. Cost 2 phase losses at the time; both later came back.
-3. **`DrawTextA` 0x40f060 663 B → 2 B** via three composed levers (MFC member form on a pointer
-   chain → PatBlt member form ×2 → an explicit inner scope for the CBrush). +1.
-4. **`CheckCheat` 0x415820 372 B → EXACT** and **`ConfirmExit` 0x416030 10 B → EXACT** via
-   lesson #43 (an argument expression the original held in a named local). **+2.**
-5. **`CyclePalette` 0x415af0** — its two AnimatePalette calls must take DIFFERENT forms (first
-   member, second global); the source carried both as member. Re-measured all 16 combinations.
-6. **New `tools/savescan.py`**; `vartest.py` gained a `saves=` column.
+**▶ READ FIRST: the new standing lesson "THE SCRATCH-REGISTER BIJECTION IS A DISTINCT,
+SOURCE-CLOSED CLASS" (lesson #44) above.** It is the whole result of this session and it should
+change how the next one is spent.
+
+**▶ WHAT LANDED.**
+1. **Two harness bugs, both of the "reports NOTHING TO DO" family** (now item 7 of the
+   instrument-can-lie list): `declorder.py` could not see a line holding SEVERAL declarations —
+   exactly the line-neutral idiom this project uses — and reported "nothing to permute" on the
+   first function it was aimed at; `residuals.py` called `main()` unguarded at module level, so
+   importing it ran the census and ate the importer's `sys.argv`. Both fixed.
+2. **New `tools/chainscan.py`** — the lesson-#43 target list the v110 pickup asked for. It
+   reproduces v110's hand-derived list exactly (`0x405bd0` cast()->x2, `0x405f30` cast()->x2),
+   which is the cross-check that it works. ⚠ its own first draft had two bugs, both caught by a
+   known-answer positive control before publishing anything: the `cast()->` regex missed the
+   canonical `((T *)p)->m` spelling, and restricting to argument lists dropped BOTH real v110
+   wins (a call receiver and an assignment RHS). Hits are now tagged `arg`/`recv`/`other`.
+3. **Six residuals swept to a measured floor, zero gain** — see lesson #44 for the list and the
+   axes. Four got park notes recording exactly which axes are now closed (`ReadSavedState` had
+   none at all before); the notes are LINE-COUNT changes in byte-matched TUs and were verified
+   safe with the full before/after exact-set diff (+0/-0).
 
 **▶ NEXT — concrete, in priority order.**
-1. **Work the lesson-#43 target list.** `savescan.py` is mined out (0 mismatches), but the
-   *chain* scan that found ConfirmExit is not: non-exact functions carrying `f()->m(...)`,
-   `((T *)p)->m`, `a->b->c(...)` or `->m_hXxx` as an argument. 40 residuals match; the ones
-   NOT yet worked, cheapest first: `ReadSavedState` 0x405bd0 (12, `cast()->` ×2),
-   `OnInitialUpdate` 0x426c40 (14, `call()->`), `WorldEntryStepMaybe` 0x409c10 (18, `a->b->c(`
-   ×4), `WriteSavedState` 0x405f30 (20, `cast()->` ×2), `DrawDirectionArrows` 0x4270f0 (21),
-   `DrawPlayer` 0x41a6d0 (50, `cast()->`), `RefreshZone` 0x403ae0 (70, `cast()->` ×3),
-   `DrawWeaponIcon`/`DrawWeaponBox`/`DrawHealthDial`/`DrawHealthNeedle` (`->m_hXxx` args).
-   The scan script is easy to re-derive (see the v110 session) — a `tools/chainscan.py` is
-   worth writing if you work more than two of these.
-2. **The DTOR-POSITION probe is new and unexploited.** DrawTextA's crack was recognising that a
-   destructor call sitting EARLIER than the source allows proves a narrower scope. Any residual
-   whose diff involves `mov [ebp-4],<state>` / a `call ~Foo` at an unexpected position is a
-   candidate. Grep for stack objects with dtors (`CBrush`, `CPen`, `CString`, `CFont`,
-   `CClientDC`) declared directly in a loop body.
-3. **The v110 wins are all in DeskcppView.cpp / WorldgenHelpers.cpp; Worldgen.cpp is untouched**
-   and holds the biggest residual mass (`Generate` 0x41f960 at 5704 B, `OnInitialUpdate`,
-   `PlaceQuestNode`). Run `savescan.py` again after any transcription work there.
-4. **Parked with MEASURED evidence this session — do NOT re-tread:** the SaveStoryHistory* 2/4 B
-   (8 in-function spellings flat; an upstream token perturbation moves them by 0; the three
-   twins DISAGREE with each other, v105's "source is not the variable" signature);
-   `DrawTextA`'s last 2 B (10 spellings flat, decl order already optimal); the three OnHScroll
-   slider twins 6/111/290 (expression fusion is worse, 4 compare spellings flat);
-   `ScrollTextLine` 0x417c90 (10 spellings, current is the optimum).
+1. **⭐ Build the JOINT decl search.** This is the one identified path for the cheap band and it
+   is now the highest-value piece of tooling missing. Per v105 (residuals in a TU are not
+   independent) and v106 (the phase propagates DOWNSTREAM ONLY, so an upstream edit can never
+   break an earlier fix), a joint search IS tractable: pick a TU, take its residuals in FILE
+   order, and vary several functions' decl configurations together, scoring with `exactset.py` +
+   `comm` (never progress.py's total — it reports +2/-4 as "-2"). Start with **Iact.cpp**: only
+   3 residuals (`ReadIzon` 7, `ReadSavedState` 12, `WriteSavedState` 20), all three individually
+   floored, and ReadIzon is the TU's FIRST emitted function so it seeds the whole phase.
+2. **`WriteSavedState` 0x405f30 (20 B) is the one Iact.cpp residual NOT yet swept** — do it
+   before the joint run so its own floor is known. It is `ReadSavedState`'s write mirror, so the
+   v105 "textually identical sibling" test applies directly.
+3. **The dtor-position probe (v110 item 2) is now SCOPED but still unexploited.** A scan of all
+   123 residuals for an `[ebp-4]` EH-state store among the DIFFERING instructions gives ~20 real
+   candidates; the cheapest are `PickUnplacedItemMaybe` 0x41c200 (13), `Puzzle::Puzzle` 0x4042b0
+   (24), `RemoveEmptyZonesFromPlacedList` 0x403070 (26), 0x404c80 (73). ⚠ "a call appears in the
+   diff" is NOT a useful filter (83 of 123 hit it); only the EH-state store is. ⚠ `Puzzle::Puzzle`
+   is already refuted as a dtor case — its emit ORDER (CString member ctors BEFORE the scalar
+   stores) positively CONFIRMS body assignments over an initializer list, and the rest is an
+   esi/edi bijection.
+4. **Worldgen.cpp still holds the biggest residual mass and is still untouched** (`Generate`
+   0x41f960 at 5704 B, `OnInitialUpdate` 0x426c40, `PlaceQuestNode`). ⚠ `declorder` on
+   `Generate` is NOT the move — its leading block is just `{aOrder, aPlan}`, 1 permutation, and
+   a decl tweak cannot touch a 5704 B structural residual. These need transcription-level work.
 5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note).
 6. **Phase-H goals 2-5 untouched** this session.
 
-**▶ ⚠ ONE STANDING RULE IS NOW KNOWN TO HAVE AN EXCEPTION.** v106's "THE TU JOINT PHASE IS
-DOWNSTREAM-ONLY" does not hold universally: the OnAppExit edit (line-neutral, tokens only)
-moved `CyclePalette` 0x415af0, which sits BEFORE it in both address and file order. Treat
-downstream-only as a useful heuristic for bounding a joint search, not a guarantee — re-run
-`exactset.py` + `comm` over the WHOLE project after any token change, not just the tail.
+**▶ PARKED WITH MEASURED EVIDENCE THIS SESSION — do NOT re-tread** (details in each function's
+source note): `ReadSavedState` 0x405bd0 · `ReadIzon` 0x405ae0 · `ZoneRequiresItemMaybe` 0x41c0b0
+· `OnHScroll` 0x417fa0. Also re-confirmed correct by byte-diff against their existing notes:
+`FindObjectAt` 0x405330 (2 B, the `test edi,edi` guard) and `LoadStoryHistoryNevada` 0x401ac0
+(2 B, the proven jg/jl phase drift across the three loaders).
+
+**▶ ⚠ v110's EXCEPTION TO "DOWNSTREAM-ONLY" STILL STANDS.** The OnAppExit edit moved
+`CyclePalette`, which sits BEFORE it. Treat downstream-only as a heuristic for BOUNDING a joint
+search, not a guarantee — always re-run `exactset.py` + `comm` over the WHOLE project.
 
 **▶ HOW TO WORK THE DIAL SAFELY (v104–v108 rules stand).** Every sweep MUTATES a source file —
 always `git status --porcelain src/` AFTER each one; run long sweeps with `run_in_background`
@@ -881,9 +937,11 @@ writing to a LOG FILE and gate on BOTH `ps aux` and the driver's own DONE marker
 single function from `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run
 two sweeps concurrently, or one while `progress.py`/`exactset.py`/`residuals.py` is in flight
 (they share `build/*.obj`). Measure with `tools/exactset.py` + `comm`, never progress.py's total
-alone — this session had a +2/−1 that the total reported as "+1".
-⚠ A large comment rewrite is a LINE-COUNT change; either keep it line-neutral against what it
-replaces (the OnAppExit note is padded on purpose) or re-run the oracles and check the set.
+alone. ⚠ A `vartest.py` BASE must be UNIQUE in the file — anchor it on the function signature
+when the decl block is a common shape (4 functions in Iact.cpp share `char tag[5]; int size;`),
+and remember `str.count()` is a SUBSTRING test, so a 4-space decl matches inside an 8-space one.
+⚠ A comment rewrite is a LINE-COUNT change; keep it line-neutral or verify with the exact-set
+diff (this session added 19 comment lines across 3 byte-matched TUs: +0/-0, verified).
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 
