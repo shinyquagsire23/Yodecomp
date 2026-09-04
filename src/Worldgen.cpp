@@ -2861,12 +2861,12 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     questItemsB.SetSize(nStepsB + 1, -1);
     if (completionCount < 1)
     {
-        storyHistoryAlaska.Add(0xbd);
-        storyHistoryAlaska.Add(0xc5);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xbd);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
     }
     else if (completionCount < 10)
     {
-        storyHistoryAlaska.Add(0xc5);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), 0xc5);
     }
 #if defined(YODA_FULL) || defined(GAME_INDY)
     // Full game / Indy: pick the goal puzzle dynamically instead of the demo's fixed Hoth goal.
@@ -2892,18 +2892,18 @@ int CDeskcppDoc::Generate(unsigned int nSeed)
     Puzzle *pPuz = (Puzzle *)puzzles.GetAt(goal);
     startItem = pPuz->itemA;
     startItem2Maybe = pPuz->itemB;
-    goalTileList.Add(goal);
+    goalTileList.SetAtGrow(goalTileList.GetSize(), goal);
     nCurrentGoalItem = goal;
     switch (currentPlanet)
     {
     case 1:
-        storyHistoryNevada.Add(goal);
+        storyHistoryNevada.SetAtGrow(storyHistoryNevada.GetSize(), goal);
         break;
     case 2:
-        storyHistoryAlaska.Add(goal);
+        storyHistoryAlaska.SetAtGrow(storyHistoryAlaska.GetSize(), goal);
         break;
     case 3:
-        storyHistoryOregon.Add(goal);
+        storyHistoryOregon.SetAtGrow(storyHistoryOregon.GetSize(), goal);
         break;
     }
     int j;
@@ -4655,7 +4655,7 @@ int CDeskcppDoc::ParsePuz2(CFile *pFile)
             }              // closes the TRY macro's outer (link-scope) brace
             if (pNew == NULL)
                 return 0;
-            puzzles.Add(pNew);
+            puzzles.SetAtGrow(puzzles.GetSize(), pNew);
             pNew->Read(pFile);
         }
         if (nDone != 0)
@@ -8046,7 +8046,7 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
             else
             {
                 if (pWorld->inventory.GetSize() <= 1)
-                    pWorld->inventory.Add(pNew);
+                    pWorld->inventory.SetAtGrow(pWorld->inventory.GetSize(), pNew);
                 else
                     pWorld->inventory.InsertAt(2, pNew, 1);
             }
