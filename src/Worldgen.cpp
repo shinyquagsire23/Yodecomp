@@ -1107,7 +1107,22 @@ void CDeskcppDoc::WorldgenPushZoneEntry(short zoneId, short val)
         worldgenPendingZones.InsertAt(0, pEntry, 1);
 }
 
-// FUNCTION: YODA 0x0041d740
+// FUNCTION: YODA 0x0041d740  [PARKED DIFF(13), v112 — the cleanest v105 "textually identical
+//   SIBLING" case in the project, and it carries a NEW datum. RemoveZoneEntry2 0x41d7a0 below is
+//   CHARACTER-IDENTICAL to this body apart from the container member, and it is byte-EXACT; this
+//   one is a pure register bijection (orig edx=i, edi=walker, eax=nCount, bx=zoneId; ours rotates
+//   all four) plus the `mov nCount` sitting before rather than after the push run. The two
+//   ORIGINALS also differ from each other in exactly that way, so cl really does emit two
+//   allocations for one source shape.
+//   ⭐ NEW (v112): physically SWAPPING the two definitions in the file changes NOTHING — 0x41d7a0
+//   still MATCH, 0x41d740 still DIFF(13). So the v105 joint phase is NOT positional here; the
+//   allocation follows the BODY, and the only thing that differs between these two bodies is the
+//   member displacement (0x264/0x260 vs 0x278/0x274), both of which we already emit correctly.
+//   Axes closed by measurement (9 spellings, all len=81): statement order — `int i = 0` before
+//   the GetSize is strictly WORSE (18 B), which positively confirms the order below; loop form
+//   (for / while / guarded do-while) all inert at 13; the countdown is refuted by LENGTH (80);
+//   GetAt(i) vs [i] inert; splitting the decl from the assignment inert.
+//   Do not grind this body — the source is provably not the variable (v105 rule 2).]
 // Linear-search the pending-zone worklist by zoneId; RemoveAt + delete the entry.
 void CDeskcppDoc::RemoveZoneEntry(short zoneId)
 {
