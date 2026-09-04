@@ -1054,10 +1054,26 @@ int CDeskcppDoc::FindTile(void *pTile)
     return r;
 }
 
-// FUNCTION: YODA 0x00403ae0  [WIP: DIFF(70), len 410 vs 416 — cracked so far: faithful destX/destY
-//   short accumulators + per-iteration currentZone re-reads + int-promoted GetTile results +
-//   BlitMasked-arm-first. Residual: a movsx-before-add on the accumulators (int-accum probe worse)
-//   + push/mov scheduling at the blit sites.]
+// FUNCTION: YODA 0x00403ae0  [WIP: DIFF(70), len 410 vs extent 416 — cracked so far: faithful
+//   destX/destY short accumulators + per-iteration currentZone re-reads + int-promoted GetTile
+//   results + BlitMasked-arm-first.
+//   ⭐ v117 LOCALISED THE WHOLE 6-BYTE DEFICIT: it is exactly the two `movsx ebx,bx` (+0x156) and
+//   `movsx edi,di` (+0x177) the original emits at the loop bottoms, 3 B each, each immediately
+//   followed by `add bx/di,0x20`. Nothing else is missing — with those two present the function
+//   is 131/129 insns, reg_pen 0, identity_miss 0. So this is a 6-byte STRUCTURAL residual, not a
+//   scheduling one, and `--lenmis` will keep reporting it until the movsx pair appears.
+//   ⛔ TWO HYPOTHESES MEASURED AND REFUTED — do not re-tread:
+//     1. The accumulator's arithmetic SPELLING is inert. `+= 0x20`, `(short)(destX + 0x20)`,
+//        `(short)((int)destX + 0x20)`, `0x20 + destX`, decimal 32 and TILE_PIXEL_SIZE all give
+//        DIFF(70)/len 410, dead flat (same family as lesson #39: the spelling never is the lever).
+//     2. It is NOT a call-argument promotion, so the blit signatures are NOT the lever. Both
+//        callees read 16-bit params (`movsx eax, word ptr [ebp+0x18]` in BlitFast 0x408110 and
+//        BlitMasked 0x408240), and a sweep of ALL 21 blit call sites in the original shows every
+//        one pushing a plain register with no sign-extension. `short destX, short destY` in
+//        Canvas.h is therefore positively CONFIRMED; changing it would break the callees.
+//   ⇒ Next axis to try (untested): the GetTile result handling / the `int t` temp, or the loop
+//   structure — NOT the increment and NOT the signatures. Also open: push/mov scheduling at the
+//   blit sites.]
 // Redraw the whole current zone into the offscreen canvas: 3 layers per cell; layers 1/2 use the
 // masked blit for game-object tiles.
 void CDeskcppDoc::RefreshZone()

@@ -4167,3 +4167,104 @@ remaining 69 B is source-closed (10 spellings flat at 68–72, decl swap strictl
 10 hits, 6 two-armed, nearly mined out. Item #2 (the dtor-position seam) was scanned by
 `dtorscan.py` and turned out to be 4 functions, not ~20. Item #4 (`TriggerHotspotsMaybe`)
 was CLOSED with a bounding negative.
+
+
+---
+
+### ⏮ v116 PICKUP (demoted at v117)
+
+### ⏭ NEXT SESSION PICKUP (2026-09-04 v116 — **255 exact (+3 REAL: 252 → 253 → 254 → 255,
+each verified by `exactset.py` + `comm`)**. Three byte-matches, all from ONE newly-found
+lever: the **CONTAINER CALL FORM** (lesson #48, new) — `a.Add(v)` vs
+`a.SetAtGrow(a.GetSize(), v)` and `a[i]` vs `a.GetAt(i)`. Two new scanners built
+(`armscan.py`, `dtorscan.py`). All oracles green: 255 exact / 99.17 % / link 0-0-exit0 /
+bugscan 1 HIGH (known benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches /
+build-sdl links, worldgen_smoke converges. v115 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST:** the new standing lesson **"THE CONTAINER CALL FORM IS A MATCHING LEVER"**
+(#48) — including its four ⚠ clauses, which cost real time to learn this session and which a
+future session will otherwise repeat.
+
+**▶ WHAT LANDED.**
+1. **`ParseChar` 0x421e70: 110 B → BYTE-EXACT** — `characters.Add(pNew)`, not
+   `characters.SetAtGrow(characters.GetSize(), pNew)`.
+2. **`RemoveEmptyZonesFromPlacedList` 0x403070: 24 B → BYTE-EXACT** — same lever. This
+   RETIRED a v113 park that had closed 32 decl configurations, all flat at 24. That sweep was
+   accurate and aimed at the wrong axis (lesson #41 in the wild).
+3. **`ParseChwp` 0x423300: 47 B → BYTE-EXACT** — `characters[id]`, not `.GetAt(id)`.
+4. **`DamageEntityAt` 0x405710: 556 B → 51**, and its LENGTH now matches (696 → 690 = 690).
+5. **`WorldgenPlaceItemOnLock` 0x41cdc0: 96 B → 56** — lesson #47 arm swap (96 → 93, the
+   first find by `armscan.py` rather than by eye) then lesson #39 statement order (93 → 56).
+6. Also: `ParseCaux` 41 → 11, `PickUnplacedItemMaybe` 13 → 5, `StartGame`-era notes tidied.
+
+**▶ NEW TOOLS (both COMPILE — never run them during a `vartest.py` sweep).**
+- **`tools/armscan.py`** — lesson #47 target list. 10 hits, 6 two-armed. Nearly mined out.
+- **`tools/dtorscan.py`** — lesson-#110 dtor-position target list. With the right filters the
+  seam is **4 functions, not ~20**: 0x422670 `Load`, 0x405710 (now cleared), 0x421e70 (now
+  exact), 0x422fd0 `ParsePuz2`. So item #2 of the v115 pickup is largely CLOSED.
+
+**▶ MEASURED NEGATIVES — do NOT re-tread** (all written into the functions' source notes):
+- **`TriggerHotspotsMaybe` 0x40ec30 is CLOSED.** All 10 line-neutral permutations of its
+  opening statements are strictly WORSE (42–290 B), so the current order is the unique
+  minimum and positively confirmed. Residual 17 B is a lesson-#44 scratch bijection.
+- **`WorldgenPlaceItemOnLock`'s last 56 B** is a bijection ({bFound,i} = EBX,EBP orig vs
+  EDX,EBX ours); all 6 decl SET/ORDER variants are worse AND emit the wrong length.
+- **`OnSaveWorld` 0x424540's container conversion is REFUTED** — its own sites move it not at
+  all, and landing it costs `DrawRect` 403 B and its length match.
+- **`ParseCaux`'s 11 B** is a 3-cycle bijection whose twin `ParseChwp` is byte-exact from
+  character-identical source — the v105 sibling signature. Don't grind it.
+- **`ParseChwp`'s arm order** is genuinely inert (15 spellings). The win was elsewhere.
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ WORK THE REST OF THE CONTAINER-CALL-FORM SEAM — it is by far the best lead.** Only a
+   handful of ~80 `SetAtGrow(X.GetSize(), …)` and ~277 `.GetAt(` sites have been tried, and
+   three of the tries reached BYTE-EXACT. Method that works: `formsweep`-style TU-wide sweep
+   to build a CANDIDATE list, then **isolate each function and land only on byte-exactness or
+   a big diff cut at a non-worsening LENGTH**. The `a[i] = v` vs `a.SetAt(i, v)` pair is
+   measured-mixed and entirely unworked. ⚠ re-read lesson #48's ⚠ clauses first.
+2. **Other MFC inline pairs, same idea, never probed:** `GetSize()` vs `GetUpperBound()+1`,
+   `RemoveAt`/`InsertAt`/`RemoveAll`, and `CString` ops. Lesson #35 generalised much further
+   than SendMessage; lesson #48 suggests the container/inline surface generally is a dial.
+3. **`dtorscan.py`'s two live hits**: `Load` 0x422670 (2 loops flagged, 1634 B) and
+   `ParsePuz2` 0x422fd0 (165 B, the smaller and better start).
+4. **`loopform.py`'s remaining untouched hits**, confirmed with `bytediff.py` FIRST:
+   `0x4070e0` IactRunCommands (1401 B), `0x41bb10` OnNewDocument (537 B), `0x403c80`
+   BuildQuestPathMaybe (1121 B).
+5. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B). That verdict
+   now rests on ~17 functions across v111–v116.
+6. **Worldgen.cpp still holds the biggest residual mass** (`Generate` 0x41f960 at 5710 B,
+   `OnInitialUpdate` 0x426c40, `WorldgenPlacePuzzles` 0x421930) — transcription-level work.
+7. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note).
+8. **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v115 rules all stand and were all re-used).**
+Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
+long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
+concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
+`armscan.py`/`dtorscan.py` is in flight (they share `build/*.obj`). Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a
+line-count change (lesson #23).
+⭐ **v116 additions:**
+- **CHECK THE LENGTH, NOT JUST THE DIFF, BEFORE LANDING ANYTHING.** Our trimmed length vs
+  `toolchain/test/app_funcs.txt`'s extent is a second, stronger oracle. Three conversions
+  this session bought noise-level diff gains while moving the length AWAY and had to be
+  reverted; one upstream landing silently cost `DrawRect` its 654-byte length match.
+- **ISOLATE BEFORE LANDING.** A sweep that rewrites many sites measures the COMBINATION, not
+  each function's own source.
+- **v106's "downstream-only" is not a safety proof for MULTI-function landings** — an
+  EARLIER function moved only when three edits were combined. Re-check upstream too.
+- **When you fix a harness bug of form X, grep every sibling tool for X** — `bytediff.py` had
+  the same unguarded `main()` that `residuals.py` was fixed for at v111.
+- **`residuals.py --csv` needs a PATH argument**; its `va` column is **DECIMAL**.
+- **`loopform.py --all` includes ALREADY-EXACT functions**; cross-check with `residuals.py`.
+
+⚠ v117 note: v116's pickup item #1 (work the container-call-form seam) was worked and the
+Worldgen CHEAP BAND is now CLOSED — 11 variants across five functions, all flat, with the
+byte-exact sibling ZoneHasIzxItemMaybe confirming `.GetAt()`. Item #3's ParsePuz2 remains
+open. ⛔ AND v116's own last commit (165b365) was found to have silently cost DrawRect 327
+bytes + its length match: the three-way revert was right for ParsePuz2 and AddItemToInv but
+wrong for Generate, because it judged each conversion by the EDITED function alone — the very
+failure lesson #48 warns about. Fixed at v117; see lesson #49.
