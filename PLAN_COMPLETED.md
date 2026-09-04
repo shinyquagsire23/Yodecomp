@@ -4268,3 +4268,32 @@ open. ⛔ AND v116's own last commit (165b365) was found to have silently cost D
 bytes + its length match: the three-way revert was right for ParsePuz2 and AddItemToInv but
 wrong for Generate, because it judged each conversion by the EDITED function alone — the very
 failure lesson #48 warns about. Fixed at v117; see lesson #49.
+
+### ⏮ v117 (2026-09-04) — LENGTH FIRST: the vacuous `lenmis` column, and the seam it had been hiding
+
+**255 exact, held (+0/−0).** No new byte-match, but two functions were fixed STRUCTURALLY for a
+net −654 bytes of residual, and an entire ORACLE was found silenced.
+
+- ⭐ **`residuals.py`'s `lenmis` column had been VACUOUS since it was written** — it compared our
+  length against a slice taken AT our own length, so it could never be True. Fixing it against
+  Ghidra's extents created the `--lenmis` seam and **lesson #49**: a residual whose emitted LENGTH
+  is wrong is a STRUCTURAL defect, and the register difference you see is its consequence.
+  The eleventh harness bug of the project, and the first one that had been HIDING the best
+  remaining target list rather than merely misreporting it.
+- **`ZoneProvidesItem` 0x41c3b0: 214 B → 17, length 239 → 214 = the extent.** A year-old park note
+  describing a register permutation turned out to be describing a SYMPTOM: an arm that RETURNS must
+  not also ASSIGN (the extra `found = 1` is what spilled `found` out of EDI), and an inner early
+  exit is `break;` not `return x;` (which duplicated the epilogue).
+- **`Generate` 0x41f960's `Add` form restored → `DrawRect` 0x424010: 387 B → 60**, length 651 → 654
+  = the extent. v116's last commit had judged that revert on the EDITED function alone — exactly
+  the failure lesson #48 warns about — and silently cost DrawRect 327 bytes for four commits.
+- New: **`tools/formsweep.py`** (one-at-a-time TU sweep, k+1 compiles, whole marker vector per row).
+- ⚠ The raw length census MANUFACTURES targets: 18 Ghidra extents are stubs reading `1`, and a
+  trailing switch JUMP TABLE sits inside our COMDAT but outside the extent. Unfiltered it put
+  Tick/Run/Generate on top — all three artifacts. Filtered: 44 residuals / 408 B of real
+  structural error, 48 length-EXACT, 31 not comparable.
+- Measured negatives recorded in the functions' source notes: the container ACCESS form is CLOSED
+  on the Worldgen cheap band (11 variants across 5 functions, all flat); `RefreshZone` 0x403ae0's
+  6-byte deficit is localised to two `movsx` at the loop bottoms but not solved (the increment
+  spelling is inert, and it is NOT a call-argument promotion — `short destX` is confirmed by all
+  21 call sites).

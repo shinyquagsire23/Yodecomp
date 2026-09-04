@@ -1209,92 +1209,106 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-04 v117 — **255 exact, held; +0/−0 by `exactset.py` +
-`comm` after every landing**. No new byte-match, but **two functions were structurally fixed
-for a net −654 bytes of residual**, an entire ORACLE was found silenced, and a new seam
-(lesson #49, the LENGTH census) opened and immediately paid. All oracles green: 255 exact /
-99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN
-/ savescan 0 mismatches / build-sdl links, worldgen_smoke converges. v116 log demoted to
-PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-04 v118 — **255 → 257 exact, REAL MATCHES; +2/−0 by
+`exactset.py` + `comm` after every landing**. Two new standing lessons, one new dial
+(#50), one new tool, and the closure of a decl axis NO tool in the project could reach.
+All oracles green: 257 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign)
+0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches / build-sdl links.
+v117 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST:** the new standing lesson **#49 — "LENGTH FIRST"**, including both ⚠ clauses.
-The raw length comparison manufactures targets (Ghidra stub extents; jump tables); the filtered
-one cracked a park that had survived a year of register dials.
+**▶ READ FIRST:** standing lesson **#50 — the MEMBER-ALIAS / CSE-reload dial**, and the
+bullet under it on **`declorder.py --inner`**. Both ⚠ clauses on #50 matter: dropping an
+alias ALONE is usually a big LOSS, and the dial needs a STORE through the pointer.
 
 **▶ WHAT LANDED.**
-1. **`ZoneProvidesItem` 0x41c3b0: 214 B → 17, and its LENGTH 239 → 214 = the extent.** Two
-   structural defects, zero collateral: the `itemId == -1` arm RETURNS rather than assigning
-   `found` (the extra assignment is what spilled `found` out of EDI — the "register
-   permutation" in its park note was a SYMPTOM), and the inner early-exit is `break;` not
-   `return found;` (which duplicated the epilogue). See lesson #49 and the function's note.
-2. **`Generate` 0x41f960's `Add` form restored → `DrawRect` 0x424010: 387 B → 60 and its
-   length 651 → 654 = the extent.** v116's last commit (165b365) reverted three container-ADD
-   conversions on LENGTH evidence; two of those reverts were right, but the `Generate` one was
-   judged on the EDITED function alone and silently cost DrawRect 327 bytes + its length match
-   for four commits. Isolated with the new `formsweep.py`. ParsePuz2 and AddItemToInv stay
-   reverted — both land 8 B short, independently reproducing v116's own numbers.
+1. **`AddHealth` 0x427690 byte-EXACT (49 B → 0, length 517 → 520 = the extent).** Found by
+   `residuals.py --lenmis` (lesson #49 paying for the second session running). The whole
+   residual was ONE missing `mov ecx,[edi+0x44]`: the original RELOADS the `pWorld` member
+   between two `= 1` stores because the first store may alias it, while our cached
+   `CDeskcppDoc *pW = pWorld;` alias could not be invalidated. Removing the alias is only
+   half of it — the death tail's inner decl order `pTile,bFound,i` is load-bearing.
+   **+2/−0: `DetonateAdjacentTiles` 0x428680 came back for free**, one of the three
+   functions the v114 re-baseline cost. (0x41f830 and 0x423d20 are still out.)
+2. **`BlitViewportDither` 0x428e30: 125 B → 55**, length 237 → 238 against an extent of
+   242 — purely by declaring the inner `prod` before `x`. Landed on lesson #48's bar (a
+   large cut WITH the length improving), +0/−0.
 
 **▶ NEW TOOLS / FIXES.**
-- **`tools/residuals.py --lenmis`** — the structural-defect census (lesson #49). ⚠ its `lenmis`
-  column had been VACUOUS since forever (an eleventh harness bug — it compared our length to a
-  slice taken AT our length), which is why this seam was never visible.
-- **`tools/formsweep.py`** — one-at-a-time TU sweep, k+1 compiles, prints the whole marker
-  vector so collateral shows in the same row. ⚠ COMPILES; never run during another sweep.
+- **`declorder.py --inner`** — permutes EVERY brace-block's decl run, not just the leading
+  function-scope one. That axis was unreachable: `hoisttest.py` asks about SCOPE, the old
+  `declorder.py` about the top-of-function block only. It landed both of this session's
+  wins. It also SKIPS permutations that move a decl ahead of one its initializer needs
+  (16 of 23 orders on 0x41a1c0 were `COMPILE FAILED` before), strips MEMBER names when
+  deriving those dependencies, and SELF-CHECKS that the source's own order is legal.
+- **`tools/aliasscan.py`** — READ-ONLY target list for lesson #50 (takes a cached
+  `--exact` set). **61 hits**; **6 also have a LENGTH mismatch** = the strong form.
 
-**▶ MEASURED NEGATIVES — do NOT re-tread** (all written into the functions' source notes):
-- **The container ACCESS form is CLOSED on the Worldgen cheap band.** 11 single- and multi-site
-  variants across `ZoneRequiresItemMaybe` 0x41c0b0, `CheckZoneItemsAvailable` 0x41f830,
-  `WorldgenCollectZoneRefs` 0x41f8e0, `RemoveZoneEntry` 0x41d740 and `IsTileInGoalList`
-  0x4215e0 — every one flat on its own function. The byte-EXACT sibling `ZoneHasIzxItemMaybe`
-  0x41bfa0 uses `.GetAt()` too, so that form is positively confirmed in this family.
-- **`RefreshZone` 0x403ae0's 6-byte deficit is LOCALISED but not solved**: it is exactly the two
-  `movsx ebx,bx` / `movsx edi,di` at the loop bottoms. The increment SPELLING is inert (6
-  variants flat), and it is NOT a call-argument promotion — all 21 blit call sites in the
-  original push plain registers, so `short destX, short destY` in Canvas.h is CONFIRMED.
-- **`ZoneProvidesItem`'s last 17 B** is a scratch bijection at correct length AND 82/82 insns;
-  all 4 compare-direction combinations dead flat, and its siblings' decl idiom is worse here.
+**▶ MEASURED NEGATIVES — do NOT re-tread.**
+- **`TextDialog::Position` 0x417570 is NOT the alias dial** — 7 alias/decl variants dead
+  flat at 100 B. Its `pW` uses are pure READS, so no store invalidates the CSE. This is
+  the counter-example that bounds lesson #50.
+- **The cheap band stays closed on the inner-block axis too**: 0x41c200 and 0x403aa0 flat;
+  0x423d20 / 0x405330 / 0x423dc0 have no permutable inner block at all.
+- **Flat on `--inner`**: 0x41a1c0, 0x408e70, 0x409c10, 0x40ec30, 0x40f060, 0x41d260.
+  Two moved but stayed BELOW lesson #48's landing bar and were deliberately not landed:
+  `BlitTile` 0x40a320 13 B → 12 (`sy` before `sx`), `ZoneProvidesItem` 0x41c3b0 17 B → 15
+  (`j` before `nObjs`; its length is already exact at 214).
+- **`ReadZax2`/`ReadZax3`'s `mov ax`/`movsx` pair stays parked** — re-read the v99 EOF note
+  in `Iact.cpp` before touching it; it already swept the short-temp chain. Same defect
+  family as `ReadZaux` (−6) and `RefreshZone` (−6): 4 functions, 18 bytes, all `movsx`.
+- **`PlaySound` 0x409060's −5** is localised: the original DUPLICATES its epilogue for one
+  early `return` where we branch to the shared one, plus an eax/edx scratch bijection
+  (lesson #44). The G1 note already records that goto/epilogue variants were flat.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ WORK `residuals.py --lenmis` TOP-DOWN — it is now the best seam in the project.** 44
-   residuals carry real structural error and it is a much sharper signal than byte-diff. Best
-   unworked entries: **negative deltas first** (we are MISSING code, the sharpest signal) —
-   `ScrollZoneTransition` 0x411180 (−62), `Layout` 0x4176f0 (−35), `OnNewDocument` 0x41bb10
-   (−29), `DrawHealthNeedle` 0x4278a0 (−17), `DrawHealthDial` 0x427490 (−16); then the positive
-   ones — `ShowWinMessage` 0x40f4b0 (+36), `IactProbeMove` 0x406550 (+26),
-   `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13). ⚠ hand-disassemble before investing.
-2. **Re-read every "PARKED / register permutation / not source-steerable" note against the
-   length.** ZoneProvidesItem proves such a note can be a symptom description. `--lenmis`
-   tells you which parks are worth re-opening.
-3. **The container CALL-FORM seam (v116 lesson #48) is still only partly worked** — ~80
-   `SetAtGrow` + ~277 `GetAt` sites, and the `a[i] = v` vs `a.SetAt(i, v)` pair is untouched.
-   But the cheap Worldgen band is now closed (above), so aim it at the LARGER residuals.
-4. **`dtorscan.py`'s two live hits**: `Load` 0x422670 (1634 B) and `ParsePuz2` 0x422fd0 (165 B).
-5. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that verdict
-   now rests on ~17 functions across v111–v117.
-6. **Worldgen.cpp still holds the biggest residual mass** (`Generate` 0x41f960 at 5704 B,
-   `OnInitialUpdate` 0x426c40, `WorldgenPlacePuzzles` 0x421930) — transcription-level work.
-7. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+1. **⭐ SWEEP THE INNER-BLOCK SEAM WHOLE — it is now affordable.** 45 non-exact functions,
+   **521 legal permutations** (1435 before the dependency filter). A batch script pattern is
+   in this session's scratch; run it per TU with `run_in_background` to a log, and NEVER
+   concurrently with another sweep. Unstarted targets include 0x4260e0, 0x428f50, 0x41c580,
+   0x41c730, 0x421930, 0x40a3a0, 0x40f4b0, 0x427d20, 0x41cf10, 0x41d480, 0x412250, 0x40a710.
+2. **Work `aliasscan.py` ∩ `residuals.py --lenmis`** (lesson #50's strong form). Best
+   unworked: **`UseWeapon` 0x427d20** (−7, SIX aliases incl. pW/pW2/pW3) and
+   **`OnNewDocument` 0x41bb10** (−29, and its note already says "pPalette loaded into a local
+   BEFORE ::CreatePalette" was a CRACK — re-read that against the length).
+3. **Keep working `residuals.py --lenmis` top-down.** Still unworked, negative first:
+   `ScrollZoneTransition` 0x411180 (−62), `Layout` 0x4176f0 (−35), `DrawHealthNeedle`
+   0x4278a0 (−17), `DrawHealthDial` 0x427490 (−16), `OnUpdate` 0x408e70 (−11),
+   `WorldgenPlacePuzzles` 0x421930 (−11); then positive: `ShowWinMessage` 0x40f4b0 (+36),
+   `IactProbeMove` 0x406550 (+26), `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13).
+   ⚠ hand-disassemble two hits before investing (v117's own first census ranked 3 artifacts).
+4. **Re-read every "PARKED / register permutation / not source-steerable" note against the
+   LENGTH.** AddHealth is now the SECOND such park cracked in two sessions (ZoneProvidesItem
+   was the first) — both notes were describing a symptom.
+5. **The container CALL-FORM seam (lesson #48) is still only partly worked** — ~80
+   `SetAtGrow` + ~277 `GetAt` sites, and `a[i] = v` vs `a.SetAt(i, v)` is untouched. The
+   cheap Worldgen band is closed, so aim it at the LARGER residuals.
+6. **`dtorscan.py`'s two live hits**: `Load` 0x422670 (1634 B), `ParsePuz2` 0x422fd0 (165 B).
+7. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that
+   verdict now rests on ~20 functions across v111–v118, inner blocks included.
+8. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
-   `sizeof` dial note).
-8. **Phase-H goals 2-5 untouched** this session.
+   `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v116 rules all stand and were all re-used).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v117 rules all stand and were all re-used).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
-`formsweep.py`/`armscan.py`/`dtorscan.py` is in flight (they share `build/*.obj`). Measure with
-`tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a
-line-count change (lesson #23) — **so re-measure the function AFTER writing its note**; v117
-did this for all three notes and each was clean.
-⭐ **v117 additions:**
-- **CHECK LENGTH BEFORE THE REGISTER DIALS, not after.** `residuals.py --lenmis`.
-- **A tool's column that cannot ever disagree is decoration** — `lenmis` had been vacuous
-  since it was written, and it was hiding the best seam in the project.
-- **Hand-disassemble two hits of any NEW ranking before trusting it.** v117's own first
-  length census put three artifacts on top.
-- **Isolate before landing, and re-check UPSTREAM markers too** (v116's DrawRect lesson, which
-  v117 had to pay for a second time in the opposite direction).
+`formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py` is in flight (they share
+`build/*.obj`). Measure with `tools/exactset.py` + `comm`, never progress.py's total alone.
+A comment rewrite IS a line-count change (lesson #23) — **re-measure the function AFTER
+writing its note**; v118 did this for both notes and each was clean.
+⭐ **v118 additions:**
+- **CHECK LENGTH FIRST, then ask which DIAL the length points at.** −3/−4 bytes with the
+  original re-loading a member you hold in a local ⇒ lesson #50. A duplicated epilogue in
+  the original ⇒ lesson #49's `return`-vs-`break`. A wrong jcc polarity ⇒ lesson #47.
+- **A dial that needs TWO axes at once will read as a big LOSS on either axis alone.**
+  AddHealth measured 421 B — far worse than its 49 B baseline — on every alias respelling
+  until the inner decl order moved with it. Lesson #45's interaction, one level down.
+- ⚠ **If a sweep stalls, check for a stalled wine `cl` before assuming a tool bug** — and
+  kill the SCRIPT (its PID) before its children, or the script simply spawns the next
+  target onto a source file you just restored.
+
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 
