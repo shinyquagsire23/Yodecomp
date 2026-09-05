@@ -38,6 +38,33 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 import match, verify, progress as prog
 
 
+def _extents():
+    """{va: Ghidra extent} — the REAL original length, from toolchain/test/app_funcs.txt.
+
+    ⚠ v121: the old `origlen` column was VACUOUS — it printed len(EXE[foff:foff+L]), i.e.
+    our OWN length, so it could never disagree and the `exact` test's `L == OL` half was
+    dead weight (the same bug v117 fixed in residuals.py; see the "vacuous column" lesson).
+    A variant whose LENGTH moves the wrong way is the single cheapest refutation available
+    (lessons #46/#49), and this column was hiding it.
+    """
+    out = {}
+    fn = os.path.join(ROOT, "toolchain", "test", "app_funcs.txt")
+    try:
+        for ln in open(fn):
+            f = ln.split()
+            if len(f) >= 2:
+                try:
+                    out[int(f[0], 16)] = int(f[1])
+                except ValueError:
+                    pass
+    except IOError:
+        pass
+    return out
+
+
+EXTENT = _extents()
+
+
 def usage():
     raise SystemExit(__doc__)
 
@@ -113,7 +140,7 @@ def main():
             orig = EXE[foff:foff + L]
             cm, om = match.mask(code, relocs, L), match.mask(orig, relocs, L)
             nd = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
-            return (L, len(orig), nd, _saves(code[:L]), _saves(orig))
+            return (L, EXTENT.get(va), nd, _saves(code[:L]), _saves(orig))
         return None
 
     rc = 0
@@ -126,9 +153,17 @@ def main():
                 sys.stdout.flush()
                 continue
             L, OL, nd, sv, so = r
-            exact = (nd == 0 and L == OL)
-            print("%-34s len=%-5d origlen=%-5d diff=%-4d saves=%-12s%s%s"
-                  % (name, L, OL, nd, sv,
+            exact = (nd == 0)
+            # OL is Ghidra's extent, or None where there is none (stub / no entry). 18 of the
+            # 410 extents are stubs reading 1, and a switch's trailing jump TABLE sits inside
+            # our COMDAT but outside the extent, so a positive delta is not always a defect —
+            # a NEGATIVE one means we are MISSING code and is the sharpest signal there is.
+            if OL in (None, 1):
+                ext = "ext=%-9s" % ("n/a" if OL is None else "stub")
+            else:
+                ext = "ext=%-4d%+-5d" % (OL, L - OL)
+            print("%-34s len=%-5d %s diff=%-4d saves=%-12s%s%s"
+                  % (name, L, ext, nd, sv,
                      "" if sv == so else " (orig %s) <-" % so,
                      "  *** EXACT ***" if exact else ""))
             sys.stdout.flush()
