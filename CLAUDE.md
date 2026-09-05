@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**; **held at 256 at v125 — no new byte-match; the session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` ("the original CSEs the GetSysColor import address and we do not") is FALSE — we emit the identical construct in a different register — and it had already become the v124 pickup's #1 priority. Also `DrawTextA` 0x40f060, the project's last 2-byte residual, CLOSED under lesson #54's new REASSOCIATION guise, and a new both-sides census `tools/impcse.py` whose 5-function output REPLACES the refuted target list**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -578,6 +578,56 @@ original's statement order straight off the machine code. On `DrawHealthDial` th
 store sits immediately BEFORE the coord block, which POSITIVELY CONFIRMS that the coords are
 computed after all four GDI objects (our current order) and refutes the hoisted variant that
 otherwise looked like a 10-byte length win. Use it before sweeping a statement-order axis.
+
+⭐ **A PARK NOTE THAT SAYS "THE ORIGINAL DOES X AND WE DON'T" IS A CLAIM ABOUT *BOTH*
+BINARIES — MEASURE OUR SIDE BEFORE BELIEVING IT (v125, lesson #56) — `tools/impcse.py`.**
+Every harness lesson in this file is about a TOOL lying. v125 is the first case of the
+SOURCE NOTES lying, and notes are read far more often than tools are re-run — this one had
+already been promoted to the next session's #1 priority, budgeted at "worth 3 functions".
+- **The false claim.** v124 named `DrawHealthDial` 0x427490's -16 as: the original commits
+  EBX to a CSE of the `GetSysColor` IMPORT ADDRESS (`mov ebx,[0x45eb94]` + four 2-byte
+  `call ebx`) "where we emit four 6-byte `call dword ptr [__imp__GetSysColor]`". **We emit
+  the identical construct** — `8b 3d <imp>` at +0x6b + four `ff d7` — in EDI. Its sibling
+  `DrawHealthNeedle` 0x4278a0 likewise CSEs `CreatePen` x6 and `CreateSolidBrush` x4 on both
+  sides, in rotated registers.
+- ⭐ **WHY THE BYTE DIFF INVITES THE ERROR, which is the transferable part.** A byte diff
+  shows the ORIGINAL clearly and OURS only as "the other column". When a construct lands at a
+  different OFFSET and uses a different REGISTER, its two instructions (`8b 1d` vs `8b 3d`,
+  `ff d3` vs `ff d7`) appear in the diff as unrelated bytes and the construct reads as ABSENT.
+  ⇒ **A differing REGISTER is not a differing CONSTRUCT.** Census the feature structurally on
+  both sides; do not infer our side from the diff.
+- ⚠ **The note had already contradicted itself and nobody reconciled it** — the v123 register
+  ledger SIX LINES ABOVE the v124 claim reads `ours edi=CSE then x1`. Same failure family as
+  v111's "visibly impossible number printed next to the right one for months": *a known-wrong
+  line next to a right one will outlive every session that reads past it.*
+- ⇒ **What survives:** the residual is ONE ALLOCATION DECISION, not a missing construct. Both
+  images save ebx+esi+edi, both CSE the import, both frames are `sub esp,0x3c`; the original
+  ranks `this` above every coord and we rank it below. That is purely a lesson #55 question.
+- ⭐ **And the corrected census pays immediately: `tools/impcse.py` reports the 5 functions
+  where the CSE'd import set GENUINELY differs**, three with corroborating length deltas —
+  `UpdateDragCursor` 0x412cc0 (+9; OURS CSEs `SetPixel`, the original does not),
+  `DrawWeaponBox` 0x428ac0 (+5; the ORIGINAL CSEs `GetNearestPaletteIndex`, we do not),
+  `DrawWeaponIcon` 0x428c40, `OnTimer` 0x40d470 (ours CSEs `SetScrollRange` x3) and
+  `WorldSizeDlg::OnHScroll` 0x418560. That is a real target list replacing a refuted one.
+- ⚠ Both forms occur in BOTH images, so the CSE is a compiler CHOICE, not a toolchain
+  property: byte-exact `Canvas::~Canvas` 0x407eb0 repeats `call [DeleteObject]` FOUR times
+  and caches nothing, identically on both sides.
+
+⭐ **LESSON #54 GAINS A FOURTH GUISE: OPERAND REASSOCIATION ACROSS TWO INSTRUCTIONS (v125),
+and `residuals.py` now names it `operand-reassoc`.** `DrawTextA` 0x40f060 was the project's
+last 2-byte residual and its only defect was which operand landed in the `sub` versus the
+`cmp`: orig `sub eax,[i]; cmp eax,[nScroll]`, ours the mirror. cl 10.20 normalises
+`(A - i) != nScroll` into `(A - nScroll) != i` by itself, so **the operand the source names is
+not the operand you get**. TWENTY-TWO spellings are dead flat at len 877 = the extent exactly
+(v110's ten, plus v125's twelve which added three untouched axes: a NAMED TEMP for the
+difference, HOISTING the member load into a local, and isolating `i` on the right); the only
+two that move are refuted by LENGTH (`short` temp 884, comparing against `slot` 880).
+⚠ **It read `UNCLASSIFIED`, because `classify()` compares ONE instruction against its
+counterpart and structurally cannot see an exchange BETWEEN two neighbours** — so the
+lesson-#54 triage rule never fired on it. Fixed. ⚠ **No positive control exists here**: the
+shape `sub <r>,mem ; cmp <r>,mem` occurs EXACTLY ONCE in the whole image, so there is no
+byte-exact twin for the v123 control and no lesson-#53 dictionary entry. That makes this a
+park on strong evidence, not a proof — say so rather than over-claiming.
 
 ⭐ **A CONSTANT ARGUMENT THAT THE ORIGINAL MATERIALIZES WITH A *BRANCH* IS TWO
 DUPLICATED CALLS THAT cl CROSS-JUMPED — NOT AN EXPRESSION (v121, lesson #52).** The
@@ -1408,7 +1458,10 @@ sweep bare decls by hand) ·
 commutative/tie-break classifier; the trustworthy replacement for sorting idiomscan's class D.
 ⭐ v117 `--lenmis` ranks instead by |our length − Ghidra's extent| = the STRUCTURAL-defect seam
 (lesson #49), filtering the 18 stub extents and the jump-table functions whose COMDAT legitimately
-exceeds the extent. 44 residuals / 408 B of real structural error; 48 residuals are length-EXACT) ·
+exceeds the extent. 44 residuals / 408 B of real structural error; 48 residuals are length-EXACT; the census now reads 33 of 91 with a length mismatch = 321 B
+of structural error, 58 length-EXACT, 31 not comparable. ⭐ v125 added the `operand-reassoc`
+kind — a commutative exchange BETWEEN two neighbouring instructions, which `classify()`
+structurally could not see because it compares one instruction against its counterpart) ·
 **`formsweep.py <spec.py> --expect-exact N`** (⭐ v117 — applies each candidate edit ALONE against
 the pristine TU and prints the WHOLE TU's marker vector, so lesson #48's collateral is visible in
 the same row; k+1 compiles where `jointdecl.py` takes the cartesian product's 2**k. Reports LENGTH
@@ -1431,6 +1484,14 @@ transcribed functions. ⚠ its first draft read the last 3 bytes of Ghidra's ext
 '0 mismatches' WITH the known Layout bug in the tree — the extent over-runs the real `ret` into
 a trailing jump TABLE. Caught by the built-in control: every BYTE-EXACT function must agree, and
 the tool FAILS LOUDLY if one does not) ·
+**`impcse.py [--orig]`** (⭐ v125 — the BOTH-SIDES census behind lesson #56: which
+functions cache an IMPORT ADDRESS in a callee-saved register (`mov <cs-reg>,[__imp__X]` +
+`call <reg>`) instead of repeating the 6-byte memory call, in the ORIGINAL *and* in our own
+compiled COMDATs. It exists because the v124 note claimed we lacked a construct we in fact
+emit; it asserts a positive control (three byte-exact functions must show it on both sides)
+and distinguishes "same construct, different register" from a genuinely differing set — 5 of
+the latter, a real target list. `--orig` is READ-ONLY and safe during a sweep; the default
+COMPILES) ·
 **`thisscan.py --exact <file> | --all`** (⭐ v124 — READ-ONLY census of how the ORIGINAL
 treats `this` in every `__thiscall` function: ENREG / SPILL / ECX, with the EH-frame flag, the
 callee-save set and the saturation test. This is the instrument behind lesson #55; run it
@@ -1455,63 +1516,70 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-07 v124 — **held at 256 exact; no new byte-match.
-The session's product is a NEW STANDING RULE (lesson #55, the `this`-residency rule +
-`tools/thisscan.py`) that answers the v123 pickup's #1 open item, plus a SEVENTH function
-closed under lesson #54 and a statement-order axis positively CONFIRMED from the machine
-code.** All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known
-benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. Only NOTES + one new
-READ-ONLY tool changed; no game code. v123 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-05 v125 — **held at 256 exact; no new byte-match. The
+session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` is FALSE, and
+it had already become this pickup's predecessor's #1 priority. Plus the project's LAST 2-byte
+residual is CLOSED, a new both-sides census tool, and a REAL target list replacing a refuted
+one.** All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (the
+documented benign `StartGame` 0x4037a0 finding) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity
+0 mismatches. Only NOTES + `tools/impcse.py` + one `residuals.py` classifier rule changed; no
+game code. v124 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — two triage rules now, not one.** (1) v123's still stands: if a residual's
-`kinds` are only `cmp-swap`/`jcc-mirror`, park it (lesson #54). (2) **New: run
-`tools/thisscan.py` before reading ANY negative-length residual as a register mystery.** If
-the original has an EH frame, it almost certainly SPILLS `this` and the missing bytes are its
-reloads — that is a fact about `/GX`, not about your source.
+**▶ READ FIRST — THREE triage rules now.** (1) v123's: if a residual's `kinds` are only
+`cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`, park it (lesson #54). (2) v124's:
+run `tools/thisscan.py` before reading any NEGATIVE-length residual as a register mystery —
+under an EH frame cl SPILLS `this` by default. (3) ⭐ **NEW (lesson #56): a park note saying
+"the original does X and we don't" is a claim about BOTH binaries. Census our own compiled
+output before believing it — a differing REGISTER is not a differing CONSTRUCT.**
 
-**▶ WHAT LANDED** (notes + `tools/thisscan.py`; `progress.py` re-run after every edit).
-1. ⭐ **LESSON #55 — the `this`-residency rule, a new standing bullet.** Over all 213
-   byte-exact `__thiscall` functions: **no EH frame ⇒ ENREG (71/78), with the only 3
-   exceptions being bodies that need 5+ long-lived values and all 3 sharing an IDENTICAL
-   prologue shape, 0 counterexamples; EH frame ⇒ SPILL (68/75), even with registers to
-   spare.** This answers v123's #1 item ("what makes cl keep `this` in a register?") for the
-   common case and RE-FRAMES both target functions.
-2. ⛔ **`GetFrameTile` 0x404850 CLOSED — lesson #54's third guise, the LEA SIB base/index
-   swap.** Both images hold the same values in the same registers; only the commutative
-   address's encoding differs. 8 spellings dead flat. ⇒ v123's pickup called this "the
-   cheapest remaining real target"; it was wrong.
-3. ⭐ **`DrawHealthDial` 0x427490 — the statement order is now PROVEN, and the mechanism
-   named.** The EH STATE STORE `mov byte [ebp-4],3` sits immediately before the original's
-   coord block, proving the coords come AFTER all four GDI ctors = our current order. The
-   "coords-first" variant (len -16 -> -6, diff 346 -> 336) is NUMBER-CHASING and is refuted by
-   that store. The real cause of the coords living in memory is a **CSE of the `GetSysColor`
-   import address in EBX** (`mov ebx,[__imp__]` + four 2-byte `call ebx`) — a third long-lived
-   value that leaves no register for the coords. Closed this session: the CDC::Chord member
-   form (inert), 20 coord-position x object-order x decl-order cells.
-4. **`ScrollZoneTransition` 0x411180 relocated into lesson #55**: it is the 4th and only
-   unsolved member of the no-EH/saturated class, and **the other three are byte-exact in our
-   tree** — so lesson #53's read-it-off-your-own-source method now applies to it.
+**▶ WHAT LANDED** (notes + one new tool + one classifier rule; anchor re-measured after every
+edit, still 256).
+1. ⛔ **RETRACTED — the `GetSysColor` import-address CSE was the v124 pickup's #1 item and
+   there is nothing there.** v124 said the original CSEs the import address in EBX "where we
+   emit four 6-byte `call dword ptr [__imp__]`"; **we emit the identical construct in EDI**
+   (`8b 3d <imp>` + four `ff d7`). Never measured on our side, and the same note's v123 ledger
+   six lines above already said so. `DrawHealthNeedle` 0x4278a0 is the same story. ⇒ Both
+   functions' residuals are ONE allocation decision (the original ranks `this` above every
+   coord), i.e. purely a lesson-#55 question. See lesson #56.
+2. ⭐ **NEW REAL TARGET LIST — `tools/impcse.py` finds the 5 functions where the CSE'd import
+   set GENUINELY differs**, three of them with corroborating length deltas. Best first:
+   **`UpdateDragCursor` 0x412cc0 (+9 — OURS CSEs `SetPixel` x1, the original does not)** and
+   **`DrawWeaponBox` 0x428ac0 (+5 — the ORIGINAL CSEs `GetNearestPaletteIndex` x1, we do
+   not)**; then `DrawWeaponIcon` 0x428c40, `OnTimer` 0x40d470 (ours CSEs `SetScrollRange` x3),
+   `WorldSizeDlg::OnHScroll` 0x418560 (ours CSEs `GetScrollPos` x2). The sign of the length
+   delta agrees with the direction of the extra/missing CSE in both of the top two, which is
+   what makes them worth a sweep.
+3. ⛔ **`DrawTextA` 0x40f060 CLOSED — lesson #54's fourth guise, OPERAND REASSOCIATION.**
+   It was the project's last 2-byte residual. cl normalises `(A - i) != nScroll` into
+   `(A - nScroll) != i` itself; 22 spellings across 5 axes are dead flat at len 877 = the
+   extent. `residuals.py` now classifies the shape as `operand-reassoc` so the triage rule
+   fires instead of `UNCLASSIFIED`. ⚠ no positive control exists (the shape occurs ONCE in the
+   image), so this is a strong park, not a proof.
+4. ⭐ **Lesson #55's exception set refined (read-only, already done).** Of the 7 EH-frame ENREG
+   exceptions, **5 have a LOOP** — where `this` wins on loop-weighted use count and so says
+   nothing about a loopless function. The two WITHOUT a loop are `OnNewWorld` 0x424450 (9 `this`
+   uses) and `WorldgenPushZoneEntry` 0x41d6b0 (4 uses); **0x41d6b0 is the closest analogue
+   `DrawHealthDial`'s original has** (EH frame, no loop, 4 uses, ENREG) and it is BYTE-EXACT,
+   so lesson #53's dictionary method applies. ⚠ but both no-loop exceptions save only TWO
+   registers where DrawHealthDial's original saves THREE — a hypothesis to measure, not a rule.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ The `GetSysColor` import-address CSE (new, best-posed, and worth 3 functions).** What
-   1997 spelling makes cl 10.20 cache an import address in a register and emit `call ebx`
-   instead of repeating `call dword ptr [__imp__]`? A census is cheap and READ-ONLY: scan the
-   original for `mov <callee-saved>,[__imp__...]` followed by `call <reg>`, intersect with the
-   byte-exact set, and read the answer off our own source (lesson #53). This is the whole fix
-   for `DrawHealthDial` (-16) and probably its sibling `DrawHealthNeedle` 0x4278a0 (-17).
-2. **`ScrollZoneTransition` 0x411180 (-62)** — diff its register roles against the three
-   byte-exact siblings that share its exact prologue shape (`DrawEntities` 0x40b160,
-   `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) and find the SIXTH long-lived
-   value the original wants. ⚠ decl axes are CLOSED here (v121, 23 configs).
-3. **Keep running `residuals.py --lenmis`, skipping lesson-#54 rows.** Unworked, biggest
-   first: **`ShowWinMessage` 0x40f4b0 (+36, 1670 B)**, `Layout@TextDialog` 0x4176f0 (-35, 999 B
-   — numbers moved when v120 fixed its ARITY), `WorldgenPlacePuzzles` 0x421930 (-11),
-   `OnUpdate` 0x408e70 (-11), `UpdateDragCursor` 0x412cc0 (+9), `PlaceZone` 0x4260e0 (-7),
-   `ReadZaux` 0x406270 (-6, only 111 B of diff).
-4. **`DrawTextA` 0x40f060 is DIFF(2) and is NOT lesson #54** — two frame slots swapped between
-   a `sub` and a `cmp` (`sub eax,[ebp-0x30]; cmp eax,[ebp-0x24]` vs ours reversed), i.e. a
-   slot-ASSIGNMENT question (lesson #36 territory), not an encoding one. Still unworked and
-   now the cheapest genuinely-open target.
+1. **⭐ The 5 `impcse.py` targets** (item 2 above). Start with 0x412cc0 (+9) and 0x428ac0 (+5):
+   both have a length delta whose SIGN matches the extra/missing CSE, which is the lesson-#49
+   corroboration the refuted GetSysColor lead never had.
+2. **`DrawHealthDial` 0x427490 (-16) / `DrawHealthNeedle` 0x4278a0 (-17) — pursue via
+   `WorldgenPushZoneEntry` 0x41d6b0**, not via the CSE. The question is narrow: what makes cl
+   rank `this` above the coords under an EH frame with no loop?
+3. **Keep running `residuals.py --lenmis`, skipping the four TIE kinds.** Unworked, biggest
+   first: **`ShowWinMessage` 0x40f4b0 (+36, 1670 B)**, `Layout@TextDialog` 0x4176f0 (-35),
+   **`IactProbeMove` 0x406550 (+26)** ⚠ (its decl + statement-order axes are already closed),
+   `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13, only 117 B of diff — cheap),
+   `WorldgenPlacePuzzles` 0x421930 (-11), `OnUpdate` 0x408e70 (-11), `PlaceZone` 0x4260e0 (-7),
+   `ReadZaux` 0x406270 (-6, only 111 B of diff), `RefreshZone` 0x403ae0 (-6, only 70 B).
+4. **`ScrollZoneTransition` 0x411180 (-62)** — still the largest single structural residual;
+   diff its register roles against the three byte-exact siblings sharing its prologue shape
+   (`DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450).
+   ⚠ decl axes are CLOSED here (v121, 23 configs).
 5. **Near-misses worth one pass each** (length off by ONE, small diff): `ParseZax2` 0x423210
    (+1, 78 B), `HitEntityAt` 0x4059d0 (+1, 206 B), `TransitionZoneXWing` 0x40e7c0 (-1, 167 B),
    `WorldgenPlaceItemOnLock` 0x41cdc0 (-1), `OnDraw` 0x409110 (-1). ⚠ check `kinds` first.
@@ -1520,30 +1588,37 @@ reloads — that is a fact about `/GX`, not about your source.
    ⚠ that cluster flips on EVERY Worldgen-visible perturbation, so it is phase, not body.
 7. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers are still
    "unreadable" (no terminal ret). Cheap, and the payoff is proven.
-8. **⛔ CLOSED — do not re-tread.** (a) Lesson #54's census, now **7** functions: the six from
-   v123 plus `GetFrameTile` 0x404850. (b) `DrawHealthDial`'s coord POSITION (refuted by the EH
-   state store), its Chord call form, and the 20-cell cross — plus everything v122/v123 closed
-   on it. (c) `ScrollZoneTransition`'s decl + arm-local axes (v121). (d) `IactProbeMove`'s decl
-   and statement-order axes. (e) The `push 0xe01e` catch-funclet census (17 sites). (f) The
-   lesson-#52 diamond census (6 project-wide, only 0x413df0 unworked). (g) The "ours has more
-   `sbb`" scan — a HARNESS TRAP. (h) Everything v120 closed.
+8. **⛔ CLOSED — do not re-tread.** (a) ⭐ **The `GetSysColor` import-address CSE hunt (v124's
+   #1 item) — REFUTED, we already make it.** (b) `DrawTextA` 0x40f060 (22 spellings).
+   (c) Lesson #54's census, now **8** functions: v123's six, `GetFrameTile` 0x404850, and
+   `DrawTextA` 0x40f060. (d) `DrawHealthDial`'s coord POSITION (refuted by the EH state store),
+   its Chord call form, and the 20-cell cross. (e) `ScrollZoneTransition`'s decl + arm-local
+   axes (v121). (f) `IactProbeMove`'s decl and statement-order axes. (g) The `push 0xe01e`
+   catch-funclet census (17 sites). (h) The lesson-#52 diamond census (6 project-wide, only
+   0x413df0 unworked). (i) The "ours has more `sbb`" scan — a HARNESS TRAP. (j) Everything
+   v120 closed.
 9. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v123 rules all stand and were all re-used).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v124 rules all stand and were all re-used).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
-`formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`
-is in flight (they share `build/*.obj`). `thisscan.py` is READ-ONLY and safe during a sweep.
+`formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`/
+`impcse.py` (no `--orig`) is in flight (they share `build/*.obj`). `thisscan.py` and
+`impcse.py --orig` are READ-ONLY and safe during a sweep.
+⚠ **v125 HIT THE CONCURRENCY TRAP AND IT COST A RUN:** a `vartest.py` sweep was launched while
+a backgrounded `residuals.py` was still going. Both were salvageable only because vartest's
+`--expect` guard reproduced the baseline and its `finally` restored the file. **Check that the
+previous background job has actually EXITED — an empty output file means still running, not
+finished.**
 Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite
 IS a line-count change (lesson #23) — **re-measure AFTER writing the note** (this session is
-notes + one new tool; re-measured, still 256).
-⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED** (v124 hit
-this on a 20-variant sweep). Background it from the start, and `git status` before doing
-anything else.
+notes + one tool + one classifier rule; re-measured, still 256, all oracles re-run).
+⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED.** Background it
+from the start, and `git status` before doing anything else.
 ⚠ **`--expect-exact` on `formsweep.py`/`jointdecl.py` is PER-TU, not project-wide.**
 ⚠ **A vartest/declorder run RESTORES the file to whatever it read at START** — if you
 applied an edit by hand first, "restored" means back to YOUR edited state, not to HEAD.
@@ -1551,11 +1626,12 @@ applied an edit by hand first, "restored" means back to YOUR edited state, not t
 ⭐ **`vartest.py` prints the REAL extent** — `ext=<extent> <signed delta>`. Read the delta on
 every row; it refutes a variant before you look at a single register. ⚠ **`jointdecl.py`
 still carries the same vacuous `orig_len`** — a cheap, worthwhile chore.
-⭐ **A THROWAWAY PROBE SCRIPT beats a general tool for a one-off question (v123/v124).** The
-`this`-residency census started as ~60 lines of scratch Python and only became
-`tools/thisscan.py` once it had produced a rule. ⚠ but give the throwaway a positive control
-too: v124's first draft mapped both `ebx` and `ebp` to the letter "b", silently merging two
-different saturation states.
+⭐ **A THROWAWAY PROBE SCRIPT beats a general tool for a one-off question (v123/v124/v125).**
+v125's import-CSE census started as ~40 lines of scratch Python and only became
+`tools/impcse.py` once it had overturned a published mechanism. ⚠ but give the throwaway a
+positive control too — and note that v125's control (three byte-exact functions that MUST show
+the construct on both sides) is what made the retraction trustworthy rather than just another
+confident scan.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

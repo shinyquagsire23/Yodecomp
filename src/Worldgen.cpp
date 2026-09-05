@@ -7218,16 +7218,33 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 //    order only moves diff at the wrong length (best 319 with brushes first). Also inert:
 //    the CDC::Chord MEMBER call form, both calls or either one (lesson #35 does not apply
 //    here); ::Chord(pDC->GetSafeHdc(), ...) is strictly worse (len 511, +2 over the extent).
-//    ⭐ THE MECHANISM, finally named: the original commits EBX to a CSE OF THE GetSysColor
-//    IMPORT ADDRESS — `mov ebx,[0x45eb94]` once, then FOUR `call ebx` (2 B each) where we emit
-//    four 6-byte `call dword ptr [__imp__GetSysColor]`. That CSE is a third long-lived value,
-//    so with esi=this and edi=pDC there is NO callee-saved register left and all four coords
-//    MUST go to the frame. We do not make that CSE, so ebx/edi are free and two coords stay in
-//    registers. ⇒ the coords-in-memory question and the `this` question are ONE question, and
-//    both are downstream of the import-address CSE. Whatever spelling triggers that CSE is the
-//    whole fix; no spelling tried so far does. See lesson #55 (tools/thisscan.py) for the
-//    project-wide rule this sits inside: under an EH frame cl SPILLS `this` by default (68 of
-//    75 byte-exact cases), and this function's original is one of only 7 exceptions.]
+//  ⛔ v125 RETRACTS THAT v124 "MECHANISM" — WE MAKE THE SAME CSE. v124 named the cause as
+//  the original committing EBX to a CSE OF THE GetSysColor IMPORT ADDRESS (`mov ebx,[0x45eb94]`
+//  once, then four 2-byte `call ebx`) "where we emit four 6-byte `call dword ptr [__imp__]`",
+//  and the v124 pickup promoted finding the spelling that triggers it to the next session's #1
+//  item, "worth 3 functions". It is FALSE: our COMDAT emits `8b 3d <imp>` at +0x6b followed by
+//  four `ff d7` — the IDENTICAL construct, in EDI instead of EBX. The claim was inferred from
+//  the byte diff (the two `mov`s sit at different offsets and ebx/edi differ, so the construct
+//  LOOKS absent) and was never measured on OUR side; the v123 register ledger SIX LINES ABOVE
+//  already reads `ours edi=CSE then x1`, so the note contradicted itself and the contradiction
+//  is what reached the pickup. Both sides are now censused by `tools/impcse.py`, which asserts
+//  a positive control and reports this function as "same construct, different register".
+//  ⭐ SO THE RESIDUAL IS ONE ALLOCATION DECISION, NOT A MISSING CONSTRUCT. Both images save
+//  ebx+esi+edi, both CSE the import, both frames are `sub esp,0x3c` with seven dword slots. The
+//  only difference is which three values win the three registers:
+//     orig  esi=this, edi=pDC, ebx=CSE-then-pOldBrush  -> all four coords in the frame
+//     ours  esi=pDC,  edi=CSE-then-x1, ebx=y2          -> `this` spilled, two coords in frame
+//  i.e. the original ranks `this` ABOVE every coord and we rank it below; v123's ledger for the
+//  -16 stands unchanged. This is a lesson #55 question and nothing else: under an EH frame cl
+//  SPILLS `this` by default (68 of 77 byte-exact cases) and this original is one of 7 exceptions.
+//  ⭐ WHERE TO PICK IT UP (v125 read-only work, already done). Six of the seven EH-frame ENREG
+//  exceptions are BYTE-EXACT in our tree, so lesson #53's dictionary applies to them. FIVE have
+//  a LOOP, where `this` wins on loop-weighted use count and so tells us nothing here; the two
+//  WITHOUT a loop are `OnNewWorld` 0x424450 (9 uses) and `WorldgenPushZoneEntry` 0x41d6b0 (4
+//  uses) — and 0x41d6b0 is the closest analogue this function's original has (EH frame, no loop,
+//  4 `this` uses, ENREG in a callee-saved register). ⚠ but BOTH no-loop exceptions save only
+//  TWO registers (esi+edi) where this original saves THREE (ebx+esi+edi), so the analogy is a
+//  hypothesis to measure, not a rule to apply.]
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.

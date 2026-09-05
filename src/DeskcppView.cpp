@@ -4248,10 +4248,24 @@ void CDeskcppView::UpdateItemObjectsMaybe()
 //      nested block: 24 -> 2. ⚠ the scope must extend to the END of the drawing work;
 //      closing it 2 or 3 statements earlier costs 690+ and loses the edi save.
 // RESIDUAL = 2 B, the `nDragSlot - i != nScroll` compare: orig `sub eax,[i]; cmp eax,[nScroll]`,
-// ours the mirror. TEN spellings measured dead flat (operand order both ways, != both ways,
-// nScroll+i form, (int) cast, `- i - nScroll != 0`, negated ==), and the i/y/slot declaration
-// order is at its optimum already (two of the six permutations cost 4 B, none beats 2).
-// Commutative tie-break family; park.
+// ours the mirror. ⛔ CLOSED at v125 as lesson #54's REASSOCIATION guise — do not re-tread.
+// cl 10.20 normalises `(A - i) != nScroll` into `(A - nScroll) != i` by itself, so the operand
+// that lands in the `sub` is NOT the one the source names; the slot layout is identical in both
+// images ([ebp-0x30]=i, [ebp-0x24]=nScroll), which is why 875 of the 877 bytes already match.
+// TWENTY-TWO spellings are now dead flat at diff=2, len 877 = the extent EXACTLY: v110's ten
+// (operand order both ways, != both ways, nScroll+i form, (int) cast, `- i - nScroll != 0`,
+// negated ==) plus v125's twelve, which added three axes the earlier sweep never touched — a
+// NAMED TEMP for the difference (both directions, plus the `!(== )` form), HOISTING nDragSlot
+// into a local first, and isolating `i` on the right. Only two variants move at all and both are
+// refuted by LENGTH: a `short` temp emits 884 (+7) and comparing against `slot` 880 (+3). The
+// i/y/slot decl order is already optimal (two of six permutations cost 4 B, none beats 2), and
+// reordering nScroll cannot help — it would relocate the very frame slots whose other references
+// all match.
+// ⚠ NO POSITIVE CONTROL IS AVAILABLE, which is why this is a park and not a proof: the shape
+// `sub <r>,mem ; cmp <r>,mem` occurs EXACTLY ONCE in the whole image (here), so there is no
+// byte-exact twin to run the v123 control against, and lesson #53 has no dictionary entry to
+// look up. `residuals.py` now classifies it as `operand-reassoc` (a TIE kind) so the lesson-#54
+// triage rule catches it on sight instead of reporting UNCLASSIFIED.
 // Superseded v110 notes kept for the record: pItem/pTile decl order and SCOPE are inert here
 // (9 hoist/order variants flat at 663). The two older cracks still stand — (a) MFC 4.2's ONLY
 // virtual CDC::SelectObject overload is (CFont*), so the +0x30 vcall proves the source used

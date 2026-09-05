@@ -71,7 +71,8 @@ for _i, (_a, _n) in enumerate(_raw):
 MIRROR = {"jl": "jg", "jg": "jl", "jle": "jge", "jge": "jle",
           "jb": "ja", "ja": "jb", "jbe": "jae", "jae": "jbe"}
 TIE_KINDS = {"cmp-swap", "test-swap", "jcc-mirror", "lea-sib-swap", "inc/add",
-             "add-swap", "imul-swap", "and-swap", "or-swap", "xor-swap"}
+             "add-swap", "imul-swap", "and-swap", "or-swap", "xor-swap",
+             "operand-reassoc"}
 
 
 def _ops(i):
@@ -104,6 +105,40 @@ def classify(a, b):
     if a.mnemonic == "mov":
         return "mov-operand"
     return None
+
+
+def reassoc_addrs(pairs):
+    """Addresses taking part in a CROSS-INSTRUCTION operand exchange (v125, lesson #54's
+    reassociation guise).  `classify` compares ONE instruction against its counterpart, so it
+    structurally cannot see an algebraic normalisation that moves an operand BETWEEN two
+    neighbouring instructions:
+
+        orig   sub eax,[i]      ; cmp eax,[nScroll]
+        ours   sub eax,[nScroll]; cmp eax,[i]
+
+    Both compute `(A - i) != nScroll`; cl 10.20 simply picks which operand lands in the `sub`
+    and which in the `cmp`, at identical length and identical registers.  That reported as
+    UNCLASSIFIED on DrawTextA 0x40f060 (the project's last 2-byte residual) and so escaped the
+    lesson-#54 triage rule.  `pairs` is [(orig_insn, our_insn)] over the DIFFERING instructions,
+    in address order.
+    """
+    out = set()
+    for (a1, b1), (a2, b2) in zip(pairs, pairs[1:]):
+        if not all((a1, b1, a2, b2)):
+            continue
+        if a1.address + a1.size != a2.address:      # must be adjacent in the original
+            continue
+        if a1.mnemonic != b1.mnemonic or a2.mnemonic != b2.mnemonic:
+            continue
+        oa1, ob1, oa2, ob2 = _ops(a1), _ops(b1), _ops(a2), _ops(b2)
+        if not all(len(o) == 2 for o in (oa1, ob1, oa2, ob2)):
+            continue
+        if oa1[0] != ob1[0] or oa2[0] != ob2[0]:    # destination/left operand unchanged
+            continue
+        if oa1[1] == ob2[1] and oa2[1] == ob1[1] and oa1[1] != ob1[1]:
+            out.add(a1.address)
+            out.add(a2.address)
+    return out
 
 
 def has_jumptable(code, va):
@@ -158,10 +193,24 @@ def scan():
                 continue
             co, cs = _cover(_md.disasm(orig, va)), _cover(_md.disasm(bytes(code[:L]), va))
             kinds = set()
+            seen, dpairs = set(), []          # differing instruction pairs, in address order
             for off in offs:
                 a, b = co.get(va + off), cs.get(va + off)
                 if a and b and (a.address, a.size) == (b.address, b.size) \
                    and a.mnemonic == b.mnemonic and a.op_str == b.op_str:
+                    continue
+                key = a.address if a else va + off
+                if key not in seen:
+                    seen.add(key)
+                    dpairs.append((a, b))
+            reassoc = reassoc_addrs(dpairs)
+            for off in offs:
+                a, b = co.get(va + off), cs.get(va + off)
+                if a and b and (a.address, a.size) == (b.address, b.size) \
+                   and a.mnemonic == b.mnemonic and a.op_str == b.op_str:
+                    continue
+                if a is not None and a.address in reassoc:
+                    kinds.add("operand-reassoc")
                     continue
                 kinds.add(classify(a, b) or "UNCLASSIFIED")
             kinds.discard("IDENT")

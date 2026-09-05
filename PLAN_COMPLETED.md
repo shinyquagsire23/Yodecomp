@@ -4742,3 +4742,53 @@ a third guise). No code changed; every edit was a source note. All oracles green
   general tool for a one-off question** — ~60 lines of scratch Python that edits the TU,
   compiles once, disassembles with capstone and prints ONE derived fact. `vartest.py` reports
   a byte COUNT; these questions were about WHICH byte.
+
+
+---
+
+### ⏮ v124 PICKUP (2026-09-07 v124 — **held at 256 exact; no new byte-match.
+The session's product is a NEW STANDING RULE (lesson #55, the `this`-residency rule +
+`tools/thisscan.py`) that answers the v123 pickup's #1 open item, plus a SEVENTH function
+closed under lesson #54 and a statement-order axis positively CONFIRMED from the machine
+code.** All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known
+benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. Only NOTES + one new
+READ-ONLY tool changed; no game code. v123 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST — two triage rules now, not one.** (1) v123's still stands: if a residual's
+`kinds` are only `cmp-swap`/`jcc-mirror`, park it (lesson #54). (2) **New: run
+`tools/thisscan.py` before reading ANY negative-length residual as a register mystery.** If
+the original has an EH frame, it almost certainly SPILLS `this` and the missing bytes are its
+reloads — that is a fact about `/GX`, not about your source.
+
+**▶ WHAT LANDED** (notes + `tools/thisscan.py`; `progress.py` re-run after every edit).
+1. ⭐ **LESSON #55 — the `this`-residency rule, a new standing bullet.** Over all 213
+   byte-exact `__thiscall` functions: **no EH frame ⇒ ENREG (71/78), with the only 3
+   exceptions being bodies that need 5+ long-lived values and all 3 sharing an IDENTICAL
+   prologue shape, 0 counterexamples; EH frame ⇒ SPILL (68/75), even with registers to
+   spare.** This answers v123's #1 item ("what makes cl keep `this` in a register?") for the
+   common case and RE-FRAMES both target functions.
+2. ⛔ **`GetFrameTile` 0x404850 CLOSED — lesson #54's third guise, the LEA SIB base/index
+   swap.** Both images hold the same values in the same registers; only the commutative
+   address's encoding differs. 8 spellings dead flat. ⇒ v123's pickup called this "the
+   cheapest remaining real target"; it was wrong.
+3. ⭐ **`DrawHealthDial` 0x427490 — the statement order is now PROVEN, and the mechanism
+   named.** The EH STATE STORE `mov byte [ebp-4],3` sits immediately before the original's
+   coord block, proving the coords come AFTER all four GDI ctors = our current order. The
+   "coords-first" variant (len -16 -> -6, diff 346 -> 336) is NUMBER-CHASING and is refuted by
+   that store. The real cause of the coords living in memory is a **CSE of the `GetSysColor`
+   import address in EBX** (`mov ebx,[__imp__]` + four 2-byte `call ebx`) — a third long-lived
+   value that leaves no register for the coords. Closed this session: the CDC::Chord member
+   form (inert), 20 coord-position x object-order x decl-order cells.
+4. **`ScrollZoneTransition` 0x411180 relocated into lesson #55**: it is the 4th and only
+   unsolved member of the no-EH/saturated class, and **the other three are byte-exact in our
+   tree** — so lesson #53's read-it-off-your-own-source method now applies to it.
+
+**⛔ v125 CORRECTION TO THE ABOVE — item 3's MECHANISM is retracted (items 1, 2 and 4 stand).** v124's item 3
+named "a CSE of the `GetSysColor` IMPORT ADDRESS in EBX" as the mechanism behind
+`DrawHealthDial`'s -16 and asserted "we do not make that CSE"; the v124 NEXT list promoted
+hunting the spelling that triggers it to the #1 item, "worth 3 functions". **We make the
+identical CSE, in EDI.** Measured on both sides by `tools/impcse.py` (v125). The claim was
+inferred from the byte diff and never checked against our own compiled output, and the v123
+ledger in the same source note already recorded `ours edi=CSE then x1`. See lesson #56 in
+CLAUDE.md. What survives from v124: lesson #55 itself, the `GetFrameTile` closure, and the
+EH-state-store statement-order confirmation — all independent of the retracted claim.
