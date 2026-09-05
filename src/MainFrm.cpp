@@ -196,7 +196,16 @@ void CMainFrame::OnPaletteChanged(CWnd *pFocusWnd)
 //   NOT source-steerable from the condition: `pRealizeWnd != this`, `this != pRealizeWnd`,
 //   both `!(... == ...)` forms, both (CWnd *)/(CMainFrame *) casts and `?1:0` ALL measure
 //   1 B (v112's rule — a cmp mirror is never the condition's spelling — re-confirmed here).
-//   Swapping the arms costs 4 B, so the arm order is positively confirmed.]
+//   Swapping the arms costs 4 B, so the arm order is positively confirmed.
+//   ⭐ v123 PROVED THE CONDITION IS INERT WITH A POSITIVE CONTROL RATHER THAN AN ASSERTION, and
+//   filed this under lesson #54 (the compare-encoding peephole is DIAL-bound, not source-bound).
+//   The control: run the same operand-order sweep on the BYTE-EXACT twin 0x4193f0 — `pFocusWnd
+//   != this`, both `!(... == ...)` forms and the cast ALL stay EXACT there. So cl 10.20
+//   normalises a pointer compare against `this` to `cmp reg,mem` (3b) whatever the source order,
+//   and the original's `39` here cannot be reached from this function's text. A further 11
+//   spellings (decl swap of pDC/pOld, split decl+assign, (void *) casts, TRUE/FALSE vs 1/0) are
+//   dead flat at 1 B. See lesson #54: the axis that DOES move it is the TU's file-scope symbol
+//   count, which is the ❌ forbidden padding dial. PARKED — do not sweep spellings here again.]
 void CMainFrame::OnPaletteIsChanging(CWnd *pRealizeWnd)
 {
     Default();

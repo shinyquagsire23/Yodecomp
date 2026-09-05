@@ -496,11 +496,27 @@ void Zone::ReadIzaxIndy(CFile *pFile)
 }
 #endif
 
-// FUNCTION: YODA 0x00406550  [WIP: +26B — found-vs-r EBP contest: orig found=EBP/r=stack,
-//   ours r=EBP/found=stack (memory-form found tests cost the bytes). Control flow verified
-//   line-by-line against the true disasm (take-order coord-then-flag, two-store sign forms,
-//   compiler inc-ebp for the 2nd-probe found=1). n merged per orig ESI reuse. Revisit once the
-//   TU is complete (IactRun/RunCommands) — ReadIzon's identical 2-cycle self-resolved then.]
+// FUNCTION: YODA 0x00406550  [WIP: DIFF(495), len 583 vs extent 557 (+26). found-vs-r EBP
+//   contest: orig found=EBP/r=stack, ours r=EBP/found=stack (memory-form found tests cost the
+//   bytes). Control flow verified line-by-line against the true disasm (take-order coord-then-
+//   flag, two-store sign forms, compiler inc-ebp for the 2nd-probe found=1). n merged per orig
+//   ESI reuse.
+//   ⭐ v123 DECOMPOSED THE +26 EXACTLY (lesson #49 method) — every byte is that ONE contest and
+//   there is no missing/extra CODE. Both frames are 12 bytes and hold {savedY:2, savedX:2,
+//   this:4, ONE int:4}, so exactly one int local is memory-resident and the two images pick a
+//   DIFFERENT one. Ledger: `found` in memory costs +33 (init `mov [esp+0xc],0` 8 B vs
+//   `xor ebp,ebp` 2; four `mov [mem],1` 8 B vs `mov ebp,1` 5 / `inc ebp` 2; five `cmp [mem],0`
+//   5 B vs `test ebp,ebp` 2), `r` in a register saves -14 (no store, `sub edi,ebp` and
+//   `lea edi,[esi+ebp]` for the four uses), +2 for two `cmp [bForce],0` where the original
+//   folds the live zero as `cmp [bForce],ebp` (lesson #39), and -6 because our `return 1`
+//   early-exit is an INLINE epilogue where the original branches to a shared tail block.
+//   ⛔ TWO AXES CLOSED, do not re-tread: (1) decl SET+ORDER — 10 configurations (r,n first;
+//   found last; found without initialiser; n,r swapped; savedX/savedY split; txty first) are
+//   flat or WORSE, best is the baseline 495 at +26, and `int n, r;` costs +11 more. (2) the
+//   STATEMENT ORDER around r's definition — moving `r = ...` after the savedX/savedY stores
+//   (which is where the ORIGINAL emits its store, at +0x6f right before the GetTile call) buys
+//   489 B but leaves the length at +26, i.e. below lesson #48's landing bar; the if/else
+//   spelling of the ternary is inert. Per lesson #44 this is the scratch/EBP allocation class.]
 // Movement sidestep probe: target = (x+dx, y+dy). Returns -1 out-of-bounds, 1 target free,
 // 0 blocked, or a direction code (2=E 3=W 4=S 5=N) after sidestepping around the obstacle
 // (side picked pseudo-randomly via GetTickCount parity; bForce accepts occupied sidesteps).

@@ -7186,7 +7186,21 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 //       compound-assign spelling (301 @ 509) and `CRect rc(...)` (227 @ 493).
 //  ⇒ The open question is narrow and specific: what 1997 spelling puts four ints in the
 //  FRAME with inline load/adjust/store? Everything else about this function is solved.
-//  Its sibling DrawHealthNeedle 0x4278a0 (-17) is almost certainly the same construct.]
+//  Its sibling DrawHealthNeedle 0x4278a0 (-17) is almost certainly the same construct.
+//  ⭐ v123 DECOMPOSED THE -16 EXACTLY, and it re-frames the question as a REGISTER-BUDGET one.
+//  Both frames are `sub esp,0x3c` and both use SEVEN dword slots, so neither image is short of
+//  stack — the two just enregister DIFFERENT things in the same three callee-saved registers:
+//    orig  esi=this,  edi=pDC, ebx=GetSysColor-CSE then pOldBrush;  4 coords + pOldPen in frame
+//    ours  esi=pDC,   edi=CSE then x1,  ebx=y2;   this + y1 + x2 + pOldPen + pOldBrush in frame
+//  Ledger (sums to -16 on the nose): Chord#1 arg setup -12 and Chord#2 -12 (the original feeds
+//  9 pushes from 4 frame slots through eax/ecx/edx, 30 B each; ours pushes edi/ebx directly,
+//  18 B each), the coord store block -6, `this` +10 (our 3-byte spill + three 3-byte reloads
+//  against the original's 2-byte `mov esi,ecx`), pOldBrush +4.
+//  ⇒ So the REAL question is not "how do I put the coords in memory" but **why does cl demote
+//  `this` here** — and note that ScrollZoneTransition 0x411180 is the SAME question with the
+//  sign flipped (there the ORIGINAL spills `this` and we enregister it). Both functions have
+//  `this` at 4 uses, three of them inside a conditional, so a weighted use-count reading
+//  predicts OUR choice in both cases and the original's in neither.]
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.

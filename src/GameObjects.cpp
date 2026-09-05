@@ -472,7 +472,16 @@ Zone::Zone(short w, short h)
 //   the guarded `i++/n--` countdown emits 77 bytes against the original's 79 — structurally ruled
 //   out — and caching `objects.GetSize()` into a local costs 13 B either way, so the uncached call
 //   in the loop condition is confirmed correct. Hoisting `i` and swapping result/obj decl order are
-//   inert. Floor stays 2 B over 15 spellings total.]
+//   inert. Floor stays 2 B over 15 spellings total.
+//   ⭐ v123 CLOSES IT AS DIAL-BOUND (lesson #54). The 2 B are the loop GUARD's ENCODING and
+//   nothing else: registers, schedule and length are byte-identical to the original, and eax
+//   holds 0 in BOTH images — orig `test edi,edi` (85 ff), ours `cmp edi,eax` (3b f8), both 2 B.
+//   The early-return shape (no `result`; `return obj` inside the loop; `return 0` after) is
+//   REFUTED BY LENGTH — 72 B against the extent's 79, in all three spellings — which positively
+//   confirms the `result` + `break` form. And the guard responds ONLY to the file-scope
+//   SYMBOL-COUNT dial, never to a spelling: one `extern int` ahead of the function moves it to
+//   `cmp edi,ebx` and the diff 2 -> 14, two decls -> 23; a comment line is inert. It never
+//   reaches `85 ff`. Do not sweep spellings here again.]
 ZoneObj *Zone::FindObjectAt(int x, int y)
 {
     ZoneObj *result = 0; ZoneObj *obj;

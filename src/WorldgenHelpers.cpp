@@ -34,8 +34,20 @@ __inline void CDeskcppDoc::DemoDisable(CCmdUI *p)
 // FUNCTION: YODA 0x00401ac0  [EFFECTIVE MATCH: DIFF(2) — the values-loop back-edge cmp operand
 //   PROVEN PHASE DRIFT (2026-07-05): the ORIGINAL's three loaders oscillate jg/jl/jg at this
 //   site with identical source (orig Nevada+Oregon = cmp [count],eax;jg, Alaska = cmp eax,
-//   [count];jl); ours emits jl x3. Both while-forms + a 2^3 combo sweep canonicalize to jl —
-//   the choice is TU-phase, not source. Ours matches Alaska; N+O carry 2B each. Endgame item.
+//   [count];jl). Both while-forms + a 2^3 combo sweep canonicalize to jl. Endgame item.
+//   ⛔ v123 RETRACTS THE "ours emits jl x3" HALF OF THAT NOTE AND NAMES THE MECHANISM
+//   (lesson #54). Ours emits **jl, jl, jg** — our LoadStoryHistoryOregon ALREADY emits the
+//   `39/jg` form from the identical text, so the form is reachable and only Nevada is off. The
+//   driver is POSITION IN THE TU, proven three ways: (1) physically REORDERING the three
+//   definitions moves `39/jg` with the 3rd SLOT, never with the planet — all 4 non-identity
+//   permutations give slot1=3b slot2=3b slot3=39; (2) neither the string literal ("Nevada" ->
+//   "Oregon" / "Nvd") nor the member array (storyHistoryNevada -> storyHistoryOregon) changes
+//   anything; (3) injecting N identical extra clones ahead of them keeps `39` on the 3rd clone
+//   for N=1,2 and makes it VANISH ENTIRELY at 6+ clones, i.e. it is a bounded optimiser-state
+//   effect. And the axis that DOES move it is the file-scope SYMBOL COUNT: a single
+//   `static int`/`extern int` ahead of the block flips Oregon 39 -> 3b (and a static decoy
+//   FUNCTION flips SaveAlaska 3b,3b -> 39,39); a comment line is inert. That is the ❌ forbidden
+//   padding dial, so this is CLOSED, not open. 10 more inner-loop spellings are flat at 2 B.
 //   order (cmp [count],eax vs cmp eax,[count]); both source directions + do-while emit ours.
 //   Lesson-#6 instruction selection. Cracks that got here: GetProfileString(...,"0") default,//   v109: the decl axis is closed too — the leading block is only {buf,pApp} and its single
 //   permutation is flat at 2 B, consistent with the phase-drift reading above.
@@ -245,7 +257,12 @@ void CDeskcppDoc::Nop1()
 //   dead flat at 2/4/2; (iii) an UPSTREAM token perturbation in the Load* twins that visibly
 //   moved those functions moved these three by exactly 0 — so the v105/v106 joint-phase lever
 //   does not reach here either. Same family as the 0x401ac0 note below: MSVC 4.2 phase drift
-//   that the ORIGINAL binary exhibits too.]
+//   that the ORIGINAL binary exhibits too.
+//   ⭐ v123 NAMES THAT FAMILY: lesson #54, the COMPARE-ENCODING PEEPHOLE. It is POSITIONAL, and
+//   the only axis that moves it is the file-scope SYMBOL COUNT — a single static decoy function
+//   ahead of this block flips Alaska's two sites 3b,3b -> 39,39. That is the ❌ forbidden
+//   padding dial, so all three of these are CLOSED, not open. Method + proofs: the
+//   LoadStoryHistoryNevada note above (reorder / clone-injection / literal-and-member probes).]
 // Write storyHistoryNevada back to registry [GameData] Nevada0..N: 10 values per line, each
 // obfuscated by +obfKey (rand()%255+1, stored as field1); worldSeed as the decimal prefix.
 void CDeskcppDoc::SaveStoryHistoryNevada()
