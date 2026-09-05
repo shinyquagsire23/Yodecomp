@@ -383,8 +383,19 @@ int CDeskcppDoc::ZoneFindInIzxList(short zoneId, short itemId, int sel)
 }
 
 // FUNCTION: YODA 0x0041c580
-// [EFFECTIVE: 20B — j/count reg-role swap (EBX/EDI) in the spots loop + three backedge
-// cmp-operand mirrors + one layout jmp; insns 129/128. Tie-break family, joint pass.]
+// [WIP: 218 B -> 11 at v119, LENGTH 429 -> 430 = Ghidra's extent. The lever is the position
+//  of `int j = 0;` relative to `paSpots.SetSize(0, -1);` — it must come AFTER the call.
+//  With `j = 0` first, cl folds the zeroed register into SetSize's literal `0` argument
+//  (`push ebx` instead of `push 0`), which is 1 byte shorter than the original AND costs the
+//  spots loop its EBX/EDI roles; the original materialises the 0 as an immediate and zeroes
+//  `j` separately, right before the call. Same one-byte constant-fold family as lesson #39,
+//  read off the LENGTH first (lesson #49). The `Add` call form is INERT here (218 either way
+//  — paSpots is a CWordArray of values, not the CObArray case of lesson #48), and `j` BEFORE
+//  `nObjs` costs 5 B. Residual = one EBX/EDI bijection + two backedge cmp-operand mirrors,
+//  at matching length and matching save set = the lesson-#44 signature. Swept: all 6 leading
+//  decl permutations (best is the current one), and the {i,nCount} x {nObjs,j} product —
+//  `nCount,i` reaches 9 B but that is 2 bytes of tuning on an already-exact length, so it was
+//  deliberately NOT landed (lesson #48's bar). Sibling: 0x41c730, same fix, 227 B -> 26.]
 // Place a required item into a random OBJ_QUEST_ITEM_SPOT (type 0) of the zone whose
 // genCandidateA (IZAX) list names itemId; marks the spot visible=itemId/state=1. Falls back
 // to recursing into DOOR_IN-linked child zones. Returns the placed item id or -1.
@@ -405,8 +416,8 @@ int CDeskcppDoc::WorldgenFillQuestItemSpot(short zoneId, short itemId)
             if (itemId == v)
             {
                 int nObjs = pZone->objects.GetSize();
-                int j = 0;
                 paSpots.SetSize(0, -1);
+                int j = 0;
                 if (nObjs > 0)
                 {
                     do
@@ -457,6 +468,9 @@ int CDeskcppDoc::WorldgenFillQuestItemSpot(short zoneId, short itemId)
 }
 
 // FUNCTION: YODA 0x0041c730
+// [WIP: 227 B -> 26 at v119, LENGTH 442 -> 443 = Ghidra's extent, by the SAME `int j = 0;`
+//  after `paSpots.SetSize(0, -1)` fix as its clone 0x41c580 — see that function's note for
+//  the mechanism. Residual = two backedge cmp-operand mirrors at matching length.]
 // Clone of WorldgenFillQuestItemSpot for OBJ_SPAWN (type 1) via genCandidateB (IZX3);
 // also records the placed id in genCellQuestSlot6Scratch.
 int CDeskcppDoc::WorldgenFillSpawn(short zoneId, short itemId)
@@ -476,8 +490,8 @@ int CDeskcppDoc::WorldgenFillSpawn(short zoneId, short itemId)
             if (itemId == v)
             {
                 int nObjs = pZone->objects.GetSize();
-                int j = 0;
                 paSpots.SetSize(0, -1);
+                int j = 0;
                 if (nObjs > 0)
                 {
                     do
@@ -798,6 +812,14 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short i
 }
 
 // FUNCTION: YODA 0x0041cf10
+// [WIP: 295 B -> 292, LENGTH 426 -> 427 against an extent of 430. Carries its clones'
+//  `int j = 0;` after `paSpots.SetSize(0, -1)` form (0x41c580 / 0x41c730, where it is worth
+//  200+ B each) — kept here on CLONE CONSISTENCY plus a length moving toward the extent, NOT
+//  on its own 3 B, which is well under lesson #48's bar. ⭐ NEXT LEAD, and it is structural,
+//  not a dial: ours RELOADS the `itemId` parameter inside the genCandidateA scan loop
+//  (`mov ax,[ebp+0x14]` at +0x5f, 4 B) where the original hoists it above the loop; that one
+//  difference shifts every later byte and accounts for the bulk of the 292. Stage `itemId`
+//  in a named local before the loop (lesson #43) and re-measure before touching any dial.]
 // Variant of FillQuestItemSpot: place itemId into a random OBJ_QUEST_ITEM_SPOT (type 0) of
 // zoneId if its genCandidateA lists it; registers the item via WorldgenAddZoneEntry and
 // genCellItemCScratch. Recurses into DOOR_IN children (no null/negative-id guard — sic).
@@ -829,8 +851,8 @@ int CDeskcppDoc::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short n
         {
             int nObjs = pZone->objects.GetSize();
             CWordArray paSpots;
-            int j = 0;
             paSpots.SetSize(0, -1);
+            int j = 0;
             if (nObjs > 0)
             {
                 do
