@@ -815,11 +815,32 @@ BOOL CDeskcppDoc::OnOpenDocument(LPCTSTR lpszPathName)
     return TRUE;
 }
 
-// FUNCTION: YODA 0x0041bb10  [WIP: 286/286 insns, structure converged; residual = the
-//   reg-rename/schedule family (GetSysColor byte-temp coloring al/cl, temp-store order in
-//   the branch heads, zero-reg sourcing). Cracked this session: nFull=-1 init is the FIRST
-//   statement; nUsed=0 per-branch (not hoisted); peFlags-inside-if + peRed/peBlue/peGreen
-//   store order; pPalette loaded into a local BEFORE ::CreatePalette.]
+// FUNCTION: YODA 0x0041bb10  [WIP: DIFF(422) at LENGTH 975 == the Ghidra extent EXACTLY.
+//   Residual = the reg-rename/schedule family (GetSysColor byte-temp coloring al/cl,
+//   temp-store order in the branch heads, zero-reg sourcing) — 292/293 insns, reg_pen 62.
+//   Earlier finds: nFull=-1 init is the FIRST statement; nUsed=0 per-branch (not hoisted);
+//   peFlags-inside-if + peRed/peBlue/peGreen store order; pPalette loaded into a local
+//   BEFORE ::CreatePalette.
+//   ⭐ v122 RECOVERED A MISSING SOURCE CONSTRUCT (lesson #49 method: the length was −29, so
+//   the residual was STRUCTURAL, not the register problem the old note named). The Canvas
+//   allocation's `TRY { } END_TRY` is really the house hand-expanded CATCH_ALL, identical to
+//   the byte-EXACT ParseChar 0x421e70 / ParsePuz2 0x422fd0:
+//       catch (CException *e) { _afxExceptionLink.m_pException = e; THROW_LAST();
+//                               AfxMessageBox(IDS_ERR_UNRECOVERABLE,0,-1); AfxAbort(); }
+//   Read straight off the original's catch funclet at +0x390: `push -1; push 0; push 0xe01e;
+//   call AfxMessageBox` (0xe01e == IDS_ERR_UNRECOVERABLE) preceded by the `call <x>; push 0;
+//   push 0; call <y>` PAIR that is THROW_LAST()'s expansion — that pair occurs at 6 sites in
+//   the image, two of them inside functions we already match byte-exactly, which is how it
+//   was identified. Descent: 537 B @ −29  ->  438 @ −14 (catch block + `Canvas *pNew;`
+//   UNINITIALISED)  ->  422 @ ±0 (THROW_LAST).
+//   ⛔ THREE SHAPES MEASURED AND REFUTED — do not re-tread. (a) Assigning `pCanvas` directly
+//   inside the TRY and dropping the temp: 523 B @ −6 (and 535 @ −6 with the temp kept but the
+//   assignment moved inside), so `pNew` and the POST-TRY assignment are both positively
+//   confirmed — the original stores through the `&pCanvas` address CSE in [ebp−0x24] AFTER
+//   END_TRY. (b) `Canvas *pNew = NULL;` — the `= NULL` costs the `xor edi,edi` + a frame
+//   store and turns the original's `cmp dword [eax],0` into `cmp [eax],edi`; it is also what
+//   made our frame 4 bytes BIGGER (`sub esp,0x34` vs 0x30). (c) The catch without
+//   THROW_LAST: 518 B @ −20.]
 // OnNewDocument override: zero the zone-pointer grid, build the game palette from the
 // system palette + master table, create the offscreen Canvas.
 BOOL CDeskcppDoc::OnNewDocument()
@@ -932,10 +953,18 @@ BOOL CDeskcppDoc::OnNewDocument()
     pPal->Attach(::CreatePalette((LOGPALETTE *)&palVersion));
 
     if (pCanvas == NULL) {
-        Canvas *pNew = NULL;
+        Canvas *pNew;
         TRY {
             pNew = new Canvas(CANVAS_PIXEL_SIZE, CANVAS_PIXEL_SIZE);
-        } END_TRY
+        }
+        }              // closes the try block the TRY macro opened
+        catch (CException *e) {                // hand-expanded CATCH_ALL(e)
+            _afxExceptionLink.m_pException = e;
+            THROW_LAST();
+            AfxMessageBox(IDS_ERR_UNRECOVERABLE, 0, (UINT)-1);    // sic: unreachable OOM dialog
+            AfxAbort();                            //      (docs/engine-bugs.md #7)
+        }
+        }              // closes the TRY macro's outer (link-scope) brace
         pCanvas = pNew;
     }
     if (pCanvas != NULL)
