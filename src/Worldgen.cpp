@@ -8031,9 +8031,32 @@ BOOL CDeskcppView::PreCreateWindow(CREATESTRUCT &cs)
 }
 
 // FUNCTION: YODA 0x00428f50
-// [EFFECTIVE-WIP: insns 160/162; residual = the same arm-LAYOUT normalization as the
-// weapon-box pair (orig falls into the >7 scrollbar arm / jle out-of-line; ours inverts
-// under both spellings) + the &pWorld lea-vs-reload and scan-backedge cmp direction.]
+// [WIP: DIFF(6) at LENGTH 506 = Ghidra's extent EXACTLY, insns 161/161, reg_pen 0, save set
+//  matches. Was 381 B at 505 since G1. Cracked at v119 by FOUR dials that only pay COMPOSED —
+//  and two of them measure WORSE alone, which is why the v15 and v116 notes both parked it:
+//   1. decl ORDER: `nInv` before `i` (381 -> 141). The reverse costs 384 B AND 3 bytes of
+//      length, so this order is pinned from both sides (declorder.py --inner: 1 permutation).
+//   2+3. the inner if/else ARM ORDER (lesson #47: `> 1` / InsertAt as the *then* arm) AND the
+//      CONTAINER CALL FORM (lesson #48: `Add(pNew)`, not `SetAtGrow(GetSize(), pNew)`).
+//      NEITHER MOVES ALONE: arm-swap alone = 141 at len 502; `Add` alone = 182 at len 495,
+//      i.e. WORSE than doing nothing. TOGETHER = 56 at len 506, landing the length exactly on
+//      the extent. v116 measured `Add` ALONE, saw the length go the wrong way and correctly
+//      reverted it; the miss was never trying it jointly with the arm order.
+//      MFC's Add is `{ int nIndex = m_nSize; SetAtGrow(nIndex, newElement); return nIndex; }`,
+//      which is why the original re-reads [pWorld+0xb0] here instead of caching the compare's
+//      value. A hand-written `{ int nIdx = GetSize(); SetAtGrow(nIdx, pNew); }` is NOT the
+//      same and measures 189 B at len 491 — so the evidence is for MFC's inline, not the idea.
+//   4. `int nCur = pWorld->inventory.GetSize();` before the scrollbar if (lesson #43's
+//      named-local lever): 56 -> 6. Load-bearing — spelling the arm's `n` as
+//      `GetSize() - 7` instead of `nCur - 7` puts it straight back to 56.
+//  Residual = ONE instruction's schedule slot: the original loads `this` (mov edi,[ebp-0x14])
+//  BEFORE `sub esi,7`, ours after. Measured FLAT at 6 over the arm's whole spelling space
+//  (n-from-GetSize, split n, inline nCur-7, member SetScrollRange, cond re-reads GetSize,
+//  `n` declared with nCur) and over the inner-block decl axis. Matching length + matching save
+//  set + reg_pen 0 = the lesson-#44 signature: TU-joint phase, not a defect in this body.
+//  PROVEN, do not re-tread: the SCROLLBAR if/else arm order (inert at 56 twice BEFORE nCur
+//  landed, then costs 56 AFTER it — so the current `> 7`-first order is confirmed); `< 8` and
+//  `>= 8` each cost 1 B, pinning the literal 7; the member SetScrollRange form is inert.]
 // Add a tile to the inventory unless it is a duplicate of a unique (flags & 0x100000)
 // item: new InvItem named after the tile, the locator (flags == 0x100081) inserts at the
 // front, others at slot 2 (or append while fewer than 2 items); then rescale the inventory
@@ -8043,8 +8066,8 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
     int bFound = 0;
     if (pTile != NULL)
     {
-        int i = 0;
         int nInv = pWorld->inventory.GetSize();
+        int i = 0;
         if (nInv > 0)
         {
             InvItem **pp = (InvItem **)pWorld->inventory.GetData();
@@ -8080,14 +8103,15 @@ void CDeskcppView::AddItemToInv(Tile *pTile)
             }
             else
             {
-                if (pWorld->inventory.GetSize() <= 1)
-                    pWorld->inventory.SetAtGrow(pWorld->inventory.GetSize(), pNew);
-                else
+                if (pWorld->inventory.GetSize() > 1)
                     pWorld->inventory.InsertAt(2, pNew, 1);
+                else
+                    pWorld->inventory.Add(pNew);
             }
-            if (pWorld->inventory.GetSize() > 7)
+            int nCur = pWorld->inventory.GetSize();
+            if (nCur > 7)
             {
-                int n = pWorld->inventory.GetSize() - 7;
+                int n = nCur - 7;
                 ::SetScrollRange(pInvScrollBar->m_hWnd, SB_CTL, 0, n, 1);
                 pInvScrollBar->scrollMax = n;
             }
