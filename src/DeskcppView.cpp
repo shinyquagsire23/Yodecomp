@@ -8625,14 +8625,14 @@ done_paint:
 //  `ay = 0x22` compiles to `mov ebx,0x22` (5 B) even though cl knows ay is 0 there.
 //  ⭐⭐ AND THE REAL FIND, which is a TRANSCRIPTION BUG, not a dial: `TextDialog::Layout`
 //  0x4176f0 takes THREE int parameters, not two. The original ends `ret 0xc` and this call site
-//  pushes THREE args (`push 0; push ebx; push esi`) — see the note at Layout itself. Declaring it
-//  `Layout(int x, int y, int nUnused)` and calling `Layout(x, y, 0)` puts this function's LENGTH
-//  at 383/384 (from 379). ⛔ NOT LANDED: the declaration lives in DeskcppView.h, which every TU
-//  includes, and the token change costs FOUR exact functions (CyclePalette 0x415af0,
-//  ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210, DetonateAdjacentTiles 0x428680) while
-//  gaining only SetCurrentToIntroZone 0x423d20 — a measured 258 -> 255. A deliberate anchor DROP
-//  is the user's call (see the v114 precedent at the top of CLAUDE.md), so the fact is recorded
-//  here and in the header instead of being landed silently.
+//  pushes THREE args (`push 0; push ebx; push esi`) — see the note at Layout itself. ✅ LANDED at
+//  v120 WITH USER APPROVAL, and it RE-BASELINED THE ANCHOR DOWN 258 -> 255 (the second deliberate
+//  decrease in the project's history; the first was v114). The declaration lives in
+//  DeskcppView.h, which every TU includes, so the type-list change re-rolls the shared codegen
+//  dial: it cost CyclePalette 0x415af0, ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210 and
+//  DetonateAdjacentTiles 0x428680, and gained SetCurrentToIntroZone 0x423d20. None of the four is
+//  a defect in its own body. ⚠ The parameter NAME is not the dial input — an unnamed `int` third
+//  parameter measures the IDENTICAL -4/+1, so this could not be had for free.
 //  Residual = 61 B in four families, all measured: (a) two eax<->esi bijections in the
 //  nViewLeft/nViewRight clamps (+0x40, +0x73); (b) a 2-instruction statement-order shift at
 //  +0x9a (`mov esi,ebx` before vs after the `nBoxX = ax` store); (c) the missing `push 0` above;
@@ -8733,7 +8733,7 @@ void TextDialog::Position()
     }
     nTailDir = 2;
 do_layout:
-    Layout(x, y);
+    Layout(x, y, 0);
 }
 
 // The speech-bubble tail triangle is built as a 3-point array. The game's point type has an
@@ -8751,12 +8751,16 @@ struct TriPoint : public tagPOINT
 //   `push 0; push ebx; push esi`. The third is passed as a literal 0 and is NEVER READ — an
 //   argument-slot scan over the whole body finds reads of [esp+0x34] and [esp+0x38] only — so it
 //   is a dead/leftover parameter, which is exactly why nothing downstream ever noticed.
-//   ⛔ NOT APPLIED. `Layout` is declared in DeskcppView.h, which every TU includes; adding the
-//   parameter re-rolls the shared codegen dial and measures 258 -> 255 (loses CyclePalette
-//   0x415af0, ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210, DetonateAdjacentTiles 0x428680;
-//   gains SetCurrentToIntroZone 0x423d20). It fixes 2 of Position's 5 missing bytes and 0 of this
-//   function's 35, so it buys no exactness today. A deliberate anchor drop is the USER's call
-//   (v114 precedent) — land it only with approval, or when the phase makes it free.
+//   ✅ APPLIED at v120 with USER APPROVAL, and it RE-BASELINED THE ANCHOR 258 -> 255. `Layout` is
+//   declared in DeskcppView.h, which every TU includes, so the type-list change re-rolls the
+//   shared dial: it cost CyclePalette 0x415af0, ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210
+//   and DetonateAdjacentTiles 0x428680, and gained SetCurrentToIntroZone 0x423d20. The trade was
+//   taken because the fact is PROVEN from two independent sides (the callee's `ret 0xc` and the
+//   caller's third push) — a wrong signature in a decompilation is a defect in the artifact, not
+//   a tuning choice, and none of the four lost functions has a defect in its own body.
+//   ⚠ The parameter NAME is not the dial input: an unnamed `int` measures the identical -4/+1.
+//   `nUnused` is only ever passed 0 and never read; if its real meaning is ever recovered from
+//   Yodesk.exe or DESKADV, rename it — the arity is what matters here.
 // TextDialog::Layout(x,y) — paint the speech balloon at (x,y): select the dialog font, fill the
 // bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
 // (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
@@ -8772,7 +8776,7 @@ struct TriPoint : public tagPOINT
 //       stores), where ours caches the values — a reload-vs-register tie-break (lesson #19).
 //   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
 // NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
-void TextDialog::Layout(int x, int y)
+void TextDialog::Layout(int x, int y, int nUnused)
 {
     HDC hdc = pParentView->pWorld->pCanvas->hdc;
     HFONT h = CreateFont(-8, 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0, g_pszDialogFont);

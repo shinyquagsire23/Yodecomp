@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -27,6 +27,27 @@ BYTE-IDENTICAL downstream damage. `PlaceQuestNode` 0x41f120 also GAINED (432 B �
 container call form — see lesson #48), NOT by reverting 0x41ef90. The v114 trade still
 stands and must not be undone: `WorldgenShuffleList` keeps its unrotated loop, and the
 three functions it cost are still non-exact. Do not read "back to 255" as "v114 was wrong".
+
+⛔ **v120 RE-BASELINED THE ANCHOR DOWN AGAIN, 258 → 255, ON PURPOSE (user-approved).** The
+second deliberate decrease in the project's history, and unlike v114 it is not a codegen
+trade at all — it is a **fixed TRANSCRIPTION BUG**. `TextDialog::Layout` 0x4176f0 takes
+**THREE** int parameters, not the two we had declared. Proven from two independent sides:
+the callee ends **`ret 0xc`**, and its ONLY call site (`Position` 0x417570 at +0x172) pushes
+**three** args, `push 0; push ebx; push esi`. The third is always the literal 0 and is NEVER
+READ — an argument-slot scan over Layout's whole body finds reads of `[esp+0x34]` and
+`[esp+0x38]` only — which is exactly why nothing downstream ever noticed. `Layout` is
+declared in **`DeskcppView.h`, which every TU includes**, so changing the type list re-rolls
+the shared codegen dial: it cost `CyclePalette` 0x415af0, `ZoneHasIzxItemMaybe` 0x41bfa0,
+`ParseZax2` 0x423210 and `DetonateAdjacentTiles` 0x428680, and gained `SetCurrentToIntroZone`
+0x423d20 (−4/+1). **None of the four is a defect in its own body.** ⚠ The parameter NAME is
+not the dial input — an unnamed `int` third parameter measures the IDENTICAL −4/+1, so this
+could not be had for free. ⇒ The trade was taken because **a wrong signature in a
+decompilation is a defect in the artifact, not a tuning choice**; the exact count is an
+instrument, and a correct source that scores 255 beats a wrong source that scores 258. Do not
+revert it to "recover" the three. Detail: the source notes at 0x417570 and 0x4176f0.
+⭐ **Generalise the FIND, not the trade: `ret N` at the callee vs the push count at the call
+site is a two-sided ARITY oracle, and nothing in the project checks it.** A same-arity scan
+over all 410 markers is the obvious next instrument (see the v120 pickup).
 
 ⚠ **v115 held at 252** — no new byte-match, but two residuals were cut and a NEW dial named:
 `StartGame` 0x4037a0 went 79 B → 69 B on the IF/ELSE ARM ORDER (lesson #47, new) and `IactRun`
@@ -216,11 +237,12 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **258 exact / 99.17 % transcribed** |
+| exact count | `python3 tools/progress.py` | **255 exact / 99.17 % transcribed** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | **1 HIGH (known benign) / 0 SHIFT** |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
+| **arity** | `python3 tools/aritycheck.py` | **0 mismatches / 263 comparable** (v120, new) |
 
 ⚠ **The bugscan green state is 1 HIGH, not 0 — corrected at v115.** The finding is
 `StartGame` 0x4037a0 `@+0x14a lea base=esi orig=0x4b4 ours=0x4b0`, and it is a PROVEN
@@ -234,7 +256,7 @@ IDENTICAL. ⇒ Do not "fix" it, and do not add a suppression list to bugscan (hi
 finding is the wrong direction for an instrument — see the harness-can-lie lessons);
 the verdict is recorded in the function's source note.
 
-⚠ **258 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119; all five oracles
+⚠ **255 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119, **−3 DELIBERATE at v120**; all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
@@ -1237,6 +1259,20 @@ recompiles the TU itself) · **`bugscan.py`** / **`vtcheck.py`** / **`msgcheck.p
 wrong vtable slot / field disp / message-map entry; see anchor table) · **`link_exe.sh`** (full-image link
 oracle) · `permute.py`, `survey.py`, `frontier.py`, `g2_link.sh`, `g2_diff.py`, `g2_order.py`,
 `exactset.py`, `libfingerprint.py` (parked byte-match era; see PLAN_COMPLETED.md).
+**`aritycheck.py`** (⭐ v120 — a TWO-SIDED ARITY ORACLE, and the fifth-and-a-half anchor check.
+A `__thiscall`/`__stdcall` callee cleans its own args, so its terminal `ret N` states its ARITY
+independently of anything we wrote; compare it with OUR compiled `ret N` per marker. A function
+declared with the wrong number of parameters LINKS FINE (one caller, one callee, consistently
+wrong) and passes bugscan/vtcheck/msgcheck — it shows up only as a diffuse byte residual you
+will misread as a register problem, which is exactly what happened to `TextDialog::Layout`
+0x4176f0 for the life of the project. Currently 0 mismatches / 263 comparable; re-run on newly
+transcribed functions. ⚠ its first draft read the last 3 bytes of Ghidra's extent and reported
+'0 mismatches' WITH the known Layout bug in the tree — the extent over-runs the real `ret` into
+a trailing jump TABLE. Caught by the built-in control: every BYTE-EXACT function must agree, and
+the tool FAILS LOUDLY if one does not) ·
+**`epiloguescan.py`** (⭐ v120 — the DUPLICATED-EPILOGUE target list: length SHORT of the extent
+AND the original decoding MORE `ret`s than us = the *then*-arm `return;` that cl gave a local
+epilogue. Landed PlaySound 0x409060; now 0 hits, i.e. MINED OUT) ·
 Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
 
 ## 📋 Session protocol
@@ -1253,105 +1289,122 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-04 v119 — **257 → 258 exact, REAL MATCH; +1/−0**. One new
-standing lesson (**#51, the COMPOSITE LEVER**) that overturns two of v116's three reverts and
-both of v118's held-back leads, plus **1029 bytes of residual cut across four more functions,
-four of which now sit at EXACTLY their Ghidra extent**.
-All oracles green: 258 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign)
-0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches / build-sdl links.
-v118 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-04 v120 — **258 → 255 exact, a DELIBERATE, USER-APPROVED
+re-baseline DOWN for a real ARITY BUG** (see the ⛔ block near the top of this file — it is
+the SECOND deliberate drop in the project's history and must not be reverted). No new
+byte-match, but the session was the most productive in a while by every other measure:
+**1050 bytes of residual cut across three functions, two more LENGTHS landed exactly on their
+Ghidra extents, one genuine transcription bug found and fixed, and TWO new oracles built**
+(`aritycheck.py`, `epiloguescan.py`).
+All oracles green: 255 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign)
+0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches / **arity 0 mismatches** /
+build-sdl links. v119 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST:** standing lesson **#51 — a lever that measures WORSE alone is not refuted;
-cross it with the ARM ORDER and re-measure the 4 cells**, and the bullet under it on the
-zero-init constant fold. Both are cheap procedures, not insights you have to have.
+**▶ READ FIRST — the one method that produced everything this session.**
+⭐ **DECOMPOSE THE LENGTH DEFICIT INSTRUCTION BY INSTRUCTION, THEN NAME THE SOURCE CONSTRUCT
+THAT PRODUCES THE MISSING BYTES.** Lesson #49 said "check the length first"; v120 is what
+happens when you then *account for it exactly* before touching a dial. Three functions fell
+to the same three steps — (1) `residuals.py --lenmis` gives a signed delta; (2) find the
+instructions that make up that delta in the two disassemblies; (3) ask what C construct emits
+them. It worked on 148 B, 98 B and 100 B residuals in one session:
+- **`PreCreateWindow` 0x419210, 148 B → 4, length onto the extent.** +4 = the original's
+  `mov [esp+0x24],eax` / `mov eax,[esp+0x20]` pair (8 B) vs our `mov edi,eax` / `mov eax,edi`
+  (4 B). The spill was the SYMPTOM: the original register-homes the window WIDTH in a named
+  local (`lea edi,[eax*2+0x20d]` instead of our `add eax,eax; add eax,0x20d` straight into the
+  `rc.right` slot), and that extra long-lived value is what pushes `bRet` out of EDI.
+- **`PlaySound` 0x409060, 98 B → 6, length onto the extent.** −5 = a DUPLICATED EPILOGUE (7 B)
+  minus our 2-byte `jmp`. See the new lesson bullet below.
+- **`TextDialog::Position` 0x417570, 100 B → 62.** Its −3 decomposed into a missing `push 0`
+  (the Layout arity bug) and a member load the original makes TWICE.
+⚠ **All three had park notes that read the residual BACKWARDS** — "allocator/scheduling
+tie-break", "not source-steerable, G1 fodder", "cmp-direction flips the C source can't steer".
+Every one described a register or jcc symptom while the LENGTH was sitting there saying
+"structural". ⇒ **treat a park note that names a register permutation as UNREAD if the length
+is wrong.** That is now three sessions running (v117's ZoneProvidesItem, v118's AddHealth, and
+these three).
 
-**▶ WHAT LANDED** (3 commits; anchor re-measured with `exactset.py` + `comm` after every one,
-and again after each source note, per lesson #23; all five oracles + build-sdl at the end).
-1. **`ParsePuz2` 0x422fd0 byte-EXACT (165 B → 0, len 310 → 317 = the extent).** THE headline.
-   Its own note had named both halves of the answer since G1 and still could not land it:
-   arm-swap alone 94 B at len 318, `Add` alone 164 B at len 309, **together 0**.
-2. **`AddItemToInv` 0x428f50: 381 B → 6, len 505 → 506 = the extent**, insns 161/161, reg_pen 0.
-   FOUR composed dials — decl order `nInv,i`, the inner arm order, `Add`, and a
-   `int nCur = GetSize()` named local before the scrollbar if (lesson #43). v118's held-back
-   141 B variant was the first dial only.
-3. **`WorldgenFillQuestItemSpot` 0x41c580 218 B → 11 (len = extent) and `WorldgenFillSpawn`
-   0x41c730 227 B → 26 (len = extent)** — `int j = 0;` must come AFTER `paSpots.SetSize(0, -1);`
-   or cl folds the zeroed register into the literal `0` argument. `WorldgenFillQuestItemSpot2Maybe`
-   0x41cf10 carries the same form (295 → 292) on clone consistency + length, not on its own merit.
+**▶ NEW STANDING LESSONS (fold into the numbered list when convenient).**
+1. ⭐ **A `jle K` against our `jl K+1` is NOT a codegen tie-break — cl 10.20 encodes the
+   comparison CONSTANT exactly as written, so it is the SOURCE that says `<= 0x11c` where we
+   said `< 0x11d`.** Read it straight off the byte diff: the constant differs by one right
+   next to the jcc. Four such boundaries were corrected in Position for 7 B. This retires a
+   whole family that has been dismissed as "lesson #6, not steerable" for years.
+2. ⭐ **THE DUPLICATED EPILOGUE.** cl lays the *then* arm out as the fallthrough, so a bare
+   `return;` in that arm gets a LOCAL `pop.../add esp,N/ret N` instead of a branch to the
+   shared epilogue. If the author wrote the arms in the other order, the original carries ~7
+   extra bytes exactly where we emit a 2-byte `jmp`. **`tools/epiloguescan.py`** is the target
+   list — and it is already MINED OUT (PlaySound was the only instance; 0 hits over 21
+   length-short residuals now).
+3. ⭐ **AN `armscan.py` HIT TAGGED "one-armed" CAN STILL BE AN ARM-ORDER DEFECT ONE LEVEL
+   OUT.** PlaySound was on armscan's list the whole time; the tag describes the INNER
+   `if (...) return;`, which is precisely why nobody ever tried swapping the OUTER arms.
+4. ⚠ **A COMPOSITE IS NOT GUARANTEED TO INHERIT ITS HALVES' GAINS** — the converse of lesson
+   #51. On `PlacePuzzle` 0x421620 the arm swap alone gives 35 B → 32 and `Add` alone 35 → 29,
+   but TOGETHER they give **49**. #51 says "a lever that measures worse alone is not refuted";
+   it does NOT say a composite is better. Measure the 4 cells.
+
+**▶ WHAT LANDED** (5 commits; `exactset.py` + `comm` after every edit AND after every note
+rewrite, per lesson #23; all oracles + build-sdl at the end).
+1. **`PreCreateWindow` 0x419210: 148 B → 4**, length 180 → 184 = the extent, insns 63/63,
+   reg_pen 0. +0/−0. Residual is one 2-instruction schedule swap.
+2. **`PlaySound` 0x409060: 98 B → 6**, length 171 → 176 = the extent, insns 50/50. +0/−0.
+   Residual is a pure EAX↔EDX scratch bijection (lesson #44).
+3. **`TextDialog::Position` 0x417570: 100 B → 62** — four comparison constants, one arm swap
+   worth 39 B, and `if (ay == 0) ay += 0x22;` (the original emits `add ebx,0x22`; `ay = 0x22`
+   compiles to the 5-byte `mov`). The .cpp-local part measured +0/−0.
+4. **⭐ `TextDialog::Layout` 0x4176f0 ARITY: three int params, not two** — the re-baseline.
+   Proven twice over (`ret 0xc`; the call site pushes `push 0; push ebx; push esi`); the third
+   arg is never read. USER-APPROVED. ⚠ the parameter NAME is not the dial input — an unnamed
+   `int` measures the identical −4/+1.
+5. **Two new tools**, both positive-controlled in both directions.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ SWEEP THE WHOLE `Add`/`SetAtGrow` SEAM AGAIN, CROSSED WITH THE ARM ORDER.** Lesson #48's
-   seam (~80 `SetAtGrow` sites) was worked ONCE, in isolation, and that is exactly the mistake
-   #51 identifies — two of v116's three reverts were recoverable. 4 compiles per function.
-   Start with the third v116 revert, **`Generate`** (6 B out of 5710), and with every non-exact
-   function that has BOTH a `SetAtGrow(X.GetSize(), …)` site and an `armscan.py` hit.
-   ⚠ `Add` is INERT on `CWordArray` value arrays (measured) — aim it at CObArray members only.
-2. **⭐ `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 (292 B) — the lead is already diagnosed** in
-   its source note: we RELOAD the `itemId` parameter inside the genCandidateA scan loop
-   (`mov ax,[ebp+0x14]` at +0x5f) where the original hoists it above the loop. Stage it in a
-   named local (lesson #43) and re-measure before touching any dial.
-3. **Grep for the zero-init constant fold** (the second v119 bullet): a `= 0` local declared
-   just before a call taking a small literal, in a function that is 1–2 bytes SHORT. It is worth
-   200 B a time and `residuals.py --lenmis` ranks the candidates for free.
-4. **FINISH THE INNER-BLOCK SEAM** (v118's item, still open): 45 non-exact functions / 521 legal
-   permutations, ~19 swept. Run per TU with `run_in_background` to a log, never concurrently
-   with another sweep. ⚠ Worldgen.cpp compiles are slow. Already swept flat or below the bar —
-   do not re-tread: 0x4260e0, 0x421930, 0x424fc0, 0x423df0, 0x412250, 0x40a710, 0x40f4b0,
-   0x4270f0, 0x41a1c0, 0x408e70, 0x409c10, 0x40ec30, 0x40f060, 0x41d260, 0x41c200, 0x403aa0,
-   0x41d480, 0x41c490, 0x40a320, 0x41c3b0, and (v119) **0x428f50 and 0x41c580**.
-5. **Keep working `residuals.py --lenmis` top-down.** Unworked, negative first:
-   `ScrollZoneTransition` 0x411180 (−62), `Layout` 0x4176f0 (−35), `DrawHealthNeedle` 0x4278a0
-   (−17), `DrawHealthDial` 0x427490 (−16), `OnUpdate` 0x408e70 (−11), `WorldgenPlacePuzzles`
-   0x421930 (−11); then positive: `ShowWinMessage` 0x40f4b0 (+36), `IactProbeMove` 0x406550
-   (+26), `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13). **OFF this list now:** 0x428f50,
-   0x422fd0, 0x41c580, 0x41c730. ⚠ hand-disassemble two hits before investing (v117's own first
-   census ranked 3 artifacts).
-6. **`aliasscan.py` ∩ `--lenmis`** (lesson #50's strong form) is still unworked apart from
-   AddHealth: best is **`OnNewDocument` 0x41bb10 (−29)**. Read-only recon done this session — the
-   original caches `&pCanvas` in a frame slot ([ebp-0x24]) and RELOADS `pCanvas` through it three
-   times, and it stores the Canvas ctor's return DIRECTLY (`mov [ecx],eax`) rather than via a
-   `pNew` temp, which our `Canvas *pNew = NULL; TRY {...} pCanvas = pNew;` cannot produce.
-7. **`dtorscan.py`'s remaining live hit**: `Load` 0x422670 (1634 B). (ParsePuz2 is now closed.)
-8. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that verdict
-   now rests on ~20 functions across v111–v119, inner blocks included. Lesson #51 does NOT
-   reopen it: both v119 wins were on LARGE residuals with a wrong LENGTH.
-9. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+1. **⭐ KEEP RUNNING THE v120 METHOD DOWN `residuals.py --lenmis`.** It is 3-for-3. Unworked,
+   biggest signal first: **`ScrollZoneTransition` 0x411180 (−62, 703 B)** — recon done, the
+   original SPILLS `this` to a frame slot ([esp+0x10]) and reloads it ~8 times where we keep it
+   in ESI, and spills the constant 0x10 too, i.e. it has one more long-lived value than we do
+   (the `PreCreateWindow` shape exactly — look for a named local we inlined). Then
+   **`Layout` 0x4176f0 (−35, 999 B)**, **`OnNewDocument` 0x41bb10 (−29)**,
+   **`CDeskcppView::CDeskcppView` 0x408710 (−18)**, `DrawHealthNeedle` 0x4278a0 (−17),
+   `DrawHealthDial` 0x427490 (−16), `OnMouseMove` 0x413580 (−13), `OnUpdate` 0x408e70 (−11).
+2. **Try to recover the three the re-baseline cost** — `CyclePalette` 0x415af0,
+   `ZoneHasIzxItemMaybe` 0x41bfa0, `ParseZax2` 0x423210, `DetonateAdjacentTiles` 0x428680
+   (0x423d20 was gained). ⚠ Note the 0x41bfa0/0x423210/0x428680/0x423d20 cluster flipped on
+   EVERY Worldgen-visible perturbation this session, so it is phase, not body defects.
+3. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers are still
+   "unreadable" (no terminal ret: EH funclets, tail `jmp`s). Widening that coverage is cheap
+   and the payoff is proven.
+4. **⛔ CLOSED THIS SESSION — do not re-tread.** (a) Lesson #48's CObArray `SetAtGrow` seam is
+   now swept on EVERY remaining non-exact site: `ReadSavedState` 0x405bd0 (12 → 19) and
+   `WorldgenAddZoneEntry` 0x41d800 (27 → 28) have their current spelling POSITIVELY CONFIRMED,
+   `OnLoadWorld` 0x424fc0 is inert, `PlacePuzzle` 0x421620 is a net loss (see lesson 4 above).
+   (b) The `ReadZax2`/`ReadZax3`/`ReadZaux` `mov ax`/`movsx` idiom (4 sites, worth +3 exact) is
+   re-swept on four axes v99/v109 never touched — container call form, decl SET (a 6th `short`
+   at all 6 positions), forced truncation (10 spellings), and decl TYPE. All flat. `short i` is
+   the informative negative: it buys the 16-bit load but keeps the counter 16-bit. ~45
+   spellings are now spent; do not re-open without a new mechanism. (c) `0x41cf10`'s decl axis
+   (`declorder.py --inner`, 9 legal permutations).
+5. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ MEASURED NEGATIVES this session — do NOT re-tread.**
-- **`AddItemToInv`'s scrollbar if/else arm order is INERT** (56 B either way, measured TWICE
-  before `nCur` landed) — and then costs 56 AFTER it, so the `> 7`-first order is confirmed.
-  `< 8` and `>= 8` each cost 1 B, pinning the literal 7; the member `SetScrollRange` form is inert.
-- **A hand-written `{ int nIdx = GetSize(); SetAtGrow(nIdx, pNew); }` is NOT MFC's `Add`** —
-  189 B at len 491 on AddItemToInv vs `Add`'s exact-length result. The evidence is for the
-  library inline, not for the idea of naming the index.
-- **`Add` is inert on `CWordArray`** (0x41c580 / 0x41c730, identical both ways).
-- **0x41c580 is closed on the decl axis**: all 6 leading-decl permutations are worse, and the
-  {i,nCount} × {nObjs,j} product reaches 9 B via `nCount,i` — 2 bytes of tuning on an
-  already-exact length, deliberately NOT landed under lesson #48's bar.
-- **`AddItemToInv`'s last 6 B are TU-joint phase**, not a body defect: one instruction's schedule
-  slot, flat across the arm's whole spelling space and the inner-decl axis, at matching length,
-  matching save set, reg_pen 0 (the lesson-#44 signature).
-
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v118 rules all stand and were all re-used).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v119 rules all stand and were all re-used).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
 sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps concurrently,
 or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/`formsweep.py`/`armscan.py`/
-`dtorscan.py`/`declorder.py` is in flight (they share `build/*.obj`). Measure with
-`tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a line-count
-change (lesson #23) — **re-measure AFTER writing the note**; v119 did this for all five notes and
-each was clean.
-⭐ **v119 additions:**
-- **Do not judge a lever by its own row.** Before recording a conversion as refuted, cross it
-  with the arm order (4 cells). The length rule applies to the COMBINATION.
-- **Decompose the LENGTH deficit instruction by instruction before choosing a dial.** On both
-  v119 wins the byte count added up EXACTLY (ParsePuz2: +4 +4 +2 −2 −1 = 7), which is what turned
-  "some register thing" into a specific, falsifiable source hypothesis.
-- ⚠ **In this environment wall-clock only advances while a command is actually running.** Polling
-  a background job in a tight loop of quick calls makes a live sweep look hung. Either run the
-  measurement in the FOREGROUND with a long `timeout`, or block on a real `until … sleep` wait.
+`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py` is in flight (they share
+`build/*.obj`). Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. A
+comment rewrite IS a line-count change (lesson #23) — **re-measure AFTER writing the note**.
+⭐ **v120 additions:**
+- ⚠ **`--expect-exact` on `formsweep.py`/`jointdecl.py` is PER-TU, not project-wide** (Worldgen.cpp
+  is 44, not 255). The tool hard-fails loudly, so this costs one wasted run, not a wrong result.
+- ⚠ **A vartest/declorder run RESTORES the file to whatever it read at START**, so if you applied
+  an edit by hand first, "restored" means "back to your edited state", not to HEAD. Two `assert
+  s.count(old)==1` failures this session came from exactly that. Always `git diff --stat src/`
+  before assuming.
+- ⚠ **An edit to a HEADER is not a per-TU change.** The Layout arity fix moved four functions
+  across two TUs. Header edits need a full `exactset.py` comparison, never a per-TU one.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

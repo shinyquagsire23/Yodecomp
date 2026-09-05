@@ -4333,3 +4333,106 @@ no tool in the project could reach. All oracles green at 257.
   only one of four composed dials). Same for the three functions v118 flagged as "cuts diff but
   shortens the length away from the extent, same verdict: not yet" (0x41c580 / 0x41c730 / 0x41cf10)
   — all three moved at v119, by a constant-fold lever rather than the axis v118 guessed.
+
+
+---
+
+### ⏮ v119 PICKUP (demoted at v120) (2026-09-04 v119 — **257 → 258 exact, REAL MATCH; +1/−0**. One new
+standing lesson (**#51, the COMPOSITE LEVER**) that overturns two of v116's three reverts and
+both of v118's held-back leads, plus **1029 bytes of residual cut across four more functions,
+four of which now sit at EXACTLY their Ghidra extent**.
+All oracles green: 258 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign)
+0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / savescan 0 mismatches / build-sdl links.
+v118 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST:** standing lesson **#51 — a lever that measures WORSE alone is not refuted;
+cross it with the ARM ORDER and re-measure the 4 cells**, and the bullet under it on the
+zero-init constant fold. Both are cheap procedures, not insights you have to have.
+
+**▶ WHAT LANDED** (3 commits; anchor re-measured with `exactset.py` + `comm` after every one,
+and again after each source note, per lesson #23; all five oracles + build-sdl at the end).
+1. **`ParsePuz2` 0x422fd0 byte-EXACT (165 B → 0, len 310 → 317 = the extent).** THE headline.
+   Its own note had named both halves of the answer since G1 and still could not land it:
+   arm-swap alone 94 B at len 318, `Add` alone 164 B at len 309, **together 0**.
+2. **`AddItemToInv` 0x428f50: 381 B → 6, len 505 → 506 = the extent**, insns 161/161, reg_pen 0.
+   FOUR composed dials — decl order `nInv,i`, the inner arm order, `Add`, and a
+   `int nCur = GetSize()` named local before the scrollbar if (lesson #43). v118's held-back
+   141 B variant was the first dial only.
+3. **`WorldgenFillQuestItemSpot` 0x41c580 218 B → 11 (len = extent) and `WorldgenFillSpawn`
+   0x41c730 227 B → 26 (len = extent)** — `int j = 0;` must come AFTER `paSpots.SetSize(0, -1);`
+   or cl folds the zeroed register into the literal `0` argument. `WorldgenFillQuestItemSpot2Maybe`
+   0x41cf10 carries the same form (295 → 292) on clone consistency + length, not on its own merit.
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ SWEEP THE WHOLE `Add`/`SetAtGrow` SEAM AGAIN, CROSSED WITH THE ARM ORDER.** Lesson #48's
+   seam (~80 `SetAtGrow` sites) was worked ONCE, in isolation, and that is exactly the mistake
+   #51 identifies — two of v116's three reverts were recoverable. 4 compiles per function.
+   Start with the third v116 revert, **`Generate`** (6 B out of 5710), and with every non-exact
+   function that has BOTH a `SetAtGrow(X.GetSize(), …)` site and an `armscan.py` hit.
+   ⚠ `Add` is INERT on `CWordArray` value arrays (measured) — aim it at CObArray members only.
+2. **⭐ `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 (292 B) — the lead is already diagnosed** in
+   its source note: we RELOAD the `itemId` parameter inside the genCandidateA scan loop
+   (`mov ax,[ebp+0x14]` at +0x5f) where the original hoists it above the loop. Stage it in a
+   named local (lesson #43) and re-measure before touching any dial.
+3. **Grep for the zero-init constant fold** (the second v119 bullet): a `= 0` local declared
+   just before a call taking a small literal, in a function that is 1–2 bytes SHORT. It is worth
+   200 B a time and `residuals.py --lenmis` ranks the candidates for free.
+4. **FINISH THE INNER-BLOCK SEAM** (v118's item, still open): 45 non-exact functions / 521 legal
+   permutations, ~19 swept. Run per TU with `run_in_background` to a log, never concurrently
+   with another sweep. ⚠ Worldgen.cpp compiles are slow. Already swept flat or below the bar —
+   do not re-tread: 0x4260e0, 0x421930, 0x424fc0, 0x423df0, 0x412250, 0x40a710, 0x40f4b0,
+   0x4270f0, 0x41a1c0, 0x408e70, 0x409c10, 0x40ec30, 0x40f060, 0x41d260, 0x41c200, 0x403aa0,
+   0x41d480, 0x41c490, 0x40a320, 0x41c3b0, and (v119) **0x428f50 and 0x41c580**.
+5. **Keep working `residuals.py --lenmis` top-down.** Unworked, negative first:
+   `ScrollZoneTransition` 0x411180 (−62), `Layout` 0x4176f0 (−35), `DrawHealthNeedle` 0x4278a0
+   (−17), `DrawHealthDial` 0x427490 (−16), `OnUpdate` 0x408e70 (−11), `WorldgenPlacePuzzles`
+   0x421930 (−11); then positive: `ShowWinMessage` 0x40f4b0 (+36), `IactProbeMove` 0x406550
+   (+26), `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13). **OFF this list now:** 0x428f50,
+   0x422fd0, 0x41c580, 0x41c730. ⚠ hand-disassemble two hits before investing (v117's own first
+   census ranked 3 artifacts).
+6. **`aliasscan.py` ∩ `--lenmis`** (lesson #50's strong form) is still unworked apart from
+   AddHealth: best is **`OnNewDocument` 0x41bb10 (−29)**. Read-only recon done this session — the
+   original caches `&pCanvas` in a frame slot ([ebp-0x24]) and RELOADS `pCanvas` through it three
+   times, and it stores the Canvas ctor's return DIRECTLY (`mov [ecx],eax`) rather than via a
+   `pNew` temp, which our `Canvas *pNew = NULL; TRY {...} pCanvas = pNew;` cannot produce.
+7. **`dtorscan.py`'s remaining live hit**: `Load` 0x422670 (1634 B). (ParsePuz2 is now closed.)
+8. **⛔ Do NOT run another per-function decl sweep on the cheap band** (< ~25 B) — that verdict
+   now rests on ~20 functions across v111–v119, inner blocks included. Lesson #51 does NOT
+   reopen it: both v119 wins were on LARGE residuals with a wrong LENGTH.
+9. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
+
+**▶ MEASURED NEGATIVES this session — do NOT re-tread.**
+- **`AddItemToInv`'s scrollbar if/else arm order is INERT** (56 B either way, measured TWICE
+  before `nCur` landed) — and then costs 56 AFTER it, so the `> 7`-first order is confirmed.
+  `< 8` and `>= 8` each cost 1 B, pinning the literal 7; the member `SetScrollRange` form is inert.
+- **A hand-written `{ int nIdx = GetSize(); SetAtGrow(nIdx, pNew); }` is NOT MFC's `Add`** —
+  189 B at len 491 on AddItemToInv vs `Add`'s exact-length result. The evidence is for the
+  library inline, not for the idea of naming the index.
+- **`Add` is inert on `CWordArray`** (0x41c580 / 0x41c730, identical both ways).
+- **0x41c580 is closed on the decl axis**: all 6 leading-decl permutations are worse, and the
+  {i,nCount} × {nObjs,j} product reaches 9 B via `nCount,i` — 2 bytes of tuning on an
+  already-exact length, deliberately NOT landed under lesson #48's bar.
+- **`AddItemToInv`'s last 6 B are TU-joint phase**, not a body defect: one instruction's schedule
+  slot, flat across the arm's whole spelling space and the inner-decl axis, at matching length,
+  matching save set, reg_pen 0 (the lesson-#44 signature).
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v118 rules all stand and were all re-used).**
+Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
+sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps concurrently,
+or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/`formsweep.py`/`armscan.py`/
+`dtorscan.py`/`declorder.py` is in flight (they share `build/*.obj`). Measure with
+`tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite IS a line-count
+change (lesson #23) — **re-measure AFTER writing the note**; v119 did this for all five notes and
+each was clean.
+⭐ **v119 additions:**
+- **Do not judge a lever by its own row.** Before recording a conversion as refuted, cross it
+  with the arm order (4 cells). The length rule applies to the COMBINATION.
+- **Decompose the LENGTH deficit instruction by instruction before choosing a dial.** On both
+  v119 wins the byte count added up EXACTLY (ParsePuz2: +4 +4 +2 −2 −1 = 7), which is what turned
+  "some register thing" into a specific, falsifiable source hypothesis.
+- ⚠ **In this environment wall-clock only advances while a command is actually running.** Polling
+  a background job in a tight loop of quick calls makes a live sweep look hung. Either run the
+  measurement in the FOREGROUND with a long `timeout`, or block on a real `until … sleep` wait.

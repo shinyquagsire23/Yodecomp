@@ -345,7 +345,7 @@ public:
     TextDialog(CDeskcppView *pView);                          // 0x00416b90
     int  Run();                                           // 0x00416c40
     void Position();                                      // 0x00417570
-    void Layout(int x, int y);                            // 0x004176f0
+    void Layout(int x, int y, int nUnused);              // 0x004176f0  (3 params — see .cpp)
     void ScrollTextLine();                                // 0x00417c90  (down one line)
     void ScrollTextLine2();                               // 0x00417d30  (up one line)
     void UpdateDialogButtons(int nUnused);                // 0x00417dc0 (ret 4; arg unused, always 1)
