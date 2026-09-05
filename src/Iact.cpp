@@ -54,6 +54,10 @@ void Zone::ReadIzon(CFile *pFile)
         pFile->Read(&tiles[i * 54], height * 6);
 }
 
+// [v120: the CONTAINER CALL FORM (lesson #48) is measured here and the current spelling is
+//  POSITIVELY CONFIRMED — `objects.Add(o)` costs 12 B -> 19 at identical length, i.e. converting
+//  would make an already-length-exact function worse. Dropping the `add` local (`for (i = n;
+//  i < count; i++)`) costs ~570 B either way, so the count-difference local is confirmed too.]
 // FUNCTION: YODA 0x00405bd0  [EFFECTIVE MATCH: DIFF(12) — a pure ebx<->esi 2-cycle in the LAST
 //   loop (ebx = the scaled iactScripts index, esi = i), plus the `this` load sitting one push
 //   earlier. Length (862) and the callee-save set both already match, so lesson #42/#43 do not
@@ -1332,3 +1336,24 @@ unsigned int Zone::IactRunCommands(int scriptIdx, CDC *pDC, CDeskcppDoc *pWorld,
 // ⇒ classify as allocation/scheduling state (the dial), not a source fact. Contrast lesson #34,
 // where an equally 'unreachable-looking' register copy DID turn out to be a source construct —
 // which is why this one was re-swept before being parked again.
+// ⏮ v120 RE-SWEPT IT A THIRD TIME on FOUR axes v99/v109 never touched, because the seam is worth
+// +3 exact (0x406410, 0x406490 and BOTH of ReadZaux 0x406270's tail loops carry the identical
+// idiom — 4 sites, one construct — and ReadZaux's -6 length is exactly two of them). ALL FLAT:
+//   · the CONTAINER CALL FORM (lesson #48): `genCandidateA.Add(n)` is byte-IDENTICAL to
+//     `SetAtGrow(GetSize(), n)` here — a third confirmation that Add is INERT on a CWordArray of
+//     values, and the original's push order (element first, `this` LAST via lea) is the
+//     SetAtGrow fingerprint anyway, so the current spelling is positively confirmed.
+//   · the decl SET (lesson #38/#45): adding a 6th local `short m;` at each of the 6 positions in
+//     the leading block and writing `m = count; i = m;` — dead flat at 47 B in all 6. cl's FRONT
+//     end copy-propagates the intermediate away, which is why no temp chain can ever reach it.
+//   · forced-truncation expressions that keep the intermediate type at `short`:
+//     `(short)(count + 0 | * 1 | - 0 | >> 0)`, `(short)(unsigned short)count`, `(int)(short)(int)count`,
+//     a ternary and a comma expression — all 10 fold to the same 5-byte `movsx r32, mem16`.
+//   · the decl TYPE of `i` — and this one is the informative negative. `short i` DOES produce the
+//     16-bit load (`mov bp, word ptr [esp+0x12]`, len 112, diff 46) but then keeps the counter
+//     16-bit (`dec bp`), where the original decrements 32-bit. So cl will emit EITHER the folded
+//     `movsx r32,mem16`+`dec r32` (int) OR `mov r16,mem16`+`dec r16` (short); the original's
+//     THIRD shape — 16-bit load into a scratch, `movsx` into a 32-bit counter, `dec r32` — was
+//     not reachable from any of the ~45 spellings now tried across v99/v109/v120.
+// ⇒ The +3 is one instruction-SELECTION decision, not a missing statement. Park stands; do not
+// re-open it without a genuinely new mechanism (the axes above are all recorded as spent).

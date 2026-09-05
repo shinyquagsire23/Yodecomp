@@ -74,21 +74,40 @@ void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
     }
 }
 
-// FUNCTION: YODA 0x00419210  [EFFECTIVE MATCH: structurally identical (instr-selection all
-//   correct); residual is CRect stack-slot placement + the base-return spill (orig parks bRet
-//   in a stack slot and reloads; ours keeps it in EDI → our frame is 4B smaller). Pure
-//   allocator/scheduling tie-break — endgame/permuter territory. GetSystemMetrics raw args
-//   7/8/0xf/4/0/1 and the cs field-write order verified against disasm.]
+// FUNCTION: YODA 0x00419210  [WIP: 148 B -> 4, LENGTH 180 -> 184 = Ghidra's extent (v120).
+//   The old note here read the residual backwards: it called the bRet spill an "allocator
+//   tie-break", but the spill is a CONSEQUENCE, not the defect. The original register-homes
+//   the window WIDTH in a named local -- `lea edi,[eax*2+0x20d]` computes it into EDI instead
+//   of our `add eax,eax; add eax,0x20d` straight into the rc.right slot -- and that one extra
+//   long-lived value is what pushes `bRet` out of EDI and into [esp+0x24]. The +4 length
+//   decomposes EXACTLY: the original's `mov [esp+0x24],eax` / `mov eax,[esp+0x20]` pair (8 B)
+//   against our `mov edi,eax` / `mov eax,edi` (4 B). ⇒ lesson #49 in its purest form: read the
+//   LENGTH, decompose it, and the "register difference" names its own source construct.
+//   Second half of the fix is the store ORDER: the original writes top, left, right, bottom
+//   TOGETHER after all four GetSystemMetrics calls (frame slots E-16, E-20, E-12, E-8 at
+//   +0x3f/+0x44/+0x48/+0x4c), where we assigned rc.right first and the zeros last.
+//   Measured family (all at the exact length): one accumulating `cy` = 4 B, a separate `cb`
+//   initialised from cy = 11 B, `rc.bottom` before `rc.right` = 8 B, `rc.top = rc.left = 0`
+//   = 6 B. Idiomatic member picked (lesson #36). ⚠ `rc.SetRect(0, 0, cx, cy)` and a
+//   `CRect rc(0, 0, cx, cy)` ctor are REFUTED from the other side: both write LEFT before TOP
+//   and the original writes TOP first (25 B measured). GetSystemMetrics raw args 7/8/0xf/4/0/1
+//   and the cs field-write order verified against disasm.
+//   Residual = ONE 2-instruction schedule swap (`add eax,ebp` sits before `xor ecx,ecx` in the
+//   original, after it in ours) at insns 63/63, reg_pen 0, matching length and matching save
+//   set = the lesson-#44 signature. Swept flat: 7 body arrangements, 9 cy/cb accumulation
+//   forms, 6 store orders. The `xor` materialises the 0 shared by rc.top, rc.left AND the
+//   SM_CXSCREEN argument, so this is lesson #39's axis -- and moving the zeros costs 128-159 B.
+//   ⚠ the 6-line body shape is deliberate (line-neutral vs the pre-v120 text, lesson #23).]
 BOOL CMainFrame::PreCreateWindow(CREATESTRUCT &cs)
 {
     BOOL bRet = CFrameWnd::PreCreateWindow(cs);
     CRect rc;
-    rc.right = GetSystemMetrics(SM_CXDLGFRAME) * 2 + MAIN_WINDOW_WIDTH;
+    int cx = GetSystemMetrics(SM_CXDLGFRAME) * 2 + MAIN_WINDOW_WIDTH;
     int cy = GetSystemMetrics(SM_CYDLGFRAME) * 2 + MAIN_WINDOW_HEIGHT;
     cy += GetSystemMetrics(SM_CYMENU);
-    rc.bottom = GetSystemMetrics(SM_CYCAPTION) + cy;
-    rc.top = 0;
-    rc.left = 0;
+    cy += GetSystemMetrics(SM_CYCAPTION);
+    rc.top = 0; rc.left = 0;
+    rc.right = cx; rc.bottom = cy;
     int dx = GetSystemMetrics(SM_CXSCREEN) / 2 - MAIN_WINDOW_WIDTH / 2;
     int dy = GetSystemMetrics(SM_CYSCREEN) / 2 - MAIN_WINDOW_HEIGHT / 2;
     rc.OffsetRect(dx, dy);

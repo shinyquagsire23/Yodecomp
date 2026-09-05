@@ -815,11 +815,26 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short i
 // [WIP: 295 B -> 292, LENGTH 426 -> 427 against an extent of 430. Carries its clones'
 //  `int j = 0;` after `paSpots.SetSize(0, -1)` form (0x41c580 / 0x41c730, where it is worth
 //  200+ B each) — kept here on CLONE CONSISTENCY plus a length moving toward the extent, NOT
-//  on its own 3 B, which is well under lesson #48's bar. ⭐ NEXT LEAD, and it is structural,
-//  not a dial: ours RELOADS the `itemId` parameter inside the genCandidateA scan loop
-//  (`mov ax,[ebp+0x14]` at +0x5f, 4 B) where the original hoists it above the loop; that one
-//  difference shifts every later byte and accounts for the bulk of the 292. Stage `itemId`
-//  in a named local before the loop (lesson #43) and re-measure before touching any dial.]
+//  on its own 3 B, which is well under lesson #48's bar.
+//  ⛔ v120: the "NEXT LEAD" this note used to carry (an `itemId` reload at +0x5f) is RETRACTED
+//  — it was already fixed by the v119 edit and the note went stale in the same session that
+//  wrote it. At HEAD the genCandidateA scan loop matches the original instruction for
+//  instruction. ⚠ A stale lead in a park note is worse than no lead: re-diff before acting.
+//  What IS real, measured at v120: the original stages `paSpots.GetSize()` into ESI BEFORE the
+//  `rand()` call (`mov esi,[ebp-0x24]` at +0xd3, then `idiv esi`) where we emit
+//  `idiv dword ptr [ebp-0x24]` — i.e. a named local, lesson #43. `int nSpots =
+//  paSpots.GetSize();` ahead of the pObj expression reproduces it and moves the LENGTH
+//  427 -> 429 (extent 430), which is the strong signal. It is NOT LANDED: it costs the
+//  Worldgen.cpp joint phase ParseZax2 0x423210 and DetonateAdjacentTiles 0x428680 while
+//  gaining SetCurrentToIntroZone 0x423d20 — a measured -2/+1 for +1 byte of length, well
+//  under the bar. Re-try it only inside a change that also fixes the two casualties.
+//  The decl axis is CLOSED here (v120, `declorder.py --inner`, 9 legal permutations): the
+//  leading pZone,i,nCount order is the best (its two legal rivals cost 304/305), and the only
+//  improvement anywhere is `paSpots` before `nObjs` in the bFound block, worth 3 B.
+//  Remaining residual = a two-block register cascade at insns 139/138: the original keeps
+//  pZone in EAX across the two genCandidateA member loads where we spill and reload it (+3),
+//  and we cache `itemId` in DI across the bSpot block where the original re-reads [ebp+0x14]
+//  three times (-4). Those two account for the whole -1 length deficit exactly.]
 // Variant of FillQuestItemSpot: place itemId into a random OBJ_QUEST_ITEM_SPOT (type 0) of
 // zoneId if its genCandidateA lists it; registers the item via WorldgenAddZoneEntry and
 // genCellItemCScratch. Recurses into DOOR_IN children (no null/negative-id guard — sic).
@@ -1239,6 +1254,8 @@ void CDeskcppDoc::RemoveZoneEntry2(short zoneId)
     }
 }
 
+// [v120: the CONTAINER CALL FORM (lesson #48) is measured here on a real CObArray and the
+//  current spelling is POSITIVELY CONFIRMED — `worldgenRefZones.Add(pEntry)` costs 27 B -> 28.]
 // FUNCTION: YODA 0x0041d800
 // Dedup-append to the ref-zone set: scan for zoneId, append a new entry only if absent.
 void CDeskcppDoc::WorldgenAddZoneEntry(short zoneId, short val)
@@ -3690,6 +3707,23 @@ int CDeskcppDoc::IsTileInGoalList(unsigned int tileId)
     return result;
 }
 
+// [v120: worked the lesson-#48/#51 seam here (three CObArray SetAtGrow sites, and the
+//  paAdjacent/paIsolated pair is a real if/else DIAMOND — the exact composite shape). NOT
+//  LANDED, and the reasons are worth keeping:
+//   · `Add` on the diamond pair alone: 35 B -> 29, but it costs DrawRect 0x424010 60 B -> 463
+//     AND its length match (654 -> 651 against an extent of 654). That is the v116 DrawRect
+//     collateral again, reached from a different upstream edit — real and repeatable.
+//   · `Add` on all three sites: 35 -> 43. `Add` on paFar alone: 35 -> 32.
+//   · The ARM SWAP alone: 35 -> 32, and it flips the Worldgen joint phase so that
+//     SetCurrentToIntroZone 0x423d20 becomes EXACT while DetonateAdjacentTiles 0x428680 loses
+//     it — a +1/-1 trade, not a gain.
+//   · ⚠ The COMPOSITE (lesson #51) is WORSE than either half here: arm swap + Add = 49 B,
+//     against 32 and 29 alone. #51 says a lever that measures worse ALONE is not refuted; the
+//     converse does NOT hold, and this is the counter-example — measure the 4 cells, never
+//     assume a composite inherits its halves' gains.
+//   · And the arm swap is refuted from the other side anyway: `armscan.py` does NOT flag this
+//     function, i.e. our jcc polarity already agrees with the original's, so swapping the arms
+//     would be moving the dial with a change we have positive evidence AGAINST (❌ the v96 rule).]
 // FUNCTION: YODA 0x00421620
 // [EFFECTIVE: 39B, insns 255/255 exact, structure fully aligned. Residuals are pure
 // reg-role tie-breaks: the entry movsx-vs-pRow-load scheduling (both statement orders
@@ -5932,6 +5966,8 @@ void CDeskcppDoc::OnSaveWorld()
 // calls to kick a replay load — not producible from C++ source (likely an incremental-link
 // ILT remnant); reproduce at the Phase-G whole-image link, not here.
 
+// [v120: `inventory.Add(pNew)` (lesson #48, a real CObArray) is byte-INERT here — 2951 B
+//  either way, and it disturbs nothing else in the TU.]
 // FUNCTION: YODA 0x00424fc0
 // [EFFECTIVE-WIP: insns 1131/1136, align=496 mostly echo; len 3606 vs ~3696 extent (orig
 // includes more EH-funclet bytes). Cracks that landed (session 2026-07-06): early-return
