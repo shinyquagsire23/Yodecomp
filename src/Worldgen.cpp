@@ -5311,10 +5311,36 @@ int CDeskcppDoc::GetZoneIndex(Zone *pZone)
 }
 
 // FUNCTION: YODA 0x00423df0
-// [EFFECTIVE MATCH: DIFF(12), insns 101/101, reg_pen=0. Sole residual: orig emits a redundant
-// promotion MOVSX EDI,DI / MOVSX EBX,BX before the word-adds destX/destY += 0x1c (its peephole
-// kept the int-promotion; ours deletes it). Probed inert: +=, expression assign, (short) cast.
-// Instruction-selection family — not source-steerable.]
+// [WIP: DIFF(96), len 336 vs extent 342 (-6). The whole 6-byte deficit is the two 3-byte
+// self-extensions the original emits at the loop bottoms — `movsx edi,di` at +0x0f0 and
+// `movsx ebx,bx` at +0x108 — each immediately followed by the word-add destX/destY += 0x1c.
+// With those present the function is 101/101 insns, reg_pen 0; the rest of the diff is an
+// ebx<->edi bijection. IDENTICAL construct to RefreshZone 0x403ae0 (-6, two sites) — see its
+// note; ZoneTransitionStep 0x409650 (+0x1a6) is the third and last instance in the image.
+//  ⭐ v122 NAMED THE MECHANISM (it is NOT "instruction selection", as this note used to say).
+//  A self-extension `movsx r32,r16` is cl 10.20 MAINTAINING a 32-bit incarnation of a `short`
+//  in the SAME register. Proof from ZoneTransitionStep's site: three instructions earlier it
+//  does `lea ecx,[ebx+edi]` — a genuine 32-bit use of the short accumulator, with no movsx of
+//  its own, because the previous iteration's `movsx ebx,bx` established it. POSITIVE CONTROL:
+//  Canvas::BlitFast 0x408110 is BYTE-EXACT and carries `movsx edx,dx` at +0x5d, and its source
+//  construct is readable — `height = canvasH - destY;` (16-bit arithmetic into a short) then
+//  `int rows = height;` (promotion into an int local). So the shape to look for is a short
+//  whose int form is materialised.
+//  ⛔ 16 SPELLINGS MEASURED AND REFUTED here — do not re-tread:
+//    * int COPIES of the accumulators (`int nDestX = destX;` used as the blit args) in every
+//      placement — both/x-only/y-outer/x-inner+y-outer/declared-outer/taken-at-the-bottom/
+//      masked-blit-only: 241-271 B at len 346-361. cl does NOT coalesce the copy into the
+//      accumulator's register; it movsx'es into a SCRATCH register and the length overshoots.
+//    * decl SCOPE: hoisting y/destY/x/destX to function scope in four configurations cuts the
+//      diff 96 -> 88 (dead flat across all four) but NEVER moves the length off 336. Recorded,
+//      not landed (lesson #48's bar: no length improvement).
+//    * `register` storage class, `long`/`unsigned` increment types, for-loop form, and
+//      swapping `x++` ahead of `destX +=`: all dead flat at 96 B / len 336.
+//  Also refuted at RefreshZone: the increment's arithmetic spelling (inert) and the blit
+//  signatures (`short destX, short destY` in Canvas.h is positively CONFIRMED — every one of
+//  the 21 blit call sites in the original pushes a plain register with no sign-extension, and
+//  `xor di,di` / `mov di,4` initialise only the LOW half, so the high bits are provably dead
+//  and these two movsx are DEAD CODE the original's peephole failed to delete).]
 // Draw the 10x10 locator map into pCanvas (28px cells at +4,+4; background tile 0x344 under
 // each cell; per-cell icon from GetLocatorIconMaybe; the 32x32 player marker apUiTiles[15]
 // over the player's cell when bDrawPlayer), then blit the 288x288 result to the DC at
@@ -7131,10 +7157,36 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 // only strText; emitted into this TU by ShowTextDialog's stack TextDialog)
 
 // FUNCTION: YODA 0x00427490
-// [EFFECTIVE-WIP: insns 167/165; residual = the this=ESI-vs-spill rotation (Generate
-// family) — orig keeps this in ESI and the four coord ints in frame slots, ours spills
-// this and registers the coords; everything else aligns. Not source-steerable piecemeal;
-// joint pass.]
+// [WIP: DIFF(346), len 493 vs extent 509 (-16). Residual = the this=ESI-vs-spill rotation
+// (Generate family) — orig keeps `this` in ESI, pDC in EDI and EBX in (the cached GetSysColor
+// import, then pOldBrush), and puts the FOUR COORD INTS IN FRAME SLOTS, reloading one per
+// push; ours spills `this` and enregisters two coords instead. The -16 is exactly those
+// missing reloads.
+//  ⭐ v122 PROVED THE CAUSE IS COORD MEMORY-RESIDENCY, AND NOTHING ELSE. Forcing the four
+//  values into memory by taking the rect's ADDRESS (`CRect rc = pWorld->rectHealthDial;
+//  rc.InflateRect(2, 2);`) collapses the residual to **reg_pen 3 / identity_miss 3 /
+//  byte_diff 82** from 35/54/154 — i.e. every register role snaps to the original's and the
+//  ONLY thing left is the coord block itself. That is a PROBE, not the answer: ::CopyRect +
+//  ::InflateRect are real API calls the original does not make (it emits inline
+//  `sub eax,2` / `add eax,2`), and the length goes to 491.
+//  ⛔ MEASURED AND REFUTED — do not re-tread (13 spellings):
+//    1. The DECL axis is DEAD FLAT at 346: separate `int x1, y1, x2, y2;` decl with the
+//       assignments in the original's left/right/top/bottom order, the same hoisted to the
+//       top of the function, decl order x1,x2,y1,y2, and initializer order x1,y1,x2,y2 all
+//       measure 346 B / len 493. (The original's slot layout -0x1c/-0x18/-0x14/-0x10 does
+//       pin the decl order as x1,y1,x2,y2 with assignments x1,x2,y1,y2 — but it is inert,
+//       lesson #36's "slot order is decl-order-invariant" again.)
+//    2. A plain `RECT rc;` + per-field assignment is NOT it: cl 10.20 SCALARISES a local
+//       struct whose address never escapes, emitting the identical `mov edi,[ecx+0x32c4];
+//       sub edi,2` as the four scalars (346 B). `int c[4];` likewise (347 B).
+//    3. `RECT rc = pWorld->rectHealthDial;` + `rc.left -= 2;` etc. hits len 509 == the
+//       extent EXACTLY and cuts to 301 B — but it is NUMBER-CHASING, not the source: it
+//       emits a 4-field BLOCK COPY and then separate adjustments, where the original fuses
+//       load/adjust/store per field. Rejected under lesson #48's bar. Same for the
+//       compound-assign spelling (301 @ 509) and `CRect rc(...)` (227 @ 493).
+//  ⇒ The open question is narrow and specific: what 1997 spelling puts four ints in the
+//  FRAME with inline load/adjust/store? Everything else about this function is solved.
+//  Its sibling DrawHealthNeedle 0x4278a0 (-17) is almost certainly the same construct.]
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.

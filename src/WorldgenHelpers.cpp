@@ -1071,6 +1071,19 @@ int CDeskcppDoc::FindTile(void *pTile)
 //        BlitMasked 0x408240), and a sweep of ALL 21 blit call sites in the original shows every
 //        one pushing a plain register with no sign-extension. `short destX, short destY` in
 //        Canvas.h is therefore positively CONFIRMED; changing it would break the callees.
+//   ⭐ v122 NAMED THE MECHANISM and refuted 16 more spellings on the TWIN (DrawLocatorMap
+//   0x423df0, same -6, same two sites — see its note in Worldgen.cpp for the full write-up).
+//   Short version: a self-extension `movsx r32,r16` is cl 10.20 MAINTAINING a 32-bit
+//   incarnation of a `short` in the SAME register, proven by ZoneTransitionStep 0x409650's
+//   site (+0x1a6), where `lea ecx,[ebx+edi]` three instructions earlier is a real 32-bit use
+//   of the accumulator. Positive control: Canvas::BlitFast 0x408110 is BYTE-EXACT, carries
+//   `movsx edx,dx`, and its source is `height = canvasH - destY;` (short) + `int rows =
+//   height;` (the promotion into an int local). Refuted on the twin: int COPIES of the
+//   accumulators in seven placements (they movsx into a SCRATCH register, never coalesce, and
+//   overshoot the length by 4-19 B), the `register` storage class, long/unsigned increment
+//   types, the for-loop form, and swapping the two increments. Decl SCOPE cuts the twin's diff
+//   96 -> 88 flat but never moves its length. This is a 3-function, 5-site cluster and it is
+//   the last unexplained -6/-6/+3 on the --lenmis census.
 //   ⇒ Next axis to try (untested): the GetTile result handling / the `int t` temp, or the loop
 //   structure — NOT the increment and NOT the signatures. Also open: push/mov scheduling at the
 //   blit sites.]
