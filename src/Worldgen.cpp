@@ -7200,7 +7200,34 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 //  `this` here** — and note that ScrollZoneTransition 0x411180 is the SAME question with the
 //  sign flipped (there the ORIGINAL spills `this` and we enregister it). Both functions have
 //  `this` at 4 uses, three of them inside a conditional, so a weighted use-count reading
-//  predicts OUR choice in both cases and the original's in neither.]
+//  predicts OUR choice in both cases and the original's in neither.
+//  ⭐ v124 ANSWERED "why the coords are in memory", POSITIVELY CONFIRMED THE STATEMENT ORDER
+//  BELOW, and closed two more axes. Read the EH STATE STORE, which is a free statement-order
+//  oracle nothing here had used: the original emits `mov byte [ebp-4],3` — the state marking
+//  ALL FOUR GDI objects constructed — at +0x0b9, IMMEDIATELY BEFORE its four fused
+//  load/adjust/store coord writes at +0x0bd..+0x0ec. So the original computes the coords
+//  AFTER the four constructions, which is EXACTLY the order below. The statement order is no
+//  longer an assumption; it is read off the machine code.
+//    ⛔ REFUTED, do not re-tread (26 more compiles): hoisting the coord block ABOVE the four
+//    ctors ("coords-first") moves the LENGTH 493 -> 503 (-16 -> -6) and cuts diff 346 -> 336,
+//    which LOOKS like a lesson #49 win and is NUMBER-CHASING — the +10 bytes are extra
+//    `mov eax,[ebp-0x10]; mov ecx,[eax+0x44]` this-reloads forced by computing the coords too
+//    early, and `this` is STILL spilled. The EH-state store above refutes it outright. Fully
+//    crossed with 5 GDI-object construction orders x 2 coord decl orders (20 cells): coord
+//    POSITION alone sets the length (503 vs 493, every cell), decl order is INERT, and object
+//    order only moves diff at the wrong length (best 319 with brushes first). Also inert:
+//    the CDC::Chord MEMBER call form, both calls or either one (lesson #35 does not apply
+//    here); ::Chord(pDC->GetSafeHdc(), ...) is strictly worse (len 511, +2 over the extent).
+//    ⭐ THE MECHANISM, finally named: the original commits EBX to a CSE OF THE GetSysColor
+//    IMPORT ADDRESS — `mov ebx,[0x45eb94]` once, then FOUR `call ebx` (2 B each) where we emit
+//    four 6-byte `call dword ptr [__imp__GetSysColor]`. That CSE is a third long-lived value,
+//    so with esi=this and edi=pDC there is NO callee-saved register left and all four coords
+//    MUST go to the frame. We do not make that CSE, so ebx/edi are free and two coords stay in
+//    registers. ⇒ the coords-in-memory question and the `this` question are ONE question, and
+//    both are downstream of the import-address CSE. Whatever spelling triggers that CSE is the
+//    whole fix; no spelling tried so far does. See lesson #55 (tools/thisscan.py) for the
+//    project-wide rule this sits inside: under an EH frame cl SPILLS `this` by default (68 of
+//    75 byte-exact cases), and this function's original is one of only 7 exceptions.]
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.

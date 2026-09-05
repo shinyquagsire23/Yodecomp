@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -526,6 +526,58 @@ column already names it (`cmp-swap`, `jcc-mirror`).
 ⚠ **TRIAGE RULE: when `residuals.py` reports a residual whose kinds are only `cmp-swap` and/or
 `jcc-mirror`, park it immediately.** A spelling sweep there is guaranteed waste — v123 spent
 ~35 compiles across four of these re-confirming flat, which is the cost this rule now saves.
+⭐ **v124 ADDS A THIRD GUISE AND A SEVENTH FUNCTION: the LEA SIB base/index swap.**
+`GetFrameTile` 0x404850 is DIFF(2) and the two bytes are the SIB byte of its two direction
+LEAs — ours `8d 54 02` = `[edx+eax+6]`, the original `8d 54 10` = `[eax+edx+6]`. It is NOT a
+register bijection: **both images hold the same values in the same registers** (edx=bank,
+eax=dy), so only the commutative address's base/index ENCODING differs. Eight source
+spellings — every operand order, both parenthesisations, constant-first — are DEAD FLAT at
+DIFF(2)/len 183. ⚠ and the tempting "base = the younger temp" rule (which the byte-EXACT
+`AddHealth` 0x427690 obeys, emitting `[eax+esi-1]` from `nScaled / -3 - 1 + nLo`) DESCRIBES
+cl's output without being REACHABLE from the input — no spelling reproduces it. ⇒ extend the
+triage rule: **a commutative-operand ENCODING difference at identical length, registers and
+schedule is dial-bound whatever the operator** — compare, test-vs-cmp, or LEA addressing.
+The pickup that called this "the cheapest remaining real target" was wrong; it is closed.
+
+⭐ **`this` HAS A RESIDENCY RULE, AND THE EH FRAME IS THE DIAL (v124, lesson #55) —
+`tools/thisscan.py`.** A `__thiscall` receives `this` in ECX; cl 10.20 then parks it in a
+callee-saved register (ENREG), stores it to a frame slot and RELOADS it before nearly every
+use (SPILL), or leaves it in ECX (small leaf bodies). Which one it picks is worth 10-60 bytes,
+because each SPILL reload is a 3-4 byte `mov ecx,[...]` — and those reloads are precisely the
+bytes a NEGATIVE length delta is missing (lesson #49). Measured over all 213 byte-exact
+`__thiscall` functions:
+- **NO EH frame ⇒ ENREG is the default (71 of 78).** The ONLY exceptions are the **three**
+  functions needing FIVE OR MORE long-lived values, and all three spill with the IDENTICAL
+  prologue shape: `sub esp,N` / `mov [esp+k],ecx` / `push ebx` / `push esi` / `push edi` /
+  `push ebp` — all four callee-saved registers already committed, so `this` has nowhere to go.
+  **0 counterexamples in either direction.** ⭐ All three (`DrawEntities` 0x40b160,
+  `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) are BYTE-EXACT in our tree, so
+  lesson #53 applies: our own source already spells this construct. `ScrollZoneTransition`
+  0x411180 (-62) is the fourth instance and the only unsolved one.
+- **EH FRAME (`/GX` + any object with a dtor, or a TRY) ⇒ SPILL is the default (68 of 75).**
+  ebp is the frame pointer so only 3 registers are available, and `this` loses **even with
+  registers to spare** — 53 of the 68 spills are not saturated at all (mostly ctors/dtors
+  saving one register or none). ⇒ **an EH frame is itself the strongest predictor that the
+  original reloads `this`**, which retires a whole family of "why is the register allocation
+  different" park notes.
+⚠ **The 7 ENREG-under-EH exceptions are NOT explained by use count, and claiming they are
+would be the vacuous-column mistake**: `~Zone` 0x4054d0 SPILLS at 21 `this` uses while
+`WorldgenPushZoneEntry` 0x41d6b0 ENREGS at 4. All 7 do share `nsaved >= 2`. Treat the EH rule
+as a strong default with a genuinely OPEN exception set — `DrawHealthDial` 0x427490's original
+is an 8th exception, and v124 traced ITS cause to a **CSE of the `GetSysColor` IMPORT ADDRESS**
+in EBX (one `mov ebx,[__imp__]` + four 2-byte `call ebx`, against our four 6-byte
+`call dword ptr [__imp__]`) — a third long-lived value that forces all four coords to the
+frame. The coords-in-memory question and the `this` question there are ONE question.
+⚠ **Implement it from the PROLOGUE and stop at the first `call`** — the same v110 trap
+savescan.py hit; a linear sweep of a whole body desyncs on an embedded jump table or EH data.
+⚠ **And watch the letters**: the first draft mapped both `ebx` and `ebp` to "b", silently
+merging two different saturation states — another instrument that would have lied.
+⭐ **Free corollary — the EH STATE STORE is a statement-order oracle.** `mov byte [ebp-4],N`
+marks exactly how many EH-protected objects have been constructed, so its POSITION reads the
+original's statement order straight off the machine code. On `DrawHealthDial` the state-3
+store sits immediately BEFORE the coord block, which POSITIVELY CONFIRMS that the coords are
+computed after all four GDI objects (our current order) and refutes the hoisted variant that
+otherwise looked like a 10-byte length win. Use it before sweeping a statement-order axis.
 
 ⭐ **A CONSTANT ARGUMENT THAT THE ORIGINAL MATERIALIZES WITH A *BRANCH* IS TWO
 DUPLICATED CALLS THAT cl CROSS-JUMPED — NOT AN EXPRESSION (v121, lesson #52).** The
@@ -1379,6 +1431,11 @@ transcribed functions. ⚠ its first draft read the last 3 bytes of Ghidra's ext
 '0 mismatches' WITH the known Layout bug in the tree — the extent over-runs the real `ret` into
 a trailing jump TABLE. Caught by the built-in control: every BYTE-EXACT function must agree, and
 the tool FAILS LOUDLY if one does not) ·
+**`thisscan.py --exact <file> | --all`** (⭐ v124 — READ-ONLY census of how the ORIGINAL
+treats `this` in every `__thiscall` function: ENREG / SPILL / ECX, with the EH-frame flag, the
+callee-save set and the saturation test. This is the instrument behind lesson #55; run it
+before reading a "-N length" residual as a register-allocation mystery. Safe to run during a
+sweep) ·
 **`epiloguescan.py`** (⭐ v120 — the DUPLICATED-EPILOGUE target list: length SHORT of the extent
 AND the original decoding MORE `ret`s than us = the *then*-arm `return;` that cl gave a local
 epilogue. Landed PlaySound 0x409060; now 0 hits, i.e. MINED OUT) ·
@@ -1398,96 +1455,95 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-06 v123 — **held at 256 exact; no new byte-match. The
-session's result is a NEGATIVE with unusually high leverage: the six closest-to-exact
-functions in the project — 11 bytes in total, including the only DIFF(1) function — are
-now PROVEN unreachable from the source and CLOSED (lesson #54, the compare-encoding
-peephole).** Three residuals were also decomposed byte-for-byte and two more axes closed.
-All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known
-benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. No CODE changed this
-session — every edit is a source NOTE. v122 log demoted to PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-07 v124 — **held at 256 exact; no new byte-match.
+The session's product is a NEW STANDING RULE (lesson #55, the `this`-residency rule +
+`tools/thisscan.py`) that answers the v123 pickup's #1 open item, plus a SEVENTH function
+closed under lesson #54 and a statement-order axis positively CONFIRMED from the machine
+code.** All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known
+benign) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. Only NOTES + one new
+READ-ONLY tool changed; no game code. v123 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — the triage rule that would have saved this whole session.** Run
-`residuals.py` and look at the `kinds` column BEFORE picking a target. **If a residual's
-kinds are only `cmp-swap` and/or `jcc-mirror`, park it — it is lesson #54 and a spelling
-sweep is guaranteed waste.** That single rule retires 6 of the 12 smallest residuals.
-Conversely the length-first method (lesson #49) is still the productive one for everything
-else; it is what produced this session's three decompositions.
+**▶ READ FIRST — two triage rules now, not one.** (1) v123's still stands: if a residual's
+`kinds` are only `cmp-swap`/`jcc-mirror`, park it (lesson #54). (2) **New: run
+`tools/thisscan.py` before reading ANY negative-length residual as a register mystery.** If
+the original has an EH frame, it almost certainly SPILLS `this` and the missing bytes are its
+reloads — that is a fact about `/GX`, not about your source.
 
-**▶ WHAT LANDED** (notes only — no code change; `progress.py` re-run after every edit).
-1. ⛔ **Lesson #54, the COMPARE-ENCODING PEEPHOLE — a new standing bullet above.** Proven
-   positional (reorder the three textually-identical `LoadStoryHistory*` clones and `39/jg`
-   follows the 3rd SLOT, 4/4 permutations; inject decoy clones and it vanishes at 6+),
-   proven not-the-condition (positive control on the byte-exact twin 0x4193f0), and moved
-   ONLY by the ❌ forbidden file-scope symbol-count dial. Closes `OnPaletteIsChanging`
-   0x419460 (1 B), `LoadStoryHistoryNevada`, `SaveStoryHistory` x3 and `FindObjectAt`.
-2. **`FindObjectAt` 0x405330 — the early-return shape is REFUTED BY LENGTH** (72 B against
-   the extent's 79, all three spellings), which positively CONFIRMS the `result` + `break`
-   form. Recorded in its note.
-3. **`IactProbeMove` 0x406550: the +26 decomposed exactly** — one 12-byte frame in both
-   images holding {savedY, savedX, this, ONE int}, and the two pick a different int:
-   `found` in memory costs +33, `r` in a register saves -14, +2 for two `cmp [bForce],0`
-   where the original folds the live zero as `cmp [bForce],ebp`, -6 for our inline
-   `return 1` epilogue. Decl SET+ORDER (10 configs) and the statement order around `r`
-   (6 configs) both closed — the best buys 6 B of diff at an unchanged length.
-4. **`DrawHealthDial` 0x427490: the -16 decomposed exactly, and the question RE-FRAMED.**
-   Both frames are `sub esp,0x3c` with seven slots — neither image is short of stack. The
-   original enregisters `this`+`pDC`+`pOldBrush` and puts four coords in the frame; we
-   enregister `pDC`+`x1`+`y2` and spill `this`. ⇒ v122's "how do I force the coords into
-   memory" was the wrong question; **the question is why cl demotes `this`**.
-   ⭐ And `ScrollZoneTransition` 0x411180 is the SAME question with the sign flipped (there
-   the ORIGINAL spills `this` and we enregister it). Worth 62+16+17 bytes across three
-   functions if the rule is ever found; a weighted use-count reading predicts OUR choice in
-   both and the original's in neither.
+**▶ WHAT LANDED** (notes + `tools/thisscan.py`; `progress.py` re-run after every edit).
+1. ⭐ **LESSON #55 — the `this`-residency rule, a new standing bullet.** Over all 213
+   byte-exact `__thiscall` functions: **no EH frame ⇒ ENREG (71/78), with the only 3
+   exceptions being bodies that need 5+ long-lived values and all 3 sharing an IDENTICAL
+   prologue shape, 0 counterexamples; EH frame ⇒ SPILL (68/75), even with registers to
+   spare.** This answers v123's #1 item ("what makes cl keep `this` in a register?") for the
+   common case and RE-FRAMES both target functions.
+2. ⛔ **`GetFrameTile` 0x404850 CLOSED — lesson #54's third guise, the LEA SIB base/index
+   swap.** Both images hold the same values in the same registers; only the commutative
+   address's encoding differs. 8 spellings dead flat. ⇒ v123's pickup called this "the
+   cheapest remaining real target"; it was wrong.
+3. ⭐ **`DrawHealthDial` 0x427490 — the statement order is now PROVEN, and the mechanism
+   named.** The EH STATE STORE `mov byte [ebp-4],3` sits immediately before the original's
+   coord block, proving the coords come AFTER all four GDI ctors = our current order. The
+   "coords-first" variant (len -16 -> -6, diff 346 -> 336) is NUMBER-CHASING and is refuted by
+   that store. The real cause of the coords living in memory is a **CSE of the `GetSysColor`
+   import address in EBX** (`mov ebx,[__imp__]` + four 2-byte `call ebx`) — a third long-lived
+   value that leaves no register for the coords. Closed this session: the CDC::Chord member
+   form (inert), 20 coord-position x object-order x decl-order cells.
+4. **`ScrollZoneTransition` 0x411180 relocated into lesson #55**: it is the 4th and only
+   unsolved member of the no-EH/saturated class, and **the other three are byte-exact in our
+   tree** — so lesson #53's read-it-off-your-own-source method now applies to it.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ THE `this`-DEMOTION RULE (new, and the best-posed open item).** Three functions and
-   95 bytes of structural error hang on one unknown: what makes cl 10.20 keep `this` in a
-   callee-saved register? Both `DrawHealthDial` (-16) and `ScrollZoneTransition` (-62) have
-   `this` at exactly 4 uses, three inside a conditional. The cheap instrument is a CENSUS:
-   for every byte-exact `__thiscall` marker, record whether the original keeps `this` in
-   esi/edi/ebx or spills it, and correlate against use count, conditional-ness, EH frame,
-   callee-save pressure. That is read-only over the exact set — lesson #53's method applied
-   to an allocation decision rather than a construct.
-2. **Keep running `residuals.py --lenmis`, skipping the lesson-#54 rows.** Unworked, biggest
-   first: **`ShowWinMessage` 0x40f4b0 (+36, 1670 B)**, `Layout@TextDialog` 0x4176f0 (-35,
-   999 B — stale numbers, moved when v120 fixed its ARITY), `WorldgenPlacePuzzles` 0x421930
-   (-11), `OnUpdate` 0x408e70 (-11), `UpdateDragCursor` 0x412cc0 (+9), `PlaceZone` 0x4260e0
-   (-7), `ReadZaux` 0x406270 (-6, only 111 B of diff).
-3. **Near-misses worth one pass each** (length off by ONE, small diff): `ParseZax2` 0x423210
-   (+1, 78 B — also a v120 re-baseline casualty), `HitEntityAt` 0x4059d0 (+1, 206 B),
-   `TransitionZoneXWing` 0x40e7c0 (-1, 167 B), `WorldgenPlaceItemOnLock` 0x41cdc0 (-1),
-   `OnDraw` 0x409110 (-1). ⚠ check `kinds` first (rule above).
-4. **`DrawTextA` 0x40f060 is DIFF(2) and NOT lesson #54** — the residual is two frame slots
-   SWAPPED between a `sub` and a `cmp` (`sub eax,[ebp-0x30]; cmp eax,[ebp-0x24]` vs ours the
-   other way round), i.e. a slot-assignment question, not an encoding one. Unworked this
-   session and the cheapest remaining real target. `GetFrameTile` 0x404850 is DIFF(2) too —
-   a `lea` SIB base/index swap (`lea edx,[eax+edx+6]` vs `[edx+eax+6]`).
-5. **Try to recover the three the v120 re-baseline cost** — `CyclePalette` 0x415af0,
+1. **⭐ The `GetSysColor` import-address CSE (new, best-posed, and worth 3 functions).** What
+   1997 spelling makes cl 10.20 cache an import address in a register and emit `call ebx`
+   instead of repeating `call dword ptr [__imp__]`? A census is cheap and READ-ONLY: scan the
+   original for `mov <callee-saved>,[__imp__...]` followed by `call <reg>`, intersect with the
+   byte-exact set, and read the answer off our own source (lesson #53). This is the whole fix
+   for `DrawHealthDial` (-16) and probably its sibling `DrawHealthNeedle` 0x4278a0 (-17).
+2. **`ScrollZoneTransition` 0x411180 (-62)** — diff its register roles against the three
+   byte-exact siblings that share its exact prologue shape (`DrawEntities` 0x40b160,
+   `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) and find the SIXTH long-lived
+   value the original wants. ⚠ decl axes are CLOSED here (v121, 23 configs).
+3. **Keep running `residuals.py --lenmis`, skipping lesson-#54 rows.** Unworked, biggest
+   first: **`ShowWinMessage` 0x40f4b0 (+36, 1670 B)**, `Layout@TextDialog` 0x4176f0 (-35, 999 B
+   — numbers moved when v120 fixed its ARITY), `WorldgenPlacePuzzles` 0x421930 (-11),
+   `OnUpdate` 0x408e70 (-11), `UpdateDragCursor` 0x412cc0 (+9), `PlaceZone` 0x4260e0 (-7),
+   `ReadZaux` 0x406270 (-6, only 111 B of diff).
+4. **`DrawTextA` 0x40f060 is DIFF(2) and is NOT lesson #54** — two frame slots swapped between
+   a `sub` and a `cmp` (`sub eax,[ebp-0x30]; cmp eax,[ebp-0x24]` vs ours reversed), i.e. a
+   slot-ASSIGNMENT question (lesson #36 territory), not an encoding one. Still unworked and
+   now the cheapest genuinely-open target.
+5. **Near-misses worth one pass each** (length off by ONE, small diff): `ParseZax2` 0x423210
+   (+1, 78 B), `HitEntityAt` 0x4059d0 (+1, 206 B), `TransitionZoneXWing` 0x40e7c0 (-1, 167 B),
+   `WorldgenPlaceItemOnLock` 0x41cdc0 (-1), `OnDraw` 0x409110 (-1). ⚠ check `kinds` first.
+6. **Try to recover the four the v120 re-baseline cost** — `CyclePalette` 0x415af0,
    `ZoneHasIzxItemMaybe` 0x41bfa0, `ParseZax2` 0x423210, `DetonateAdjacentTiles` 0x428680.
    ⚠ that cluster flips on EVERY Worldgen-visible perturbation, so it is phase, not body.
-6. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers are still
-   "unreadable" (no terminal ret). Widening that coverage is cheap and the payoff is proven.
-7. **⛔ CLOSED — do not re-tread.** (a) **Everything in lesson #54's census** (6 functions).
-   (b) `IactProbeMove`'s decl and statement-order axes, and `DrawHealthDial`'s 13 v122
-   spellings + the 16 self-movsx ones. (c) `ScrollZoneTransition`'s decl + arm-local axes
-   (v121) — its -62 is the `this`-demotion question, item 1. (d) The `push 0xe01e`
-   catch-funclet census (17 sites, mined out). (e) The lesson-#52 diamond census (6
-   project-wide, only 0x413df0 unworked). (f) The "ours has more `sbb`" scan — a HARNESS
-   TRAP. (g) Everything v120 closed.
-8. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
+7. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers are still
+   "unreadable" (no terminal ret). Cheap, and the payoff is proven.
+8. **⛔ CLOSED — do not re-tread.** (a) Lesson #54's census, now **7** functions: the six from
+   v123 plus `GetFrameTile` 0x404850. (b) `DrawHealthDial`'s coord POSITION (refuted by the EH
+   state store), its Chord call form, and the 20-cell cross — plus everything v122/v123 closed
+   on it. (c) `ScrollZoneTransition`'s decl + arm-local axes (v121). (d) `IactProbeMove`'s decl
+   and statement-order axes. (e) The `push 0xe01e` catch-funclet census (17 sites). (f) The
+   lesson-#52 diamond census (6 project-wide, only 0x413df0 unworked). (g) The "ours has more
+   `sbb`" scan — a HARNESS TRAP. (h) Everything v120 closed.
+9. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v122 rules all stand and were all re-used).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v123 rules all stand and were all re-used).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
 `formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`
-is in flight (they share `build/*.obj`). Measure with `tools/exactset.py` + `comm`, never
-progress.py's total alone. A comment rewrite IS a line-count change (lesson #23) —
-**re-measure AFTER writing the note** (this session is ALL notes; re-measured, still 256).
+is in flight (they share `build/*.obj`). `thisscan.py` is READ-ONLY and safe during a sweep.
+Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite
+IS a line-count change (lesson #23) — **re-measure AFTER writing the note** (this session is
+notes + one new tool; re-measured, still 256).
+⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED** (v124 hit
+this on a 20-variant sweep). Background it from the start, and `git status` before doing
+anything else.
 ⚠ **`--expect-exact` on `formsweep.py`/`jointdecl.py` is PER-TU, not project-wide.**
 ⚠ **A vartest/declorder run RESTORES the file to whatever it read at START** — if you
 applied an edit by hand first, "restored" means back to YOUR edited state, not to HEAD.
@@ -1495,11 +1551,11 @@ applied an edit by hand first, "restored" means back to YOUR edited state, not t
 ⭐ **`vartest.py` prints the REAL extent** — `ext=<extent> <signed delta>`. Read the delta on
 every row; it refutes a variant before you look at a single register. ⚠ **`jointdecl.py`
 still carries the same vacuous `orig_len`** — a cheap, worthwhile chore.
-⭐ **A THROWAWAY PROBE SCRIPT beats a general tool for a one-off question (v123).** The three
-findings behind lesson #54 came from ~60 lines of scratch Python that edits the TU, compiles
-it once, disassembles the COMDATs with capstone and prints ONE derived fact (which opcode the
-back edge used), restoring on `atexit`. `vartest.py` could not have answered any of them — it
-reports a byte COUNT, and the question was WHICH byte. Write the disposable probe.
+⭐ **A THROWAWAY PROBE SCRIPT beats a general tool for a one-off question (v123/v124).** The
+`this`-residency census started as ~60 lines of scratch Python and only became
+`tools/thisscan.py` once it had produced a rule. ⚠ but give the throwaway a positive control
+too: v124's first draft mapped both `ebx` and `ebp` to the letter "b", silently merging two
+different saturation states.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

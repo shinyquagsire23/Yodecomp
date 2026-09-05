@@ -4708,3 +4708,37 @@ throwaway .cpp in the scratchpad, with several candidate loop/decl shapes as sep
 functions, answers "does cl 10.20 emit X for spelling Y?" in ONE compile and never touches
 `src/` or `build/*.obj`. That is how the int-copy hypothesis for the self-movsx cluster was
 killed before spending a vartest sweep on it.
+
+---
+
+### ⏮ v123 PICKUP (2026-09-06 — demoted at v124)
+
+**Held at 256 exact; no new byte-match.** The session's result was a NEGATIVE with high
+leverage: the six closest-to-exact functions in the project (11 bytes total, including the
+only DIFF(1) function) were PROVEN unreachable from the source and CLOSED — **lesson #54, the
+compare-encoding peephole** (now a standing bullet in CLAUDE.md; v124 added a 7th function and
+a third guise). No code changed; every edit was a source note. All oracles green.
+
+- ⛔ **Lesson #54.** Proven POSITIONAL (reordering the three textually-identical
+  `LoadStoryHistory*` clones moves the `39/jg` form with the 3rd SLOT in all 4 permutations;
+  injected decoy clones make it vanish at 6+), proven NOT-the-condition (positive control on
+  the byte-exact twin `OnPaletteChanged` 0x4193f0 stays exact under every operand order), and
+  moved ONLY by the ❌ forbidden file-scope symbol-count dial. Closed `OnPaletteIsChanging`
+  0x419460 (1 B), `LoadStoryHistoryNevada` 0x401ac0, `SaveStoryHistory{Nevada,Alaska,Oregon}`
+  and `FindObjectAt` 0x405330.
+- **`FindObjectAt` 0x405330** — the early-return shape is REFUTED BY LENGTH (72 B against the
+  extent's 79, all three spellings), which positively CONFIRMS the `result` + `break` form.
+- **`IactProbeMove` 0x406550: the +26 decomposed exactly** — one 12-byte frame in both images
+  holding {savedY, savedX, this, ONE int}, and the two pick a different int: `found` in memory
+  costs +33, `r` in a register saves -14, +2 for two `cmp [bForce],0` where the original folds
+  the live zero as `cmp [bForce],ebp`, -6 for our inline `return 1` epilogue. Decl SET+ORDER
+  (10 configs) and statement order around `r` (6 configs) both CLOSED.
+- **`DrawHealthDial` 0x427490: the -16 decomposed exactly, and the question re-framed.** Both
+  frames are `sub esp,0x3c` with seven slots — neither image is short of stack. ⇒ "how do I
+  force the coords into memory" was the wrong question; the question is why cl demotes `this`.
+  **v124 answered both**: lesson #55 (the EH frame is the `this` dial) plus the `GetSysColor`
+  import-address CSE in EBX, which is the third long-lived value that evicts the coords.
+- ⭐ The v123 method note that paid off again at v124: **a THROWAWAY PROBE SCRIPT beats a
+  general tool for a one-off question** — ~60 lines of scratch Python that edits the TU,
+  compiles once, disassembles with capstone and prints ONE derived fact. `vartest.py` reports
+  a byte COUNT; these questions were about WHICH byte.

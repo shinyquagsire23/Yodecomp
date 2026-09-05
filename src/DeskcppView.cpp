@@ -5301,6 +5301,23 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 // across every decl axis with the streams already aligned). Do not spend
 // another session on decl spellings here; the lever, if any, is elsewhere in
 // DeskcppView.cpp and upstream of this function.
+// ⭐ v124 LOCATED THIS FUNCTION INSIDE A PROJECT-WIDE RULE (lesson #55,
+// tools/thisscan.py) — it is no longer a lone oddity. Across the 213 byte-exact
+// __thiscall functions, a body with NO EH frame ENREGISTERS `this` (71 of 78);
+// the ONLY exceptions are the THREE that need five or more long-lived values,
+// and all three spill with the IDENTICAL prologue shape this one has:
+//   sub esp,N / mov [esp+k],ecx / push ebx / push esi / push edi / push ebp
+// i.e. ALL FOUR callee-saved registers already committed to other values, so
+// `this` has nowhere to go. There are 0 counterexamples in either direction.
+// ⭐ AND THE OTHER THREE ARE ALL BYTE-EXACT IN OUR TREE — DrawEntities 0x40b160
+// ([esp+8]), SaveZoneRecursive 0x4033b0 ([esp+4]) and LoadZoneRecursive 0x403450
+// ([esp+8]). So OUR OWN SOURCE already produces this construct three times, and
+// lesson #53's method applies directly: the fix is not a spelling of this body
+// but whatever makes cl want a FIFTH long-lived value here. We currently
+// enregister this/pDC/n/n2 (four); the original enregisters pDC/n/end/arm-temp
+// (four) and spills this + n2 (six values wanted). ⇒ the concrete next probe is
+// to find the SIXTH value the original holds — diff this function's register
+// roles against those three exact siblings rather than permuting decls again.
 void CDeskcppView::ScrollZoneTransition()
 {
     CDC *pDC = GetDC();

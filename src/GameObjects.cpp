@@ -159,10 +159,24 @@ void *Character::GetWalkFrameTile(int dx, int dy, CObArray *paTiles)
     return GetFrameTile(dx, dy, paTiles, 0);
 }
 
-// FUNCTION: YODA 0x00404850  [EFFECTIVE MATCH: DIFF(2) — the two direction LEAs emit
-//   [edx+eax+k] vs the original's [eax+edx+k] (base/index swap, same insn). All operand
-//   orders/parenthesizations of dy+bank+k canonicalize the same way (temp-age tie-break,
-//   lesson #6). Semantically identical.]
+// FUNCTION: YODA 0x00404850  [⛔ CLOSED at v124 — LESSON #54, the compare-encoding
+//   peephole, in its THIRD guise: the LEA SIB base/index swap. DIFF(2), and the two bytes
+//   are the SIB byte of the two direction LEAs — ours `8d 54 02` = [edx+eax+6], the
+//   original's `8d 54 10` = [eax+edx+6]. SAME instruction, SAME length, SAME schedule, and
+//   — the point — the SAME REGISTERS holding the SAME VALUES: in BOTH images edx=bank
+//   (set 8/0x10/0 in the branches, reloaded from the uninit [esp+4] slot otherwise) and
+//   eax=dy (loaded from [esp+0x10] immediately before the lea). So this is NOT a register
+//   bijection (lesson #44) and NOT a slot question — only which operand cl encodes as the
+//   SIB base and which as the index, for a COMMUTATIVE reg+reg+disp address.
+//   ⚠ Do not re-run the operand-order sweep: v124 measured EIGHT spellings — bank+(dy+k),
+//   (dy+k)+bank, dy+bank+k, bank+dy+k, k+dy+bank, k+bank+dy, (bank+dy)+k, and a mixed
+//   pair — ALL DEAD FLAT at DIFF(2)/len 183. cl 10.20 normalises the address whatever the
+//   source order says, exactly as it normalises the compare in lesson #54.
+//   ⚠ And the tempting "base = the younger temp" rule is REFUTED as a source lever: the
+//   byte-EXACT AddHealth 0x427690 emits [eax+esi-1] four times from `nScaled / -3 - 1 +
+//   nLo`, which fits that rule — but no spelling here reproduces it, so the rule describes
+//   cl's output without being reachable from the input. Triage per lesson #54: park on
+//   sight. Semantically identical.]
 // Picks the sprite tile for a facing direction (dx,dy in -1..1) + animation bank.
 // Frame rows: 0=up, 1=down/idle, 2..4=left(dy -1/0/1), 5..7=right; banks at +0/+8/+16 shorts.
 // NOTE: bank/idx are deliberately left uninitializable on impossible inputs — the original
