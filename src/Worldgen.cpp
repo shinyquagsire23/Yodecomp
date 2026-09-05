@@ -4652,8 +4652,21 @@ int CDeskcppDoc::ParseZone(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00422fd0
-// [WIP: nDone++-arm layout family + SetAtGrow this-reg (lea vs add) + a stray NOP from the
-// TRY expansion; structure converged.]
+// [BYTE-EXACT at v119 (165 B -> 0, len 310 -> 317 = Ghidra's extent). The old note named both
+//  halves of the answer — "nDone++-arm layout family + SetAtGrow this-reg (lea vs add)" — and
+//  still could not land it, because NEITHER HALF PAYS ALONE and one of them looks REFUTED:
+//    arm swap only  ->  94 B at len 318 (overshoots the extent)
+//    Add only       -> 164 B at len 309 (1 B of diff for 1 byte of length, moving AWAY)
+//    both           ->   0 B at len 317  *** EXACT ***
+//  v116 measured the `Add` conversion here in ISOLATION, saw 1-for-1, and correctly declined
+//  it under lesson #48's landing bar. The bar was right; the isolation was the mistake.
+//  The 7-byte deficit decomposed exactly, and every byte came from the ARM ORDER (lesson #47:
+//  cl emits the *then* arm as the fallthrough, and the original falls into the Puzzle arm with
+//  the nDone++ arm parked at the function's end): +4 from `jl` near vs our short `jge`, +4 from
+//  the `pNew == NULL` `je` becoming a near jump once its target is far, +2 for the arm's exit
+//  `jmp`, -2 for the `jmp` we emit and it does not, and -1 for `lea ecx,[eax+0xd0]` (Add's
+//  fingerprint, lesson #48) replacing our `add ecx,0xd0` plus the stray NOP the old note
+//  blamed. The NOP was a SYMPTOM of the call form, not a TRY-expansion artifact.]
 // CHUNK chunk: allocate + read Puzzle records, -1-terminated id list.
 int CDeskcppDoc::ParsePuz2(CFile *pFile)
 {
@@ -4662,11 +4675,7 @@ int CDeskcppDoc::ParsePuz2(CFile *pFile)
     {
         short id;
         pFile->Read(&id, 2);
-        if (id < 0)
-        {
-            nDone++;
-        }
-        else
+        if (id >= 0)
         {
             Puzzle *pNew;
             TRY {
@@ -4682,8 +4691,12 @@ int CDeskcppDoc::ParsePuz2(CFile *pFile)
             }              // closes the TRY macro's outer (link-scope) brace
             if (pNew == NULL)
                 return 0;
-            puzzles.SetAtGrow(puzzles.GetSize(), pNew);
+            puzzles.Add(pNew);
             pNew->Read(pFile);
+        }
+        else
+        {
+            nDone++;
         }
         if (nDone != 0)
             return 1;
