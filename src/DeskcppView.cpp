@@ -8610,16 +8610,42 @@ done_paint:
 // screen, decide whether its tail points up (2) or down (1), then hand the final top-left to
 // Layout. Two coordinate regimes: world-relative (nMode==0, big zone) subtracts the view
 // origin; screen-relative (nMode!=0 or a <10-wide zone) works in raw client pixels.
-// EFFECTIVE (align 152, 121/120 insns): the shared `goto do_layout` + tail-call to Layout
-// fixed the structure; residuals are the cmp-direction family (lesson #6 — several jl/jge vs
-// jle flips the C source can't steer; two clamp inversions helped, the nViewRight one didn't)
-// plus one edx/ebx/esi allocator rotation. G1.
+// [WIP: 100 B -> 61 at v120. The pre-v120 note wrote off "several jl/jge vs jle flips the C
+//  source can't steer" — WRONG on both counts. A `jle K` against our `jl K+1` is not a codegen
+//  tie-break at all: cl 10.20 encodes the comparison CONSTANT exactly as written, so it is the
+//  SOURCE that says `<= 0x11c` where we said `< 0x11d`. Three such boundaries were read straight
+//  off the bytes and corrected (`width <= 9`, `ax + halfW <= 0x11c` twice, `ax <= 0x100`), worth
+//  7 B; the byte diff shows the constant differing by one right next to the jcc, which is what
+//  distinguishes this from a real polarity flip.
+//  The big one (39 B) is an ARM ORDER (lesson #47) in the world-relative `ax + halfW` clamp: the
+//  original's fallthrough at +0xae is the CLAMPED case (`x = 0x11c - nBoxW; ...`) and the
+//  `nBoxX = ax; x = ax - halfW;` pair is parked out of line at +0xcc, so the author wrote the
+//  `> 0x11c` arm FIRST. We had the two arms the other way round.
+//  Also byte-confirmed: `if (ay == 0) ay += 0x22;` — the original emits `add ebx,0x22` (3 B), and
+//  `ay = 0x22` compiles to `mov ebx,0x22` (5 B) even though cl knows ay is 0 there.
+//  ⭐⭐ AND THE REAL FIND, which is a TRANSCRIPTION BUG, not a dial: `TextDialog::Layout`
+//  0x4176f0 takes THREE int parameters, not two. The original ends `ret 0xc` and this call site
+//  pushes THREE args (`push 0; push ebx; push esi`) — see the note at Layout itself. Declaring it
+//  `Layout(int x, int y, int nUnused)` and calling `Layout(x, y, 0)` puts this function's LENGTH
+//  at 383/384 (from 379). ⛔ NOT LANDED: the declaration lives in DeskcppView.h, which every TU
+//  includes, and the token change costs FOUR exact functions (CyclePalette 0x415af0,
+//  ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210, DetonateAdjacentTiles 0x428680) while
+//  gaining only SetCurrentToIntroZone 0x423d20 — a measured 258 -> 255. A deliberate anchor DROP
+//  is the user's call (see the v114 precedent at the top of CLAUDE.md), so the fact is recorded
+//  here and in the header instead of being landed silently.
+//  Residual = 61 B in four families, all measured: (a) two eax<->esi bijections in the
+//  nViewLeft/nViewRight clamps (+0x40, +0x73); (b) a 2-instruction statement-order shift at
+//  +0x9a (`mov esi,ebx` before vs after the `nBoxX = ax` store); (c) the missing `push 0` above;
+//  (d) 3 B because the ORIGINAL RE-LOADS `nArgY` inside BOTH arms of `if (nMode == 0)` (+0x11f
+//  and +0x14c) where cl gives us one hoisted load above the branch. (d) survived every probe:
+//  referencing `nArgY` directly in arm 1, and all four operand orders of the two `nBoxH + 0x1e`
+//  comparisons, are dead flat.]
 void TextDialog::Position()
 {
     int halfW = nBoxW / 2;
     CDeskcppDoc *pW = pParentView->pWorld;
     int x;
-    if (pW->currentZone->width < 10 || nMode != 0)
+    if (pW->currentZone->width <= 9 || nMode != 0)
     {
         int ax = nArgX;
         x = ax - halfW;
@@ -8633,7 +8659,7 @@ void TextDialog::Position()
         }
         else
         {
-            if (ax + halfW < 0x11d || (x = 0x11c - nBoxW, ax < 0x101))
+            if (ax + halfW <= 0x11c || (x = 0x11c - nBoxW, ax <= 0x100))
                 nBoxX = ax;
             else
                 nBoxX = 0x10c;
@@ -8666,18 +8692,18 @@ void TextDialog::Position()
                 x = ax - halfW;
             }
         }
-        else if (ax + halfW < 0x11d)
-        {
-            nBoxX = ax;
-            x = ax - halfW;
-        }
-        else
+        else if (ax + halfW > 0x11c)
         {
             x = 0x11c - nBoxW;
             if (0x100 < ax)
                 nBoxX = 0x10c;
             else
                 nBoxX = ax;
+        }
+        else
+        {
+            nBoxX = ax;
+            x = ax - halfW;
         }
     }
     int y;
@@ -8702,7 +8728,7 @@ void TextDialog::Position()
             goto do_layout;
         }
         if (ay == 0)
-            ay = 0x22;
+            ay += 0x22;
         y = ay;
     }
     nTailDir = 2;
@@ -8720,6 +8746,17 @@ struct TriPoint : public tagPOINT
 };
 
 // FUNCTION: YODA 0x004176f0
+// ⭐⭐ ARITY: the ORIGINAL TAKES THREE INT PARAMETERS, not two (v120). Two independent proofs:
+//   it ends `ret 0xc`, and its ONLY call site (Position 0x417570 at +0x172) pushes three args,
+//   `push 0; push ebx; push esi`. The third is passed as a literal 0 and is NEVER READ — an
+//   argument-slot scan over the whole body finds reads of [esp+0x34] and [esp+0x38] only — so it
+//   is a dead/leftover parameter, which is exactly why nothing downstream ever noticed.
+//   ⛔ NOT APPLIED. `Layout` is declared in DeskcppView.h, which every TU includes; adding the
+//   parameter re-rolls the shared codegen dial and measures 258 -> 255 (loses CyclePalette
+//   0x415af0, ZoneHasIzxItemMaybe 0x41bfa0, ParseZax2 0x423210, DetonateAdjacentTiles 0x428680;
+//   gains SetCurrentToIntroZone 0x423d20). It fixes 2 of Position's 5 missing bytes and 0 of this
+//   function's 35, so it buys no exactness today. A deliberate anchor drop is the USER's call
+//   (v114 precedent) — land it only with approval, or when the phase makes it free.
 // TextDialog::Layout(x,y) — paint the speech balloon at (x,y): select the dialog font, fill the
 // bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
 // (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
