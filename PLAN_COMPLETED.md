@@ -4297,3 +4297,39 @@ net −654 bytes of residual, and an entire ORACLE was found silenced.
   6-byte deficit is localised to two `movsx` at the loop bottoms but not solved (the increment
   spelling is inert, and it is NOT a call-argument promotion — `short destX` is confirmed by all
   21 call sites).
+
+### ⏮ v118 (2026-09-04) — 255 → 257 exact, REAL MATCHES; +2/−0 (condensed; demoted at v119)
+
+Two new standing lessons, one new dial (#50), two new tools, and the closure of a decl axis
+no tool in the project could reach. All oracles green at 257.
+
+- **`AddHealth` 0x427690 byte-EXACT (49 B → 0, length 517 → 520 = the extent).** Found by
+  `residuals.py --lenmis`. The whole residual was ONE missing `mov ecx,[edi+0x44]`: the original
+  RELOADS the `pWorld` member between two `= 1` stores because the first store may alias it,
+  while our cached `CDeskcppDoc *pW = pWorld;` alias could not be invalidated. Removing the alias
+  is only half of it — the death tail's inner decl order `pTile,bFound,i` is load-bearing.
+  **+2/−0: `DetonateAdjacentTiles` 0x428680 came back for free**, one of the three functions the
+  v114 re-baseline cost. (0x41f830 and 0x423d20 are still out.) ⇒ standing lesson #50.
+- **`BlitViewportDither` 0x428e30: 125 B → 55**, length 237 → 238 against an extent of 242,
+  purely by declaring the inner `prod` before `x`.
+- **`UseWeapon` 0x427d20: 1536 B → 1068, LENGTH 2383 → 2390 = the extent.** `pOldPal` belongs
+  LAST in the head block; `nAX` before `nAY` in the step-3 block stacks on top. This REFUTED two
+  claims in the function's own v15 note ("the rest of the head is order-insensitive"; "proven NOT
+  steerable by decl order/placement, 9 probes") — both true only of the 3 decls those probes covered.
+- **New tools:** `declorder.py --inner` (permutes EVERY brace-block's decl run, not just the
+  leading function-scope one — the axis `hoisttest.py` structurally cannot reach; it also SKIPS
+  permutations that move a decl ahead of one its initializer needs, strips MEMBER names when
+  deriving those dependencies, and SELF-CHECKS that the source's own order is legal) and
+  `tools/aliasscan.py` (READ-ONLY target list for lesson #50; 61 hits, 6 also length-mismatched).
+- **Measured negatives — do NOT re-tread:** `TextDialog::Position` 0x417570 is NOT the alias dial
+  (7 variants dead flat at 100 B — its `pW` uses are pure READS, so no store invalidates the CSE;
+  this is the counter-example that bounds #50). The cheap band stays closed on the inner-block axis
+  too (0x41c200, 0x403aa0 flat; 0x423d20 / 0x405330 / 0x423dc0 have no permutable inner block).
+  Flat on `--inner`: 0x41a1c0, 0x408e70, 0x409c10, 0x40ec30, 0x40f060, 0x41d260. Below the landing
+  bar: `BlitTile` 0x40a320 13 B → 12, `ZoneProvidesItem` 0x41c3b0 17 B → 15.
+- **The lead v118 handed forward — `AddItemToInv` 0x428f50, 381 B → 141 on `nInv,i` but HELD BACK
+  because its length moved 505 → 502, away from the extent of 506 — was correct to hold and was
+  CRACKED at v119** (see lesson #51: the missing 4 bytes were the arm order, and the decl order was
+  only one of four composed dials). Same for the three functions v118 flagged as "cuts diff but
+  shortens the length away from the extent, same verdict: not yet" (0x41c580 / 0x41c730 / 0x41cf10)
+  — all three moved at v119, by a constant-fold lever rather than the axis v118 guessed.
