@@ -525,11 +525,25 @@ void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
 // are music, gated by nMusicEnabled; others by nSoundEnabled; id 3 muted while the walk-sound
 // suppression flag is set) then submit it to WAVMIX32. The wave handle comes from the loaded
 // table; ids >= 0x40 map only 0x25 (else lpMixWave is left uninitialized — sic, engine quirk).
-// EFFECTIVE (48/48 insns, byte_diff 21): logic + MIXPLAYPARAMS layout exact. Residual is a
-//   register-allocation tie-break — the original keeps nSoundEnabled in EAX (reused by the
-//   else-branch sound gate) and pWorld in EDX; our compile assigns them the opposite registers,
-//   a consistent bijection that propagates (identity_miss=9). Not source-steerable (goto/epilogue
-//   variants gave the identical score); a TU-phase reg-alloc residual, G1 fodder.
+// [WIP: 98 B -> 6 at v120, LENGTH 171 -> 176 = Ghidra's extent. The pre-v120 note called this
+//   "not source-steerable ... a TU-phase reg-alloc residual, G1 fodder" — WRONG, and wrong in the
+//   way lesson #49 warns about: it described the EAX/EDX bijection (which is real, and is all
+//   that is left) while ignoring that the LENGTH was 5 bytes SHORT, i.e. we were MISSING CODE.
+//   The 5 bytes are a DUPLICATED EPILOGUE. The original emits `pop esi; add esp,0x18; ret 4`
+//   (7 B) inline at +0x43 for the sound-gate's `return`, where we branch to the shared epilogue
+//   with a 2-byte `jmp` — 7 - 2 = 5, the deficit exactly. cl 10.20 lays the *then* arm out as
+//   the FALLTHROUGH, so the block physically first at +0x3f is the arm the author wrote FIRST:
+//   the original tests SOUND first and MUSIC in the `else`, and we had the two arms the other
+//   way round. Swapping them is lesson #47, and `armscan.py` had this function on its list the
+//   whole time — its "one-armed" tag is about the INNER `if (...) return;`, which is exactly why
+//   the outer swap was never tried. ⇒ an armscan hit tagged one-armed can still be an ARM-ORDER
+//   defect one level out. The oracle pins a FAMILY (De Morgan spellings of the negated range
+//   test and `!x` vs `x == 0` all give 6); idiomatic member picked, lesson #36.
+//   Residual = a pure EAX<->EDX scratch bijection (orig keeps nSoundEnabled in EAX, reused by
+//   the sound gate at +0x3f, and pWorld in EDX; ours is the mirror) at insns 50/50, matching
+//   length and matching save set = the lesson-#44 signature. Swept flat: decl order, dropping
+//   the `pW` alias, naming nSoundEnabled, and 3 gate spellings. ⚠ the first gate's operand
+//   ORDER is NOT flat — `nMusicEnabled` first costs 25 B, so `nSoundEnabled &&` is confirmed.
 #ifdef GAME_INDY
 // GAME_INDY: shared engine code passes Yoda sound ids — translate them (silently dropping
 // Yoda-only concepts); data-driven (Indy-native) ids enter below via PlaySoundData.
@@ -563,12 +577,12 @@ void CDeskcppView::PlaySound(int nSoundId)
     if (pW->nSoundEnabled == 0)
         return;
 #else
-    if (nSoundId == 0x37 || (nSoundId >= 0x3a && nSoundId <= 0x3f))
+    if (nSoundId != 0x37 && (nSoundId < 0x3a || nSoundId > 0x3f))
     {
-        if (pW->nMusicEnabled == 0)
+        if (pW->nSoundEnabled == 0)
             return;
     }
-    else if (pW->nSoundEnabled == 0)
+    else if (pW->nMusicEnabled == 0)
         return;
 #endif
     int session = soundSession;
