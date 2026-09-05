@@ -5276,6 +5276,31 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 // call), GetSafeHdc() for the BitBlt src hdc, one test-eax three-way
 // dispatch (dirX >0 / <0 / else dirY), clock()+50 busy-wait, per-arm
 // duplicated Canvas::BitBlt calls cross-jumping into one tail.
+// ⭐ v121 DECOMPOSED THE -62 LENGTH DEFICIT (lesson #49 method) AND CLOSED
+// THREE AXES ON IT. Every one of the 62 missing bytes is the this/n2 SPILL
+// and nothing else: 36 B in the prologue (4x `mov ecx,[esp+0x10]` at 4 B
+// where we use esi, `mov [esp],ecx` vs `mov esi,ecx`, `mov [esp+0x14],0x10`
+// vs `mov ebp,0x10`), ~10-12 B in each arm's Canvas::BitBlt segment (the
+// same this reload + `sub eax,[esp+0x20]` vs `sub eax,ebp`) and 10 B in the
+// epilogue. The instruction streams are otherwise aligned. The original
+// enregisters only pDC(ESI)/n(EDI)/end(EBX, live across the clock() call)
+// and leaves EBP to per-arm temps; we enregister this/pDC/n/n2 and spill
+// `end` instead. So the question is only WHY cl demotes `this`, and:
+//   (1) the arm-local coordinate hypothesis is REFUTED. Each arm's original
+//       holds one rect field in TWO registers and `lea`s the other (+0x10) —
+//       arm1/2 duplicate top, arm3/4 duplicate left — which reads exactly
+//       like a symmetric `y = ...top...; x = ...left...;` pair per arm. It
+//       is not: 6 spellings (inner-decl and hoisted, both decl orders) all
+//       measure 705-708 B at length 853, i.e. WORSE, and nowhere near 913.
+//   (2) the decl dial is DEAD FLAT over 23 configurations — hoisting c/end,
+//       hoisting e, all 7 locals hoisted C-style to the top in several
+//       orders: every single one measures 702 B at length 851. Not the
+//       lesson #37/#38/#45 axis.
+//   (3) the arm order, loop form and compare direction already match.
+// ⇒ This is the v105 TU-JOINT PHASE (lesson #44's signature: one flat sweep
+// across every decl axis with the streams already aligned). Do not spend
+// another session on decl spellings here; the lever, if any, is elsewhere in
+// DeskcppView.cpp and upstream of this function.
 void CDeskcppView::ScrollZoneTransition()
 {
     CDC *pDC = GetDC();

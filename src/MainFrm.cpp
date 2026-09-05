@@ -162,31 +162,52 @@ BOOL CMainFrame::OnCreateClient(LPCREATESTRUCT lpcs, CCreateContext *pContext)
     return CFrameWnd::OnCreateClient(lpcs, pContext);
 }
 
-// FUNCTION: YODA 0x004193f0  [EFFECTIVE MATCH: DIFF(54) — the bForceBackground arg
-//   (this != pFocusWnd) is materialized by MSVC as the sbb idiom vs the original's push-1/
-//   push-0 branch; instruction-selection tie-break (cmp-direction family), proven by the
-//   FALSE-constant twins OnCreateClient/OnQueryNewPalette matching exactly. Rest identical.]
+// FUNCTION: YODA 0x004193f0
+// The bForceBackground argument is NOT an expression — it is a real if/else that cl 10.20
+// CROSS-JUMPED down to the differing push. The original emits `cmp esi,[esp+0x10]; je L0;
+// push 1; jmp L1; L0: push 0; L1: <one shared call>`, i.e. two source calls tail-merged.
+// Writing it as `SelectPalette(p, this != pFocusWnd)` gives the branchless sbb idiom
+// (`sub/cmp/sbb/inc`) and 54 B of residual — and EVERY expression spelling folds to that
+// same sbb: ternary TRUE:FALSE, `?1:0`, (BOOL) cast, `!!`, parenthesised, and the
+// BOOL/int-local if/else forms all measure 54 B. Only duplicating the CALL in both arms
+// moves it, and then it is byte-EXACT (105 B = the extent). The arm order is load-bearing
+// in the lesson-#47 way: `!=`-first is exact, `==`-first (arms swapped) is 3 B.
 void CMainFrame::OnPaletteChanged(CWnd *pFocusWnd)
 {
     FrameWorld *pDoc = (FrameWorld *)GetActiveDocument();
     if (pDoc != NULL) {
         CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
-        CPalette *pOld = pDC->SelectPalette(pDoc->pPalette, this != pFocusWnd);
+        CPalette *pOld;
+        if (this != pFocusWnd)
+            pOld = pDC->SelectPalette(pDoc->pPalette, TRUE);
+        else
+            pOld = pDC->SelectPalette(pDoc->pPalette, FALSE);
         ::RealizePalette(pDC->m_hDC);
         pDC->SelectPalette(pOld, FALSE);
         ::ReleaseDC(m_hWnd, pDC->m_hDC);
     }
 }
 
-// FUNCTION: YODA 0x00419460  [EFFECTIVE MATCH: same bForceBackground sbb-vs-branch as
-//   OnPaletteChanged; structure identical.]
+// FUNCTION: YODA 0x00419460  [EFFECTIVE MATCH: DIFF(1) — the duplicated-call if/else of the
+//   twin OnPaletteChanged above took this from 54 B to 1 B and its LENGTH onto the extent
+//   (112/112). The one byte is the compare's ENCODING DIRECTION: the original writes
+//   `cmp [esp+0x10],esi` (39 /r, memory operand first) and we emit `cmp esi,[esp+0x10]`
+//   (3b /r) — note the byte-exact twin above uses 3b, so the two originals genuinely differ.
+//   NOT source-steerable from the condition: `pRealizeWnd != this`, `this != pRealizeWnd`,
+//   both `!(... == ...)` forms, both (CWnd *)/(CMainFrame *) casts and `?1:0` ALL measure
+//   1 B (v112's rule — a cmp mirror is never the condition's spelling — re-confirmed here).
+//   Swapping the arms costs 4 B, so the arm order is positively confirmed.]
 void CMainFrame::OnPaletteIsChanging(CWnd *pRealizeWnd)
 {
     Default();
     FrameWorld *pDoc = (FrameWorld *)GetActiveDocument();
     if (pDoc != NULL) {
         CDC *pDC = CDC::FromHandle(::GetDC(m_hWnd));
-        CPalette *pOld = pDC->SelectPalette(pDoc->pPalette, pRealizeWnd != this);
+        CPalette *pOld;
+        if (pRealizeWnd != this)
+            pOld = pDC->SelectPalette(pDoc->pPalette, TRUE);
+        else
+            pOld = pDC->SelectPalette(pDoc->pPalette, FALSE);
         ::RealizePalette(pDC->m_hDC);
         pDC->SelectPalette(pOld, FALSE);
         ::ReleaseDC(m_hWnd, pDC->m_hDC);
