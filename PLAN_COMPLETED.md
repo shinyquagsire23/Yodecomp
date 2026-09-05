@@ -4558,3 +4558,38 @@ comment rewrite IS a line-count change (lesson #23) — **re-measure AFTER writi
   before assuming.
 - ⚠ **An edit to a HEADER is not a per-TU change.** The Layout arity fix moved four functions
   across two TUs. Header edits need a full `exactset.py` comparison, never a per-TU one.
+
+---
+
+### ⏮ v121 (2026-09-05) — 255 → 256 exact, a REAL MATCH (condensed from CLAUDE.md's pickup)
+
+**Landed:** `CMainFrame::OnPaletteChanged` 0x4193f0 **54 B → 0** (105 B = its extent) and its
+twin `OnPaletteIsChanging` 0x419460 **54 B → 1** with its LENGTH onto the extent (112/112), both
+via the new **CROSS-JUMPED IF/ELSE lever, lesson #52** (standing bullet in CLAUDE.md). Both had
+been parked since G1 as a "cmp-direction/sbb-vs-branch instruction-selection tie-break" — a note
+naming a SYMPTOM. `OnPaletteIsChanging`'s last byte is the compare's ENCODING DIRECTION (orig
+`39 /r`, ours `3b /r`); 8 condition spellings measure 1 B, and the byte-EXACT twin uses `3b`, so
+the two 1997 sources really do differ there.
+
+**Also delivered v121:** `tools/vartest.py`'s VACUOUS `origlen` column (it echoed our own length,
+the same bug v117 fixed in residuals.py) replaced with `ext=<extent> <signed delta>` from
+app_funcs.txt.
+
+**Two measured NEGATIVES (also written into the source notes):**
+- ⛔ `ScrollZoneTransition` 0x411180 (−62, 702 B) is a TU-JOINT-PHASE park, not a decl problem.
+  The −62 was decomposed instruction by instruction and is entirely the original's `this`/`n2`
+  spill (36 B prologue, ~10-12 B per arm's BitBlt segment, 10 B epilogue). Swept flat: the
+  arm-local coordinate hypothesis (6 spellings, 705-708 B) and the whole decl dial (23
+  configurations → 702 B at length 851, dead flat). Lesson #44's signature.
+- ⛔ `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13, 117 B): 8 declaration placements for
+  `nOk`/`item1` flat at 117 B (one is 367). Its existing note was right — the this=EDI-vs-ESI
+  callee-save cascade, joint-pass territory.
+
+**Harness trap caught before it cost anything:** "non-exact functions where OURS has more
+`sbb`/`setcc` than the ORIGINAL" fabricated 8 targets, because it decoded the original from a
+buffer sliced to OUR length and masked at OUR reloc offsets, desyncing the stream (orig column
+read 0 for functions that visibly have 32). Rule: scan the ORIGINAL from raw bytes at its own
+extent, never through the candidate's mask.
+
+**Oracles at v121:** 256 exact / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (known benign) 0 SHIFT
+/ vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches / savescan 0 mismatches / build-sdl links.
