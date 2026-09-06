@@ -4934,3 +4934,21 @@ joint phase and cost `FindEntityAt` 0x40b210 and `StepDetonatorEffect` 0x40e400;
 legitimate exact spellings cost exactly 2, line-neutral padding does not help, and the only
 zero-cost variant kept a dead `HWND hWnd;` declaration and was REJECTED as the v96 padding dial.
 ⇒ v127 recovered `FindEntityAt` and DECLINED `StepDetonatorEffect` — see lesson #58.
+
+⏮ v127 pickup (demoted 2026-09-06 by v128) — **257 → 258 exact.** `FindEntityAt` 0x40b210
+recovered BYTE-EXACT (16 B → 0 at len 85 = the extent) by re-permuting its four existing
+declarations to `pZone/n/i/nCharId`; kept only because v126's rotation is the
+better-supported phase, and the match is PHASE-BOUND (lesson #58 — v125's `DeskcppView.cpp`
+compiles both it and `StepDetonatorEffect` byte-exact under the OTHER spellings).
+`StepDetonatorEffect` 0x40e400's analogous refit was DECLINED (32 B → 24, no match, and its
+x-first spelling is positively confirmed by v125's exactness). New oracle
+`tools/widthscan.py` — the parameter-TYPE gap `aritycheck.py` is structurally blind to, 12
+hits, positive-controlled; ⚠ its first draft repeated v126's xjumpscan mistake by requiring
+an aligned instruction pair (1 hit instead of 12). Two residual families decomposed and
+closed on every axis the project owns: `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13,
+all six decl configs flat) and the `Zone::ReadZa*` trio (9 B, one construct, one lesson-#53
+dictionary entry). ⚠ **v128 RETRACTED v127's reading of the 0x41d0c0 hit** — it called the
+widthscan finding a false lead because "the callee reads that slot as a DWORD at four
+sites", but both reads are FORWARDING PUSHES, which are byte-identical for `int` and
+`short` and discriminate nothing; the parameter really is a `short`, and fixing it plus the
+nOk both-arms form took the function to 33 B at exactly its extent.
