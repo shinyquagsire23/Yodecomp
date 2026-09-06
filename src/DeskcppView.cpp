@@ -1878,17 +1878,23 @@ void CDeskcppView::DrawEntities()
 // GameView::FindEntityAt — scan the current zone's entities for one at cell
 // (x, y); returns its charId, or -1 if the cell is empty. Called on bumps to
 // decide monster interaction.
-// EFFECTIVE MATCH (35/35 insns, align=0, 6 byte diff): single 2-register cycle —
-// the m_pData walker is EDX and pEnt ECX in the original, mirrored in ours.
-// Decl order pZone/nCharId/n/i is load-bearing (probed all 12 permutations:
-// three tie at align=0, the rest align 20-34). Removing the pEnt local (CSE-temp
-// theory) is WORSE (align 42) — pEnt is a real local. Allocator tie-break; G1.
+// BYTE-EXACT. ⚠ v127 — the decl ORDER here is PHASE-BOUND, and that is a finding
+// about the ORACLE, not about this body (lesson #58). The v126 OnUpdate landing
+// rotated DeskcppView.cpp's joint phase and cost this function its match (-> 16 B);
+// re-permuting the SAME four declarations recovers it exactly, but at the OLD
+// phase the exact order was pZone/nCharId/n/i and at THIS one it is pZone/n/i/
+// nCharId. Both spellings are ordinary 1997 C and each is byte-exact at exactly
+// one phase, so the match is NOT independent evidence for either. Kept because
+// v126's rotation is the better-supported phase (OnDraw + OnUpdate both landed
+// byte-exact AND length-on-extent). Inert here: entities[i] vs GetAt(i), and the
+// do-while vs for loop form (all four cells measured). Removing the pEnt local
+// (CSE-temp theory) is WORSE — pEnt is a real local.
 short CDeskcppView::FindEntityAt(int x, int y)
 {
     Zone *pZone = pWorld->currentZone;
-    short nCharId = -1;
     int n = pZone->entities.GetSize();
     int i = 0;
+    short nCharId = -1;
     if (n > 0)
     {
         do
@@ -3606,6 +3612,16 @@ void CDeskcppView::OnTimer(UINT nIDEvent)
 // blits 0x433 then DetonateAdjacentTiles, phase 4 restores the zone cell.
 // [dial-breather: EXACT v22 -> out at the Canvas.h de-dup (2026-07-07), swapped with
 //  ReenableHotspotObjects/UpdatePlayerWalkFrame flipping in. Tie-break only; G1.]
+// EXACT again through v125; DIFF(32) since v126's OnUpdate landing rotated the TU
+// phase. ⚠ v127 measured the refit and DECLINED to land it (lesson #58): `int y`
+// before `int x` matches the original's load order (it reads +0x160 first) and cuts
+// 32 B -> 24, but it lands NO match and the x-first spelling is POSITIVELY CONFIRMED
+// by having been byte-exact at v125 — so the 8 bytes are a number, not a fact
+// (lesson #48's bar). The residual is then a clean ebx<->esi 2-cycle on {y, this}
+// with every other byte identical = the lesson-#44 bijection class. Measured FLAT at
+// 24 and not worth re-treading: `int y, x;` split decl/assign, a nPhase local, and
+// both call-argument orders (25 B, and semantically wrong); `short x/y` is refuted
+// BY LENGTH (252 vs 244). Recovery needs the phase, not this body.
 void CDeskcppView::StepDetonatorEffect()
 {
     int x = nDetonatorX;
