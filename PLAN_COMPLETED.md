@@ -4792,3 +4792,126 @@ inferred from the byte diff and never checked against our own compiled output, a
 ledger in the same source note already recorded `ours edi=CSE then x1`. See lesson #56 in
 CLAUDE.md. What survives from v124: lesson #55 itself, the `GetFrameTile` closure, and the
 EH-state-store statement-order confirmation — all independent of the retracted claim.
+
+
+---
+
+## ⏮ v125 PICKUP (demoted at v126)
+
+### ⏮ (was: NEXT SESSION PICKUP, 2026-09-05 v125 — **held at 256 exact; no new byte-match. The
+session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` is FALSE, and
+it had already become this pickup's predecessor's #1 priority. Plus the project's LAST 2-byte
+residual is CLOSED, a new both-sides census tool, and a REAL target list replacing a refuted
+one.** All oracles green: **256 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (the
+documented benign `StartGame` 0x4037a0 finding) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity
+0 mismatches. Only NOTES + `tools/impcse.py` + one `residuals.py` classifier rule changed; no
+game code. v124 log demoted to PLAN_COMPLETED.md.)
+
+**▶ READ FIRST — THREE triage rules now.** (1) v123's: if a residual's `kinds` are only
+`cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`, park it (lesson #54). (2) v124's:
+run `tools/thisscan.py` before reading any NEGATIVE-length residual as a register mystery —
+under an EH frame cl SPILLS `this` by default. (3) ⭐ **NEW (lesson #56): a park note saying
+"the original does X and we don't" is a claim about BOTH binaries. Census our own compiled
+output before believing it — a differing REGISTER is not a differing CONSTRUCT.**
+
+**▶ WHAT LANDED** (notes + one new tool + one classifier rule; anchor re-measured after every
+edit, still 256).
+1. ⛔ **RETRACTED — the `GetSysColor` import-address CSE was the v124 pickup's #1 item and
+   there is nothing there.** v124 said the original CSEs the import address in EBX "where we
+   emit four 6-byte `call dword ptr [__imp__]`"; **we emit the identical construct in EDI**
+   (`8b 3d <imp>` + four `ff d7`). Never measured on our side, and the same note's v123 ledger
+   six lines above already said so. `DrawHealthNeedle` 0x4278a0 is the same story. ⇒ Both
+   functions' residuals are ONE allocation decision (the original ranks `this` above every
+   coord), i.e. purely a lesson-#55 question. See lesson #56.
+2. ⭐ **NEW REAL TARGET LIST — `tools/impcse.py` finds the 5 functions where the CSE'd import
+   set GENUINELY differs**, three of them with corroborating length deltas. Best first:
+   **`UpdateDragCursor` 0x412cc0 (+9 — OURS CSEs `SetPixel` x1, the original does not)** and
+   **`DrawWeaponBox` 0x428ac0 (+5 — the ORIGINAL CSEs `GetNearestPaletteIndex` x1, we do
+   not)**; then `DrawWeaponIcon` 0x428c40, `OnTimer` 0x40d470 (ours CSEs `SetScrollRange` x3),
+   `WorldSizeDlg::OnHScroll` 0x418560 (ours CSEs `GetScrollPos` x2). The sign of the length
+   delta agrees with the direction of the extra/missing CSE in both of the top two, which is
+   what makes them worth a sweep.
+3. ⛔ **`DrawTextA` 0x40f060 CLOSED — lesson #54's fourth guise, OPERAND REASSOCIATION.**
+   It was the project's last 2-byte residual. cl normalises `(A - i) != nScroll` into
+   `(A - nScroll) != i` itself; 22 spellings across 5 axes are dead flat at len 877 = the
+   extent. `residuals.py` now classifies the shape as `operand-reassoc` so the triage rule
+   fires instead of `UNCLASSIFIED`. ⚠ no positive control exists (the shape occurs ONCE in the
+   image), so this is a strong park, not a proof.
+4. ⭐ **Lesson #55's exception set refined (read-only, already done).** Of the 7 EH-frame ENREG
+   exceptions, **5 have a LOOP** — where `this` wins on loop-weighted use count and so says
+   nothing about a loopless function. The two WITHOUT a loop are `OnNewWorld` 0x424450 (9 `this`
+   uses) and `WorldgenPushZoneEntry` 0x41d6b0 (4 uses); **0x41d6b0 is the closest analogue
+   `DrawHealthDial`'s original has** (EH frame, no loop, 4 uses, ENREG) and it is BYTE-EXACT,
+   so lesson #53's dictionary method applies. ⚠ but both no-loop exceptions save only TWO
+   registers where DrawHealthDial's original saves THREE — a hypothesis to measure, not a rule.
+
+**▶ NEXT — concrete, in priority order.**
+1. **⭐ The 5 `impcse.py` targets** (item 2 above). Start with 0x412cc0 (+9) and 0x428ac0 (+5):
+   both have a length delta whose SIGN matches the extra/missing CSE, which is the lesson-#49
+   corroboration the refuted GetSysColor lead never had.
+2. **`DrawHealthDial` 0x427490 (-16) / `DrawHealthNeedle` 0x4278a0 (-17) — pursue via
+   `WorldgenPushZoneEntry` 0x41d6b0**, not via the CSE. The question is narrow: what makes cl
+   rank `this` above the coords under an EH frame with no loop?
+3. **Keep running `residuals.py --lenmis`, skipping the four TIE kinds.** Unworked, biggest
+   first: **`ShowWinMessage` 0x40f4b0 (+36, 1670 B)**, `Layout@TextDialog` 0x4176f0 (-35),
+   **`IactProbeMove` 0x406550 (+26)** ⚠ (its decl + statement-order axes are already closed),
+   `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13, only 117 B of diff — cheap),
+   `WorldgenPlacePuzzles` 0x421930 (-11), `OnUpdate` 0x408e70 (-11), `PlaceZone` 0x4260e0 (-7),
+   `ReadZaux` 0x406270 (-6, only 111 B of diff), `RefreshZone` 0x403ae0 (-6, only 70 B).
+4. **`ScrollZoneTransition` 0x411180 (-62)** — still the largest single structural residual;
+   diff its register roles against the three byte-exact siblings sharing its prologue shape
+   (`DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450).
+   ⚠ decl axes are CLOSED here (v121, 23 configs).
+5. **Near-misses worth one pass each** (length off by ONE, small diff): `ParseZax2` 0x423210
+   (+1, 78 B), `HitEntityAt` 0x4059d0 (+1, 206 B), `TransitionZoneXWing` 0x40e7c0 (-1, 167 B),
+   `WorldgenPlaceItemOnLock` 0x41cdc0 (-1), `OnDraw` 0x409110 (-1). ⚠ check `kinds` first.
+6. **Try to recover the four the v120 re-baseline cost** — `CyclePalette` 0x415af0,
+   `ZoneHasIzxItemMaybe` 0x41bfa0, `ParseZax2` 0x423210, `DetonateAdjacentTiles` 0x428680.
+   ⚠ that cluster flips on EVERY Worldgen-visible perturbation, so it is phase, not body.
+7. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers are still
+   "unreadable" (no terminal ret). Cheap, and the payoff is proven.
+8. **⛔ CLOSED — do not re-tread.** (a) ⭐ **The `GetSysColor` import-address CSE hunt (v124's
+   #1 item) — REFUTED, we already make it.** (b) `DrawTextA` 0x40f060 (22 spellings).
+   (c) Lesson #54's census, now **8** functions: v123's six, `GetFrameTile` 0x404850, and
+   `DrawTextA` 0x40f060. (d) `DrawHealthDial`'s coord POSITION (refuted by the EH state store),
+   its Chord call form, and the 20-cell cross. (e) `ScrollZoneTransition`'s decl + arm-local
+   axes (v121). (f) `IactProbeMove`'s decl and statement-order axes. (g) The `push 0xe01e`
+   catch-funclet census (17 sites). (h) The lesson-#52 diamond census (6 project-wide, only
+   0x413df0 unworked). (i) The "ours has more `sbb`" scan — a HARNESS TRAP. (j) Everything
+   v120 closed.
+9. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v124 rules all stand and were all re-used).**
+Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
+long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
+concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
+`formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`/
+`impcse.py` (no `--orig`) is in flight (they share `build/*.obj`). `thisscan.py` and
+`impcse.py --orig` are READ-ONLY and safe during a sweep.
+⚠ **v125 HIT THE CONCURRENCY TRAP AND IT COST A RUN:** a `vartest.py` sweep was launched while
+a backgrounded `residuals.py` was still going. Both were salvageable only because vartest's
+`--expect` guard reproduced the baseline and its `finally` restored the file. **Check that the
+previous background job has actually EXITED — an empty output file means still running, not
+finished.**
+Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite
+IS a line-count change (lesson #23) — **re-measure AFTER writing the note** (this session is
+notes + one tool + one classifier rule; re-measured, still 256, all oracles re-run).
+⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED.** Background it
+from the start, and `git status` before doing anything else.
+⚠ **`--expect-exact` on `formsweep.py`/`jointdecl.py` is PER-TU, not project-wide.**
+⚠ **A vartest/declorder run RESTORES the file to whatever it read at START** — if you
+applied an edit by hand first, "restored" means back to YOUR edited state, not to HEAD.
+⚠ **An edit to a HEADER is not a per-TU change** — it needs a full `exactset.py` compare.
+⭐ **`vartest.py` prints the REAL extent** — `ext=<extent> <signed delta>`. Read the delta on
+every row; it refutes a variant before you look at a single register. ⚠ **`jointdecl.py`
+still carries the same vacuous `orig_len`** — a cheap, worthwhile chore.
+⭐ **A THROWAWAY PROBE SCRIPT beats a general tool for a one-off question (v123/v124/v125).**
+v125's import-CSE census started as ~40 lines of scratch Python and only became
+`tools/impcse.py` once it had overturned a published mechanism. ⚠ but give the throwaway a
+positive control too — and note that v125's control (three byte-exact functions that MUST show
+the construct on both sides) is what made the retraction trustworthy rather than just another
+confident scan.
+

@@ -8040,10 +8040,30 @@ void CDeskcppView::OnCmdMinimize()
 }
 
 // FUNCTION: YODA 0x00428ac0
-// [EFFECTIVE-WIP: insns 123/120; residual = arm LAYOUT (orig falls through into the
-// armed arm, JE to the out-of-line unarmed fill; ours inverts — both if-spellings compile
-// identically here, so the placement is compiler-internal: open family) + bReleaseDC
-// slot-vs-EBX + the GetNearestPaletteIndex import-cache reg.]
+// [EFFECTIVE-WIP: DIFF(16) at len 375 = the Ghidra extent EXACTLY (was 301 B @ +5 before
+//  v126). Three source defects were found and fixed, in this order:
+//   1. lesson #42 — the global form ::GetNearestPaletteIndex((HPALETTE)pWorld->pPalette
+//      ->m_hObject, ...) let cl keep pWorld alive in EBP as a memory CSE across the whole
+//      if/else; the MFC MEMBER form pWorld->pPalette->GetNearestPaletteIndex(...) forces the
+//      reload the original makes (mov ecx,[esi+0x44] three times). The EBP that freed then
+//      let bReleaseDC reach EBX instead of a frame slot. 301 -> 270, len +5 -> +1. (Exactly
+//      the DrawTextA 0x40f060 find of v110; DrawWeaponIcon 0x428c40 below is the same shape.)
+//   2. lesson #39 — `bReleaseDC = 1;` must come AFTER the SelectPalette call, not before:
+//      the original pushes the still-zero EBX as SelectPalette's bForceBackground arg
+//      (`push ebx`, 1 byte) and only then does `mov ebx,1`; writing the flag first makes cl
+//      materialise `push 0` instead. 270 -> 106, and len lands on 375 = the extent.
+//   3. lesson #48 — pWorld->tiles[i] (operator[]), not pWorld->tiles.GetAt(i). 106 -> 16.
+//  ⚠ the arm LAYOUT (orig falls through into the armed arm, JE to the out-of-line unarmed
+//  fill; ours inverts) was NOT the defect — it is a SYMPTOM that follows the body, exactly
+//  the v116 ParseChwp trap (lesson #41). Both if-spellings are byte-identical at all three
+//  baselines above (measured 3x), i.e. cl canonicalises the condition here.
+//  Residual = 12 B of frame layout (orig `sub esp,0x14` = rc(16)+pOldPal(4) with rc at the
+//  LOW slot; ours `sub esp,0x18` homes pTile too and puts pOldPal low) + 4 B of eax/edx
+//  scratch bijection = lesson #44, source-closed. MEASURED FLAT and NOT worth re-treading:
+//  all 6 decl ORDERS of {bReleaseDC,pOldPal,rc}; pTile at function scope (first and last);
+//  the arm swap crossed with every other dial. REFUTED BY LENGTH: `short bReleaseDC` (377),
+//  inlining the tile expression into BlitMasked (379) — so the named pTile local and the
+//  int flag are both positively confirmed.]
 // Draw the current-weapon box: sunken 2px bevel around rectWeaponBox inflated by 2, the
 // weapon's icon tile (frames[7]) masked onto the drag canvas over a COLOR_3DFACE fill
 // (plain fill when unarmed), blitted at +3,+3, then a raised 1px bevel on the tight rect.
@@ -8056,8 +8076,8 @@ void CDeskcppView::DrawWeaponBox(CDC *pDC)
         pDC = CDC::FromHandle(::GetDC(m_hWnd));
         if (pDC == NULL)
             return;
-        bReleaseDC = 1;
         pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
+        bReleaseDC = 1;
     }
     RECT rc;
     rc.left = pWorld->rectWeaponBox.left - 2;
@@ -8067,15 +8087,15 @@ void CDeskcppView::DrawWeaponBox(CDC *pDC)
     pWorld->DrawRect(pDC, &rc, 0, 2);
     if (pWorld->currentWeapon != NULL)
     {
-        Tile *pTile = (Tile *)pWorld->tiles.GetAt(pWorld->currentWeapon->frames[7]);
-        pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
-            (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
+        Tile *pTile = (Tile *)pWorld->tiles[pWorld->currentWeapon->frames[7]];
+        pDragTileCanvas->Fill((unsigned char)pWorld->pPalette->GetNearestPaletteIndex(
+            GetSysColor(COLOR_3DFACE)));
         pDragTileCanvas->BlitMasked((char *)pTile->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, 0, 0, 0);
     }
     else
     {
-        pDragTileCanvas->Fill((unsigned char)GetNearestPaletteIndex(
-            (HPALETTE)pWorld->pPalette->m_hObject, GetSysColor(COLOR_3DFACE)));
+        pDragTileCanvas->Fill((unsigned char)pWorld->pPalette->GetNearestPaletteIndex(
+            GetSysColor(COLOR_3DFACE)));
     }
     pDragTileCanvas->BitBlt(pDC, rc.left + 3, rc.top + 3, 0x1e, 0x1e, 1, 1);
     pWorld->DrawRect(pDC, (RECT *)&pWorld->rectWeaponBox, 1, 1);

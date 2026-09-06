@@ -440,13 +440,25 @@ void CDeskcppView::OnActivateView(BOOL bActivate, CView *pActivateView, CView *p
 // 1=item text, 2=weapon box+icon, 3=repaint the game area through a temp DC, 4=health
 // dial+needle, 399=first-time init (bind doc, start sound+music, allocate the two
 // drag-save bit buffers sized to the screen depth — OOM aborts via THROW_LAST/AfxAbort).
-// EFFECTIVE: the case-399 body + the hand-expanded TRY/CATCH_ALL(e)+THROW_LAST+dead-AfxAbort
-//   OOM path (engine-bug #7) are BYTE-IDENTICAL to the original; the dispatch cases and all
-//   calls match too. Residual is the block-layout open problem: the original sinks the single
-//   function epilogue to the physical END (after the shared ReleaseDC tail) and jmps every case
-//   to it, while our compile emits the epilogue right after case 0 and cross-jumps the rest —
-//   which also shifts how the shared ReleaseDC tail is materialized. Same unmapped mechanism as
-//   WorldDoc::GetLocatorIcon; not source-steerable (flat if/else-if vs nested both ~285). G1.
+// BYTE-EXACT since v126 (was DIFF 283 @ len 468 vs the 479-byte extent). The G1 note called
+// the residual "the block-layout open problem ... not source-steerable" and blamed the epilogue
+// sinking; that named a SYMPTOM. There were two ordinary source defects:
+//   1. lesson #47 — the ARM ORDER of the inner test. The original's fallthrough at +0x76 is the
+//      lHint!=3 path, so it parks the GetDC/DrawGameArea arm out of line; we had `== 3` first.
+//      283 B -> 103, and the length moves -11 -> -4.
+//   2. lesson #52 — there is NO shared `hWnd`/`hdc` pair and no single tail call: the original
+//      spells ::ReleaseDC TWICE, once per arm. That is why it pushes a LITERAL 0 for hWnd in
+//      the 399 arm where our merged call had to materialise NULL into a register first
+//      (`xor eax,eax ... push eax`). Dropping the two shared locals: 103 -> 0 at len 479.
+// ⭐ Found by tools/pushscan.py — the original pushing an IMMEDIATE where we push a REGISTER at
+// the same aligned slot is the fingerprint of a call the original duplicated and we merged.
+// ⛔ THIS FIX COST 3 DOWNSTREAM FUNCTIONS TO THE TU JOINT PHASE (v105), user-approved: DrawTextA
+// 0x40f060 (-> 8 B), StepDetonatorEffect 0x40e400 (-> 32 B) and FindEntityAt 0x40b210 (-> 16 B).
+// None is a defect in its own body. Measured: line-neutral padding does NOT avoid it (so it is
+// the TOKEN change, not lesson #23), and all 6 legitimate exact spellings cost exactly 2 net
+// (`fold`ing the GetDC into FromHandle swaps FindEntityAt for ClassifyTile 0x40fca0 at 896 B,
+// which is why the two-line `HDC hdc =` form is kept). ❌ The ONLY zero-cost variant keeps a
+// DEAD `HWND hWnd;` declaration — that is the forbidden padding dial, and it was rejected.
 void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
 {
     if (lHint == 0)
@@ -464,19 +476,7 @@ void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
     }
     else
     {
-        HWND hWnd;
-        HDC  hdc;
-        if (lHint == 3)
-        {
-            hdc = ::GetDC(m_hWnd);
-            CDC *pDC = CDC::FromHandle(hdc);
-            CPalette *pOld = pDC->SelectPalette(pWorld->pPalette, FALSE);
-            DrawGameArea(pDC);
-            pDC->SelectPalette(pOld, FALSE);
-            hdc = pDC->m_hDC;
-            hWnd = m_hWnd;
-        }
-        else
+        if (lHint != 3)
         {
             if (lHint == 4)
             {
@@ -512,10 +512,17 @@ void CDeskcppView::OnUpdate(CView *pSender, LPARAM lHint, CObject *pHint)
                 AfxAbort();                        // sic: dead code after THROW_LAST (#7)
             }
             }
-            hWnd = NULL;
-            hdc = hdcScreen;
+            ::ReleaseDC(NULL, hdcScreen);
         }
-        ::ReleaseDC(hWnd, hdc);
+        else
+        {
+            HDC hdc = ::GetDC(m_hWnd);
+            CDC *pDC = CDC::FromHandle(hdc);
+            CPalette *pOld = pDC->SelectPalette(pWorld->pPalette, FALSE);
+            DrawGameArea(pDC);
+            pDC->SelectPalette(pOld, FALSE);
+            ::ReleaseDC(m_hWnd, pDC->m_hDC);
+        }
     }
 }
 
@@ -607,12 +614,19 @@ void CDeskcppView::PlaySound(int nSoundId)
 // world palette, bevel-border the viewport/inventory/scrollbar rects, draw the HUD (health
 // dial+needle, direction arrows, item text, weapon box+icon), blit the 288x288 canvas, then
 // on the very first paint lazy-run World::Load (the .dta worldgen) — aborting on failure.
-// EFFECTIVE (logic/structure faithful; the World::Load tail is byte-identical to the original):
-//   our compile hoists the constant 0 into EDI (reused across the ~7 `push 0`/FALSE arg sites:
-//   SelectPalette x2, DrawRect bRaised x3, BitBlt srcX/srcY), which pulls EBP in as a 4th
-//   callee-saved register (`push ebp`) and cascades a register-rename through the middle. The
-//   original pushes 0 immediates and uses only EBX/ESI/EDI. Pure enregistration-heuristic
-//   tie-break (lesson #7/#8) — not source-steerable; expected to settle in G1.
+// BYTE-EXACT since v126 (was DIFF 386 @ len 549 vs the 550-byte extent). The G1 note here
+// blamed "a pure enregistration-heuristic tie-break, not source-steerable": our compile
+// hoisted the constant 0 into EDI across the ~7 `push 0`/FALSE arg sites and took EBP as a
+// 4th callee-saved register. That named a SYMPTOM. The one real defect was the canvas blit:
+// the original spells the BitBlt TWICE (lesson #52) and cl cross-jumps the two calls down to
+// the differing argument pushes — `jne L; push 0; push 0; jmp E; L: push nViewTop; push
+// nViewLeft; E: <one shared call>`. Our `int srcX, srcY;` + one call is the branchless
+// rewrite; the two extra locals are what forced the 4th callee-save and the 0-in-EDI hoist.
+// ⚠ the ARM ORDER is load-bearing on top of it (lesson #47): `== 1` first is exact, the
+// inverted spelling with the arms swapped is 20 B. The braced and unbraced spellings are
+// byte-identical, so the oracle pins a family; braces match the house style here.
+// ⚠ v121's lesson-#52 census MISSED this diamond — it matched only ONE-push arms; this one
+// has two. See tools/xjumpscan.py for the generalised (and re-opened) census.
 void CDeskcppView::OnDraw(CDC *pDC)
 {
     CRect rc;
@@ -651,19 +665,17 @@ void CDeskcppView::OnDraw(CDC *pDC)
     DrawWeaponIcon(pDC);
     if (pWorld->pCanvas != 0)
     {
-        int srcX, srcY;
         if (bMapAtCanvasOriginMaybe == 1)
         {
-            srcX = 0;
-            srcY = 0;
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                    VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, 0, 0);
         }
         else
         {
-            srcY = pWorld->nViewTop;
-            srcX = pWorld->nViewLeft;
+            pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                                    VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE,
+                                    pWorld->nViewLeft, pWorld->nViewTop);
         }
-        pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                                VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, srcX, srcY);
         pDC->SelectPalette(pOldPalette, FALSE);
         if (pWorld != 0 && pWorld->bDtaLoaded == 0)
         {
