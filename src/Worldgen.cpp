@@ -8082,7 +8082,15 @@ void CDeskcppView::OnCmdMinimize()
 //  all 6 decl ORDERS of {bReleaseDC,pOldPal,rc}; pTile at function scope (first and last);
 //  the arm swap crossed with every other dial. REFUTED BY LENGTH: `short bReleaseDC` (377),
 //  inlining the tile expression into BlitMasked (379) — so the named pTile local and the
-//  int flag are both positively confirmed.]
+//  int flag are both positively confirmed.
+//  ⭐ v128 (tools/framescan.py) NAMES the 12 B precisely, and the note above was WRONG about
+//  what our extra slot holds: pTile is in EBP on BOTH sides. Our `sub esp,0x18` reserves a
+//  4-byte slot that is NEVER REFERENCED. The original lays out rc at the LOW end (E-20..E-5)
+//  with pOldPal on top at E-4; we put pOldPal LOW at E-24, rc above it, and waste E-4..E-1.
+//  ⛔ 5 more decl configurations at v128 ({rc,bReleaseDC,pOldPal} in every order, rc hoisted
+//  to the top of the function) are DEAD FLAT at 16 B / 375 — frame slot ORDER is decl-order
+//  INVARIANT here, exactly as v36 found for ParseSnds, and lesson #36's size lever has no
+//  handle to grab (a RECT is 16 bytes by definition). Genuinely source-closed on this axis.]
 // Draw the current-weapon box: sunken 2px bevel around rectWeaponBox inflated by 2, the
 // weapon's icon tile (frames[7]) masked onto the drag canvas over a COLOR_3DFACE fill
 // (plain fill when unarmed), blitted at +3,+3, then a raised 1px bevel on the tight rect.
@@ -8128,6 +8136,24 @@ void CDeskcppView::DrawWeaponBox(CDC *pDC)
 // FUNCTION: YODA 0x00428c40
 // [EFFECTIVE-WIP: same arm-layout + reg families as DrawWeaponBox; armed-arm-first form
 // kept (dropped DIFF 400->213). The per-shot-height dispatch is a sparse switch.]
+// ⭐ v128 (tools/framescan.py) NAMES OUR EXTRA FRAME SLOT and it is a REGISTER-BUDGET
+// question, not a layout one: `sub esp,0x1c` against the original's 0x18 is `nAmmo` HOMED.
+// The original spends EBX on nAmmo (`movsx ebx,word [eax+0x48]` at +0x5f, `imul ebx,ebp` at
+// +0x141) and RELOADS `this->pWorld` at both of its uses; we spend EBX on a pWorld CSE
+// (`mov ebx,[esi+0x44]` at +0xf9, still live at +0x15f) and pay for it with nAmmo's frame
+// slot. The knock-on is visible too: with EBP free later we then CSE the GetSysColor import
+// (`mov ebp,[__imp__]; call ebp`) where the original calls through memory — i.e. the
+// tools/impcse.py hit here is a SYMPTOM of the same one decision, not a second defect.
+// Confirmed from a third side: in the currentWeapon==NULL path the original loads BOTH
+// nAmmo and nMult from an UNINITIALISED stack slot (`mov ebp,[esp+0x10]; mov ebx,[esp+0x10]`),
+// so both really are function-scope uninitialised locals as spelled below.
+// ⛔ v128 REFUTED four more spellings, two of them BY LENGTH (the strong form): swapping the
+// if/else arms (472 vs the 484 extent) and naming the GetSysColor result in the else arm
+// (472); computing nHeight before the `Fill(0)` is worse (181); and caching
+// `Character *pW2 = pWorld->currentWeapon;` for the second test is INERT (166), i.e. cl
+// already folds that load. Combined with v126's two length-refuted axes, every axis this
+// project owns is now closed here — the lever is whatever changes cl's ranking of nAmmo
+// against pWorld, and nothing in the source reaches it.
 // Draw the ammo bar: sunken bevel around rectAmmoBar inflated by 2; when armed, a 0x91
 // (green) full-height column then black covering the spent part (0x1e - ammo * per-shot
 // height from the weapon's icon tile id: blaster family 1, rifle 2, thermal 3), else a

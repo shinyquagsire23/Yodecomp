@@ -5360,6 +5360,14 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 // (four) and spills this + n2 (six values wanted). ⇒ the concrete next probe is
 // to find the SIXTH value the original holds — diff this function's register
 // roles against those three exact siblings rather than permuting decls again.
+// ⭐ v128 CONFIRMS THAT READING FROM A SECOND, INDEPENDENT INSTRUMENT
+// (tools/framescan.py): the original's local frame is 16 bytes and ours is 12, and
+// the missing 4 IS the `this` slot — `sub esp,0x10 / mov [esp],ecx` against our
+// `sub esp,0xc / mov esi,ecx`. Two tools that measure different things (thisscan's
+// prologue classification and the raw `sub esp,N`) agree on the same one decision,
+// which is as close to a two-sided proof as this axis gets. It also re-scopes the
+// search: we are not looking for a spelling of any statement here, we are looking
+// for ONE more long-lived value. Do not open this function without a candidate.
 void CDeskcppView::ScrollZoneTransition()
 {
     CDC *pDC = GetDC();
