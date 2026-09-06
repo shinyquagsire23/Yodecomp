@@ -227,13 +227,13 @@ public:
                                                             // caller pushes it un-widened => short)
     int  WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx,
                                            short nOrder, short sel); // 0x0041cbe0
-    int  WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal,
+    int  WorldgenPlaceItemOnLock(short zoneId, int a2, short nVal,
                                  short itemId, int sel);  // 0x0041cdc0
     int  WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short nVal,
                                          unsigned short itemId);  // 0x0041cf10
     int  WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx,
-                                            short nOrder, short sel); // 0x0041d0c0 (nOrder unread
-                                                            // in body; caller pushes un-widened)
+                                            short nOrder, short sel); // 0x0041d0c0 (nOrder is
+                                                    // pushed RAW into 0x41cdc0 - so nVal is short)
     int  WorldgenPlaceUsefulObjectMaybe(short zoneId, short itemId,
                                         short nOrder);       // 0x0041d260
     int  WorldgenAssignTransitItemMaybe(short zoneId, short nOrder,

@@ -725,7 +725,7 @@ int CDeskcppDoc::WorldgenPlaceUsefulDropChainMaybe(short zoneId, short idx, shor
 // Place itemId onto the first OBJ_LOCK (type 0xc) of zoneId if the zone's providedItemsA (sel==0)
 // or providedItemsB lists it; records genCellItemA/BScratch + WorldgenAddZoneEntry; recurses into
 // DOOR_IN children. nResult lives in EAX end-to-end (0 / 1 / last recursion result).
-int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, int nVal, short itemId, int sel)
+int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, short nVal, short itemId, int sel)
 {
     int nResult = 0;
     if (zoneId >= 0)
@@ -912,29 +912,27 @@ int CDeskcppDoc::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short n
 }
 
 // FUNCTION: YODA 0x0041d0c0
-// [EFFECTIVE-WIP: align=56, insns 156/155 — all branches/calls/arms converged (`sel==0`-first
-// arm order was load-bearing). Residual: nOk allocated to EBX in orig vs a stack slot here
-// (the one extra insn = our spill; drives the sbb-into-eax + cmp-mem forms), entangled with
-// the this=EDI-vs-ESI callee-save cascade. Tie-break family — joint pass.]
-// ⭐ v127 DECOMPOSED the +13 (len 414 vs extent 401) and the note above is CONFIRMED, not just
-// plausible: the spill of `nOk` is the whole structural defect and every other byte follows it.
-//   +3  `mov dword [esp+0x14],0`     vs the original's `mov ebx,0`
-//   +3  `cmp dword [esp+0x14],0`     vs `test ebx,ebx`
-//   +2  `mov eax,[esp+0x14]`         vs `mov eax,ebx`
-//   +2  `movsx eax, word [esp+0x28]` vs `mov eax,[esp+0x20]` — the nOrder argument
-//   (+3 of frame/displacement fallout; our `sub esp,8` vs the original's `sub esp,4`.)
-// ⭐ The MECHANISM is visible in the original: EBX holds item1a, and cl RE-USES it for nOk with
-// `mov ebx,0` placed INSIDE the WorldgenPlaceItemOnLock argument setup — i.e. after item1a's
-// last use (its `push ebx`). Our `nOk = 0` is scheduled BEFORE that push, so the two live ranges
-// overlap and nOk is homed instead. The lever is whatever stops cl starting nOk's range early;
-// it is NOT the declaration block.
-// ⛔ CLOSED (v127) — all six decl SET x ORDER configurations are DEAD FLAT at 117 B / +13:
-// merging the two inner `int next` decls into one (the v106 one-variable probe), `next` at
-// function scope, `item1` at the top, `nOk` hoisted, and both nOk/item1 orders. Per lesson #41
-// a flat decl sweep means the lever is on another axis.
-// ⚠ The `movsx` above is a `tools/widthscan.py` hit and it is a FALSE lead for a signature fix:
-// the callee 0x0041cdc0 reads its 3rd argument slot as a DWORD at four sites, so `int nVal` is
-// POSITIVELY CONFIRMED and `short nOrder` here is right too — cl widens because it must.
+// [EFFECTIVE: len 401 = the Ghidra extent EXACTLY; the 33 B residual is a pure ESI<->EDI
+// bijection (orig this=EDI/zoneId=ESI, ours the reverse) — the lesson-#44 class.]
+// ⭐ v128 CLOSED the +13 that v127 decomposed. The decomposition named the MECHANISM correctly
+// and both of its CAUSES wrongly; two independent structural fixes, together 117 B -> 33 B.
+// 1. `nOk` must be assigned in BOTH ARMS of an if/else, not initialised then conditionally
+//    overwritten. `int nOk = 0; if (c) nOk = f();` starts nOk's live range BEFORE item1a's
+//    last use (`push ebx`), so the ranges overlap and nOk is homed to a frame slot — which is
+//    what forced our `sub esp,8` against the original's `sub esp,4`. With both arms assigning,
+//    cl sinks `mov ebx,0` INTO the WorldgenPlaceItemOnLock argument setup exactly as the
+//    original does, re-using item1a's now-dead register. 113 B / +12 -> 33 B / +0.
+//    ⚠ ARM ORDER inert (3 spellings, all 33/401); `!=0`-first is pinned by the FALLTHROUGH.
+// 2. ⛔ v127's `movsx` verdict is RETRACTED. It dismissed the widthscan hit because "the callee
+//    0x41cdc0 reads its 3rd argument slot as a DWORD at four sites" — but both reads are
+//    FORWARDING PUSHES (`mov eax,[esp+0x24]; push eax`) into another SHORT parameter, and a
+//    forwarding push is byte-identical for `int` and `short`, so it discriminates NOTHING.
+//    The real two-sided proof runs the other way: PlaceQuestNode 0x41f120 loads its own
+//    `nOrder` with `mov bx, word [ebp+0x1c]` (garbage upper half) and pushes EBX RAW into
+//    this function, which pushes it RAW again into 0x41cdc0 — neither side widens, so
+//    0x41cdc0's 3rd parameter is a `short`. Fixed there; the movsx is gone. FREE (+0/-0).
+// ⛔ CLOSED — DEAD FLAT at the NEW phase (33 B / 401): all 4 orders of {item1a, item2, item1},
+// `nOk` hoisted in all 3 positions, `pZone` hoisted (`item2` first: refuted by LENGTH, 380).
 // Build a MAP-TO-ITEM-FOR-LOCK node (Zone.type==0xf, must have an EMPTY IZX3 list): resolve
 // the lock item (and follow-up item) from the questItemsA/B chain, register both, place the
 // lock item on the zone's OBJ_LOCK, then the follow-up into a quest-item spot.
@@ -986,9 +984,11 @@ int CDeskcppDoc::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, sho
         RemoveZoneEntry2(item1a); YODA_SIC_FIX(BUGLOG(("sic#11 lock-chain rollback: item2=%d left registered (behavior kept, log only)\n", (int)item2));) // sic: should be item2 (docs/engine-bugs.md #11)
         return 0;
     }
-    int nOk = 0;
+    int nOk;
     if (WorldgenPlaceItemOnLock(zoneId, item1, nOrder, item1a, 0) != 0)
         nOk = WorldgenFillQuestItemSpot2Maybe(zoneId, item1, nOrder, item2) != 0;
+    else
+        nOk = 0;
     if (nOk != 0)
     {
         genCellQuestSlot0Scratch = idx;
@@ -5266,17 +5266,17 @@ void CDeskcppDoc::Serialize(CArchive &ar)
 }
 
 // FUNCTION: YODA 0x00423d20
-// [WAS byte-exact v107-v113; now DIFF(2) -- one `cmp edx,eax`/`cmp eax,edx` mirror, the v105
-// TU-joint phase re-rolling under the WorldgenShuffleList 0x41ef90 loop-form fix upstream (see
-// that function's note). Re-swept at the new phase: 12 decl SET x ORDER configurations plus the
-// cmp mirror and the zones[i] subscript form -- floor is 2, i.e. the v107 spelling below is
-// still the best available, so it is kept verbatim. Not source-steerable from here.
-// The v107 finding, still the reason for this exact spelling: both `i` and `pZone` must sit at
-// FUNCTION scope, in that order, and nCount must be initialised in its declaration:
-// hoisting `i` alone = 5 B, `pZone` alone = 9 B, `pZone` before `i` = 9-11 B, and the
-// all-top form with `nCount` assigned separately = 5 B. Inert: zones[i] vs GetAt(i),
-// the cmp mirror, and an early-`continue` body. A do-while countdown emits 53 B vs the
-// original's 60 — structurally ruled out.]
+// [EFFECTIVE: len 60 = the extent; DIFF(5) is a pure ESI<->EDI bijection (orig this=ESI with
+// the walker in EDI, ours the reverse) — the lesson-#44 class, and the SAME inversion that
+// 0x41d0c0 carries 5 lines of code earlier in this TU, which is why they moved together.
+// ⛔ This function is a PHASE WEATHERVANE, not a defect: byte-exact v107-v113, DIFF(2) after
+// the v114 0x41ef90 loop-form fix, exact again from v120, and DIFF(5) since v128's
+// WorldgenPlaceItemForLockChainMaybe 0x41d0c0 nOk fix (a USER-APPROVED trade — the gained
+// form there puts that function's LENGTH exactly on its extent; see its note). Its own floor
+// was re-swept at EVERY phase and never moves: 12 configurations at v114, and at v128 the
+// 6 that matter — {i,pZone} both orders, pZone scoped to the loop body, nCount assigned
+// separately, zones[i] vs GetAt(i) — are DEAD FLAT at 5, with `pZone` first strictly worse
+// (10) and a do-while countdown refuted by LENGTH (53 vs 60). Do not re-sweep this body.]
 // Find the INTRO zone (map_flags 9), make it current and refresh (StartGame).
 void CDeskcppDoc::SetCurrentToIntroZone()
 {
