@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**; **held at 256 at v125 — no new byte-match; the session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` ("the original CSEs the GetSysColor import address and we do not") is FALSE — we emit the identical construct in a different register — and it had already become the v124 pickup's #1 priority. Also `DrawTextA` 0x40f060, the project's last 2-byte residual, CLOSED under lesson #54's new REASSOCIATION guise, and a new both-sides census `tools/impcse.py` whose 5-function output REPLACES the refuted target list**; **256→257 at v126 — +3 REAL (`OnDraw` 0x409110 386 B→0 and `OnUpdate` 0x408e70 283 B→0, both on lesson #52 CALL DUPLICATION found by the new `tools/pushscan.py`; `CyclePalette` 0x415af0 fell out downstream) MINUS 2 to the TU joint phase, a USER-APPROVED trade — plus `DrawWeaponBox` 0x428ac0 301 B→16 with its LENGTH onto the extent, and v121's lesson-#52 census REOPENED as too narrow (`tools/xjumpscan.py`, 6 hits→12)**)
+## Where the project stands (2026-07-11, v87; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**; **held at 256 at v125 — no new byte-match; the session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` ("the original CSEs the GetSysColor import address and we do not") is FALSE — we emit the identical construct in a different register — and it had already become the v124 pickup's #1 priority. Also `DrawTextA` 0x40f060, the project's last 2-byte residual, CLOSED under lesson #54's new REASSOCIATION guise, and a new both-sides census `tools/impcse.py` whose 5-function output REPLACES the refuted target list**; **256→257 at v126 — +3 REAL (`OnDraw` 0x409110 386 B→0 and `OnUpdate` 0x408e70 283 B→0, both on lesson #52 CALL DUPLICATION found by the new `tools/pushscan.py`; `CyclePalette` 0x415af0 fell out downstream) MINUS 2 to the TU joint phase, a USER-APPROVED trade — plus `DrawWeaponBox` 0x428ac0 301 B→16 with its LENGTH onto the extent, and v121's lesson-#52 census REOPENED as too narrow (`tools/xjumpscan.py`, 6 hits→12)**; **257→258 at v127 — `FindEntityAt` 0x40b210 recovered (+1/−0), one of the two functions v126's phase rotation cost; plus a NEW ORACLE `tools/widthscan.py` (the parameter-TYPE gap `aritycheck.py` is structurally blind to, 12 hits) and lesson #58: a decl-order match on a PHASE VICTIM is not evidence about the source, because BOTH spellings are byte-exact — each at a different phase**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -68,7 +68,7 @@ cheap band is search-limited", not "nothing happened".
 built and returned a measured NEGATIVE. Read a flat exact count as "the cheap band is
 search-limited", not "nothing happened".
 
-Phases A–G (byte-matching YodaDemo.exe's app region): **256 functions byte-exact / 99.17 % coverage** (v100's
+Phases A–G (byte-matching YodaDemo.exe's app region): **258 functions byte-exact / 99.17 % coverage** (v100's
 +17 was a **MEASUREMENT CORRECTION, not new matching** — `progress.py` had been under-counting; v102's +3 IS
 real matching — the `CWnd::SendMessage` member-form find, see the standing lesson below),
 every function transcribed (exact or annotated-EFFECTIVE), a runnable `/OPT:REF`-linked image, all
@@ -237,7 +237,7 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 **Anchor oracles — run after ANY shared-code edit, all must hold:**
 | oracle | command | green state |
 |---|---|---|
-| exact count | `python3 tools/progress.py` | **257 exact / 99.17 % transcribed** |
+| exact count | `python3 tools/progress.py` | **258 exact / 99.17 % transcribed** |
 | full link | `tools/link_exe.sh` | 0 unresolved / 0 duplicates / exit 0 |
 | field/slot bugs | `python3 tools/bugscan.py --all` | **1 HIGH (known benign) / 0 SHIFT** |
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
@@ -256,7 +256,7 @@ IDENTICAL. ⇒ Do not "fix" it, and do not add a suppression list to bugscan (hi
 finding is the wrong direction for an instrument — see the harness-can-lie lessons);
 the verdict is recorded in the function's source note.
 
-⚠ **257 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119, **−3 DELIBERATE at v120**, +1 REAL at v121, **+1 NET at v126 (+3 REAL / −2 phase, user-approved — see the v126 note below)**; all five oracles
+⚠ **258 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119, **−3 DELIBERATE at v120**, +1 REAL at v121, **+1 NET at v126 (+3 REAL / −2 phase, user-approved — see the v126 note below)**, +1 REAL at v127 (a v126 phase victim recovered — but read lesson #58 before treating it as evidence); all five oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
@@ -578,6 +578,76 @@ original's statement order straight off the machine code. On `DrawHealthDial` th
 store sits immediately BEFORE the coord block, which POSITIVELY CONFIRMS that the coords are
 computed after all four GDI objects (our current order) and refutes the hoisted variant that
 otherwise looked like a 10-byte length win. Use it before sweeping a statement-order axis.
+
+⭐ **A DECL-ORDER MATCH ON A *PHASE VICTIM* IS NOT EVIDENCE ABOUT THE 1997 SOURCE (v127,
+lesson #58) — the oracle pins a family whose MEMBERSHIP MOVES WITH THE PHASE.** Lesson #36
+already said the byte oracle pins a FAMILY of spellings and you must pick the idiomatic
+member. v127 found a sharper version: when the TU's joint phase rotates (v105/v106), the
+member that is byte-EXACT changes, so a recovered match certifies nothing on its own.
+- **The measurement.** v126's `OnUpdate` landing cost `FindEntityAt` 0x40b210 and
+  `StepDetonatorEffect` 0x40e400 their exactness. Re-permuting FindEntityAt's four EXISTING
+  declarations recovers it exactly (16 B → 0 at len 85 = the extent, +1/−0). But compiling
+  **v125's `DeskcppView.cpp` verbatim** shows BOTH functions byte-exact there under the OTHER
+  spellings — `pZone/nCharId/n/i` then, `pZone/n/i/nCharId` now. Neither spelling is wrong C
+  and no declaration was added or removed, so this is NOT the ❌ v96 padding case; it is
+  simply two members of one family, each exact at one phase.
+- ⇒ **The rule: refit a phase victim only when the NEW phase is independently better
+  supported, and say in the note that the match is phase-bound.** Here it is — v126's OnDraw
+  and OnUpdate each landed byte-exact AND with their length on the extent, i.e. the rotation
+  moved the TU toward the original source. Without that, refitting is tuning.
+- ⭐ **Corollary, and it is why the second victim was DECLINED: a spelling that was byte-exact
+  at a previous phase is POSITIVE EVIDENCE, and 8 bytes of diff does not outrank it.**
+  `StepDetonatorEffect`'s analogous refit (`int y` before `int x`, which matches the
+  original's +0x160-first load order) cuts 32 B → 24 and lands NO match. Left unlanded.
+  Its residual is then a clean ebx↔esi 2-cycle on {y, this} = the lesson-#44 class.
+- ⚠ **A stale park note will send you down the wrong road here**: FindEntityAt's note still
+  read "EFFECTIVE MATCH … 6 byte diff" from G1 while the function was byte-exact, and the
+  v126 pickup's per-function byte counts were already phase-relative (v106's corollary). Check
+  the CURRENT `bytediff.py` before believing any number in a note.
+
+⭐ **THE PARAMETER-TYPE ORACLE — `tools/widthscan.py` (v127).** `aritycheck.py` (v120) catches
+a wrong parameter COUNT from the callee's `ret N`. It is structurally blind to a wrong
+parameter TYPE: `short n` and `int n` occupy the same 4-byte slot and clean the same argument
+bytes, so the linker, bugscan, vtcheck, msgcheck and aritycheck ALL pass. The only trace is the
+ACCESS WIDTH — a caller passing a `short` into an `int` parameter must widen it
+(`movsx eax, word [esp+N]`, 5 B); one passing an `int` copies the raw slot (4 B).
+- **12 functions differ**, positive-controlled (0 of the byte-exact set may report a hit, and
+  it fails loudly if one does). Best unworked: `ApplyHotspotCamera` 0x40e500 (orig 2 / ours 0),
+  `TransitionZoneXWing` 0x40e7c0 (0/2, ext−4), `WorldgenFillQuestItemSpot2Maybe` 0x41cf10
+  (1/0, ext−3), `PlaceZone` 0x4260e0 (1/0, ext−7).
+- ⚠ **A HIT IS A CANDIDATE, NOT A DEFECT — v127's own top hit was a FALSE signature lead.**
+  `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 widens `nOrder` where the original copies the
+  raw slot, which reads exactly like `short` vs `int`. It is not: the callee 0x41cdc0 reads
+  that argument slot as a DWORD at four sites, so `int nVal` and `short nOrder` are BOTH
+  positively confirmed and cl widens because it must. ⇒ **always read the CALLEE's own
+  accesses to the slot before touching a signature** — a parameter type lives in a shared
+  header and changing it re-rolls every TU's dial (the v120 `Layout` precedent).
+- ⚠ **Its first draft repeated v126's xjumpscan mistake exactly.** It required an ALIGNED
+  instruction pair, and so could not see the very site that motivated it (the two instructions
+  align to different neighbours) — 1 hit instead of 12. Censusing each side STRUCTURALLY
+  (lesson #56) fixed it. **Match the mechanism, not one instance of its output.**
+
+⭐ **DECOMPOSE THE LENGTH, THEN NAME THE CONSTRUCT — two more functions fully accounted for
+(v127).** The method (lesson #49 + the "decompose the length" memory) paid twice more:
+- **`WorldgenPlaceItemForLockChainMaybe` 0x41d0c0, +13**, decomposed instruction by
+  instruction: +3 `mov dword [esp+0x14],0` vs `mov ebx,0`, +3 `cmp dword [esp+0x14],0` vs
+  `test ebx,ebx`, +2 `mov eax,[esp+0x14]` vs `mov eax,ebx`, +2 the nOrder movsx, +3 frame
+  fallout. ⭐ The mechanism is READABLE IN THE ORIGINAL: EBX holds `item1a`, and cl re-uses it
+  for `nOk` with a `mov ebx,0` placed INSIDE the argument setup — i.e. after item1a's last use
+  (`push ebx`). Our `nOk = 0` is scheduled BEFORE that push, so the ranges overlap and nOk is
+  homed. ⛔ all six decl SET × ORDER configurations are DEAD FLAT at 117 B (including the v106
+  one-variable merge of the two inner `int next`), so per lesson #41 the lever is elsewhere.
+- **The `Zone::ReadZa*` family — 3 functions, 9 bytes, ONE construct.** `ReadZax2` 0x406410
+  (−3), `ReadZax3` 0x406490 (−3) and `ReadZaux` 0x406270 (−6, two sites). Each function's
+  ENTIRE residual is the original's `mov ax, word [esp+0x12]` + `movsx ebp, ax` (8 B) where we
+  emit a single `movsx ebp, word [esp+0x12]` (5 B), plus the downstream shift. ⭐ The lesson-#53
+  dictionary has EXACTLY ONE entry for the two-step form — `Canvas::BlitFast` 0x408110's
+  `int rows = height;`, where a C-level assignment (`height = canvasH - destY;`) reaches the
+  short on one path and the parameter slot on the other — so the shape is the **MERGE of two
+  definitions of a short**, and `count` here has only one. ⛔ closed and not to be re-tread:
+  120 decl permutations (v109), 20+ statement forms (v99), and v127's `n = count; i = n;` /
+  `i = n = count;` (REFUTED BY LENGTH — 119 vs the 114 extent), `i = n` alone, `int i` scoped
+  inside the if, both casts, `count = count;`, and a `short t = count;` temp (all flat).
 
 ⭐ **THE PUSH FORM IS A TWO-SIDED SOURCE ORACLE (v126, lesson #57) — `tools/pushscan.py`.**
 A call argument is either materialised as a literal (`push 0`, 2 bytes) or folded into a
@@ -1556,6 +1626,13 @@ transcribed functions. ⚠ its first draft read the last 3 bytes of Ghidra's ext
 '0 mismatches' WITH the known Layout bug in the tree — the extent over-runs the real `ret` into
 a trailing jump TABLE. Caught by the built-in control: every BYTE-EXACT function must agree, and
 the tool FAILS LOUDLY if one does not) ·
+**`widthscan.py [--exact <file>]`** (⭐ v127 — the PARAMETER-TYPE oracle, the gap
+`aritycheck.py` structurally cannot see: a wrong parameter TYPE occupies the same stack slot
+and cleans the same argument bytes, so every other oracle passes. Censuses the WIDENING stack
+loads (`movsx`/`movzx` word) on BOTH sides per function; ORIG-wide = we declared a `short`
+where the original has an `int`, ORIG-narrow = the reverse. 12 hits, positive-controlled. ⚠ a
+hit is a CANDIDATE — read the CALLEE's own accesses to the slot before changing a signature;
+v127's top hit was a false lead. ⚠ COMPILES) ·
 **`pushscan.py [--exact <file>]`** (⭐ v126 — the PUSH-FORM census behind lesson #57: where
 the ORIGINAL pushes an IMMEDIATE and we push a REGISTER at the same aligned argument slot, or
 vice versa. Two-sided: ORIG-reg = a statement-order fold we destroyed (#39), ORIG-imm = a call
@@ -1600,107 +1677,103 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-06 v126 — **256 → 257 exact: +3 REAL byte-matches minus a
-2-function, USER-APPROVED phase trade. Two functions cracked (`OnDraw` 0x409110 386 B→0 and
-`OnUpdate` 0x408e70 283 B→0), a third cut 301 B→16 with its length onto the extent
-(`DrawWeaponBox` 0x428ac0), a new lesson (#57, the PUSH FORM), a REOPENED seam (v121's
-lesson-#52 census was too narrow: 6 hits → 12), and two new positive-controlled tools.**
-All oracles green: **257 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (the documented
+### ⏭ NEXT SESSION PICKUP (2026-09-05 v127 — **257 → 258 exact: ONE recovered phase victim,
+plus a NEW ORACLE (`tools/widthscan.py`, the parameter-TYPE gap `aritycheck.py` cannot see),
+a new standing lesson (#58, a decl-order match on a phase victim is not evidence), and TWO
+residual families fully DECOMPOSED and closed on every axis this project owns.**
+All oracles green: **258 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (the documented
 benign `StartGame` 0x4037a0 finding) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches.
-v125 log demoted to PLAN_COMPLETED.md.)
+v126 log demoted to PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — FOUR triage rules now.** (1) v123's: if a residual's `kinds` are only
+**▶ READ FIRST — FIVE triage rules now.** (1) v123's: if a residual's `kinds` are only
 `cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`, park it (lesson #54). (2) v124's: run
 `tools/thisscan.py` before reading any NEGATIVE-length residual as a register mystery. (3)
 v125's (lesson #56): a note saying "the original does X and we don't" is a claim about BOTH
-binaries — census our own output first. (4) ⭐ **NEW (lesson #57): run `tools/pushscan.py`
-early. An IMMEDIATE-vs-REGISTER push at the same argument slot names the defect directly — and
-in the ORIG-imm direction it means the original DUPLICATED a call we merged.**
+binaries — census our own output first. (4) v126's (lesson #57): run `tools/pushscan.py` early;
+an ORIG-imm push means the original DUPLICATED a call we merged. (5) ⭐ **NEW (lesson #58): a
+park note's byte count is PHASE-RELATIVE and may be years stale — re-run `bytediff.py` before
+believing any number in a note, and never read a recovered decl-order match on a phase victim
+as evidence about the 1997 source.**
 
 **▶ WHAT LANDED**
-1. ⭐ **`OnDraw` 0x409110 — BYTE-EXACT, 386 B → 0** (len 550 = extent). The original spells the
-   canvas `BitBlt` TWICE and cl cross-jumps the two calls; our `int srcX, srcY;` + one call was
-   the branchless rewrite, and those two locals were what forced a 4th callee-save and the
-   0-in-EDI hoist that the G1 note had blamed as "not source-steerable". Arm order is
-   load-bearing on top (swap = 20 B). ⇒ `DrawTextA` 0x40f060 and `CyclePalette` 0x415af0 fell
-   out byte-exact downstream — **`CyclePalette` is one of the four the v120 re-baseline cost**,
-   and `DrawTextA` was v125's lesson-#54 park (it was PHASE, not the compiler bound; the v125
-   note's "strong park, not a proof" caveat was right).
-2. ⭐ **`OnUpdate` 0x408e70 — BYTE-EXACT, 283 B → 0** (len 479 = extent), via lesson #47 (the
-   inner test is `lHint != 3`, not `== 3`) THEN lesson #52 (no shared `hWnd`/`hdc` pair — the
-   original spells `::ReleaseDC` twice, once per arm). ⛔ **This is the −2 trade** (see the
-   standing note above): it cost `FindEntityAt` 0x40b210 (→16 B) and `StepDetonatorEffect`
-   0x40e400 (→32 B) to the TU joint phase.
-3. ⭐ **`DrawWeaponBox` 0x428ac0 — 301 B → 16 at len 375 = the extent EXACTLY**, in three
-   composing steps (#42 member call form → #57/#39 statement order → #48 `tiles[i]`). Remaining
-   16 B = 12 B of frame layout + a 4 B eax/edx scratch bijection (lesson #44). Its sibling
-   `DrawWeaponIcon` 0x428c40 is REFUTED BY LENGTH on the first two axes, confirming its current
-   spelling — the seam is mixed, convert per function.
-4. ⭐ **Two new tools, both positive-controlled: `tools/pushscan.py` (8 hits) and
-   `tools/xjumpscan.py` (12 diamonds, 2 open).**
+1. ⭐ **`FindEntityAt` 0x40b210 — BYTE-EXACT, 16 B → 0** (len 85 = extent), +1/−0, by
+   re-permuting its four existing declarations to `pZone/n/i/nCharId` (the result variable
+   LAST). ⚠ Read lesson #58 before citing this: v125's `DeskcppView.cpp` compiles BOTH this
+   function and `StepDetonatorEffect` byte-exact under the OTHER spellings, so the match is
+   phase-bound. Kept because v126's rotation is the better-supported phase.
+2. ⭐ **`tools/widthscan.py`** — 12 hits, positive-controlled. ⚠ its first draft repeated
+   v126's xjumpscan mistake (required an aligned pair, 1 hit instead of 12).
+3. **Two families decomposed and closed** (see the standing lesson block): `0x41d0c0` (+13,
+   all six decl configs flat) and the `Zone::ReadZa*` trio (9 B, one construct, one dictionary
+   entry). Both now carry full ⛔-closed axis lists in their source notes.
+4. **`StepDetonatorEffect` 0x40e400 DECLINED, not landed** — the refit cuts 32 B → 24 and
+   lands no match, and the x-first spelling is positively confirmed by v125's exactness.
 
 **▶ NEXT — concrete, in priority order.**
-1. **⭐ Recover the two phase victims — this is the cheapest +2 available.** `FindEntityAt`
-   0x40b210 (16 B) and `StepDetonatorEffect` 0x40e400 (32 B) were byte-exact at v125 and are
-   now phase casualties of the OnUpdate landing. Neither is a defect in its own body, so per
-   v105 the lever may not be in them — but they are small, and a joint pass over DeskcppView's
-   decl configurations is exactly the v106 downstream-only search that makes this tractable.
-2. **The 5 remaining `pushscan.py` targets.** `ShowWinMessage` 0x40f4b0 (+36, 2 ORIG-reg sites
-   at +0x16f/+0x41a — but see the warning below), `LoadWorld` 0x421fd0 (+6, 2 ORIG-imm sites =
-   a duplicated call), `ZoneTransitionStep` 0x409650 (+3, one of each), `OnDragItem` 0x4102d0,
-   `FireWeaponStep` 0x40a710. ⚠ `ShowWinMessage` is a 2000-byte WHOLE-ALLOCATION difference —
-   the original SPILLS `this` and both `x+dx`/`y+dy` sums to the frame where we enregister them
-   in ESI/EDI, and it differs from the very first instruction. Budget it as a project, not a
-   probe; the two push sites are unlikely to be the dominant defect.
-3. **`OnKeyDown` 0x4150f0's missing 3/3 diamond** (`tools/xjumpscan.py`). ⚠ the ARM ORDER there
-   is REFUTED (both spellings dead flat at 1247 B), and the function's dominant residual is
-   still the parked shared-tail placement, so this is a component of a large job.
-4. **Keep running `residuals.py --lenmis`, skipping the four TIE kinds.** Unworked, biggest
+1. **The 4 unworked `widthscan.py` hits** — `ApplyHotspotCamera` 0x40e500 (orig 2 / ours 0,
+   ext+1), `TransitionZoneXWing` 0x40e7c0 (0/2, ext−4), `WorldgenFillQuestItemSpot2Maybe`
+   0x41cf10 (1/0, ext−3), `PlaceZone` 0x4260e0 (1/0, ext−7). ⚠ all four are 70-80 %-differing
+   bodies, so budget them as real work; and read the CALLEE's slot accesses before touching a
+   signature (v127's top hit was a false lead).
+2. **`WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13) — the decl axis is CLOSED, the lever
+   is "stop `nOk`'s live range starting before item1a's last use".** Untried: an if/else that
+   assigns `nOk` in both arms instead of `int nOk = 0;` + a conditional overwrite; an early
+   `return 0;` on the WorldgenPlaceItemOnLock failure. Both are cheap and neither was swept.
+3. **The `Zone::ReadZa*` trio (9 B) needs the SECOND DEFINITION of the short**, not another
+   spelling — every spelling axis is closed. The dictionary entry (`BlitFast` 0x408110) says
+   the two-step form is a MERGE of two definitions; look for a conditional assignment to
+   `count` that we are missing, or find a second dictionary instance.
+4. **The 5 remaining `pushscan.py` targets.** ⚠ v127 checked two and both are big:
+   `ScrollZoneTransition` 0x411180 (−62) is **83 % divergent and its push hit sits inside
+   noise** — the alignment there is arbitrary, so do NOT treat the site as a localised defect;
+   `OnActivate` 0x419540 (MainFrm, NEW hit, 193 of 360 B) has a real ORIG-reg zero-in-EBP CSE
+   (the original parks 0 in EBP for the `bDragActive`/`nFrameMode` stores and the push-0 args)
+   but the whole block layout has shifted with it. Unchecked: `LoadWorld` 0x421fd0 (+6, 2
+   ORIG-imm = a duplicated call), `OnDragItem` 0x4102d0, `FireWeaponStep` 0x40a710,
+   `OnBumpTile` 0x413df0, `ZoneTransitionStep` 0x409650. `ShowWinMessage` 0x40f4b0 remains a
+   project, not a probe (2000 B whole-allocation difference).
+5. **Keep running `residuals.py --lenmis`, skipping the four TIE kinds.** Unworked, biggest
    first: `ScrollZoneTransition` 0x411180 (−62) ⚠ decl axes CLOSED at v121,
    `Layout@TextDialog` 0x4176f0 (−35), `IactProbeMove` 0x406550 (+26) ⚠ decl + statement-order
    axes closed, `DrawHealthNeedle` 0x4278a0 (−17) / `DrawHealthDial` 0x427490 (−16) — pursue
    those two via `WorldgenPushZoneEntry` 0x41d6b0 per lesson #55, NOT via the refuted CSE,
-   `WorldgenPlaceItemForLockChainMaybe` 0x41d0c0 (+13, only 117 B of diff — cheap),
-   `WorldgenPlacePuzzles` 0x421930 (−11), `PlaceZone` 0x4260e0 (−7), `ReadZaux` 0x406270 (−6),
-   `RefreshZone` 0x403ae0 (−6, only 70 B).
-5. **`DrawWeaponBox` 0x428ac0's last 16 B** — the dead frame slot (ours `sub esp,0x18` homes
-   `pTile` as well as pOldPal+rc; the original's `0x14` is rc(16)+pOldPal(4) exactly). Every
-   decl axis the project owns is FLAT on it; needs a new idea, not another sweep.
-6. **The 3 remaining `impcse.py` targets** (v125's list, still valid): `UpdateDragCursor`
-   0x412cc0 (+9 — ours CSEs `SetPixel`; ⚠ its source note ALREADY describes this exactly and
-   says the decl probes are inert), `OnTimer` 0x40d470, `WorldSizeDlg::OnHScroll` 0x418560.
-   ⚠ `DrawWeaponBox`/`DrawWeaponIcon` have left that list (0x428ac0 fixed; 0x428c40 confirmed).
-7. **Re-run `aritycheck.py` on newly-transcribed functions** — 96 of 359 markers still
-   "unreadable" (no terminal ret). Cheap, and the payoff is proven.
+   `WorldgenPlacePuzzles` 0x421930 (−11), `PlaceZone` 0x4260e0 (−7), `RefreshZone` 0x403ae0
+   (−6, only 70 B).
+6. **`OnKeyDown` 0x4150f0's missing 3/3 diamond** (`tools/xjumpscan.py`). ⚠ arm order REFUTED
+   (flat at 1247 B); a component of a large job.
+7. **Re-run `aritycheck.py` + `widthscan.py` on newly-transcribed functions** — 96 of 359
+   markers are still arity-"unreadable" (no terminal ret). Cheap, and the payoff is proven.
 8. **Try to recover the three the v120 re-baseline still costs** — `ZoneHasIzxItemMaybe`
-   0x41bfa0, `ParseZax2` 0x423210, `DetonateAdjacentTiles` 0x428680. (`CyclePalette` 0x415af0
-   came back at v126.) ⚠ that cluster flips on EVERY Worldgen-visible perturbation.
-9. **⛔ CLOSED — do not re-tread.** (a) `DrawWeaponBox`'s arm order (flat at 3 separate
-   baselines), its 6 decl orders, `pTile` at function scope, `short` flag and inlined tile
-   (both refuted by length). (b) `DrawWeaponIcon` 0x428c40's member form and statement swap —
-   both refuted BY LENGTH, current spelling confirmed. (c) `OnKeyDown` 0x4150f0's arm order.
-   (d) `OnUpdate`'s remaining spellings — all 6 legitimate exact forms cost exactly 2, and
-   line-neutral padding does not help (it is the TOKEN change). (e) The dead-`HWND` zero-cost
-   variant — forbidden padding dial. (f) Everything v125/v124/v123/v120 closed.
+   0x41bfa0, `ParseZax2` 0x423210, `DetonateAdjacentTiles` 0x428680. ⚠ flips on EVERY
+   Worldgen-visible perturbation.
+9. **⛔ CLOSED — do not re-tread.** (a) `StepDetonatorEffect` 0x40e400: split decl/assign, an
+   nPhase local, both call-argument orders (all flat at 24), `short x/y` refuted by length.
+   (b) `FindEntityAt`: `entities[i]` vs `GetAt(i)` and the loop form (all four cells flat).
+   (c) `0x41d0c0`'s six decl SET × ORDER configurations. (d) The `ReadZa*` trio's eight v127
+   spellings on top of v99's 20+ and v109's 120. (e) `DrawLocatorMap` 0x423df0 / `RefreshZone`
+   0x403ae0 — 16 spellings refuted at v122, the two `movsx` are dead code from a failed
+   peephole. (f) Everything v126/v125/v124/v123/v120 closed.
 10. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
     DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
     `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v125 rules all stand and were all re-used).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v126 rules all stand and were all re-used).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
 `formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`/
-`pushscan.py`/`xjumpscan.py`/`impcse.py` (no `--orig`) is in flight (they share `build/*.obj`).
-`thisscan.py` and `impcse.py --orig` are READ-ONLY and safe during a sweep.
-⭐ **v126 method note — MEASURE THE COLLATERAL WITH `formsweep.py`, NOT WITH REPEATED
-`exactset.py` RUNS.** Choosing among OnUpdate's six exact spellings needed the whole TU's
-marker vector per variant; `formsweep.py` does that in k+1 compiles against one baseline,
-where each `exactset.py` run is a full 13-TU rebuild. ⚠ **`formsweep.py` ENFORCES
-line-neutrality and SKIPS a non-neutral edit** — pad variants with blank lines. ⚠ its
-`--expect-exact` is PER-TU and its count can exceed `verify.py`'s (which is a lower bound,
-lesson #30): DeskcppView.cpp reads **90** in formsweep and 88 in verify.py.
+`pushscan.py`/`xjumpscan.py`/`widthscan.py`/`impcse.py` (no `--orig`) is in flight (they share
+`build/*.obj`). `thisscan.py` and `impcse.py --orig` are READ-ONLY and safe during a sweep.
+⭐ **v127 method note — TO SETTLE "WAS THIS EXACT BEFORE?", COMPILE THE OLD FILE.** A park
+note's byte count is phase-relative and may be years stale. `git show <sha>:src/X.cpp >
+src/X.cpp; python3 tools/bytediff.py src/X.cpp 0xA 0xB` then restore your copy is ~40 s and it
+is the ONLY way to know whether a spelling was ever exact — it is what turned v127's "+2 free
+recovery" into lesson #58. (A per-TU restore reproduces that TU's phase exactly, because TUs
+compile separately.)
+⭐ **v126 method note — MEASURE COLLATERAL WITH `formsweep.py`, NOT repeated `exactset.py`.**
+⚠ `formsweep.py` ENFORCES line-neutrality and SKIPS a non-neutral edit — pad with blank lines.
+⚠ its `--expect-exact` is PER-TU and can exceed `verify.py`'s (a lower bound, lesson #30).
 ⚠ **A per-TU sweep is NOT sufficient when the edit is in a header** — that needs `exactset.py`.
 Measure with `tools/exactset.py` + `comm`, never progress.py's total alone. A comment rewrite
 IS a line-count change (lesson #23) — re-measure AFTER writing the note.
@@ -1712,15 +1785,17 @@ an edit by hand first, "restored" means back to YOUR edited state, not to HEAD.
 every row; it refutes a variant before you look at a single register. ⚠ **`jointdecl.py` still
 carries the vacuous `orig_len`** — a cheap, worthwhile chore.
 ⚠ **`asmscore.py` CANNOT PAIR a function whose doc comment contains a `Class::Method (` string**
-(its name regex grabs that instead) — it dies with `'NoneType' object is not subscriptable`, as
-it does on `OnDraw` 0x409110 ("World::Load (the .dta worldgen)"). Work around it with a 10-line
-script over `residuals.paired()` + `asmscore.dump_diff()`; that alignment dump is the single
-most useful view in the project and is worth keeping to hand.
+(its name regex grabs that instead) — it dies with `'NoneType' object is not subscriptable`.
+⭐ **v127: a 20-line SIDE-BY-SIDE disassembler over `residuals.paired(cpp)` beats
+`asmscore --dump` for reading a residual**, because dump_diff prints only the DIFFERING lines
+and a schedule difference makes those unreadable. Decode `EXE[(va-match.TEXT_VA)+match.TEXT_RAW:]`
+and `code` with capstone and print every offset in a range, marking the mismatches. That view
+is what decomposed both of this session's families; keep it to hand.
 ⭐ **A THROWAWAY PROBE beats a general tool for a one-off question — but give it a POSITIVE
-CONTROL, and promote it once it overturns something.** Both v126 tools started as ~40 lines of
-scratch Python; `pushscan`'s control is "no byte-exact function may report a hit" and
-`xjumpscan`'s is "must re-find all 6 of v121's diamonds". The second control is what proved the
-generalisation was real rather than a looser pattern matching noise.
+CONTROL, and promote it once it overturns something.** `widthscan`'s control is "no byte-exact
+function may report a hit". ⚠ and v127 re-learned v126's lesson the hard way: **a census that
+requires positional ALIGNMENT will miss the very cases worth finding** — census each side
+structurally instead (lesson #56).
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

@@ -4915,3 +4915,22 @@ positive control too — and note that v125's control (three byte-exact function
 the construct on both sides) is what made the retraction trustworthy rather than just another
 confident scan.
 
+
+
+---
+
+### ⏮ v126 PICKUP (2026-09-06 — 256 → 257 exact; demoted at v127)
+
++3 REAL byte-matches minus a 2-function user-approved phase trade. Landed: `OnDraw` 0x409110
+386 B → 0 (lesson #52 call duplication, a TWO-push diamond v121's census could not see);
+`OnUpdate` 0x408e70 283 B → 0 (lesson #47 arm order, then #52 — the original spells
+`::ReleaseDC` twice); `CyclePalette` 0x415af0 and `DrawTextA` 0x40f060 fell out downstream
+(the latter retiring v125's lesson-#54 park — it was PHASE, not the compiler bound).
+`DrawWeaponBox` 0x428ac0 301 B → 16 with its length onto the extent, in three composing steps
+(#42 member call form → #57/#39 statement order → #48 `tiles[i]`). New: lesson #57 (the PUSH
+FORM, `tools/pushscan.py`), and v121's lesson-#52 census REOPENED 6 → 12 (`tools/xjumpscan.py`)
+because it hard-coded a one-push arm. ⛔ The −2: landing OnUpdate rotated DeskcppView.cpp's
+joint phase and cost `FindEntityAt` 0x40b210 and `StepDetonatorEffect` 0x40e400; all 6
+legitimate exact spellings cost exactly 2, line-neutral padding does not help, and the only
+zero-cost variant kept a dead `HWND hWnd;` declaration and was REJECTED as the v96 padding dial.
+⇒ v127 recovered `FindEntityAt` and DECLINED `StepDetonatorEffect` — see lesson #58.
