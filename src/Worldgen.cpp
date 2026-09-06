@@ -916,6 +916,25 @@ int CDeskcppDoc::WorldgenFillQuestItemSpot2Maybe(short zoneId, short a2, short n
 // arm order was load-bearing). Residual: nOk allocated to EBX in orig vs a stack slot here
 // (the one extra insn = our spill; drives the sbb-into-eax + cmp-mem forms), entangled with
 // the this=EDI-vs-ESI callee-save cascade. Tie-break family — joint pass.]
+// ⭐ v127 DECOMPOSED the +13 (len 414 vs extent 401) and the note above is CONFIRMED, not just
+// plausible: the spill of `nOk` is the whole structural defect and every other byte follows it.
+//   +3  `mov dword [esp+0x14],0`     vs the original's `mov ebx,0`
+//   +3  `cmp dword [esp+0x14],0`     vs `test ebx,ebx`
+//   +2  `mov eax,[esp+0x14]`         vs `mov eax,ebx`
+//   +2  `movsx eax, word [esp+0x28]` vs `mov eax,[esp+0x20]` — the nOrder argument
+//   (+3 of frame/displacement fallout; our `sub esp,8` vs the original's `sub esp,4`.)
+// ⭐ The MECHANISM is visible in the original: EBX holds item1a, and cl RE-USES it for nOk with
+// `mov ebx,0` placed INSIDE the WorldgenPlaceItemOnLock argument setup — i.e. after item1a's
+// last use (its `push ebx`). Our `nOk = 0` is scheduled BEFORE that push, so the two live ranges
+// overlap and nOk is homed instead. The lever is whatever stops cl starting nOk's range early;
+// it is NOT the declaration block.
+// ⛔ CLOSED (v127) — all six decl SET x ORDER configurations are DEAD FLAT at 117 B / +13:
+// merging the two inner `int next` decls into one (the v106 one-variable probe), `next` at
+// function scope, `item1` at the top, `nOk` hoisted, and both nOk/item1 orders. Per lesson #41
+// a flat decl sweep means the lever is on another axis.
+// ⚠ The `movsx` above is a `tools/widthscan.py` hit and it is a FALSE lead for a signature fix:
+// the callee 0x0041cdc0 reads its 3rd argument slot as a DWORD at four sites, so `int nVal` is
+// POSITIVELY CONFIRMED and `short nOrder` here is right too — cl widens because it must.
 // Build a MAP-TO-ITEM-FOR-LOCK node (Zone.type==0xf, must have an EMPTY IZX3 list): resolve
 // the lock item (and follow-up item) from the questItemsA/B chain, register both, place the
 // lock item on the zone's OBJ_LOCK, then the follow-up into a quest-item spot.

@@ -353,6 +353,9 @@ void Zone::WriteSavedState(CFile *pFile, int bFull)
 // FUNCTION: YODA 0x00406270
 // Parses an IZAX record: entity list (count read twice — the first is a placeholder field),
 // then two word lists into providedItemsA/providedItemsB.
+// len 410 vs extent 416: the -6 is EXACTLY the two `i = count;` sites below, 3 B each — the
+// same single construct that accounts for all of ReadZax2 0x00406410 and ReadZax3 0x00406490.
+// See the ReadZax2 note for the measured axes (all closed) and the one dictionary entry.
 void Zone::ReadZaux(CFile *pFile)
 {
     char  tag[5];
@@ -398,10 +401,22 @@ void Zone::ReadZaux(CFile *pFile)
 
 // FUNCTION: YODA 0x00406410
 // Parses an IZX2 record: one word list into genCandidateA.
-// v109: ALL 120 leading-decl permutations (tag,size,i,n,count) are flat at 47 B, so lesson #38
-// is closed here as well — the +3B `mov ax,mem; movsx ebp,ax` vs our single `movsx ebp,word mem`
-// survives BOTH the statement axis (v99, 20+ forms) and the decl axis. Applies to ReadZax3
-// 0x00406490 too: that function is this one textually, differing only in genCandidateA/B.
+// ⭐ v127 QUANTIFIED IT: the ENTIRE 47 B residual is ONE construct worth exactly 3 bytes, and
+// everything after it is the downstream shift. len 111 vs extent 114 — we are SHORT (lesson #49).
+// At +0x03b the original emits `mov ax, word [esp+0x12]` + `movsx ebp, ax` (8 B) where we emit
+// the single `movsx ebp, word [esp+0x12]` (5 B). Same family, same 3 B, at ReadZax3 0x00406490
+// (textually this function, genCandidateA/B apart) and TWICE in ReadZaux 0x00406270 (-6).
+// ⭐ The lesson-#53 dictionary has exactly ONE entry for the two-step form: Canvas::BlitFast
+// 0x00408110 +0x03b, `mov dx, word [ebp+0x10]; movsx esi, dx` = `int rows = height;` — where
+// `height` is a short that C-level ASSIGNMENT reaches on one path (`height = canvasH - destY;`)
+// and the parameter slot on the other. So the two-step looks like the MERGE of two definitions
+// of a short, and `count` here has only one (the CFile::Read through &count).
+// ⛔ CLOSED axes — do not re-tread: all 120 leading-decl permutations (v109); 20+ statement
+// forms (v99); and v127's `n = count; i = n;` / `i = n = count;` (all REFUTED BY LENGTH — they
+// really store n, 119 vs the 114 extent), `i = n` alone, `int i` scoped inside the if,
+// `(short)`/`(int)` casts, `count = count;` and a `short t = count;` temp — the last six all
+// DEAD FLAT at 111 B / 47. The lever is the missing second DEFINITION of the short, not the
+// spelling of this assignment.
 void Zone::ReadZax2(CFile *pFile)
 {
     char  tag[5];
