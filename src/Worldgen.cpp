@@ -3908,6 +3908,9 @@ cleanup:
 //   an UNGUARDED `if (nZoneId < 0) return 0; do { ... } while (nZoneId >= 0); return 0;` gets
 //   the test right but gives the second `return 0` its OWN epilogue (+12 B) and overshoots to
 //   1314; the `for (;;)` form is what we had.
+// ⭐ v134: `jseqscan.py`'s SHAPE + POLARITY hit on this function IS bullet (1) below and
+//   nothing more (orig-only je@+36b/+388, ours-only jle@+2b9/je@+2d8) — already explained
+//   and already measured; do not re-open it from the census.
 // Residuals: (1) the OPEN block-sinking family — the orig sinks all four accept-block copies
 // (first-tele + one per worldSize case) PAST the switch to 0x421c4b-0x421cd9 and reaches them
 // with `jg <accept>` twice + `jmp <ban>`; ours emits copies 1 and 2 INLINE as the fallthrough

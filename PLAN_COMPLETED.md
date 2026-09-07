@@ -5305,3 +5305,45 @@ CONTROL, and promote it once it overturns something.**
 looks alarmingly like a changed HIGH finding; grep for the `=== HIGH` section header instead.
 The documented green state is and remains `StartGame` 0x4037a0 `@+0x14a`.
 
+
+---
+
+### ⏮ v133 (2026-09-07, condensed at v134) — held at 257 exact, +0/−0
+
+**Landed.** `UpdateDragCursor` 0x412cc0: **379 B @ len 1255 (ext+9) → 112 B @ len 1246 = the
+Ghidra extent EXACTLY, +0/−0**, on a NEW dial — **lesson #62, the `for` / `do`-while
+ALLOCATION-RANK choice**, the converse of #40 and invisible to every loop census because the
+emitted loop is the SAME SHAPE either way (`mixscan` shows no `jmp`/`test`/`jcc` delta). What
+changes is the loop index's allocation RANK: cl 10.20 ranks a `for`'s index above the same
+variable driving a `do`-while backedge, and that one rank change decides who gets the last
+callee-saved register. Its hi-colour pixel loop as a `do` lost EDI to a CSE of the `SetPixel`
+import; as `for (y2 = 0; y2 < 32; y2++)` y2 outbids the import. The +9 decomposed exactly
+(+6 `mov edi,[__imp__SetPixel]`, −4 the shortened `call edi`, +3 the memory inc/cmp forms,
++3 the pre-push reload, +1 the init). Fingerprint = **an `impcse.py` hit ∩ a `framescan.py`
+OURS-LARGER hit** (one decision, not two — the CSE is what evicted the local); remaining
+members `DrawWeaponIcon` 0x428c40 and `WorldSizeDlg::OnHScroll` 0x418560. Only the OUTER loop
+is evidence (for/for measures identical); `i` must be declared OUT beside y2 and **its zero
+must be a STATEMENT, never part of its declaration** (`int i = 0;` hoisted = 303 B @ 1255,
+refuted by LENGTH).
+
+**The phase-victim rule (triage rule 11).** Landing it re-rolled DeskcppView.cpp's joint phase
+and knocked `CyclePalette` 0x415af0 out on UNCHANGED text. v110's "mgmm is the unique 0" over
+16 call-form combinations was **PHASE-BOUND, not a fact about the source**. Widened to 32 cells
+(GetDC/ReleaseDC as a 5th axis) it had three exact cells at the new phase; the minimal one-token
+move was taken. ⇒ **Before accepting a phase victim as the price of a proven form, re-run
+whatever sweep originally landed it** — the first time a victim cost nothing. (It fired again
+at v134, and again cost one token.)
+
+**Other products.** `ShowWinMessage` 0x40f4b0 SCOPED with a throwaway frame-SLOT census (the
+original COLOURS its slots — a dead int's slot reused for a CString — giving 5 slots to our 7),
+and its head CSE named as the open question. Method notes promoted: disassemble the original
+directly while a sweep is in flight; hand-apply + `bytediff.py` when vartest's BASE cannot span
+the sites; the 20-line frame-slot census.
+
+⚠ **What v133 got WRONG, corrected at v134** (kept here because the shape of the error is the
+lesson): it read the original's head loads of playerX/playerY as a SPECULATIVE HOIST by cl and
+set "find what blocks the hoist" as the next session's #1 question. There is no hoist — the
+loads are at the head because the SOURCE puts them there (`int px = pWorld->playerX;`,
+lesson #43). And it wrote `WORD id` up as a ⛔ MEASURED NEGATIVE "REFUTED BY LENGTH" at +39;
+at the v134 phase, after the arm-order fix, the same edit is an 8-byte GAIN. **A ⛔ list is
+phase-relative** — triage rule 12.
