@@ -4182,14 +4182,27 @@ int CDeskcppDoc::ParseChar(CFile *pFile)
 }
 
 // FUNCTION: YODA 0x00421fd0
-// [EFFECTIVE-WIP: ~97% insn-identical. Residuals: (1) the loop-exit cleanup block (delete
-// pFile + dtors + return) sits mid-ladder after the ZONE arm in the orig, at the end here —
-// the OPEN block-layout family (WorldDoc GetLocatorIcon); nesting the ladder under
-// if(nDone==0) proven IL-equivalent (identical bytes). (2) a reg-pool cascade seeded by
-// nRet-init 1 landing in ESI (orig) vs EDI (ours): zero-pool xor, delete-loop countdown
-// (dec/jne) vs up-count+spill, few cmp forms. Dial/joint-pass territory. Structure proven:
-// CPoint-pair CRect ctor (r,b computed before l,t), x/y locals, DoWaitCursor(1) direct,
-// pApp spilled, delete-loop guard+do-while.]
+// [EFFECTIVE-WIP: DIFF(485) at LENGTH 1684 == the Ghidra extent EXACTLY (v129).
+//   ⭐ v129: 1047 B @ +6 -> 485 B @ ±0 on ONE lesson-#40 fix, +0/-0 collateral — the zone
+//   delete loop is the house guarded COUNTDOWN (`i++; nZones--; } while (nZones != 0);`),
+//   not the up-count compare we had. The old note NAMED the symptom ("delete-loop countdown
+//   (dec/jne) vs up-count+spill") and attributed it to "a reg-pool cascade seeded by nRet";
+//   it is the loop form, and fixing it also killed the HOMED count (`cmp edi,[ebp-0x3c]`
+//   each iteration) that framescan.py had flagged as half of a +8 frame delta. Found by
+//   framescan + pushscan agreeing; `loopform.py` could NOT see it until v129 generalised it
+//   past the `for` spelling — see its docstring. `zones[i]` measures identical to
+//   `zones.GetAt(i)` here (family, lesson #36), so the existing spelling is kept.
+//   Residual now: (1) the loop-exit cleanup block (delete pFile + dtors + return) sits
+//   mid-ladder after the ZONE arm in the orig, at the end here — the OPEN block-layout
+//   family (WorldDoc GetLocatorIcon); nesting the ladder under if(nDone==0) proven
+//   IL-equivalent (identical bytes). Both images emit the SAME counts of every cleanup
+//   instruction (11 EH-state stores, 3 virtual deletes, 2 pFile null tests, 3 rets), so it
+//   is PLACEMENT, not a missing/duplicated statement — lesson #56 checked on our own side.
+//   (2) a +4 frame delta: one 4-byte slot at [ebp-0x58] that we allocate and NEVER
+//   reference, pushing every deeper slot down; above -0x48 the two layouts agree exactly.
+//   (3) an esi<->ebx bijection seeded by nRet-init 1 landing in ESI (orig) vs EDI (ours).
+//   Structure proven: CPoint-pair CRect ctor (r,b computed before l,t), x/y locals,
+//   DoWaitCursor(1) direct, pApp spilled, delete-loop guard+do-while.]
 // New-game world loader (StartGame): re-pick the planet (demo then FORCES Hoth), free the old
 // zone list, open the .dta (theApp.m_str) and dispatch its FourCC chunk stream until ENDF.
 // VERS must be 0x200.
@@ -4286,8 +4299,8 @@ int CDeskcppDoc::LoadWorld()
             Zone *pZone = (Zone *)zones.GetAt(i);
             if (pZone != (Zone *)-1)
                 delete pZone;
-            i++;
-        } while (i < nZones);
+            i++; nZones--;
+        } while (nZones != 0);
     }
     zones.SetSize(0, -1);
 

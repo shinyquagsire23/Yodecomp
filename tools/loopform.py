@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
 """LOOP-FORM target list (lesson #40): where does the ORIGINAL use a guarded COUNTDOWN
-backedge while OUR source spells a `for (x = 0; x < n; x++)` compare loop?
+backedge while OUR source spells an UP-COUNT COMPARE loop — either `for (x = 0; x < n; x++)`
+or the guarded `do { ...; i++; } while (i < n);`?
+
+⭐ v129 GENERALISED THE PATTERN, and the thing it could not see was the find. The first
+version matched only the `for` spelling, so `LoadWorld` 0x421fd0 — whose delete loop is a
+guarded do-while with an up-count backedge — was INVISIBLE to it, and the defect was sitting
+in that function's own park note ("delete-loop countdown (dec/jne) vs up-count+spill") for
+several sessions. Writing the house countdown there took it **1047 B -> 485 B with the length
+landing exactly on the 1684-byte Ghidra extent, +0/-0 collateral**. Same failure family as
+v126's `xjumpscan` (a census that hard-codes one instance's SHAPE silently under-reports) —
+the tool was right about everything it looked at. Match the MECHANISM, not the spelling.
 
 This is the instrument that found the v113 win (RemoveEmptyZonesFromPlacedList 0x403070,
 26 B -> 24 B). It is READ-ONLY: it disassembles YodaDemo.exe and greps src/, and never
@@ -35,6 +45,10 @@ md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 
 BRANCH = ("jne", "jnz", "jl", "jb", "jle", "jg", "jge", "ja", "jae")
 FOR_CMP = re.compile(r"for\s*\(\s*(?:int\s+|short\s+|unsigned\s+\w+\s+)?\w+\s*=\s*0\s*;\s*\w+\s*[<>]")
+# The SAME defect wearing the other spelling: a guarded do-while whose backedge COMPARES an
+# up-counted index instead of counting a copy of the size down to zero.  `} while (n != 0);`
+# (the house countdown) and `} while (nDone == 0);` (a flag) deliberately do NOT match.
+DOWHILE_CMP = re.compile(r"\}\s*while\s*\(\s*\w+\s*[<>]")
 MARK = re.compile(r"^// FUNCTION: YODA 0x([0-9a-fA-F]{8})", re.M)
 LINE_COMMENT = re.compile(r"//[^\n]*")
 BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
@@ -130,8 +144,13 @@ def main():
         for line in open(path):
             if line.strip():
                 exact.add(int(line.split()[0], 16))
-        print("  control exact set = %d from %s (0x403070 exact? %s — expected False)"
-              % (len(exact), path, 0x403070 in exact))
+        # ⚠ v129: the old line here asserted "0x403070 exact? expected False" — that
+        # function became byte-exact at v116, so the control had ROTTEN into a permanent
+        # false alarm (the "stale green state" lesson).  Anchor it on a fact that cannot
+        # rot instead: the cached set must be non-empty and must not contain everything.
+        print("  control exact set = %d from %s (%s)"
+              % (len(exact), path,
+                 "OK" if 0 < len(exact) < len(bods) + len(exact) else "!! LOOKS WRONG"))
     print()
 
     rows = []
@@ -141,15 +160,18 @@ def main():
         k = backedges(va, ext)
         if not k or "countdown" not in k:
             continue
-        nfor = len(FOR_CMP.findall(strip_comments(body)))
-        if nfor:
-            rows.append((va, tu, k.count("countdown"), k.count("compare"), nfor))
+        clean = strip_comments(body)
+        nfor = len(FOR_CMP.findall(clean))
+        ndw = len(DOWHILE_CMP.findall(clean))
+        if nfor or ndw:
+            rows.append((va, tu, k.count("countdown"), k.count("compare"), nfor, ndw))
 
-    print("ORIGINAL has a countdown backedge AND our source spells a `for (x = 0; x < n;)` loop")
-    print("(strongest signal = orig-cmp 0 with our-for > 0: the original uses NO compare loop at all)")
-    print("%-12s %-22s %-9s %-9s %s" % ("addr", "tu", "orig-cd", "orig-cmp", "our-for"))
-    for va, tu, cd, cm, nf in sorted(rows, key=lambda r: (r[3], -r[2])):
-        print("0x%08x   %-22s %-9d %-9d %d" % (va, tu, cd, cm, nf))
+    print("ORIGINAL has a countdown backedge AND our source spells an UP-COUNT COMPARE loop")
+    print("(strongest signal = orig-cmp 0 with our-cmp > 0: the original uses NO compare loop at all)")
+    print("(our-dowc = `do { ...; i++; } while (i < n);` — the v129 spelling `for` alone missed)")
+    print("%-12s %-22s %-9s %-9s %-8s %s" % ("addr", "tu", "orig-cd", "orig-cmp", "our-for", "our-dowc"))
+    for va, tu, cd, cm, nf, nd in sorted(rows, key=lambda r: (r[3], -r[2])):
+        print("0x%08x   %-22s %-9d %-9d %-8d %d" % (va, tu, cd, cm, nf, nd))
     print("\n%d candidate(s)%s" % (len(rows), "" if show_all else " among non-exact residuals"))
 
 
