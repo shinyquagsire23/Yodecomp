@@ -6332,17 +6332,46 @@ void CDeskcppView::OnLButtonUp(UINT nFlags, CPoint point)
 }
 
 // FUNCTION: YODA 0x00412cc0
-// [EFFECTIVE-WIP: align=130/reg_pen=6 over 413/411 insns — ONE allocator decision + its fallout.
-//  (a) The >8bpp pixel loop: orig assigns i=EDI/x2=ESI/y2=EBX and calls SetPixel through the
-//      import slot each iteration; ours caches the import in EDI, kicking i->EBX and homing y2
-//      to a frame slot (inc/cmp dword [ebp-x]) — the v24 "import-pointer caching flips with the
-//      restructure" family. Decl-order probes (i/y2/x2 hoists) ALL inert (usage-count-driven).
-//  (b) The first guard loads x->EAX/y->ECX vs orig x->ECX/y->EAX (rank tie-break); downstream
-//      the first SetBitmapBits reloads pBitmap from its slot in orig vs our live-reg reuse, and
-//      `cmp [ebp+8],0` schedules one insn earlier. Value-local probe (x0=*pX) WORSE (reg_pen 14),
-//      cmp-flip inert. Minimal-TU probe: IDENTICAL score solo => header-dial/tie-break, not
-//      TU-position — G1 fodder.
-//  ⭐ SOLVED here: field-to-field memcpy => LONE `rep movsb` (see the in-body comment).]
+// [EFFECTIVE: 379 B @ len 1255 (ext+9) -> 112 B @ len 1246 = the Ghidra extent EXACTLY (v133).
+//  ⭐ THE +9 WAS ONE DECISION AND IT DECOMPOSES INSTRUCTION BY INSTRUCTION (lesson #49 method).
+//  The >8bpp pixel loop: the original assigns i=EDI / x2=ESI / y2=EBX and calls SetPixel through
+//  the 6-byte import slot every iteration. We CSE'd the import address into EDI (`mov edi,[__imp__
+//  SetPixel]` + 2-byte `call edi`), which evicted i->EBX and HOMED y2 to [ebp-0x28]. Ledger:
+//  +6 the import load, -4 the shortened call, +3 `inc dword [ebp-0x28]`/`cmp dword [ebp-0x28],0x20`
+//  over `inc ebx`/`cmp ebx,0x20`, +3 the `mov edx,[ebp-0x28]` reload before the arg push,
+//  +1 the init = +9. `impcse.py` had this listed as its top hit (OURS CSEs SetPixel).
+//  ⭐ THE LEVER IS THE OUTER LOOP'S FORM, NOT ANY REGISTER OR DECL DIAL — lesson #62, and it is
+//  the CONVERSE of #40/#129: there the house `do`-countdown replaced our `for`; here our
+//  `do { ... } while (y2 < 32)` had to become `for (y2 = 0; y2 < 32; y2++)`. cl gives a `for`'s
+//  index a higher allocation rank than the same variable driving a do-while backedge, and that
+//  one rank change outbids the import CSE, so y2 takes EDI's would-be job and the import goes
+//  back to the memory form. Read the direction off the length: 1255 -> 1246 = the extent.
+//  ⚠ The INNER loop is inert (for/for and outer-for measure IDENTICAL 112/1246), so only the
+//  OUTER one is evidence; it is left as the `do` the G1 transcription had.
+//  ⭐ TWO more axes pinned, both by measurement, so the spelling is a fact and not a fit:
+//   (1) `i` must be declared OUT here beside y2, not inside the `if` — in-block = 119, out = 112.
+//   (2) `i`'s ZERO must be a STATEMENT at the loop, never part of its declaration: `int i = 0;`
+//       out here measures 303 B at len 1255, i.e. REFUTED BY LENGTH, not merely worse.
+//   The comma is NOT the lever (`i = 0;` as its own statement also gives 112); within the comma
+//   `i` must precede `y2` (y2-first = 117). y2's own `= 0` at the decl is inert (112 either way).
+//  ⛔ Measured FLAT and not to be re-tread: inner-for alone, x2 hoisted before/after i, the outer
+//  and inner countdowns (401/392, both refuted by LENGTH), and dropping `i` for `(y2<<5)+x2`
+//  (311 @ len 1259). The old note here blamed "the v24 import-pointer caching family" and called
+//  the decl probes "inert (usage-count-driven)" — the first half was right about the SYMPTOM and
+//  the second was measuring the wrong axis, the v116 ParseChwp trap (lesson #41) again.
+//  ⭐ POST-FIX TRIAGE, and it CLOSES the function under the standing rules: `mixscan.py` now
+//  reports 0x412cc0 as **PURE-REG** (411/411 insns, empty mnemonic delta) at length == extent,
+//  i.e. the two streams agree instruction-for-instruction and only registers/encodings differ =
+//  lesson #44/#54, source-CLOSED. Do not sweep spellings at the remaining 112 B.
+//  ⚠ `framescan.py` still reports +4 (104 vs 108) and that is NOT a contradiction: mixscan
+//  compares mnemonic COUNTS, so `inc dword [m]` vs `inc reg` and a homed-vs-enregistered `mov`
+//  are invisible to it. With the LENGTH now exact the extra slot is compensated, i.e. the
+//  DrawWeaponBox 0x428ac0 shape (a slot that costs no bytes), not a live-range defect.
+//  Residual now 112 B: (b) the first guard loads x->EAX/y->ECX vs orig x->ECX/y->EAX (rank
+//  tie-break); the first SetBitmapBits reloads pBitmap from its slot in orig vs our live-reg
+//  reuse, and `cmp [ebp+8],0` schedules one insn earlier. Value-local probe (x0=*pX) WORSE,
+//  cmp-flip inert. Minimal-TU probe: IDENTICAL score solo => header-dial/tie-break.
+//  ⭐ SOLVED earlier: field-to-field memcpy => LONE `rep movsb` (see the in-body comment).]
 // Rebuilds the drag-cursor overlay. Restores the 32x32 screen block saved at the previous
 // drag position (paDragSaveBits blitted back via a 1-plane DDB), records the new position
 // (mouse - 16,16), then unless bClear grabs the screen under the new position and composites
@@ -6419,7 +6448,7 @@ void CDeskcppView::UpdateDragCursor(int bClear)
                 }
                 else
                 {
-                    int y2 = 0;
+                    int y2; int i;
                     if (paDragSaveBits2 != NULL)
                     {
                         ::BitBlt(dcMem.m_hDC, 0, 0, 32, 32, pDC->m_hDC, cx, cy, SRCCOPY);
@@ -6429,8 +6458,9 @@ void CDeskcppView::UpdateDragCursor(int bClear)
                         // (call-result/param/global operands get the movsd+movsb split —
                         //  proven by probe battery 2026-07-07; see CLAUDE.md v25 notes)
                         memcpy(paDragSaveBits, paDragSaveBits2, nSize);
-                        int i = 0;
-                        do
+                        // v133: the y2 loop is a `for` and `i` is declared OUT with y2 — both
+                        // pinned by LENGTH (1246 = the extent). See the head note, lesson #62.
+                        for (i = 0, y2 = 0; y2 < 32; y2++)
                         {
                             int x2 = 0;
                             do
@@ -6445,8 +6475,7 @@ void CDeskcppView::UpdateDragCursor(int bClear)
                                 }
                                 x2++;
                             } while (x2 < 32);
-                            y2++;
-                        } while (y2 < 32);
+                        }
                     }
                 }
                 ::BitBlt(pDC->m_hDC, cx, cy, 32, 32, dcMem.m_hDC, 0, 0, SRCCOPY);
@@ -7837,13 +7866,24 @@ void CDeskcppView::OnDestroy()
 // BYTE-EXACT. ⚠ The two AnimatePalette calls take DIFFERENT forms and that is load-bearing,
 // not sloppiness: the FIRST is the MFC member wrapper, the SECOND the global ::AnimatePalette.
 // v103 measured exactly this (both member = 6 B, first only = 0 B) and v110 re-measured all 16
-// call-form combinations (member/global x AnimatePalette x2, RealizePalette, SelectPalette)
-// and re-confirmed it — mgmm is the unique 0, everything else is 6, 12 or worse, and the
-// decl form of pDC/pOldPal is inert across all of them. The function's own note used to call
-// this "one eax<->ecx role swap ... not source-steerable"; it is steerable, by lesson #35.
-// ⚠ It is also PHASE-SENSITIVE: it fell out to 12 B when an unrelated edit elsewhere in the
-// TU re-rolled the register allocator, and came back on the same spelling. If it ever reads
-// 6 or 12 again, re-run the 16-combination sweep before believing anything else moved.
+// call-form combinations (member/global x AnimatePalette x2, RealizePalette, SelectPalette).
+// The function's own note used to call this "one eax<->ecx role swap ... not source-steerable";
+// it is steerable, by lesson #35.
+// ⚠⚠ IT IS PHASE-SENSITIVE, AND v133 IS THE CASE ITS OWN WARNING WAS WRITTEN FOR — heed it.
+// The v110 conclusion "mgmm is the unique 0" was PHASE-BOUND (lesson #58), not a fact about the
+// source. Landing UpdateDragCursor 0x412cc0's outer-`for` upstream re-rolled this TU's allocator
+// and this function fell to 6 B (the same eax<->ecx bijection) on the unchanged mgmm text. The
+// prescribed 16-combination sweep, widened to 32 (GetDC/ReleaseDC member-vs-global added as a
+// 5th axis), recovers it: at the NEW phase there are THREE exact cells, all sharing a2=global
+// and sel=member — {dc=m,rp=g}, {dc=g,rp=m}, {dc=g,rp=g} — and mgmm is no longer one of them.
+// ⭐ The MINIMAL move from v110's spelling was taken: RealizePalette flips to the global form,
+// one token, everything else untouched. Cost of the whole v133 landing: +0 / -0.
+// ⚠ SO DO NOT READ `::RealizePalette` HERE AS EVIDENCE ABOUT THE 1997 SOURCE. Both it and
+// `pDC->RealizePalette()` are byte-exact, each at a different phase — the refit is licensed only
+// because the upstream change that caused it is independently proven (0x412cc0's length lands on
+// its Ghidra extent). SelectPalette's member form is NOT phase-bound: the global form costs 18
+// bytes of LENGTH in all 16 cells, which positively confirms it.
+// ⚠ If this reads 6 or 12 again, re-run the 32-combination sweep before believing anything else.
 // ---------------------------------------------------------------------------
 void CDeskcppView::CyclePalette()
 {
@@ -8010,7 +8050,7 @@ void CDeskcppView::CyclePalette()
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
     ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
-    pDC->RealizePalette();
+    ::RealizePalette(pDC->m_hDC);
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
 }
