@@ -6673,9 +6673,25 @@ int CDeskcppDoc::Populate()
 //  is +2). Lesson #45 says a cmp mirror is a decl-BLOCK symptom, and here that is REFUTED —
 //  so this is the axis to skip, not the axis to try. The loop form is refuted from the other
 //  side too: the ORIGINAL's backedges are COMPARES, not countdowns, so lesson #40 does not
-//  apply.  ⚠ declorder.py --inner only permutes each block's LEADING decl run, so the three
-//  `int nObjs = ...; int j = 0;` pairs that sit after an `if` statement are invisible to it —
-//  a real tool gap, not a measured result.
+//  apply.  ⭐ v132 CLOSED THAT TOOL GAP AND LANDED ONE
+//  STRUCTURAL BYTE, FREE (+0/-0): -7 -> -6. The `int j = 0;` before `spawns.SetSize(0, -1)`
+//  was v119's ZERO-INIT FOLD — cl reused the zeroed register as the argument (`push ebx`, 1 B)
+//  where the original materialises the immediate (`push 0`, 2 B, at +0x1e4). Moving the decl
+//  AFTER the call reproduces it; the oracle pins a FAMILY (`int j; SetSize(...); j = 0;`
+//  measures identically), so the idiomatic member is the one below. ⛔ but the fold was NOT
+//  the cause of the homing — diff is DEAD FLAT at 468 either way and `nObjs` stays in frame.
+//  ⭐ AND THE -7 IS NOT ONE STORY. Sharpening the reading above: at the loop GUARD the claim
+//  holds — orig `xor eax,eax; cmp [nCand],eax` (5 B) vs ours `xor ecx,ecx; cmp eax,ecx` (4 B),
+//  because the original spends EAX on `i` and so kills the copy of nCand its own
+//  `mov [slot],eax` left live, while we put `i` in ECX and fold. But at the four BACKEDGES
+//  BOTH sides read the slot (`39` vs `3b` is an encoding mirror at equal length, lesson #54),
+//  so those contribute 0 bytes — do not read the jl/jg count as five missing bytes. The rest
+//  is the `test -1 / cmp +1 / mov -1` at the spawns loop: the ORIGINAL holds `nObjs` in EBX
+//  across the SetSize call and tests it `test ebx,ebx` (2 B) where we home it and emit
+//  `cmp [ebp-0x24],ebx` (3 B). EBX goes to `j` for us because EDI is already spent on `v`,
+//  which the original re-reads from its word slot [ebp-0xe].
+//  ⛔ v132 re-ran declorder.py --inner with the tool fixed: all three `nObjs/j` pairs are now
+//  visible and each swap is +2. The decl dial here is closed on 50 configurations.
 //  ⭐ Its two siblings carry the IDENTICAL mixscan signature and are one problem, not three:
 //  WorldgenPlaceUsefulObjectMaybe 0x41d260 (-5, `jl +3, jg -3, mov -1, test -1, cmp +1`) and
 //  WorldgenFillQuestItemSpot2Maybe 0x41cf10 (-3, one of each). 0x41d260 already spells its
@@ -6769,8 +6785,8 @@ int CDeskcppDoc::PlaceZone(short zoneId, unsigned short tileId)
                 if (tileId == v)
                 {
                     int nObjs = pZone->objects.GetSize();
-                    int j = 0;
                     spawns.SetSize(0, -1);
+                    int j = 0;
                     if (nObjs > 0)
                     {
                         do
@@ -7341,7 +7357,21 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 //  uses) — and 0x41d6b0 is the closest analogue this function's original has (EH frame, no loop,
 //  4 `this` uses, ENREG in a callee-saved register). ⚠ but BOTH no-loop exceptions save only
 //  TWO registers (esi+edi) where this original saves THREE (ebx+esi+edi), so the analogy is a
-//  hypothesis to measure, not a rule to apply.]
+//  hypothesis to measure, not a rule to apply.
+//  ⛔ v132 CLOSED THE LAST CHEAP AXIS AND IT IS A NEGATIVE. The fixed declorder.py --inner
+//  exposes a SIX-decl run here, `x1,y1,x2,y2,pOldPen,pOldBrush` — the coords TOGETHER WITH the
+//  two SelectObject decls, which every one of the 39 spellings above had permuted separately.
+//  All 15 permutations are at or worse than baseline: the best three cut diff 346 -> 339 at an
+//  UNCHANGED len 493 (below lesson #48's bar), the full reversal reaches 339 at len 490 = -19,
+//  i.e. the length moves AWAY from the 509 extent, and EVERY order that interleaves pOldPen or
+//  pOldBrush among the coords costs +6 length (499) and 348-352 diff. That last row is a free
+//  positive result: it independently re-confirms the v124 EH-state reading that the original's
+//  two SelectObject calls follow the WHOLE coord block.
+//  ⭐ ONE NEW DATUM, and it rules out the obvious remaining explanation: in OUR build EBX is
+//  IDLE for the first 0xb6 bytes — cl pushes it in the prologue and gives it no job until the
+//  coord block — so we spill `this` WITH A CALLEE-SAVED REGISTER GOING SPARE. The original
+//  spends EBX on the GetSysColor import CSE from +0x67. Register scarcity is therefore NOT the
+//  cause of our spill; it is cl's up-front EH-frame default (lesson #55) and nothing else.]
 // Draw the circular health dial's 3D rim: two Chord halves over rectHealthDial inflated by
 // 2px — highlight pen/brush for the lower-left half, shadow for the upper-right. NULL pDC
 // means our own window DC under the world palette.
@@ -7530,7 +7560,20 @@ void CDeskcppView::AddHealth(int nDelta)
 // [EFFECTIVE-WIP: insns 342/346, structure converged (early-return guard, range-pair
 // else-if quadrant chain with jump threading, shared table). Residual = the pDC/this
 // reg-vs-param-slot rotation (orig homes pDC in ESI, xe/ye in slots; ours the inverse —
-// same family as DrawHealthDial; local-copy probe inert) + default-ctor zero-reg choice.]
+// same family as DrawHealthDial; local-copy probe inert) + default-ctor zero-reg choice.
+//  ⛔ v132 — A 9-BYTE LENGTH "WIN" HERE IS NUMBER-CHASING, AND THE ORIGINAL SAYS SO OUTRIGHT.
+//  The fixed declorder.py --inner exposes the run `penA,brA,penB,brB,cx,cy`; five permutations
+//  that move penB (or brB/cy) to the END measure len 1131 = ext-8 against our 1122 = ext-17,
+//  with diff 803 -> 771. That is 9 of the 17 missing bytes and it is REFUTED: the GDI objects'
+//  CONSTRUCTION ORDER is directly readable from the vtable stores, because a default-constructed
+//  CPen/CBrush emits three vtable writes to its own slot (CObject, CGdiObject, then the leaf).
+//  The original's four leaf vtables run 0x44cfbc @[ebp-0x20], 0x44cfec @[-0x28], 0x44cfbc
+//  @[-0x30], 0x44cfec @[-0x38] — X,Y,X,Y, i.e. pen,brush,pen,brush = EXACTLY the order below;
+//  the winning permutation would emit X,Y,Y,X. Our own COMDAT alternates edi,ebx,edi,ebx, so
+//  both sides are censused (lesson #56) and the current spelling is positively CONFIRMED.
+//  ⛔ The other two runs are flat: all 4 legal orders of the 7-decl `nLo,cx2,t,cy2,l,r,b` block
+//  sit at 803-805 (one, `t` first, is refuted by LENGTH at 1125), and pOldPen/pOldBrush is
+//  inert. ⇒ this function's decl dial is closed; it is DrawHealthDial's lesson-#55 question.]
 // Draw the health-dial needle + pie fill. Colors by healthHi segment (1 yellow/green,
 // 2 red/yellow, 3 black/red; 0 = default pens). The full disc is drawn in color A, then
 // the remaining-health slice from 12 o'clock to the needle in color B; the needle end

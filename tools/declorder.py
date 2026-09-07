@@ -26,8 +26,10 @@ lines are re-appended), so lesson #23 can't confound the measurement.
 Usage:
     tools/declorder.py <tu.cpp> <0xADDR> --expect N [--inner] [--max-perm K] [--keep]
 
---inner (v118) permutes EVERY brace-block's decl run, not just the leading function-scope one.
-That axis landed AddHealth 0x427690 and no other tool in the project can reach it.
+--inner (v118) permutes EVERY decl run, not just the leading function-scope one. That axis
+landed AddHealth 0x427690 and no other tool in the project can reach it. ⚠ v132: the v118 scan
+only saw a run that OPENS a brace-block, so a run sitting after a statement (`if (...) {...}`
+then `int nObjs = ...; int j = 0;`) was invisible — see inner_blocks' note.
 
 --expect N is REQUIRED (get it from tools/bytediff.py). K caps the permutation count (default
 120); with more decls than that fits, a random-free deterministic subset (adjacent swaps plus
@@ -100,32 +102,45 @@ def leading_block(body):
 
 
 def inner_blocks(body):
-    """[(label, [(line_index, name), ...]), ...] for EVERY decl run that opens a brace-block.
+    """[(label, [(line_index, name), ...]), ...] for EVERY maximal run of >= 2 decl lines.
 
     ⭐ v118 (lesson #50's enabler): this tool only ever permuted the LEADING function-scope
     block, so an inner block's decl order — inside an `if`/loop body — was unreachable by any
     harness in the project (`hoisttest.py` asks about SCOPE, not order). That axis is real and
     it is not small: `AddHealth` 0x427690 became byte-EXACT only with the death tail's inner
-    block ordered pTile,bFound,i; the other five orders give 117-421 B. body[0] is the
-    function's own `{`, so the leading block comes out of this scan too.
+    block ordered pTile,bFound,i; the other five orders give 117-421 B.
+
+    ⚠ v132 CLOSED A REAL UNDER-REPORT — the same family as the v109 array-extent and v111
+    several-decls-on-one-line bugs, and the third time this one tool has told a session there
+    was less to permute than there is. The v118 scan only STARTED a run at a line that is
+    exactly `{`, i.e. it saw a block's LEADING decl run and nothing else. A run that opens
+    mid-block — the shape `if (...) { ... }` followed by `int nObjs = ...; int j = 0;`, which
+    `PlaceZone` 0x4260e0 carries THREE times — was invisible, and v131's "24 permutations,
+    flat" verdict on that function was computed over a strictly smaller seam than exists.
+    Any maximal run of consecutive declaration-only lines is permutable (a non-decl line, a
+    blank line and a brace all break the run), so scan for the runs directly and drop the
+    brace precondition. body[0] is the function's own `{`, so the leading block still comes
+    out of this scan.
     """
-    out = []
-    for k, ln in enumerate(body):
-        if ln.strip() != "{":
+    out, k, n = [], 0, len(body)
+    while k < n:
+        s = body[k].split("//")[0].rstrip()
+        if not s.strip() or decl_names(s) is None:
+            k += 1
             continue
-        run = []
-        for m in range(k + 1, len(body)):
-            s = body[m].split("//")[0].rstrip()
-            if not s.strip():
-                if run:
-                    break                     # blank line ends the run
-                continue                      # ...but a leading comment/blank does not
-            names = decl_names(s)
+        run, m = [], k
+        while m < n:
+            t = body[m].split("//")[0].rstrip()
+            if not t.strip():
+                break                         # blank line ends the run
+            names = decl_names(t)
             if names is None:
                 break
             run.append((m, "+".join(names)))
+            m += 1
         if len(run) >= 2:
-            out.append(("block@%d" % k, run))
+            out.append(("block@%d" % run[0][0], run))
+        k = max(m, k + 1)
     return out
 
 
@@ -208,7 +223,7 @@ def main():
     if inner:
         blocks = inner_blocks(body)
         if not blocks:
-            raise SystemExit("%s has no brace-block with >= 2 declarations — nothing to permute"
+            raise SystemExit("%s has no run of >= 2 declarations — nothing to permute"
                              % mk)
     else:
         blk = leading_block(body)
