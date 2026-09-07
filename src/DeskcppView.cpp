@@ -928,6 +928,27 @@ void CDeskcppView::DrawWholeZone()
 //  * 1-insn scheduling drift of `xor di,di` (nMask = 0 emitted before vs after the
 //    unk50 store), nSavedMode in DX vs AX, and the 4B-smaller frame (ours packs the
 //    cnt/sx2 word slots where the orig dword-spaces them).
+//  ⭐ v129 DECOMPOSED THE 4-BYTE FRAME DELTA (tools/framescan.py + a slot census of both
+//    sides) and the old "ours packs the cnt/sx2 word slots" reading is WRONG. Ours has NINE
+//    2-byte slots to the original's SEVEN, and the original has two 4-byte-spaced slots we
+//    lack. One of them is named outright: [ebp-0x30] holds `pTile->pixels` — stored once at
+//    +0x79 and RELOADED at all four BlitFast argument setups (+0x13b/+0x164/+0x184/+0x1a3)
+//    where we `push ebx`. So the original spends its three callee-saved registers on
+//    {i, sy, &pWorld} and HOMES the pixel pointer; we spend EBX on the pixel pointer and
+//    home {sy, cnt} instead. The other extra original slot is `cnt` at [ebp-0x44]
+//    (`dec word [ebp-0x44]`), a 4-aligned temp rather than a packed declared short.
+//  ⛔ v129 REFUTED the obvious lesson-#42 fix: DROPPING the `pPixels` local and writing
+//    `pTile->pixels` at all five uses is DEAD FLAT at 1163 (and 1161 keeping the local for
+//    the memset only) — cl re-forms the CSE straight back into EBX, so naming it is not
+//    what costs the register. The lever is whatever makes cl rank `i`/`sy` above the pixel
+//    pointer, and no source spelling found so far reaches it.
+//  ⛔ v129 also swept the DECLARED TYPES of the ring block, 13 configurations of
+//    {sx,sy,n,i,span,sx2,cnt} as int vs short: every one is worse or a wash — `int sy` 1475
+//    at len +8 and `int n`/`int cnt` at len +4 are REFUTED BY LENGTH, `int sx` reaches 1109
+//    but also at len +4, and the rest sit at 1161-1167. The all-`short` spelling is
+//    positively confirmed. (widthscan.py's one positional hit here, orig `mov dx,word
+//    [ebp-0x18]` vs ours `mov eax,dword [ebp-0x1a]`, is a SLOT-LAYOUT consequence of the
+//    above, not a declared-type difference.)
 int CDeskcppView::ZoneTransitionStep(short nZoneId, short nStep)
 {
     Tile *pTile;

@@ -6039,7 +6039,22 @@ void CDeskcppDoc::OnSaveWorld()
 // `cmp pDlg,0/je` join head (OPEN tail-dup family, same as Load/OnSaveWorld); inventory-loop
 // backedge cmp direction (reg-vs-mem operand order, lesson #6 — `nInv > i` inert); the
 // imm-vs-reg batching in the tail state stores (WorldDoc-ctor OPEN family); preheader
-// slot/reg shuffles riding the this-reload color cascade.]
+// slot/reg shuffles riding the this-reload color cascade.
+// ⚠ v129 — the LENGTH line above is stale: app_funcs.txt gives the extent as 3606 and our
+// length is 3606, i.e. EXACT. framescan.py reports the frame as 248 (orig) vs 240 (ours),
+// so the original HOMES two 4-byte values we enregister; that, not a length deficit, is the
+// open structural question here.
+// ⭐ v129 LOOP-FORM EVIDENCE, measured, NOT landed (fails lesson #48's bar). The two
+// questItems read loops are the house guarded COUNTDOWN, and the proof is in our own text:
+// the body test `nCount - i == 1` IS the countdown variable spelled out — with `nCount`
+// counted down it is simply `nCount == 1`. Each conversion ALONE cuts ~90 B at the length
+// still EXACTLY on the extent (A only 2951 -> 2859, B only -> 2863); the PAIR gives 2851 but
+// at len 3602 = extent −4, and the two loops are clones so landing only one would be tuning.
+// ⛔ The obvious lesson-#51 partner does NOT recover the 4 bytes: countdowns on the two
+// `while (nInv > i)` inventory loops move the length strictly further away (inv1 3602,
+// inv2 3590, both 3586) — so their current UP-COUNT form is POSITIVELY CONFIRMED by length,
+// and so is `inventory.SetAtGrow(inventory.GetSize(), pNew)` over `Add(pNew)` (2780 -> 2939
+// at identical length, the lesson-#48 seam refusing a conversion again).]
 // ON_COMMAND(0x800A File>Load World) [msgmap @0x44c360] — also entered via the 0x424fb0 jmp
 // thunk (GameView::OnTimer's replay kick; Ghidra's old name "Serialize"). Confirm box unless
 // replaying; open dialog (filter 0xE007, *.wld) or take g_strReplayPath; read the

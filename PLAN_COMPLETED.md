@@ -4952,3 +4952,15 @@ widthscan finding a false lead because "the callee reads that slot as a DWORD at
 sites", but both reads are FORWARDING PUSHES, which are byte-identical for `int` and
 `short` and discriminate nothing; the parameter really is a `short`, and fixing it plus the
 nOk both-arms form took the function to 33 B at exactly its extent.
+
+### ⏮ v128 PICKUP (2026-09-06) — condensed at v129
+
+**258 → 257, a user-approved TRADE for a proven form.** `WorldgenPlaceItemForLockChainMaybe`
+0x41d0c0: 117 B @ +13 → 33 B at its extent EXACTLY, on (a) `nOk` assigned in BOTH ARMS of an
+if/else (lesson #59, the LIVE-RANGE dial) and (b) `WorldgenPlaceItemOnLock` 0x41cdc0's 3rd
+parameter being `short`, not `int` (the forwarding-push retraction — a `mov eax,[esp+N]; push
+eax` is byte-identical for both widths, so only a CONSUMING use types a parameter). (b) was
+free; (a) cost `SetCurrentToIntroZone` 0x423d20, a phase weathervane re-swept flat at 5.
+Shipped: `tools/framescan.py` (the LOCAL FRAME SIZE oracle, 15 hits, positive-controlled) and
+`tools/sbs.py` (full side-by-side disassembly). Both standing lessons live in this file.
+Measured and NOT landed: 0x41cf10's `int nSpots` (breaks two other functions' exact lengths).
