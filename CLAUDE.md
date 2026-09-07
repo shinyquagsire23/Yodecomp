@@ -243,7 +243,8 @@ artifact" since v34. ⚠ such a diff shows up as idiomscan **class D**, not clas
 | vtables | `python3 tools/vtcheck.py` | 10 classes CLEAN (+13 skipped, unanchorable) |
 | message maps | `python3 tools/msgcheck.py` | 11 maps CLEAN |
 | **arity** | `python3 tools/aritycheck.py` | **0 mismatches / 264 comparable** (v120) |
-| **frame size** | `python3 tools/framescan.py --exact <set>` | **15 hits / control CLEAN** (v128, new) |
+| **frame size** | `python3 tools/framescan.py --exact <set>` | **15 hits / control CLEAN** (v128) |
+| **instruction mix** | `python3 tools/mixscan.py` | **27 hits / control CLEAN over 226** (v131, new) |
 
 ⚠ **The bugscan green state is 1 HIGH, not 0 — corrected at v115.** The finding is
 `StartGame` 0x4037a0 `@+0x14a lea base=esi orig=0x4b4 ours=0x4b0`, and it is a PROVEN
@@ -257,7 +258,7 @@ IDENTICAL. ⇒ Do not "fix" it, and do not add a suppression list to bugscan (hi
 finding is the wrong direction for an instrument — see the harness-can-lie lessons);
 the verdict is recorded in the function's source note.
 
-⚠ **257 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119, **−3 DELIBERATE at v120**, +1 REAL at v121, **+1 NET at v126 (+3 REAL / −2 phase, user-approved — see the v126 note below)**, +1 REAL at v127 (a v126 phase victim recovered — but read lesson #58 before treating it as evidence), **−1 DELIBERATE at v128 (a user-approved trade for a PROVEN form — see the v128 note below)**, held at 257 at v129 (no new byte-match, but `LoadWorld` 0x421fd0 went 1047 B → 485 B with its LENGTH onto the extent EXACTLY, +0/−0, on the generalised loop-form census — see lesson #40's v129 addition), held at 257 at v130 (no new byte-match; the product is `tools/movsxscan.py`, the both-sides short→int PROMOTION census — 132 CONFIRMED / 23 ORIG-MORE / 13 OURS-MORE — plus 16 measured negatives closing `RefreshZone` 0x403ae0's last named axis); all five oracles
+⚠ **257 is the CURRENT baseline (234 at v100, +3 REAL at v102, +3 REAL at v103, +4 REAL at v104, +3 REAL at v105, +2 REAL at v106, +1 REAL at v107, +1 REAL at v108, +4 REAL at v110, **−3 DELIBERATE at v114**, +3 REAL at v116, +2 REAL at v118, +1 REAL at v119, **−3 DELIBERATE at v120**, +1 REAL at v121, **+1 NET at v126 (+3 REAL / −2 phase, user-approved — see the v126 note below)**, +1 REAL at v127 (a v126 phase victim recovered — but read lesson #58 before treating it as evidence), **−1 DELIBERATE at v128 (a user-approved trade for a PROVEN form — see the v128 note below)**, held at 257 at v129 (no new byte-match, but `LoadWorld` 0x421fd0 went 1047 B → 485 B with its LENGTH onto the extent EXACTLY, +0/−0, on the generalised loop-form census — see lesson #40's v129 addition), held at 257 at v130 (no new byte-match; the product is `tools/movsxscan.py`, the both-sides short→int PROMOTION census — 132 CONFIRMED / 23 ORIG-MORE / 13 OURS-MORE — plus 16 measured negatives closing `RefreshZone` 0x403ae0's last named axis), **held at 257 at v131 (no new byte-match, but `WorldgenPlacePuzzles` 0x421930 went 617 B @ ext−11 → 629 B @ ext−8 FREE on the loop ROTATION dial — the original tests its retry loop at the BOTTOM and shares one `return 0` with the entry guard; found by the new `tools/mixscan.py` INSTRUCTION-MIX census, lesson #60, which also triages 45 of the ~92 residuals as source-CLOSED `PURE-REG`)**; all oracles
 re-run in the same pass).** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
@@ -609,6 +610,41 @@ countdown refuted by LENGTH 53 vs 60). ⚠ Line-neutral spelling does NOT avoid 
 (v126's finding again: it is the TOKEN change), and all three legal both-arms spellings
 measure identically, so it could not be had for free. Its residual is now the SAME ESI↔EDI
 bijection 0x41d0c0 carries, so the two may fall together to a later TU-joint pass.
+
+⭐ **DIFF THE INSTRUCTION MIX BEFORE YOU READ A SINGLE BYTE (v131, lesson #60) —
+`tools/mixscan.py`.** A byte diff shows the ORIGINAL clearly and OURS only as "the other
+column", and once the schedule shifts it stops being readable at all: `WorldgenPlacePuzzles`
+0x421930 differs in 47 % of its 1299 bytes and `sbs.py` prints 600 lines of noise. Decode both
+sides, count MNEMONICS and subtract, and the same function collapses to five numbers —
+`test -1, jge -1, jmp -1, movsx -1, mov +1`. The `test`+`jge` pair IS the find, and nothing
+else in the toolbox could see it.
+- ⭐ **It landed the v131 fix.** Those two missing instructions say the original tests its
+  retry loop at the BOTTOM (`test edi,edi; jge <body>`) and falls through to a `return 0` that
+  the entry guard's `jl` also targets — one shared exit, both edges directly readable. Our
+  `for (;;) { if (nZoneId < 0) return 0; ... }` structurally cannot emit that. **117 B of
+  length deficit closed: -11 -> -8, FREE (+0/-0), with the mix then agreeing EXACTLY on
+  test/jge/jmp/ret/pop.** Only one of four spellings does it (see below).
+- ⭐ **AN EMPTY DELTA WITH A NONZERO BYTE DIFF IS THE STRONGEST SIGNAL IT GIVES** — the streams
+  agree instruction-for-instruction and ONLY registers/encodings differ, i.e. the lesson-#44
+  scratch bijection / lesson-#54 compare-encoding class, which is source-CLOSED. It prints
+  those as `PURE-REG`: **45 of the ~92 residuals**, half the census triaged as closed in one
+  run. Park them instead of sweeping spellings at them.
+- ⭐ **THE ROTATION DIAL HAS FOUR SPELLINGS, NOT TWO, AND ONLY ONE IS RIGHT** (sharpens #46).
+  Measured on 0x421930: `for (;;) { if (!c) return 0; ... }` = top test + `jmp` backedge;
+  plain `while (c) { ... } return 0;` is **BYTE-IDENTICAL to it** (cl does NOT rotate a loop
+  with `goto` exits — #46's "while rotates" rule is not universal); an UNGUARDED
+  `if (!c) return 0; do { ... } while (c); return 0;` gets the bottom test right but gives the
+  second `return 0` its OWN epilogue (+12 B, overshooting the extent); only
+  **`if (c) { do { ... } while (c); } return 0;`** shares the exit block and lands the length.
+- ⚠ **Land it on the LENGTH, not the diff.** The byte diff ROSE 617 -> 629 here; those 12 bytes
+  are downstream shift from an already-open block-layout family. Lesson #48's "large diff cut"
+  bar governs call-form conversions, where the number is the only evidence; a construct read
+  directly out of the original's control flow is evidence in its own right (the v107 rule).
+- ⚠ **Its own first two drafts lied, and the positive control caught both** — reloc-MASKING the
+  original corrupts a shifted stream (the v121 trap this very docstring warns about), and
+  padding a short extent out to our length with zeros resurrected four byte-EXACT functions as
+  phantom residuals. Give every new census the "byte-exact functions must report nothing" check
+  BEFORE reading its output, not after.
 
 ⭐ **A LOCAL'S LIVE RANGE IS A DIAL, AND `sub esp,N` IS THE INSTRUMENT THAT FINDS IT (v128,
 lesson #59) — `tools/framescan.py`.** cl 10.20 will re-use a register whose value has just
@@ -1706,6 +1742,21 @@ transcribed functions. ⚠ its first draft read the last 3 bytes of Ghidra's ext
 '0 mismatches' WITH the known Layout bug in the tree — the extent over-runs the real `ret` into
 a trailing jump TABLE. Caught by the built-in control: every BYTE-EXACT function must agree, and
 the tool FAILS LOUDLY if one does not) ·
+**`mixscan.py [--all] [--min N]`** (⭐ v131 — THE INSTRUCTION-MIX CENSUS, lesson #60: decode
+BOTH sides and diff `Counter(mnemonic)`, so a residual too noisy to read as bytes collapses to
+a handful of counts. A NEGATIVE count is an instruction the ORIGINAL emits and we do not = the
+structural half; an EMPTY delta with a nonzero byte diff is `PURE-REG` = the streams agree
+instruction-for-instruction and only registers/encodings differ, i.e. lesson #44/#54 and
+source-CLOSED. **27 length-mismatched hits; `--all` adds the length-exact ones and reports 45
+PURE-REG functions in total** — that is half the residual census triaged as closed in one run.
+Positive-controlled: every byte-exact function whose length equals its extent must report an
+empty delta, and it exits 1 if one does not. ⚠ its own first two drafts BOTH lied and both were
+caught by that control — reloc-MASKING the original corrupts a shifted stream (the v121 trap I
+had just documented against), and padding a short extent out to our length with zeros
+resurrected four byte-EXACT functions as phantom residuals. ⚠ functions carrying a jump TABLE
+are EXCLUDED, not mis-reported (their reloc-zeroed entries decode as instructions on our side
+only) — that bucket holds real targets like `Layout` 0x4176f0 at -35, so use `sbs.py` there.
+⚠ COMPILES) ·
 **`movsxscan.py`** (⭐ v130 — the SHORT->INT PROMOTION census, BOTH SIDES. Counts every
 `movsx r32,<16-bit>` per function in the ORIGINAL and in our own COMDATs, split by whether
 the source operand sits in a REGISTER or a FRAME SLOT — so it reads as a residency story as
@@ -1780,114 +1831,123 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-07 v130 — **held at 257 exact. No new byte-match; the
-session's product is a NEW BOTH-SIDES ORACLE (`tools/movsxscan.py`) that scopes a seam three
-prior sessions had only seen one side of, plus 16 measured negatives that CLOSE the axis
-v122's note had named as "next to try".** All oracles green: **257 exact** / 99.17 % / link
-0-0-exit0 / bugscan 1 HIGH (the documented benign `StartGame` 0x4037a0 finding) 0 SHIFT /
-vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches (264 comparable) / framescan 15 hits, control
-CLEAN. v129 log condensed above.)
+### ⏭ NEXT SESSION PICKUP (2026-09-07 v131 — **held at 257 exact. One REAL structural fix
+landed FREE (`WorldgenPlacePuzzles` 0x421930, -11 -> -8 on the loop ROTATION), and the
+session's product is a NEW ORACLE that found it: `tools/mixscan.py`, the instruction-mix
+census (lesson #60), which also triages 45 of the ~92 residuals as source-CLOSED in one run.**
+All oracles green: **257 exact** / 99.17 % / link 0-0-exit0 / bugscan 1 HIGH (the documented
+benign `StartGame` 0x4037a0 finding) 0 SHIFT 0 SWAP / vt 10 CLEAN / msg 11 CLEAN / arity 0
+mismatches (264 comparable) / framescan 15 hits control CLEAN / mixscan 27 hits control CLEAN
+over 226. v130 log condensed into PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — EIGHT triage rules now.** (1)-(7) unchanged from v129 (lesson #54 park on
-`cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`; `thisscan.py` before any negative-length
-register mystery; lesson #56 census our own side; `pushscan.py` early; a park note's byte count is
-PHASE-RELATIVE; `framescan.py` alongside `--lenmis`; never hand-read a raw extent delta — go
-through `--lenmis`). (8) ⭐ **NEW (v130): A CENSUS KEYED ON A *REGISTER-DEPENDENT* PROPERTY IS
-NOT A STRUCTURAL CENSUS.** `movsxscan.py`'s first draft counted only SELF-form promotions
-(`movsx eax,ax`) and confidently ranked `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 as the
-sharpest target in the tree; the site is orig `movsx eax,ax` vs ours `movsx esi,ax` — same
-construct, same 3 bytes, different register. This is the THIRD guise of lesson #56 (v125: a
-differing register is not a differing construct; v127/v128: a forwarding push proves nothing)
-and the first where the *tool's key*, not a note or a diff reading, was the thing that lied.
-Before you trust any new census, ask: **would this column change if only the register allocator
-changed its mind?** If yes, it is not measuring the source.
+**▶ READ FIRST — NINE triage rules now.** (1)-(8) unchanged from v130 (lesson #54 park on
+`cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`; `thisscan.py` before any
+negative-length register mystery; lesson #56 census our own side; `pushscan.py` early; a park
+note's byte count is PHASE-RELATIVE; `framescan.py` alongside `--lenmis`; never hand-read a raw
+extent delta; a census keyed on a register-dependent property is not a structural census).
+(9) ⭐ **NEW (v131): RUN `mixscan.py` BEFORE `sbs.py`, AND BEFORE ANY SWEEP.** It answers
+"what is this residual actually missing" in one line where the byte diff answers it in 600.
+If the row says **PURE-REG**, the function is the lesson-#44/#54 class and a spelling sweep on
+it is guaranteed waste — 45 residuals are in that state. If it names a `test`/`jcc` pair, it is
+CONTROL FLOW; a `mov`, a reload we CSE'd (lesson #50); a `movsx`, a promotion (movsxscan).
 
 **▶ WHAT LANDED**
-1. ⭐ **`tools/movsxscan.py` — the short->int PROMOTION census, both images.** Counts every
-   `movsx r32,<16-bit>` per function, split REG-form (value already in a register) vs MEM-form
-   (value homed in a frame slot), with the SELF subset reported separately and explicitly
-   flagged as register-dependent. **132 CONFIRMED / 23 ORIG-MORE / 13 OURS-MORE** over 378
-   markers — an unusually strong positive control. Validation that it is measuring the right
-   thing: it independently re-derives v127's `ReadZa*` finding (orig REG-form + a 16-bit `mov`,
-   ours a single MEM-form `movsx`) without being told about it.
-2. **`RefreshZone` 0x403ae0 — 16 more spellings refuted across FOUR axes**, all written into
-   its source note, including the one v122 had left as "next to try". The sharpest datum:
-   `short t` moves the length -6 -> -3, i.e. it really does add exactly one promotion — but on
-   the wrong variable, and the diff explodes 70 -> 227. So the deficit is confirmed to be two
-   promotions on the ACCUMULATORS and nothing else.
-3. **`OnLoadWorld` 0x424fc0's countdown pair re-measured and reproduced exactly** (2851 B at
-   len 3602 = extent -4), and the reason not to chase it further is now recorded: at 79 % of
-   bytes differing, a 4-byte decomposition is not tractable by the cumulative-offset method.
+1. ⭐ **`WorldgenPlacePuzzles` 0x421930 — the retry loop is ROTATED. 617 B @ -11 -> 629 B @ -8,
+   FREE (+0/-0, TU 42/91 unchanged).** The original tests `nZoneId >= 0` at the loop BOTTOM and
+   falls through to a `return 0` the entry guard also targets; only
+   `if (c) { do { ... } while (c); } return 0;` reproduces that. Full write-up + the three
+   refuted rival spellings are in lesson #60 above and the function's source note.
+2. ⭐ **`tools/mixscan.py`** — see lesson #60. Positive-controlled over 226 byte-exact
+   functions; its own first two drafts were caught lying by that control.
+3. **Two measured negatives written into source notes**, both of which close an axis a future
+   session would otherwise re-tread: `PlaceZone` 0x4260e0's decl dial (**47 configurations**,
+   468 is the floor) and `BlitViewportDither` 0x428e30's ReleaseDC call form (5 spellings flat,
+   2 refuted by length). The latter also RETRACTS its own note's "orig zeroes 3 regs, we zero
+   2" — the xor counts are EQUAL on both sides (lesson #56, third instance in this tree).
 
 **▶ NEXT — concrete, in priority order.**
-1. ⭐ **Work the `movsxscan.py` ORIG-MORE list — it is a brand-new target list and it
-   intersects `--lenmis` in several places.** Best first: `WorldgenPlacePuzzles` 0x421930
-   (orig mem=3/ours 2, ext -11 — a missing MEM-form promotion is 4-5 B, i.e. half the deficit);
-   `PlaceZone` 0x4260e0 (orig mem=1/ours 0 while ours has an extra REG-form, ext -7 — a pure
-   RESIDENCY swap: the original homes a short we enregister, so cross it with `framescan.py`);
-   `BuildQuestPathMaybe` 0x403c80 (orig mem=6/ours 5); `WorldgenSelectPuzzle` 0x41eab0 (orig
-   mem=6/ours 5 AND it is a loopform candidate); `Generate` 0x41f960 (orig reg=18/ours 17,
-   mem 4/6). ⚠ ignore any row where only the `self` line disagrees — see triage rule 8.
-2. ⛔ **The `movsx` ACCUMULATOR cluster is now precisely scoped and should be treated as ONE
-   problem, not four functions.** `RefreshZone` 0x403ae0 (-6), `DrawLocatorMap` 0x423df0 (-6),
-   `ZoneTransitionStep` 0x409650 and 2 of `ShowWinMessage` 0x40f4b0's sites all want the same
-   thing: cl maintaining a 32-bit incarnation of a `short` LOOP ACCUMULATOR whose only visible
-   consumers are `short` parameters — i.e. the promotion looks DEAD. v130 established that the
-   preheader is `xor bx,bx` (16-bit), so the high half is never established before the first
-   iteration either, which RULES OUT an int-typed blit parameter as the cause. Do not open this
-   without a NEW mechanism; ~35 spellings across v117/v122/v130 are refuted and listed in
-   0x403ae0's and 0x423df0's notes.
-3. **The 5 loopform candidates the `for`-only census could never see** (unchanged): 
-   `WorldgenSelectPuzzle` 0x41eab0 (orig 3 cd / 2 cmp, 1 dowc — ⚠ its ext-247 is a jump-table
-   artifact, use `--lenmis`), `OnDragItem` 0x4102d0 (1 cd / 4 cmp, 2 dowc), `OnSaveWorld`
-   0x424540 (1 cd / 14 cmp, 14 dowc — low signal).
-4. **`OnLoadWorld` 0x424fc0** — the countdown pair is proven-correct-but-4-bytes-short and the
-   lesson-#51 partner is still unfound. ⛔ v130 adds: do NOT try to decompose the -4 by walking
-   cumulative offsets; the function is 79 % different and the walk is pure noise. `movsxscan`
-   says orig reg=2 / ours reg=1 there, which is a 3-byte candidate worth checking FIRST.
-5. **The 11 unworked `framescan.py` hits**, the 5 remaining `pushscan.py` targets, and the
-   remaining `widthscan.py` hits — all unchanged from v129; see that block below.
-6. **⛔ CLOSED at v130 — do not re-tread.** (a) `RefreshZone`'s strength-reduction axis
-   (`destX = cx * 0x20` / `cx << 5`), its increment ORDER, int-CAST conditions, int ALIASES in
-   3 placements, `int t` at outer scope, `GetTile((int)cx,..)`, `short t`, and the for-loop
-   form. (b) `0x41cf10` as a movsx target (pure rename). (c) Everything v129/v128/v127/v126/
-   v125/v124/v123/v120 closed.
-7. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
+1. ⭐ **Work the `mixscan.py` list top-down; it is the sharpest target list in the project and
+   most of it is unworked.** Best first: `IactProbeMove` 0x406550 (**+26, `test -4, cmp +4`** —
+   the original holds 0 in EBP and emits `cmp [slot],ebp` where we emit `cmp [slot],0`, +1 B
+   each: that is lesson #39's materialized-constant dial, and its frame size MATCHES so it is
+   not a homing question); `ShowWinMessage` 0x40f4b0 (+36, `add +9, mov +8, lea -8`);
+   `DrawHealthNeedle` 0x4278a0 (-17, `mov -9`) and `DrawHealthDial` 0x427490 (**-16, `mov -6`
+   and NOTHING ELSE** — the cleanest single-family signature in the tree, and v125 already
+   scoped it to ONE lesson-#55 allocation decision).
+2. ⭐ **The `jl/jg + mov -1 + test/cmp` CLUSTER is ONE problem, not three** — `PlaceZone`
+   0x4260e0 (-7, 5 mirrors), `WorldgenPlaceUsefulObjectMaybe` 0x41d260 (-5, 3 mirrors),
+   `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 (-3, 1). In all three the ORIGINAL re-reads the
+   loop limit from its frame slot (`cmp [slot],reg; jg`) and we hold it in a register
+   (`cmp reg,[slot]; jl`). ⛔ Do NOT reach for the decl dial: v131 measured 47 configurations
+   on 0x4260e0 with none better, and 0x41d260 already spells its loops limit-first and still
+   emits our form — lesson #45's "a cmp mirror is a decl-BLOCK symptom" is REFUTED here. The
+   open question is what makes cl decline to enregister the limit.
+3. ⚠ **A REAL TOOL GAP, cheap to close: `declorder.py --inner` only permutes each block's
+   LEADING decl run.** The three `int nObjs = ...; int j = 0;` pairs in `PlaceZone` that sit
+   after an `if` statement are invisible to it, so "24 permutations, flat" understates the
+   seam. Same failure family as the v109/v111 declorder bugs (a tool reporting less than
+   exists).
+4. **`ScrollZoneTransition` 0x411180** (-62, `mov -13, lea -4, add +4`) — still the biggest
+   structural residual. ⛔ its note says do not open it without a candidate, and that still
+   stands; the `lea -4 / add +4` is a NEW datum (v121's decomposition attributed all 62 bytes
+   to the this/n2 spill and did not mention it) but is a weak lead on its own.
+5. **The `movsxscan.py` ORIG-MORE list** (unchanged from v130): `WorldgenPlacePuzzles` 0x421930
+   is now partly worked — its remaining `movsx -1` is LENGTH-NEUTRAL (4 B either way) and worth
+   0 bytes, so cross it off. Still open: `PlaceZone` 0x4260e0, `BuildQuestPathMaybe` 0x403c80,
+   `WorldgenSelectPuzzle` 0x41eab0, `Generate` 0x41f960. ⚠ ignore rows where only `self`
+   disagrees (triage rule 8).
+6. ⛔ **The `movsx` ACCUMULATOR cluster** — `RefreshZone` 0x403ae0 (-6), `DrawLocatorMap`
+   0x423df0 (-6), `ZoneTransitionStep` 0x409650, `ShowWinMessage` 0x40f4b0. mixscan confirms
+   0x403ae0 and 0x423df0 are `movsx -2` and NOTHING ELSE, i.e. the whole deficit is two
+   promotions. ~35 spellings across v117/v122/v130 are refuted; do not open without a NEW
+   mechanism.
+7. **The 11 unworked `framescan.py` hits**, the 5 remaining `pushscan.py` targets, the
+   remaining `widthscan.py` hits, and the 5 generalised `loopform.py` candidates
+   (`WorldgenSelectPuzzle` 0x41eab0, `OnDragItem` 0x4102d0, `OnSaveWorld` 0x424540) — all
+   unchanged from v129/v130.
+8. **⛔ CLOSED at v131 — do not re-tread.** (a) `WorldgenPlacePuzzles`' switch ARM ORDER
+   (inverting all three cases to `if (abs(..) <= N && abs(..) <= N) break;` is BYTE-IDENTICAL —
+   cl canonicalises), and its three rival loop spellings. (b) `PlaceZone`'s decl dial, all 47
+   configurations. (c) `BlitViewportDither`'s ReleaseDC call form, all 5 spellings. (d)
+   Everything v130/v129/v128/v127/v126/v125/v124/v123/v120 closed.
+9. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v129 rules all stand; v130 re-used them all).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104-v130 rules all stand; v131 re-used them all).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
 `formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`/
-`pushscan.py`/`xjumpscan.py`/`widthscan.py`/`framescan.py`/`sbs.py`/`impcse.py` (no `--orig`)
-is in flight (they share `build/*.obj`). `thisscan.py`, `loopform.py`, `unrotscan.py`,
-`aliasscan.py`, `thisscan.py` and `impcse.py --orig` are READ-ONLY.
+`pushscan.py`/`xjumpscan.py`/`widthscan.py`/`framescan.py`/`mixscan.py`/`sbs.py`/`impcse.py`
+(no `--orig`) is in flight (they share `build/*.obj`). `thisscan.py`, `loopform.py`,
+`unrotscan.py`, `aliasscan.py` and `impcse.py --orig` are READ-ONLY.
+⭐ **v131 method note — A MULTI-SITE EDIT (head AND tail of one function) IS OUT OF
+`vartest.py`'s REACH**, since its BASE must be one contiguous verbatim block. Apply such a
+variant by hand with a `python3 - <<EOF` script that ASSERTS `s.count(old) == 1` for each
+site, measure with `bytediff.py`, and restore from a scratch copy taken first. That is how the
+rotation was measured; `cp src/X.cpp <scratch>/X.bak` before the first edit is the safety net.
+⭐ **v131 method note — MEASURE COLLATERAL WITH `verify.py <tu.cpp> | tail -3` FIRST.** A .cpp
+edit cannot move another TU (v112), so the TU's own count is sufficient and it is one compile
+instead of `exactset.py`'s thirteen. Confirm with `progress.py` before landing.
 ⭐ **v129 method note — TO SWEEP A SECOND AXIS ON TOP OF AN UNLANDED FIRST ONE, APPLY THE
 FIRST BY HAND, then run `vartest.py` with `--expect <the new baseline>`.** vartest restores to
 whatever it read at START, so "restored" means back to YOUR edited state — `git checkout` the
-file afterwards. That is how the OnLoadWorld inventory-loop cross was measured.
+file afterwards.
 ⭐ **v129 method note — `vartest.py` output is \r-heavy; pipe it through `tr '\r' '\n'`.**
 And do NOT launch it as `nohup ... &` inside a backgrounded Bash call — the tool reports the
 shell as complete and the sweep is killed mid-variant, leaving the TU MUTATED. Use
 `run_in_background: true` on the tool call with the command in the FOREGROUND.
-⭐ **v129 method note — INSTRUCTION-MIX DIFFING IS A 30-SECOND TRIAGE.** Decode both sides and
-compare `Counter(mnemonic)`; a function whose only deltas are 4 jge↔jle and a few
-register-renamed add/lea is the lesson-#44/#54 class and needs no sweep at all. It is also how
-the 0x41e350 jump-table artifact was caught (8 phantom `add byte ptr [eax], al` = zeroed
-reloc'd table entries — ⚠ decode OUR side through its relocs or they read as instructions).
 ⭐ **v128 method note — A COMMENT REWRITE IS A LINE-COUNT CHANGE, SO BUDGET LINES.** When a
 fix needs +N lines in a byte-matched TU, TRIM N LINES FROM THE NOTE you are rewriting anyway.
 ⚠ It does NOT always save you (the token change can rotate the phase regardless), and you must
-re-run `exactset.py` AFTER writing the note either way — v129's three note additions were each
-verified free by exactly this.
+re-run `progress.py` AFTER writing the note either way — v131's two long note rewrites and its
++3-line fix were each verified free by exactly that.
 ⭐ **v128 method note — `formsweep.py`'s `--expect-exact` is the TU's OWN count and does NOT
 track the project total.** Get it from `python3 tools/verify.py <tu.cpp> | tail -3`.
 ⭐ **v127 method note — TO SETTLE "WAS THIS EXACT BEFORE?", COMPILE THE OLD FILE.**
 `git show <sha>:src/X.cpp > src/X.cpp; python3 tools/bytediff.py src/X.cpp 0xA` then restore.
-⭐ **MEASURE COLLATERAL WITH `formsweep.py`, NOT repeated `exactset.py`.**
 ⚠ `formsweep.py` ENFORCES line-neutrality and SKIPS a non-neutral edit — pad with blank lines.
 ⚠ **A per-TU sweep is NOT sufficient when the edit is in a header** — that needs `exactset.py`.
 ⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED.** Background it.
@@ -1895,21 +1955,16 @@ track the project total.** Get it from `python3 tools/verify.py <tu.cpp> | tail 
 every row; it refutes a variant before you look at a single register. ⚠ **`jointdecl.py` still
 carries the vacuous `orig_len`** — a cheap, worthwhile chore.
 ⚠ **`asmscore.py` CANNOT PAIR a function whose doc comment contains a `Class::Method (` string.**
-⭐ **Use `tools/sbs.py` to READ a residual**; `asmscore --dump` prints only the differing lines
-and a schedule shift makes those unreadable. ⭐ Its companion for a FRAME question is a slot
-census: regex every `[ebp - 0xNN]` on each side and compare the (displacement, use-count,
-width) multisets — that is how 0x409650's and 0x421fd0's extra slots were named.
+⭐ **Use `tools/sbs.py` to READ a residual** — but run `mixscan.py` FIRST to know what you are
+looking for. ⭐ Its companion for a FRAME question is a slot census: regex every `[ebp - 0xNN]`
+on each side and compare the (displacement, use-count, width) multisets.
 ⭐ **A THROWAWAY PROBE beats a general tool for a one-off question — but give it a POSITIVE
-CONTROL, and promote it once it overturns something.** ⚠ and census each side STRUCTURALLY,
-never through positional alignment (lesson #56).
-
-⭐ **v130 method note — A COMMENT-ONLY EDIT STILL NEEDS THE ANCHOR RE-RUN, AND bugscan's
-TAIL IS NOT ITS VERDICT.** A +21-line note addition to a byte-matched TU was verified free
-with `progress.py`, not assumed. And `bugscan.py --all | tail -3` shows the tail of the **LOW**
-list, which looks alarmingly like a changed HIGH finding; grep for the `=== HIGH` section
-header instead. The documented green state is and remains `StartGame` 0x4037a0 `@+0x14a`.
-⭐ **v130 method note — TO SCOPE A CONSTRUCT, CENSUS ITS COUNT PER FUNCTION ON BOTH SIDES, AND
-PICK A KEY THE REGISTER ALLOCATOR CANNOT MOVE.** See triage rule 8 above.
+CONTROL, and promote it once it overturns something.** `mixscan.py` is v131's instance of
+exactly that rule: a 20-line scratch script that cracked one function, then earned promotion.
+⚠ and census each side STRUCTURALLY, never through positional alignment (lesson #56).
+⭐ **v130 method note — `bugscan.py --all | tail -3` shows the tail of the LOW list**, which
+looks alarmingly like a changed HIGH finding; grep for the `=== HIGH` section header instead.
+The documented green state is and remains `StartGame` 0x4037a0 `@+0x14a`.
 
 ### ⏮ PRIOR PICKUP (2026-07-18 v93 — four Indy playtest fixes shipped; see below.)
 

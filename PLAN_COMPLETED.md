@@ -4989,3 +4989,24 @@ reg-pool cascade seeded by nRet". Found by `framescan.py` and `pushscan.py` AGRE
   `residuals.py --lenmis`.** v129 hand-read `app_funcs.txt` for `WorldgenPlaceBlockades`
   0x41e350, got "+13 = structural!", and spent a target on it; the 13 bytes are the switch
   JUMP TABLE inside our COMDAT but outside the extent (the v117 confound `--lenmis` filters).
+
+### ⏮ v130 (2026-09-06) — the SHORT->INT PROMOTION census; held at 257
+
+- **`tools/movsxscan.py`** — every `movsx r32,<16-bit>` per function, ORIGINAL and OURS, split
+  REG-form (source in a register) vs MEM-form (source in a frame slot), with the SELF subset
+  (`movsx eax,ax`) reported separately and flagged as register-dependent. **132 CONFIRMED /
+  23 ORIG-MORE / 13 OURS-MORE.** It independently re-derives v127's `ReadZa*` finding without
+  being told about it.
+- ⭐ **Triage rule 8 born here: A CENSUS KEYED ON A *REGISTER-DEPENDENT* PROPERTY IS NOT A
+  STRUCTURAL CENSUS.** The tool's first draft counted only SELF-form promotions and confidently
+  ranked `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 the sharpest target in the tree; that site
+  is orig `movsx eax,ax` vs ours `movsx esi,ax` — same construct, same 3 bytes, different
+  register. Third guise of lesson #56, and the first where the TOOL'S KEY was the thing lying.
+- **`RefreshZone` 0x403ae0** — 16 more spellings refuted across four axes (strength reduction,
+  increment ORDER, int casts/aliases, `short t`), all written into its source note. `short t`
+  moves the length -6 -> -3, i.e. it really does add one promotion, but on the wrong variable
+  and the diff explodes 70 -> 227. The deficit is confirmed to be two promotions on the
+  ACCUMULATORS and nothing else.
+- **`OnLoadWorld` 0x424fc0** — the countdown pair reproduced exactly (2851 B at len 3602 =
+  extent -4); recorded that at 79 % of bytes differing a 4-byte cumulative-offset decomposition
+  is not tractable.

@@ -3888,11 +3888,34 @@ cleanup:
 }
 
 // FUNCTION: YODA 0x00421930
-// [EFFECTIVE-WIP: structurally converged (insns 368/364). Residuals: (1) the OPEN
-// block-sinking family — the orig sinks all four accept-block copies (first-tele + one per
-// worldSize case), the shared retry block and the return-0 epilogue PAST the switch to
-// 0x421c4b-0x421cd9; ours emits the copies inline at their case arms (condition-polarity
-// probes inert — same mechanism as the dispatcher cleanup blocks / GetLocatorIcon).
+// [EFFECTIVE-WIP: DIFF(629) at LENGTH 1302 vs the 1310 extent (-8; was -11 at 617 B).
+//   ⭐ v131 — THE RETRY LOOP IS ROTATED (lesson #46), and the instrument was the INSTRUCTION
+//   MIX, not the byte diff: at 47 % differing bytes the diff is unreadable, but decoding both
+//   sides and diffing Counter(mnemonic) reduced the whole residual to five counts — orig had
+//   one extra test, jge, jmp and movsx, ours one extra mov. The test+jge pair IS the find: the
+//   orig tests `nZoneId >= 0` at the loop BOTTOM (`test edi,edi; jge +0x21f` back into the
+//   body) and FALLS THROUGH to a return-0 epilogue that the entry guard's `jl` also targets —
+//   one shared exit block, directly readable (both reach +0x346). Our `for (;;) { if
+//   (nZoneId < 0) return 0; ... }` structurally cannot emit that: it tests at the TOP and
+//   backedges with an unconditional `jmp`. The guarded do-while below is the ONLY one of four
+//   spellings that reproduces it, and the mix now agrees EXACTLY on test/jge/jmp/ret/pop.
+//   Landed FREE (+0/-0 project-wide, TU 42/91 unchanged) on the LENGTH (lesson #46: rotation
+//   is settled by the extent), even though the diff rose 617 -> 629 — those 12 bytes are
+//   downstream shift from the OPEN block-sinking family below, not a new defect.
+//   ⛔ The other three loop spellings, all refuted, do not re-tread: plain
+//   `while (nZoneId >= 0) { ... } return 0;` is BYTE-IDENTICAL to the old `for (;;)` form
+//   (cl does not rotate a loop with `goto` exits unless the source is already a do-while);
+//   an UNGUARDED `if (nZoneId < 0) return 0; do { ... } while (nZoneId >= 0); return 0;` gets
+//   the test right but gives the second `return 0` its OWN epilogue (+12 B) and overshoots to
+//   1314; the `for (;;)` form is what we had.
+// Residuals: (1) the OPEN block-sinking family — the orig sinks all four accept-block copies
+// (first-tele + one per worldSize case) PAST the switch to 0x421c4b-0x421cd9 and reaches them
+// with `jg <accept>` twice + `jmp <ban>`; ours emits copies 1 and 2 INLINE as the fallthrough
+// (`jg <accept>` then `jle <ban>`), which is the whole jg 6/4 vs jle 3/5 and jmp 9/7 split and
+// therefore the whole remaining -8. ⛔ NOT the arm order: inverting all three cases to
+// `if (abs(..) <= N && abs(..) <= N) break;` is BYTE-IDENTICAL (cl canonicalises), which
+// re-confirms v115's polarity probes at the new phase. Same mechanism as the dispatcher
+// cleanup blocks / GetLocatorIcon.
 // (2) {nBanned,nLastX,nLastY} local-slot rotation (+0x20/24/28) + reg cascade in the
 // phase-1 cell math. Structure proven: `int nVal = pEntry->val` (one movsx, two pushes),
 // flag-if with the direct-call arm first and `if (bRetry == 0) call else nZoneId=nBanned`
@@ -3901,19 +3924,23 @@ cleanup:
 // final forced-partner block.
 // v115 MEASURED NEGATIVES on the +0x05f site (orig `movsx ecx,[pEntry+4]` hoisted ABOVE the
 // `cmp eax,1` and pushed as the a4 argument; ours emits a 16-bit `mov ax,[pEntry+4]` AFTER
-// the branch and pushes eax). Three hypotheses, all refuted — do not re-tread:
+// the branch and pushes eax). This is the movsxscan.py ORIG-MORE hit, and it is LENGTH-NEUTRAL
+// (4 B either way) — it costs no bytes, only the sign-extension. Three hypotheses, all
+// refuted — do not re-tread:
 //   (1) the lesson-#43 NAMED LOCAL (`int nZoneRef = pEntry->zoneId;` beside the existing
-//       `int nVal`, which is the same house idiom one line up): all 5 spellings are refuted
-//       by LENGTH — they emit 1294-1295 B against the original's 1299 — and the diff roughly
-//       DOUBLES to 1095-1114.
+//       `int nVal`, which is the same house idiom one line up): the diff roughly DOUBLES to
+//       1095-1114 and the length drops to 1294-1295. ⚠ v115 wrote that off as "refuted by
+//       LENGTH ... against the original's 1299"; 1299 was OUR OWN length echoed back by
+//       residuals.py's then-VACUOUS lenmis column (the v117 bug). The true extent is 1310, so
+//       the length reasoning was wrong even though the verdict survives on the diff.
 //   (2) an explicit `(int)pEntry->zoneId` cast at the call: source-INERT (633 B), because the
 //       value is immediately narrowed again by the `short a4` parameter.
 //   (3) `a4` being `int` rather than `short` in the signature: this DOES produce the movsx,
 //       but it is refuted from both sides — 0x421930 gets WORSE (633 -> 636) and
 //       PlaceQuestNode 0x41f120's own body more than doubles (405 -> 880). a4 is short.
 // ⇒ The movsx must be a CSE of some other int-context use of pEntry->zoneId in the original,
-// not a property of this call. Worth ~3-10 B of a 633 B residual either way; the bulk remains
-// the OPEN block-sinking family above.]
+// not a property of this call, and it is worth 0 bytes — the remaining -8 is entirely the
+// block-sinking family above.]
 // Puzzle/teleporter placement pass: seed the pending list with the two quest anchors
 // (0x1ff order 2, 0x1a5 order 1), place each pending puzzle via PlacePuzzle+PlaceQuestNode
 // (cell code 306 marks it in the plan grid), free the pending list, then sweep the plan grid
@@ -3994,46 +4021,31 @@ int CDeskcppDoc::WorldgenPlacePuzzles(short *paPlanGrid)
                         nZoneId = nBanned;
                 }
                 Zone *pZone;
-                for (;;)
+                if (nZoneId >= 0)
                 {
-                    if (nZoneId < 0)
-                        return 0;
-                    pZone = (Zone *)zones.GetAt(nZoneId);
-                    if (genSkipTeleCheck != 0)
-                        goto place;
-                    i = 0;
+                    do
                     {
-                        int nObjs = pZone->objects.GetSize();
-                        if (nObjs > 0)
+                        pZone = (Zone *)zones.GetAt(nZoneId);
+                        if (genSkipTeleCheck != 0)
+                            goto place;
+                        i = 0;
                         {
-                            int k = 0;
-                            do
+                            int nObjs = pZone->objects.GetSize();
+                            if (nObjs > 0)
                             {
-                                if (((ZoneObj *)pZone->objects.GetAt(k))->type == 13)
-                                    i = 1;
-                                k++;
-                                nObjs--;
-                            } while (nObjs != 0);
+                                int k = 0;
+                                do
+                                {
+                                    if (((ZoneObj *)pZone->objects.GetAt(k))->type == 13)
+                                        i = 1;
+                                    k++;
+                                    nObjs--;
+                                } while (nObjs != 0);
+                            }
                         }
-                    }
-                    if (i == 0)
-                        goto place;
-                    if (n == 0)
-                    {
-                        n++;
-                        nLastX = x;
-                        nLastY = y;
-                        if (bRetry != 0)
-                        {
-                            bRetry = 0;
-                            nBanned = -1;
-                        }
-                        goto place;
-                    }
-                    switch (worldSize)
-                    {
-                    case 1:
-                        if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
+                        if (i == 0)
+                            goto place;
+                        if (n == 0)
                         {
                             n++;
                             nLastX = x;
@@ -4045,42 +4057,59 @@ int CDeskcppDoc::WorldgenPlacePuzzles(short *paPlanGrid)
                             }
                             goto place;
                         }
-                        break;
-                    case 2:
-                        if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
+                        switch (worldSize)
                         {
-                            n++;
-                            nLastX = x;
-                            nLastY = y;
-                            if (bRetry != 0)
+                        case 1:
+                            if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
                             {
-                                bRetry = 0;
-                                nBanned = -1;
+                                n++;
+                                nLastX = x;
+                                nLastY = y;
+                                if (bRetry != 0)
+                                {
+                                    bRetry = 0;
+                                    nBanned = -1;
+                                }
+                                goto place;
                             }
+                            break;
+                        case 2:
+                            if (abs(nLastX - x) > 1 || abs(nLastY - y) > 1)
+                            {
+                                n++;
+                                nLastX = x;
+                                nLastY = y;
+                                if (bRetry != 0)
+                                {
+                                    bRetry = 0;
+                                    nBanned = -1;
+                                }
+                                goto place;
+                            }
+                            break;
+                        case 3:
+                            if (abs(nLastX - x) > 2 || abs(nLastY - y) > 2)
+                            {
+                                n++;
+                                nLastX = x;
+                                nLastY = y;
+                                if (bRetry != 0)
+                                {
+                                    bRetry = 0;
+                                    nBanned = -1;
+                                }
+                                goto place;
+                            }
+                            break;
+                        default:
                             goto place;
                         }
-                        break;
-                    case 3:
-                        if (abs(nLastX - x) > 2 || abs(nLastY - y) > 2)
-                        {
-                            n++;
-                            nLastX = x;
-                            nLastY = y;
-                            if (bRetry != 0)
-                            {
-                                bRetry = 0;
-                                nBanned = -1;
-                            }
-                            goto place;
-                        }
-                        break;
-                    default:
-                        goto place;
-                    }
-                    nBanned = nZoneId;
-                    bRetry = 1;
-                    nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
+                        nBanned = nZoneId;
+                        bRetry = 1;
+                        nZoneId = (short)PlaceQuestNode(1, -1, -1, -1, -1, nOrder, 0);
+                    } while (nZoneId >= 0);
                 }
+                return 0;
 place:
                 {
                     int nCell = y * 10 + x;
@@ -6629,8 +6658,29 @@ int CDeskcppDoc::Populate()
 }
 
 // FUNCTION: YODA 0x004260e0
-// [WIP: reg 2-cycle {EDX,ECX} in the find loops + EH-state(-1) placement in the 0x217
-// found path; lengths/structure converged.]
+// [WIP: DIFF(468) at LENGTH 664 vs the 671 extent (-7). reg 2-cycle {EDX,ECX} in the find
+//  loops + EH-state(-1) placement in the 0x217 found path.
+//  ⭐ v131 mixscan.py decomposes it to FIVE counts: `jl +5, jg -5, mov -1, test -1, cmp +1`.
+//  The jl/jg half is FIVE backedge/guard compare MIRRORS — orig `cmp [nCand_slot],reg; jg`,
+//  ours `cmp reg,[nCand_slot]; jl` — i.e. the original never enregisters nCand and re-reads
+//  the slot; we hold it in EAX from the `mov [slot],eax` that stores it. Same shape in the
+//  guard: orig `xor eax,eax; cmp [slot],eax` (5 B) vs ours `xor ecx,ecx; cmp eax,ecx` (4 B),
+//  which is where the missing bytes come from.
+//  ⛔ THE DECL DIAL IS CLOSED HERE — 47 configurations measured, none better than baseline:
+//  all 23 orders of the leading block {v,found,spawns,pZone} (468 is the FLOOR; the 12 orders
+//  putting pZone first cost 89-101 B AND double-save edi, and spawns-first costs 26-28), plus
+//  all 24 declorder.py --inner permutations (the one permutable inner run, nObjs/j -> j/nObjs,
+//  is +2). Lesson #45 says a cmp mirror is a decl-BLOCK symptom, and here that is REFUTED —
+//  so this is the axis to skip, not the axis to try. The loop form is refuted from the other
+//  side too: the ORIGINAL's backedges are COMPARES, not countdowns, so lesson #40 does not
+//  apply.  ⚠ declorder.py --inner only permutes each block's LEADING decl run, so the three
+//  `int nObjs = ...; int j = 0;` pairs that sit after an `if` statement are invisible to it —
+//  a real tool gap, not a measured result.
+//  ⭐ Its two siblings carry the IDENTICAL mixscan signature and are one problem, not three:
+//  WorldgenPlaceUsefulObjectMaybe 0x41d260 (-5, `jl +3, jg -3, mov -1, test -1, cmp +1`) and
+//  WorldgenFillQuestItemSpot2Maybe 0x41cf10 (-3, one of each). 0x41d260 already spells its
+//  loops `while (nCount > i)` — limit-first — and STILL emits our form, which re-confirms
+//  lesson #45's "the compare-operand order is not the lever" from a third function.]
 // Place a zone's quest content: find tileId in its IZX3 list and stamp it on a spawn object
 // (zone 0x217 hardcodes the object at (3,3)).
 int CDeskcppDoc::PlaceZone(short zoneId, unsigned short tileId)
@@ -8261,8 +8311,24 @@ void CDeskcppView::DrawWeaponIcon(CDC *pDC)
 
 // FUNCTION: YODA 0x00428e30
 // [EFFECTIVE-WIP: 125 B -> 55 at v118 (len 237 -> 238 vs extent 242) purely by declaring the
-// inner block `prod` BEFORE `x` (declorder.py --inner). Residual = ONE missing zero-init (orig
-// zeroes 3 regs, we zero 2 — hoisting prod/x is flat 53-56) + the BitBlt arg-block reload.]
+// inner block `prod` BEFORE `x` (declorder.py --inner).
+// ⛔ v131 RETRACTS this note's own "ONE missing zero-init (orig zeroes 3 regs, we zero 2)".
+// That was read off one column of a byte diff and it is FALSE — mixscan.py counts the xor's
+// STRUCTURALLY on both sides and they are EQUAL (orig `mov ebp,eax` + `xor ecx,ecx` +
+// `xor edi,edi`; ours `xor edi,edi` hoisted above the store + `mov ecx,eax` + `xor ebp,ebp`).
+// Only the SCHEDULE and the register names differ. Lesson #56 again, and the third time a
+// note in this tree has claimed a construct we in fact emit.
+// ⭐ THE WHOLE -4 IS ONE `mov`, fully accounted: at the ReleaseDC tail the original reloads
+// pDC from its frame slot (`mov eax,[esp+0x10]` 4 B + `mov ecx,[eax+4]` 3 B) where we still
+// hold it in EBX from the BitBlt argument push and emit `mov eax,[ebx+4]` (3 B) alone. EBX is
+// callee-saved so our value survives the intervening SelectPalette call; the original treats
+// it as dead at the `push ebx`. Both frames and both save sets are identical, so this is a
+// pure liveness coin-flip on EBX, not a missing statement.
+// ⛔ The ReleaseDC statement's SPELLING is not the lever — 5 forms measured, all at 55 B /
+// len 238: the MFC member `ReleaseDC(pDC)`, a named `HDC hdc` temp, a named hw+hdc pair, and
+// the current global form all fold identically; `pDC->GetSafeHdc()` and `GetSafeHwnd()` are
+// refuted by LENGTH (both 254, i.e. +12 past the extent). The lever, if any, is whatever
+// makes cl give the loop's `x` register EBX (as the original does) instead of EBP.]
 // Dim the 576x576 canvas with a multiplicative checkerboard (zero where x*y is even), blit
 // the visible 288x288 window to the screen at (8,7), then restore the palette.
 void CDeskcppView::BlitViewportDither()
