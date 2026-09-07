@@ -4410,66 +4410,60 @@ void CDeskcppView::DrawText(CDC *pDC)
 // reward text (text4 / text1+" "+next text3), blit the reward item and
 // enter the mode-9 pickup blink; solved cells re-show text3/text2 (with
 // the "you won" string 0xe00b overriding after victory).
-// EFFECTIVE-WIP (495/491 insns, all six CString EH scopes + every call and
-// store aligned; align=654 dominated by a global allocation split):
-// (a) the orig HOMES tx/ty to slots [-0x1c]/[-0x14] and pre-loads
-// playerX/playerY/equippedItem/tiles.m_pData into EDX/EDI/ESI/EAX above the
-// arm dispatch (CSE'd across all 3 arm conditions; arm B's cmp reuses
-// EAX/ESI from the head); ours gives tx/ty the callee-saved regs and spills
-// m_pData/equipped to slots instead — one global rank tie-break echoed
-// everywhere. Probed: no-tx/ty-locals full-expression form (worse — the
-// orig computes both at HEAD, so they ARE source locals), n operand order
-// (canonicalized, inert). (b) the orig's paired field30 if/else arms have
-// CROSSED size/data reg roles (A: size->EAX,data->ESI; B: size->ESI,
-// data->EAX) which blocks cl's cross-jump of the GetAt tails; ours emits
-// them symmetric and merges — same intra-function rotation family as the
-// ZTS/WES clone pairs, not source-steerable. Cracks that landed: int id
-// locals (xor+mov dx zero-extend idiom, v10 lesson), int a/b hoisted only
-// in arm C (both bodies), per-arm duplicated dismiss-flag if/else,
-// str += " " via the 0x456108 literal (adjacent to the yen/cent
-// placeholder glyphs in this TU's literal pool).
-// ─── v133: THREE INSTRUMENTS AGREE THIS IS STRUCTURAL, AND THE FRAME SLOTS SAY WHY ───
-// It is the richest unworked residual in the tree: len 2025 vs the 1989 extent (+36),
-// framescan +12 (orig 20 / ours 32), and the biggest mixscan delta in the census —
-//   add +9, lea -8, mov +8, jne -5, je +5, xor -3, and -2, shl +2, jmp -2, test -1, cmp +1.
-// ⭐ THE FRAME-SLOT CENSUS IS THE HANDLE (run it before anything else here). Counting every
-// [ebp-0xNN] on both sides, with access WIDTH:
-//     ORIG  -0x10:45  -0x14:8  -0x18:3 (dword AND word!)  -0x1c:8  -0x20:2      = 5 slots
-//     OURS  -0x10:41  -0x14:12 -0x18:8  -0x1c:5  -0x20:3  -0x24:3  -0x28:2      = 7 slots
-// The original's five slots are heavily COLOURED — the same slot serves a live int and, once
-// that dies, a CString: -0x18 is arm A/B's CString (`lea ecx,[ebp-0x18]` + ctor 0x43d39a) and
-// ALSO holds a 16-bit value in arm C; -0x14 is `ty` at the head and arm C's CString after
-// `mov edi,[ebp-0x14]` consumes it at +0x5d7. Ours colours far less, and THAT is the +12.
-// ⛔ THREE MEASURED NEGATIVES — do not re-tread:
-//  (1) The tempting read of arm C's -0x18 (`mov word [ebp-0x18],di` at +0x5b4, re-read as
-//      `mov edx,[ebp-0x18]; and edx,0xffff` at +0x5fd/+0x70f) is that `id` is a WORD. It is
-//      REFUTED BY LENGTH: `WORD id`/`unsigned short id` = 2028 (+39, WORSE), `short id` = 2018.
-//      The store is slot COLOURING, not `id`'s type — see above.
-//  (2) `short sSlot` is POSITIVELY CONFIRMED by the original's own code: `mov di, word [...];
-//      test di,di; jl; movsx edi,di` is a short read + sign test + widen, which an `int` local
-//      cannot produce. `int sSlot` measures len 2016 (−9) — a coincidence inside a 1671-byte
-//      residual, and exactly the trap lesson #128 warns about. Do not land it.
-//  (3) The container call form (lesson #48) is INERT on all three arm conditions:
-//      `pWorld->tiles[780]` / `[2034]` / `[cellQuestSlot6]` together measure 2025 B / 1671,
-//      byte-IDENTICAL to `.GetAt(...)`.
-// ⭐ THE REAL QUESTION IS THE HEAD CSE, and it is readable straight off the original's first
-// 0x57 bytes: BEFORE the first compare it loads pWorld->ECX, playerY->EDX, tiles.m_pData->EAX,
-// equippedItem->ESI, playerX->EDI, then tests `cmp [eax+0xc30],esi` (780*4 = 0xc30). Arm B's
-// condition REUSES eax and esi (`cmp [eax+0x1fc8],esi`, 2034*4) and arm C's *52 index math
-// reuses edx/edi — one CSE serving all three arms. playerX/playerY are not used by ANY arm
-// condition, so cl hoisted them speculatively above the branch. We do not, so tx/ty win the
-// callee-saved registers and the four CSEs go to slots. `n` is genuinely per-arm (the 5-LEA
-// *52 chain is emitted three times, in three different registers), so it is NOT a head local.
-// ⇒ next: find what blocks the speculative hoist — it is a lesson #42/#43 question, and the
-// `add +9 / lea -8` half of the mix delta is the same address arithmetic seen from the side.
+// ─── v134: STRUCTURAL — 1671 B @ ext+36 -> 817 B @ len 1980 = ext-9, +0/-0 ───
+// Four independent fixes, each read straight out of the original's control flow, and
+// they COMPOSE (lesson #51): each of the last three is REFUTED or inert on its own at
+// the previous baseline and only pays once the one before it has landed.
+// ⭐ (1) THE JUMP-SEQUENCE CENSUS FOUND IT, and it is a new instrument (tools/jseqscan.py).
+// mixscan read `jne -5 / je +5` here; comparing the ORDERED LIST of conditional-jump
+// MNEMONICS on both sides (alignment-free, unlike armscan.py) localised all five to the
+// SAME construct — the `field30 == 1` quest-list selector. cl INVERTS the source polarity
+// wherever it tail-merges the two arms, so the original's `jne`-to-B / A-fallthrough is
+// emitted from **`if (field30 != 1) B; else A;`** — the identical spelling `OnBumpTile`
+// 0x413df0's note has recorded since G1. All 28 conditional jumps then agreed. ⚠ the three
+// `GetAt(GetSize() - 1)` selectors are NOT tail-merged and keep the `== 1` spelling; the
+// polarity is per-site, so do not sweep the file.
+// (2) The two arm-C selectors are TWO-ARMED, not the one-armed `if (field30 != 1) id = B;`
+//     we had: the original's fallthrough MATERIALISES the A value (`mov edx,[ebp-0x18];
+//     and edx,0xffff`) and jumps to a shared tail, which a one-armed if cannot emit.
+//     Re-measured at the final baseline the one-armed form is 2014 @ +25 = REFUTED.
+// (3) `WORD id` in arm C (the `and 0xffff` is a ZERO-extend, so unsigned; `short` measures
+//     the same 817 but is refuted by that mask, `int` = 826). ⛔ v133 had measured
+//     `WORD id` at 2028 = +39 and written it off — that verdict was PHASE-BOUND to the
+//     wrong arm order; after (1) it is 2011 = +22, an 8-byte gain. It also collapsed the
+//     frame from 0x20 to 0x18 and HOMED tx, which is what unblocked (4).
+// ⭐ (4) THE HEAD LOADS ARE NAMED LOCALS: `int px = pWorld->playerX; int py =
+//     pWorld->playerY;` with each arm computing `int n = py * 10 + px;`. **2011 -> 1980,
+//     diff 1678 -> 817.** The v133 note called the head a "speculative hoist" cl performs
+//     and asked what blocks it; it is not a hoist at all — the loads are at the head
+//     because the SOURCE puts them there (lesson #43, the named-local lever). The whole
+//     +22 was arithmetic: with px/py in registers the original spends `lea r,[r+r*4]` +
+//     `lea r,[edi+r*2]` = 6 B per arm over one 12-byte head; without them we spent 17 B
+//     per arm. Landing it also freed EBX for the ZERO CONSTANT, so arm A's five `= 0`
+//     stores went from `mov mem,imm32` (10 B) to `mov mem,ebx` (6 B) and its whole tail
+//     now matches instruction-for-instruction. Both decl orders measure identically.
+// ⛔ MEASURED NEGATIVES — do not re-tread. `int n` at FUNCTION scope (2019 @ +30, so the
+// per-arm `int n` is positively confirmed); all four head decl spellings (ty-first,
+// `x + dx`, split decl+assign) DEAD FLAT at 1980; the container call form `pWorld->tiles[
+// 780]`/`[2034]`/`[cellQuestSlot6]` on all three arm conditions byte-IDENTICAL (inert,
+// re-confirmed at the new baseline); `int sSlot` = 2002 @ +13, so `short sSlot` is
+// confirmed a third time; `int id` = 826.
+// ▶ WHAT IS LEFT (-9, i.e. we are MISSING code — lesson #49): ONE arm-C allocation
+// decision. The original homes n*52 to [ebp-0x20] and `id` to the CString slot [-0x18],
+// so its initial `id = questItemsA.GetAt(sSlot)` store survives ahead of the
+// cellQuestSlot6 test and the `field30 == 1` arm RELOADS it; we keep both in registers,
+// so the initial def is dead-stored away and both arms tail-merge onto one indexed load
+// (9 B shorter, and the last 2 jne/je flips). framescan agrees from the other side: orig
+// 20 / ours 16. The search is for one more long-lived value in arm C, not for a spelling.
 void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
 {
     int tx = dx + x;
     int ty = dy + y;
+    int px = pWorld->playerX; int py = pWorld->playerY;
 
     if (YODA_SIC_FIX((pWorld->tiles.GetSize() > 780 || (BUGLOG(("sic#16 ShowWinMessage: tile 780 idx OOB n=%d\n", (int)pWorld->tiles.GetSize())), 0)) &&) (Tile *)pWorld->tiles.GetAt(780) == pWorld->equippedItem)
     {
-        int n = pWorld->playerY * 10 + pWorld->playerX;
+        int n = py * 10 + px;
         if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)
         {
             if (pWorld->mapGrid[n].flagA == 0)
@@ -4485,10 +4479,10 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 ShowTextDialog(str, tx * 32 + 16, ty * 32 + 16, 0);
                 pWorld->mapGrid[n].flagA = 1;
                 int id2;
-                if (pWorld->mapGrid[n].field30 == 1)
-                    id2 = pWorld->questItemsA.GetAt(0);
-                else
+                if (pWorld->mapGrid[n].field30 != 1)
                     id2 = pWorld->questItemsB.GetAt(0);
+                else
+                    id2 = pWorld->questItemsA.GetAt(0);
                 int nTile = ((Puzzle *)pWorld->puzzles.GetAt(id2))->itemA;
                 BlitTile((short)ty, (short)tx, 2, (Tile *)pWorld->tiles.GetAt(nTile));
                 DrawGameArea(NULL);
@@ -4530,7 +4524,7 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
     }
     else if (YODA_SIC_FIX((pWorld->tiles.GetSize() > 2034 || (BUGLOG(("sic#16 ShowWinMessage: tile 2034 idx OOB n=%d\n", (int)pWorld->tiles.GetSize())), 0)) &&) (Tile *)pWorld->tiles.GetAt(2034) == pWorld->equippedItem && pWorld->goalItemTileId == 0xbd)
     {
-        int n = pWorld->playerY * 10 + pWorld->playerX;
+        int n = py * 10 + px;
         if (pWorld->mapGrid[n].zoneType == ZONE_TYPE_FIND_USEFUL_DROP)
         {
             if (pWorld->mapGrid[n].flagA == 0)
@@ -4546,10 +4540,10 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 ShowTextDialog(str, pWorld->cameraX + 16, pWorld->cameraY + 16, 0);
                 pWorld->mapGrid[n].flagA = 1;
                 int id2;
-                if (pWorld->mapGrid[n].field30 == 1)
-                    id2 = pWorld->questItemsA.GetAt(0);
-                else
+                if (pWorld->mapGrid[n].field30 != 1)
                     id2 = pWorld->questItemsB.GetAt(0);
+                else
+                    id2 = pWorld->questItemsA.GetAt(0);
                 int nTile = ((Puzzle *)pWorld->puzzles.GetAt(id2))->itemA;
                 BlitTile((short)ty, (short)tx, 2, (Tile *)pWorld->tiles.GetAt(nTile));
                 DrawGameArea(NULL);
@@ -4591,11 +4585,11 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
     }
     else
     {
-        int n = pWorld->playerY * 10 + pWorld->playerX;
+        int n = py * 10 + px;
         short sSlot = pWorld->mapGrid[n].cellQuestSlot0;
         if (sSlot >= 0)
         {
-            int id = pWorld->questItemsA.GetAt(sSlot);
+            WORD id = pWorld->questItemsA.GetAt(sSlot);
             if (pWorld->mapGrid[n].cellQuestSlot6 >= 0
                 && (Tile *)pWorld->tiles.GetAt(pWorld->mapGrid[n].cellQuestSlot6) == pWorld->equippedItem)
             {
@@ -4605,16 +4599,18 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 {
                     if (pWorld->mapGrid[n].field30 != 1)
                         id = pWorld->questItemsB.GetAt(sSlot);
+                    else
+                        id = pWorld->questItemsA.GetAt(sSlot);
                     Puzzle *pPuz = (Puzzle *)pWorld->puzzles.GetAt(id);
                     if (pPuz != NULL)
                     {
                         CString str = pPuz->text1;
                         str += " ";
                         int id3;
-                        if (pWorld->mapGrid[n].field30 == 1)
-                            id3 = pWorld->questItemsA.GetAt(pWorld->mapGrid[n].cellQuestSlot0 + 1);
-                        else
+                        if (pWorld->mapGrid[n].field30 != 1)
                             id3 = pWorld->questItemsB.GetAt(pWorld->mapGrid[n].cellQuestSlot0 + 1);
+                        else
+                            id3 = pWorld->questItemsA.GetAt(pWorld->mapGrid[n].cellQuestSlot0 + 1);
                         str += ((Puzzle *)pWorld->puzzles.GetAt(id3))->text3;
                         pWorld->DrawPlayer();
                         DrawGameArea(NULL);
@@ -4635,6 +4631,8 @@ void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
                 {
                     if (pWorld->mapGrid[n].field30 != 1)
                         id = pWorld->questItemsB.GetAt(sSlot);
+                    else
+                        id = pWorld->questItemsA.GetAt(sSlot);
                     Puzzle *pPuz = (Puzzle *)pWorld->puzzles.GetAt(id);
                     if (pPuz != NULL)
                     {
@@ -7912,12 +7910,20 @@ void CDeskcppView::OnDestroy()
 // and sel=member — {dc=m,rp=g}, {dc=g,rp=m}, {dc=g,rp=g} — and mgmm is no longer one of them.
 // ⭐ The MINIMAL move from v110's spelling was taken: RealizePalette flips to the global form,
 // one token, everything else untouched. Cost of the whole v133 landing: +0 / -0.
-// ⚠ SO DO NOT READ `::RealizePalette` HERE AS EVIDENCE ABOUT THE 1997 SOURCE. Both it and
-// `pDC->RealizePalette()` are byte-exact, each at a different phase — the refit is licensed only
-// because the upstream change that caused it is independently proven (0x412cc0's length lands on
-// its Ghidra extent). SelectPalette's member form is NOT phase-bound: the global form costs 18
-// bytes of LENGTH in all 16 cells, which positively confirms it.
+// ⚠⚠ AND IT HAPPENED AGAIN AT v134, WHICH MAKES IT A PATTERN, NOT AN INCIDENT. Landing
+// ShowWinMessage 0x40f4b0's arm-order fix upstream re-rolled the phase a THIRD time and this
+// function fell to 6 B again on unchanged text. Re-running the same 32-cell sweep: the exact
+// cells at the v134 phase are {sel=m, a1=m, a2=m} x {rp=m|g} x {dc=m|g} — FOUR cells, and the
+// winning a2 has MOVED from global to member (v103's "both member = 6 B, first only = 0 B" was
+// itself phase-bound). Minimal move again: a2 -> the member form, one token. +0 / -0.
+// ⚠ SO DO NOT READ EITHER `::RealizePalette` OR THE TWO MEMBER-FORM AnimatePalettes HERE AS
+// EVIDENCE ABOUT THE 1997 SOURCE. Several spellings are byte-exact, each at a different phase;
+// a refit is licensed only because the upstream change that caused it is independently proven
+// (0x412cc0's and 0x40f4b0's lengths land on their Ghidra extents). SelectPalette's member form
+// is NOT phase-bound: the global form costs 18 bytes of LENGTH in all 16 cells (32 at v134),
+// which positively confirms it — that is the one axis here that is real evidence.
 // ⚠ If this reads 6 or 12 again, re-run the 32-combination sweep before believing anything else.
+// It has paid three times now and has never cost more than one token.
 // ---------------------------------------------------------------------------
 void CDeskcppView::CyclePalette()
 {
@@ -8083,7 +8089,7 @@ void CDeskcppView::CyclePalette()
     CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
+    pWorld->pPalette->AnimatePalette(160, 86, &pWorld->sysPalette[160]);
     ::RealizePalette(pDC->m_hDC);
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
