@@ -4964,3 +4964,28 @@ free; (a) cost `SetCurrentToIntroZone` 0x423d20, a phase weathervane re-swept fl
 Shipped: `tools/framescan.py` (the LOCAL FRAME SIZE oracle, 15 hits, positive-controlled) and
 `tools/sbs.py` (full side-by-side disassembly). Both standing lessons live in this file.
 Measured and NOT landed: 0x41cf10's `int nSpots` (breaks two other functions' exact lengths).
+
+### ⏮ v129 PICKUP (2026-09-06) — condensed at v130
+
+Held at **257 exact**; no new byte-match. Headline: `LoadWorld` 0x421fd0 went **1047 B @ +6 →
+485 B at LENGTH 1684 = the Ghidra extent EXACTLY, +0/−0 collateral**, on the house guarded
+COUNTDOWN in its zone delete loop — a defect that had been sitting in the function's own park
+note as a SYMPTOM ("delete-loop countdown (dec/jne) vs up-count+spill") attributed to "a
+reg-pool cascade seeded by nRet". Found by `framescan.py` and `pushscan.py` AGREEING.
+
+- ⭐ **`tools/loopform.py` GENERALISED** past the `for` spelling (new `DOWHILE_CMP` matcher +
+  `our-dowc` column): **14 → 22 candidates**, five with no `for` loop at all. Its positive
+  control had ROTTED ("0x403070 exact? expected False" — exact since v116) and was replaced
+  with one that cannot rot. ⇒ lesson #40's v129 addition: **match the MECHANISM, not one
+  instance of its output** (same family as v126's xjumpscan and v127's widthscan first drafts).
+- ⭐ **The decompiled body can contain the countdown variable spelled out**: `OnLoadWorld`
+  0x424fc0's questItems loops test `if (nCount - i == 1)`, and `<limit> - <index>` inside a
+  loop body IS direct evidence the original counted down.
+- **Three functions written up with measured NEGATIVES**: `OnLoadWorld` 0x424fc0,
+  `ZoneTransitionStep` 0x409650 (its frame delta decomposed; the original spends its three
+  callee-saved registers on {i, sy, &pWorld} and HOMES `pTile->pixels`), and `LoadWorld`'s own
+  remaining 485 B.
+- ⭐ **Triage rule 7 born here: NEVER hand-read a raw extent delta — always go through
+  `residuals.py --lenmis`.** v129 hand-read `app_funcs.txt` for `WorldgenPlaceBlockades`
+  0x41e350, got "+13 = structural!", and spent a target on it; the 13 bytes are the switch
+  JUMP TABLE inside our COMDAT but outside the extent (the v117 confound `--lenmis` filters).

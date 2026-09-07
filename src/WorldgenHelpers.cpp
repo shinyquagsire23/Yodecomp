@@ -1101,9 +1101,30 @@ int CDeskcppDoc::FindTile(void *pTile)
 //   types, the for-loop form, and swapping the two increments. Decl SCOPE cuts the twin's diff
 //   96 -> 88 flat but never moves its length. This is a 3-function, 5-site cluster and it is
 //   the last unexplained -6/-6/+3 on the --lenmis census.
-//   ⇒ Next axis to try (untested): the GetTile result handling / the `int t` temp, or the loop
-//   structure — NOT the increment and NOT the signatures. Also open: push/mov scheduling at the
-//   blit sites.]
+//   ⭐ v130 BUILT THE BOTH-SIDES CENSUS (`tools/movsxscan.py`) AND SCOPED THE SEAM: counting
+//   every short->int promotion in both images, split by whether the source operand sits in a
+//   REGISTER or a frame slot, gives 132 CONFIRMED / 23 ORIG-MORE / 13 OURS-MORE. This function
+//   is orig reg=5 / ours reg=3 — the deficit really is two whole promotions, nothing else.
+//   ⚠ Do NOT read a SELF-form difference as a missing construct: whether a promotion is
+//   `movsx eax,ax` or `movsx esi,ax` is register allocation, not source (0x41cf10 was ranked
+//   this seam's sharpest target on the self-form count and is a pure rename). Lesson #56 again.
+//   ⛔ v130 REFUTED 16 MORE SPELLINGS HERE, across the four axes v117/v122 had left open —
+//   do not re-tread: (a) computing the coord FROM the counter instead of accumulating
+//   (`destX = cx * 0x20` / `cx << 5`, either loop or both) — cl emits a real multiply, len +12
+//   to +30; (b) the increment ORDER swapped and int-CAST loop conditions — dead flat at 70/-6;
+//   (c) int ALIASES of the accumulators on THIS function, not just the twin — `int dx` at the
+//   body top +5, `int dy` in the outer body +5, both +16, all with diff 288-329 (they movsx
+//   into a SCRATCH register and never coalesce, exactly as on the twin); an alias assigned but
+//   unused is dead-code-eliminated (inert). (d) the axis this note previously named as the one
+//   to try next — the GetTile result / `int t` temp — is CLOSED: `t` at outer scope and
+//   `GetTile((int)cx,(int)cy,..)` are inert, and `short t` is INSTRUCTIVE BUT WRONG: it moves
+//   the length -6 -> -3, i.e. it does add exactly one promotion, but on `t` rather than on the
+//   accumulator, and the diff explodes 70 -> 227. The for-loop form is refuted by length (-11).
+//   ⇒ What survives as the open question, sharpened: cl is maintaining a 32-bit incarnation of
+//   a short whose only visible consumers are the two `short` blit parameters, i.e. the
+//   promotion looks DEAD. The preheader is `xor bx,bx` (16-bit), so the high half is never
+//   established before the first iteration either — which rules out an int-typed blit
+//   parameter as the cause. Still open: push/mov scheduling at the blit sites.]
 // Redraw the whole current zone into the offscreen canvas: 3 layers per cell; layers 1/2 use the
 // masked blit for game-object tiles.
 void CDeskcppDoc::RefreshZone()
