@@ -4428,6 +4428,40 @@ void CDeskcppView::DrawText(CDC *pDC)
 // in arm C (both bodies), per-arm duplicated dismiss-flag if/else,
 // str += " " via the 0x456108 literal (adjacent to the yen/cent
 // placeholder glyphs in this TU's literal pool).
+// ─── v133: THREE INSTRUMENTS AGREE THIS IS STRUCTURAL, AND THE FRAME SLOTS SAY WHY ───
+// It is the richest unworked residual in the tree: len 2025 vs the 1989 extent (+36),
+// framescan +12 (orig 20 / ours 32), and the biggest mixscan delta in the census —
+//   add +9, lea -8, mov +8, jne -5, je +5, xor -3, and -2, shl +2, jmp -2, test -1, cmp +1.
+// ⭐ THE FRAME-SLOT CENSUS IS THE HANDLE (run it before anything else here). Counting every
+// [ebp-0xNN] on both sides, with access WIDTH:
+//     ORIG  -0x10:45  -0x14:8  -0x18:3 (dword AND word!)  -0x1c:8  -0x20:2      = 5 slots
+//     OURS  -0x10:41  -0x14:12 -0x18:8  -0x1c:5  -0x20:3  -0x24:3  -0x28:2      = 7 slots
+// The original's five slots are heavily COLOURED — the same slot serves a live int and, once
+// that dies, a CString: -0x18 is arm A/B's CString (`lea ecx,[ebp-0x18]` + ctor 0x43d39a) and
+// ALSO holds a 16-bit value in arm C; -0x14 is `ty` at the head and arm C's CString after
+// `mov edi,[ebp-0x14]` consumes it at +0x5d7. Ours colours far less, and THAT is the +12.
+// ⛔ THREE MEASURED NEGATIVES — do not re-tread:
+//  (1) The tempting read of arm C's -0x18 (`mov word [ebp-0x18],di` at +0x5b4, re-read as
+//      `mov edx,[ebp-0x18]; and edx,0xffff` at +0x5fd/+0x70f) is that `id` is a WORD. It is
+//      REFUTED BY LENGTH: `WORD id`/`unsigned short id` = 2028 (+39, WORSE), `short id` = 2018.
+//      The store is slot COLOURING, not `id`'s type — see above.
+//  (2) `short sSlot` is POSITIVELY CONFIRMED by the original's own code: `mov di, word [...];
+//      test di,di; jl; movsx edi,di` is a short read + sign test + widen, which an `int` local
+//      cannot produce. `int sSlot` measures len 2016 (−9) — a coincidence inside a 1671-byte
+//      residual, and exactly the trap lesson #128 warns about. Do not land it.
+//  (3) The container call form (lesson #48) is INERT on all three arm conditions:
+//      `pWorld->tiles[780]` / `[2034]` / `[cellQuestSlot6]` together measure 2025 B / 1671,
+//      byte-IDENTICAL to `.GetAt(...)`.
+// ⭐ THE REAL QUESTION IS THE HEAD CSE, and it is readable straight off the original's first
+// 0x57 bytes: BEFORE the first compare it loads pWorld->ECX, playerY->EDX, tiles.m_pData->EAX,
+// equippedItem->ESI, playerX->EDI, then tests `cmp [eax+0xc30],esi` (780*4 = 0xc30). Arm B's
+// condition REUSES eax and esi (`cmp [eax+0x1fc8],esi`, 2034*4) and arm C's *52 index math
+// reuses edx/edi — one CSE serving all three arms. playerX/playerY are not used by ANY arm
+// condition, so cl hoisted them speculatively above the branch. We do not, so tx/ty win the
+// callee-saved registers and the four CSEs go to slots. `n` is genuinely per-arm (the 5-LEA
+// *52 chain is emitted three times, in three different registers), so it is NOT a head local.
+// ⇒ next: find what blocks the speculative hoist — it is a lesson #42/#43 question, and the
+// `add +9 / lea -8` half of the mix delta is the same address arithmetic seen from the side.
 void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
 {
     int tx = dx + x;
