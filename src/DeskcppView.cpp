@@ -7922,8 +7922,15 @@ void CDeskcppView::OnDestroy()
 // (0x412cc0's and 0x40f4b0's lengths land on their Ghidra extents). SelectPalette's member form
 // is NOT phase-bound: the global form costs 18 bytes of LENGTH in all 16 cells (32 at v134),
 // which positively confirms it — that is the one axis here that is real evidence.
-// ⚠ If this reads 6 or 12 again, re-run the 32-combination sweep before believing anything else.
-// It has paid three times now and has never cost more than one token.
+// ⚠⚠ AND A FOURTH TIME AT v136 — this is now the single most reliable prediction in the tree.
+// Landing Layout 0x4176f0's nested-ladder + switch fixes upstream re-rolled the phase again and
+// this function fell to 12 B on unchanged text. Re-running the sweep (16 cells; SelectPalette
+// held at the member form, which is NOT phase-bound — see above) finds exactly ONE exact cell:
+// {dc=member, a1=member, a2=GLOBAL, rp=member}. ⭐ Note a2 has swung BACK to the global form,
+// i.e. to v103's ORIGINAL spelling — which is the sharpest possible demonstration that none of
+// these call forms is evidence about the 1997 source. Cost of the v136 landing: +0 / -0.
+// ⚠ If this reads 6 or 12 again, re-run the 16/32-combination sweep before believing anything
+// else. It has paid FOUR times now and has never cost more than two tokens.
 // ---------------------------------------------------------------------------
 void CDeskcppView::CyclePalette()
 {
@@ -8089,8 +8096,8 @@ void CDeskcppView::CyclePalette()
     CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
-    pWorld->pPalette->AnimatePalette(160, 86, &pWorld->sysPalette[160]);
-    ::RealizePalette(pDC->m_hDC);
+    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
+    pDC->RealizePalette();
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
 }
@@ -8958,36 +8965,58 @@ struct TriPoint : public tagPOINT
 // bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
 // (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
 // out + show/hide the three CBitmapButtons (close/up/down) per the visible-line count.
-// EFFECTIVE-WIP (999 B @ len 1384 = the 1419-byte extent MINUS 35) — and as of v135 the WHOLE
-// -35 is diagnosed and attributed to ONE missing source construct. Do not read the old G1
-// "three families, all allocator artifacts, not source-steerable" verdict; (a) is REFUTED below.
-// ⭐ v135 — THE MISSING STRUCTURE IS AN INNER COPY OF THE bx RANGE LADDER INSIDE EACH nTailDir
-// ARM, AND IT IS SOURCE, NOT CODEGEN. The G1 note blamed "cl's trace-driven duplication of a
-// range test whose result is unused". cl does not invent a compare with no consumer. What it
-// DOES do is cross-jump two arms whose BODIES are identical, which deletes the bodies and leaves
-// the condition evaluation stranded — so a dead `cmp` is positive evidence that the 1997 source
-// evaluated it. Decoding the original's ladder end to end:
-//     +0189 cmp bx,0x90 / jl LOW ; +0193 cmp bx,0x100 / +01a1 jle M ; else H
-//           — M and H bodies are BOTH `sub eax,0x10`, i.e. IDENTICAL, which positively CONFIRMS
-//             our two textually identical arms are real source and not a transcription slip.
-//     +01ad LOW arm carries a DEAD `cmp bx,0x20` (no consumer at all).
-//     +01d0 and +01f0 — each nTailDir arm carries a FULL dead `cmp bx,0x20 / jl / cmp bx,0x100`,
-//           both edges landing on the same block.
-//   ⇒ the author repeated the same bx ladder inside the tail-direction arms with identical
-//     bodies in every arm. THE ARITHMETIC CLOSES EXACTLY, which is what makes this a diagnosis
-//     rather than a story: a mnemonic census gives cmp -5, jl -3, jle -1, and the original has
-//     cmp 0x90 x1 + cmp 0x20 x3 + cmp 0x100 x3 = 7 against our 2 (-5), jl 3 against our 0 (-3),
-//     jle 1 against our 0 (-1). Nothing else in the mix is missing. ⚠ mixscan.py EXCLUDES this
-//     function (trailing jump table), so census it with a throwaway Counter over sbs's decode.
-// ⛔ (b) IS REFUTED AS A SOURCE AXIS — v135, three probes, and the third is decisive.
-//     A  `int *pbx = &nBoxX;` + `*pbx` at all six point-store sites .. 1015 B @ 1404 = ext-15
-//     B  the pointer used only for the `bx` read ..................... 1003 B @ 1392 = ext-27
-//     C  `int v = *pbx;` read ONCE per arm .......................... 999 B @ 1384 = BASELINE
-//   C is byte-IDENTICAL to no pointer at all, so reading through a member pointer is CODEGEN-
-//   INVISIBLE here ⇒ the original's `lea edx,[esi+0x18]` and `lea ebx,[esi+0xa0]` are cl
-//   ADDRESSING artifacts, NOT a source address-of, and A's 20 bytes of length are SPURIOUS extra
-//   reloads (A emits 2-3 loads per arm where the original emits exactly ONE). A was NOT landed:
-//   it is a number, not a fact. ⇒ Chase the ladder in (a); leave the member reads alone.
+// EFFECTIVE-WIP (1010 B @ len 1396 = the 1419-byte extent MINUS 23) — v136 landed 12 of
+// v135's diagnosed -35 (+0/-0, no phase victims), and the rest is now decomposed instruction
+// by instruction below. Do not read the old G1 "three families, all allocator artifacts, not
+// source-steerable" verdict; (a) is REFUTED, and two of its constructs are now IN the source.
+// ⭐ v135 DIAGNOSED / v136 LANDED — A DEAD `cmp` IS SOURCE, NOT CODEGEN (lesson #65). cl does
+// not invent a compare with no consumer; it CROSS-JUMPS arms whose BODIES are identical, which
+// deletes the bodies and strands the condition. The original's ladder, decoded end to end:
+//     +0189 cmp ecx,0x90 / jl LOW ; +0193 cmp ecx,0x100 / +01a1 jle M ; else H
+//     +01ad LOW carries a DEAD `cmp ecx,0x20` (no consumer at all)
+//     +01d0 / +01f0 — each nTailDir arm carries a full dead `cmp ecx,0x20 / jl / cmp ecx,0x100`
+//   ⇒ the author repeated the bx range ladder inside these arms with identical bodies.
+// ⭐⭐ v136 — TWO CONSTRUCTS LANDED, 999 B @ ext-35 -> 1010 B @ ext-23, and SEVEN mnemonic
+//   columns went from wrong to EXACT. The byte diff ROSE by 11; per lesson #60 land a construct
+//   read out of the original's control flow on the LENGTH, not the diff.
+//   1. THE OUTER LADDER IS NESTED, NOT A FLAT else-if CHAIN, and its LOW arm holds the dead
+//      `cmp bx,0x20` as a two-arm if/else with identical bodies:
+//          if (bx >= 144) { if (bx > 0x100) H; else M; }   // H and M bodies identical
+//          else           { if (bx < 0x20)  A; else A; }   // the dead compare
+//      This is what emits `jl` to an OUT-OF-LINE low arm, keeps M and H as two SEPARATE
+//      `sub eax,0x10` blocks each with its own `jmp`, and produces the `jle`. The flat chain we
+//      had cross-jumped M and H into one block and deleted the `jle` entirely. Landing it made
+//      jge (2/2), jle (1/1), jg (0/0), sub (11/11) and one jl land EXACTLY. -35 -> -23.
+//      ⚠ `bx <= 0x100`, NOT `bx < 0x101`: the original's immediate is 0x100 and the jcc is
+//      `jle`. The `< 0x101` spelling emits `cmp 0x101` and can never produce a `jle`.
+//   2. THE nTailDir DISPATCH IS A `switch`, NOT an if/else-if. The original emits
+//      `cmp eax,1 / je / cmp eax,2 / je / jmp` — both arms OUT OF LINE — where an if/else-if
+//      emits `cmp eax,1 / jne` with arm 1 inline. FREE in length (1396 either way) and it cut
+//      30 bytes of diff, landing je (3/3), jne (3/3) and jmp (11/11) EXACTLY.
+// ⛔ MEASURED NEGATIVES — re-measured at the NEW baseline, so these are current (lesson #134):
+//   (a) THE INNER nTailDir LADDERS ARE REFUTED AT BOTH BASELINES, and this is the one place the
+//       diagnosis and the oracle disagree. The construct is certainly there (the dead compares
+//       are unambiguous), but every spelling overshoots badly: at ext-35 the flat 3-arm ladder
+//       cost +44 B, and at the landed ext-23 baseline it costs +64 B (flat and NESTED forms
+//       measure identically, +21/+41 absolute). ⭐ WHY IT IS NOT SIMPLY WRONG: the nTailDir==2
+//       arm reproduces the original's shape INSTRUCTION FOR INSTRUCTION
+//       (`cmp edx,0x20 / jl / cmp edx,0x100 / mov eax,[esi+0x60] / ...` vs the original's
+//       +01f0 block) — it is the nTailDir==1 arm that mis-merges, because our `rectBox.bottom`
+//       CSE survives the point[] stores and the original's does not (see (b)). ⇒ the blocker is
+//       the RELOAD question, not the ladder; solve (b) first and re-measure the ladder after.
+//   (b) THE REMAINING -23 IS ONE RESIDENCY DECISION, and it is NOT reachable by a member
+//       pointer. The original NEVER keeps nBoxX in a register: it loads it into ECX for `bx`,
+//       DESTROYS it with `sub ecx,[nViewLeft]`, and re-loads `mov eax,[edx]` once per ladder
+//       BRANCH; it likewise re-loads rectBox.top/bottom after the first point[] store. We copy
+//       (`mov ecx,edx`) and keep nBoxX live throughout. That is the whole of cmp -4 / jl -2 /
+//       mov -4 / lea -3 / dec -2. ⭐ v135's probe A (`int *pbx = &nBoxX;` at every point-store
+//       site) was RE-RUN at the v136 baseline per lesson #134 and is STILL REJECTED, now with a
+//       sharper reason: it reads 1404 = ext-15 (+8 length) and cuts 24 B of diff, but the
+//       emitted SHAPE is wrong — the ladder STILL holds nBoxX in a register (`mov ecx,edx`, no
+//       per-branch reload) and it rewrites arm 1 into `bottom+0xf` then `-0x10`, which the
+//       original does not do. Triage rule 13: a length gain is not a landing until the shape
+//       matches. v135's probe C (read through the pointer ONCE per arm) is byte-IDENTICAL to no
+//       pointer at all, which is what proves the axis codegen-invisible rather than merely bad.
 //   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
 // NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
 void TextDialog::Layout(int x, int y, int nUnused)
@@ -9022,35 +9051,48 @@ void TextDialog::Layout(int x, int y, int nUnused)
     int bx = nBoxX;
     if (nMode == 0)
         bx -= pParentView->pWorld->nViewLeft;
-    if (bx < 144)
+    if (bx >= 144)
     {
-        point[1].x = nBoxX;
-        point[0].x = nBoxX;
-        point[2].x = nBoxX + 0x10;
-    }
-    else if (bx < 0x101)
-    {
-        point[1].x = nBoxX;
-        point[0].x = nBoxX;
-        point[2].x = nBoxX - 0x10;
+        if (bx > 0x100)
+        {
+            point[1].x = nBoxX;
+            point[0].x = nBoxX;
+            point[2].x = nBoxX - 0x10;
+        }
+        else
+        {
+            point[1].x = nBoxX;
+            point[0].x = nBoxX;
+            point[2].x = nBoxX - 0x10;
+        }
     }
     else
     {
-        point[1].x = nBoxX;
-        point[0].x = nBoxX;
-        point[2].x = nBoxX - 0x10;
+        if (bx < 0x20)
+        {
+            point[1].x = nBoxX;
+            point[0].x = nBoxX;
+            point[2].x = nBoxX + 0x10;
+        }
+        else
+        {
+            point[1].x = nBoxX;
+            point[0].x = nBoxX;
+            point[2].x = nBoxX + 0x10;
+        }
     }
-    if (nTailDir == 1)
+    switch (nTailDir)
     {
+    case 1:
         point[0].y = rectBox.bottom - 1;
         point[1].y = rectBox.bottom + 0xf;
         point[2].y = rectBox.bottom - 1;
-    }
-    else if (nTailDir == 2)
-    {
+        break;
+    case 2:
         point[0].y = rectBox.top;
         point[1].y = rectBox.top - 0x10;
         point[2].y = rectBox.top;
+        break;
     }
     ::Polygon(hdc, point, 3);
 
