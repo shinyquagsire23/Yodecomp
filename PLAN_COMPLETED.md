@@ -5521,3 +5521,29 @@ looks alarmingly like a changed HIGH finding; grep for the `=== HIGH` section he
 
 
 </details>
+
+---
+
+## ⏮ v135 PICKUP (2026-09-07) — condensed at v136
+
+**Landed at v135:** `ScrollZoneTransition` 0x411180, the biggest named unknown in the tree
+(parked since G1 behind "do not open this function without a candidate"), went **702 B @ ext−62
+→ 761 B @ 912 = ext−1, +0/−0 with no phase victims**, on ONE call-form change (lesson #64): the
+four scroll blits are the CDC MEMBER form `pDC->BitBlt(x,y,w,h,pDC,xSrc,ySrc,SRCCOPY)`, the
+source DC being pDC itself. A `push` is a memory write, so it kills a member-load CSE; the
+global form therefore loads each duplicated rect field TWICE while the member inline precomputes
+the whole argument DAG and loads it once. Free two-sided oracle: `CDC::BitBlt` expands
+`pSrcDC->GetSafeHdc()`, so the member form emits a `test/je/mov` null-test diamond whenever the
+source DC is a POINTER — read it before spending a compile. Seam MINED OUT (9 global-form
+CDC/CWnd sites tree-wide: 2 already-exact, 4 converted, 3 refuted by the missing diamond).
+
+**Also at v135:** `Layout` 0x4176f0's whole −35 DIAGNOSED (lesson #65 — a `cmp` with no consumer
+is SOURCE, not codegen; cl cross-jumps identical arm BODIES and strands the test), refuting that
+function's G1 park note. Its member-pointer axis refuted by a three-cell probe whose third cell
+predicted INERTNESS and refereed the other two (triage rule 13).
+
+**v135 open items, all carried into the v136 pickup or closed there:** item 1 (`Layout`'s ladder)
+was worked at v136 — the outer ladder and the dispatch LANDED (lesson #66), the inner nTailDir
+ladders measured NEGATIVE at both baselines. Items 2–8 (0x411180's last −1; `DrawHealthNeedle` /
+`DrawHealthDial`; the 48 decl-run residuals; `ShowWinMessage`'s last −9; the closed lists; the
+v130-v134 carry-overs; the v98 de-hex leftovers) are unchanged and restated in the v136 pickup.

@@ -274,7 +274,7 @@ TWICE while the member inline precomputes the whole argument DAG and loads it on
 DIAGNOSED the whole of `Layout` 0x4176f0's −35 (lesson #65: a `cmp` with no consumer is SOURCE,
 not codegen — cl cross-jumps identical arm BODIES and strands the test, so the author repeated the
 bx range ladder inside each nTailDir arm; the mnemonic census closes on it exactly) and refuted
-that function's G1 park note. The `--lenmis` census fell 33 residuals / 321 B → 27 / 184 B.)** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
+that function's G1 park note. The `--lenmis` census fell 33 residuals / 321 B → 27 / 184 B.)**; **held at 257 at v136 (no new byte-match, but `Layout` 0x4176f0 — the top of `--lenmis`, and the function v135 had fully DIAGNOSED — went 999 B @ ext−35 → 1010 B @ ext−23, +0/−0, on TWO constructs read straight off the original's BLOCK LAYOUT, lesson #66: its bx ladder is a NESTED `if/else` and not a flat `else if` chain (a flat chain lets cl cross-jump the identical trailing arms and DELETE the `jle` outright), and its nTailDir dispatch is a `switch` and not an if-chain (`je / je / jmp`, both arms out of line). SEVEN mnemonic columns went from wrong to EXACT. `CyclePalette` 0x415af0 was recovered for the FOURTH session running by re-running its own prescribed sweep, and its winning cell has swung BACK to v103's original spelling. `--lenmis` fell 184 B → 172 B.)** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
 v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
@@ -761,6 +761,38 @@ had written the global `::BitBlt(pDC->m_hDC, ..., pDC->GetSafeHdc(), ...)`.
 - ⛔ **The arm-local coordinate hypothesis is REFUTED AT BOTH BASELINES** (707 B @ 853 under the
   new call form; 705–708 @ 853 across 6 spellings at v121). Reproducing the v121 number under
   the NEW form is what proves the two axes independent — cf. lesson #51.
+
+⭐ **A LADDER'S *NESTING* AND A DISPATCH'S *STATEMENT KIND* ARE BOTH DIALS, AND THEY ARE READ
+STRAIGHT OFF THE BLOCK LAYOUT (v136, lesson #66) — the constructive half of lesson #65.** #65
+said a dead `cmp` proves the source evaluated it. v136 is how you then WRITE it, and both halves
+were worth 12 bytes on `Layout` 0x4176f0 (999 B @ ext−35 → 1010 B @ ext−23, +0/−0), taking SEVEN
+mnemonic columns from wrong to exact.
+- ⭐ **A FLAT `else if` CHAIN AND A NESTED `if/else` ARE DIFFERENT BLOCK LAYOUTS.** cl 10.20
+  cross-jumps the trailing arms of a FLAT chain whose bodies are identical — which deletes one
+  arm *and its jcc*. Nest the same conditions one level and it keeps both arms as separate
+  blocks, each with its own `jmp`. On 0x4176f0 the original has TWO identical `sub eax,0x10`
+  blocks and a `jle`; our flat chain had one block and no `jle` at all. The fix:
+  `if (bx >= 144) { if (bx > 0x100) H; else M; } else { if (bx < 0x20) A; else A; }`.
+  Landing it put `jge` 2/2, `jle` 1/1, `jg` 0/0, `sub` 11/11 and one `jl` exactly on target.
+- ⭐ **THE COMPARE'S IMMEDIATE TYPES THE OPERATOR, FOR FREE, BEFORE ANY COMPILE.** `bx < 0x101`
+  emits `cmp 0x101`; `bx <= 0x100` emits `cmp 0x100` — and only the second can ever produce the
+  `jle` the original emits. ⇒ **read the original's immediate and match it exactly**; a
+  semantically identical off-by-one spelling is refutable at zero cost. This is the same
+  free-oracle move as v135's `GetSafeHdc` diamond.
+- ⭐ **A `switch` AND AN `if/else if` CHAIN LOWER DIFFERENTLY, even with two cases.** A switch
+  emits `cmp eax,1 / je / cmp eax,2 / je / jmp` with EVERY arm out of line; the if-chain emits
+  `cmp eax,1 / jne` with arm 1 INLINE. On 0x4176f0 the switch was FREE in length and cut 30 B of
+  diff, landing `je` 3/3, `jne` 3/3 and `jmp` 11/11. ⇒ **`je / je / jmp` in the original is the
+  fingerprint of a `switch`**; an if-chain can never produce it.
+- ⚠ **The byte diff ROSE 999 → 1010 across this landing.** Per lesson #60, a construct read out
+  of the original's CONTROL FLOW is evidence in its own right — land it on the LENGTH.
+⚠ **AND THE COMPANION NEGATIVE, which is where the method's limit is:** the inner nTailDir
+ladders that #65 diagnosed are REFUTED BY MEASUREMENT at both baselines (+44 B at ext−35, +64 B
+at ext−23; flat and nested spellings identical). The `nTailDir == 2` arm reproduces the original
+instruction for instruction — it is the `nTailDir == 1` arm that mis-merges, because our
+`rectBox.bottom` CSE survives the `point[]` stores and the original's does not. ⇒ a correct
+diagnosis can still be unlandable while a NEIGHBOURING defect (here a member-RELOAD/residency
+decision) blocks it; fix the blocker first and re-measure, don't respell the diagnosed construct.
 
 ⭐ **A `cmp` WITH NO CONSUMER IS *SOURCE*, NOT CODEGEN (v135, lesson #65) — the converse of
 lesson #52, and it corrects a G1 park note that had stood for the life of the project.**
@@ -2031,89 +2063,102 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-07 v135 — **held at 257 exact, +0/−0, and the session's
-product is the LARGEST SINGLE STRUCTURAL LANDING the project has recorded: `ScrollZoneTransition`
-0x411180 — the biggest named unknown in the tree, parked since G1 with an explicit "do not open
-this function without a candidate" — went 702 B @ ext−62 → 761 B @ ext−1 on ONE call-form change
-(lesson #64). Plus `Layout` 0x4176f0's whole −35 DIAGNOSED and a G1 park note refuted (#65).**
+### ⏭ NEXT SESSION PICKUP (2026-09-07 v136 — **held at 257 exact, +0/−0. `Layout` 0x4176f0 —
+the top of `--lenmis` and the function v135 had fully DIAGNOSED but not landed — went 999 B @
+ext−35 → 1010 B @ ext−23 on TWO constructs read straight off the original's BLOCK LAYOUT
+(lesson #66, new), with SEVEN mnemonic columns going from wrong to EXACT.**
 All oracles green: **257 exact** / 99.17 % / link 0 unresolved / bugscan 1 HIGH (the documented
-benign `StartGame` 0x4037a0 `@+0x14a` finding) / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches.
-The `--lenmis` census fell from **33 residuals / 321 B of structural error to 27 / 184 B**.
-v134 log condensed into PLAN_COMPLETED.md.)
+benign `StartGame` 0x4037a0 `@+0x14a` finding) / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches /
+framescan 15 hits, control CLEAN / mixscan control CLEAN over 226. `--lenmis` fell **184 B → 172 B**
+of structural error. v135 log condensed into PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — THIRTEEN triage rules now.** (1)-(12) unchanged from v134 (lesson #54 park on
+**▶ READ FIRST — FOURTEEN triage rules now.** (1)-(13) unchanged from v135 (lesson #54 park on
 `cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`; `thisscan.py` before any negative-length
 register mystery; lesson #56 census our own side; `pushscan.py` early; a park note's byte count is
 PHASE-RELATIVE; `framescan.py` alongside `--lenmis`; never hand-read a raw extent delta; a census
 keyed on a register-dependent property is not a structural census; `mixscan.py` BEFORE `sbs.py`;
 read the leaf VTABLE STORES before landing a decl-order win; re-run the sweep that landed a phase
-victim before paying for it; a function's own ⛔ MEASURED-NEGATIVE list is PHASE-RELATIVE).
-(13) ⭐ **NEW (v135): A LENGTH GAIN IS NOT A LANDING UNTIL THE EMITTED *SHAPE* MATCHES.** Add a
-probe cell that predicts INERTNESS and let it referee. On 0x4176f0 the pointer probe gained 20
-bytes of length and was still wrong — the inert cell proved the construct was a cl artifact.
+victim before paying for it; a function's own ⛔ MEASURED-NEGATIVE list is PHASE-RELATIVE; a
+length gain is not a landing until the emitted SHAPE matches).
+(14) ⭐ **NEW (v136): MATCH THE ORIGINAL'S COMPARE IMMEDIATE EXACTLY — it types the operator for
+free, before any compile.** `x < 0x101` emits `cmp 0x101` and can NEVER produce the `jle` that
+`x <= 0x100` does. A semantically identical off-by-one spelling is refutable at zero cost, and on
+0x4176f0 it was load-bearing. Same family as v135's `GetSafeHdc`-diamond oracle: ask what the
+original would HAVE to emit under each hypothesis and look for that byte pattern first.
 
 **▶ WHAT LANDED**
-1. ⭐ **`ScrollZoneTransition` 0x411180 — 702 B @ ext−62 → 761 B @ 912 = ext−1, +0/−0**, verified
-   with `exactset.py` + `comm` (no phase victims at all). The four scroll blits are the **CDC
-   MEMBER form** `pDC->BitBlt(x, y, w, h, pDC, xSrc, ySrc, SRCCOPY)` — the source DC is pDC
-   ITSELF — not the global `::BitBlt(pDC->m_hDC, ..., pDC->GetSafeHdc(), ...)` we had. Mechanism,
-   free oracle and the mined-out seam census: lesson #64.
-2. ⭐ **`Layout` 0x4176f0 — the whole −35 DIAGNOSED, +0/−0** (lesson #65): the missing structure
-   is an inner copy of the bx range ladder inside each `nTailDir` arm, and the mnemonic census
-   closes on it EXACTLY (cmp −5 / jl −3 / jle −1). Its G1 "cl's trace-driven duplication / clean
-   source emits none" verdict is REFUTED, and its family (b) member-pointer axis is refuted by a
-   three-cell probe. Full ledger in the source note.
+1. ⭐ **`Layout` 0x4176f0 — 999 B @ ext−35 → 1010 B @ ext−23, +0/−0** (verified twice with
+   `exactset.py` + `comm`, once for the code and once for the notes). Two constructs:
+   (a) the outer bx ladder is a **NESTED `if/else`**, not a flat `else if` chain — a flat chain
+   lets cl cross-jump the identical trailing arms, which deletes one arm AND its `jle`; and its
+   low arm carries v135's dead `cmp bx,0x20` as a two-arm if/else with identical bodies. Lands
+   `jge` 2/2, `jle` 1/1, `jg` 0/0, `sub` 11/11 and one `jl`. (b) the nTailDir dispatch is a
+   **`switch`**, not an if-chain — `je / je / jmp` with both arms OUT OF LINE. FREE in length,
+   cut 30 B of diff, lands `je` 3/3, `jne` 3/3, `jmp` 11/11. ⚠ the byte diff ROSE 999 → 1010;
+   landed on the LENGTH per lesson #60. Full ledger in the source note.
+2. ⭐ **`CyclePalette` 0x415af0 recovered for the FOURTH session running**, two tokens, by
+   re-running its own prescribed sweep (triage rule 11). One exact cell at the new phase:
+   `{dc=member, a1=member, a2=GLOBAL, rp=member}` — a2 has swung BACK to v103's original
+   spelling, the sharpest demonstration yet that no call form here is evidence about the source.
 
 **▶ NEXT — concrete, in priority order.**
-1. ⭐ **`Layout` 0x4176f0 (−35) is now the top of `--lenmis` AND fully scoped** — the rarest
-   combination in this project. Write the inner ladder into both `nTailDir` arms with identical
-   bodies per arm and re-measure; the target is 7 compares / 3 `jl` / 1 `jle`. ⚠ the outer
-   ladder's two identical arms are POSITIVELY CONFIRMED, so do not "clean" them. ⚠ `mixscan.py`
-   excludes this function (jump table) — use the throwaway `Counter(mnemonic)` over
-   `residuals.paired()`. ⚠ `Layout` is declared in `DeskcppView.h`, which every TU includes, but
-   only its BODY changes here, so a per-TU `verify.py` is sufficient (v112).
-2. ⭐ **Finish 0x411180's last −1 byte.** It is now a pure residency permutation and both sides
-   are fully read out in the source note: orig esi=pDC, edi=n, ebx+ebp=per-arm temps, SPILLING
-   `this` to [esp] and n2 to [esp+0x14] (frame 0x10); ours esi=this, edi=pDC, ebp=n2, spilling
-   the ARM TEMPS instead (frame 0x14 — one slot MORE). Per lesson #55 the only known no-EH
-   trigger is callee-save saturation; the three byte-exact instances of that prologue shape
-   (`DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) are the
-   lesson-#53 dictionary entries to diff against. Cheap crumb noted in the source: the epilogue
-   materialises the constant 1 ONCE (`mov edi,1` at +0x311) and shares it between
-   `activatedFlag = 1` and `flagSolved = 1` where we emit two immediate stores (lesson #39).
-3. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) and `DrawHealthDial` 0x427490 (−16) are now the #2/#3
-   structural defects** and remain ONE question with opposite signs (`this` residency). ⛔ the
+1. ⭐ **`Layout` 0x4176f0 (−23) — the blocker is now NAMED and it is a RELOAD/RESIDENCY question,
+   not a control-flow one.** The original NEVER keeps `nBoxX` in a register: it loads it into ECX
+   for `bx`, DESTROYS it with `sub ecx,[nViewLeft]`, and re-loads `mov eax,[edx]` once per ladder
+   BRANCH; it likewise re-loads `rectBox.top`/`.bottom` after the first `point[]` store. We copy
+   (`mov ecx,edx`) and hold it throughout. That is the WHOLE of the remaining cmp −4 / jl −2 /
+   mov −4 / lea −3 / dec −2. ⛔ do NOT re-run the member-pointer axis — v135's probe A was
+   re-measured at the v136 baseline and is still rejected on SHAPE (it gains 8 B of length and
+   cuts 24 B of diff while still emitting `mov ecx,edx`). ⛔ and do NOT respell the inner
+   nTailDir ladders: diagnosed correct but refuted by measurement at BOTH baselines (+44 B at
+   ext−35, +64 B at ext−23, flat and nested identical). ⭐ The tell that makes this tractable:
+   the `nTailDir == 2` arm ALREADY reproduces the original instruction for instruction; only
+   arm 1 mis-merges, because our `rectBox.bottom` CSE survives the `point[]` stores and the
+   original's does not. Solve the reload and the ladder should follow. ⚠ `mixscan.py` EXCLUDES
+   this function (jump table) — census it with the throwaway `Counter(mnemonic)` over
+   `residuals.paired()`.
+2. ⭐ **`IactProbeMove` 0x406550 is the #2 structural residual at +26 and has NEVER been in a
+   pickup list.** OURS IS LONGER, and the original's tail is SIX separate epilogues (one per
+   return value 0/5/4/3/2/1/−1), each a full `pop ebp/edi/esi/ebx; add esp,0xc; ret 0x18` — the
+   duplicated-epilogue family `epiloguescan.py` was built for (it reads 0 hits because that tool
+   only looks at length-SHORT functions). Its body is a 4-direction probe built from one repeated
+   `mov ebp,1 / test ebp,ebp / jne` flag idiom. Read it with `sbs.py` after `mixscan.py`.
+3. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) and `DrawHealthDial` 0x427490 (−16)** — unchanged, still
+   the #3/#4 structural defects and ONE question with opposite signs (`this` residency). ⛔ the
    decl axis on 0x427490 is fully closed (39 + 15 spellings) and EBX is IDLE for its first 0xb6
-   bytes, so register scarcity is REFUTED as the cause. ⚠ before any decl-order win on 0x4278a0,
-   read the leaf vtable stores (lesson #61) — they already killed one plausible 9-byte win.
-4. ⭐ **Work the rest of the 48 residuals that gained a decl run at v132** — still the one big
-   unworked seam; only 4 are swept. Regenerate by crossing `declorder.inner_blocks` against
-   `residuals.scan()`. ⚠ SKIP the `PURE-REG` ones (`InitInstance` 0x4198c0, `DrawPlayer`
-   0x41a6d0, `TransitionZoneDoor` 0x40e9d0, `WorldEntryStepMaybe` 0x409c10, `BlitMasked`
-   0x408240) — source-CLOSED however big the run. Best unworked, all length-mismatched:
+   bytes, so register scarcity is REFUTED. ⚠ read the leaf vtable stores (lesson #61) before any
+   decl-order win on 0x4278a0 — they already killed one plausible 9-byte win.
+4. ⭐ **`ScrollZoneTransition` 0x411180's last −1 byte** — a pure residency permutation, both
+   sides fully read out in its source note (orig esi=pDC, edi=n, ebx+ebp=per-arm temps, SPILLING
+   `this`; ours esi=this, edi=pDC, ebp=n2, spilling the ARM TEMPS, frame one slot larger). The
+   lesson-#53 dictionary entries to diff against are `DrawEntities` 0x40b160,
+   `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450.
+5. ⭐ **The 48 residuals that gained a decl run at v132** — still the one big unworked seam; only
+   4 are swept. Regenerate by crossing `declorder.inner_blocks` against `residuals.scan()`.
+   ⚠ SKIP the `PURE-REG` ones (`InitInstance` 0x4198c0, `DrawPlayer` 0x41a6d0,
+   `TransitionZoneDoor` 0x40e9d0, `WorldEntryStepMaybe` 0x409c10, `BlitMasked` 0x408240) —
+   source-CLOSED however big the run. Best unworked, all length-mismatched:
    `WorldgenPlaceUsefulObjectMaybe` 0x41d260 (−5, three runs), `DrawLocatorMap` 0x423df0 (−6),
    `PlaceZone` 0x4260e0 (−6).
-5. ⭐ **`ShowWinMessage` 0x40f4b0's last −9** — unchanged from v134 and still fully scoped in its
+6. ⭐ **`ShowWinMessage` 0x40f4b0's last −9** — unchanged from v134 and still fully scoped in its
    source note (one arm-C allocation decision; framescan orig 20 / ours 16). Search for one more
    long-lived value in arm C, not for a spelling; its ⛔ list is long.
-6. ⛔ **CLOSED at v135 — do not re-tread.** (a) the global-form CDC/CWnd call seam is MINED OUT
-   (9 sites tree-wide: 2 already-exact, 4 converted, 3 refuted by the missing GetSafeHdc
-   diamond — `UpdateDragCursor` 0x412cc0 is the refuted one and its global spelling is now
-   POSITIVELY CONFIRMED). (b) 0x411180's arm-local coordinate hypothesis, at BOTH baselines.
-   (c) 0x4176f0's member-pointer axis, all three cells. (d) Everything
-   v134/v133/v132/v131/v130/v129/v128/v127/v126/v125/v124/v123/v120 closed.
-7. **Unchanged from v130-v134:** the `jl/jg + mov -1 + test/cmp` cluster (0x4260e0, 0x41d260,
+7. ⛔ **CLOSED at v136 — do not re-tread.** (a) 0x4176f0's member-pointer axis, now refuted at
+   BOTH baselines and on SHAPE, not just on score. (b) 0x4176f0's inner nTailDir ladders as a
+   SPELLING problem (see item 1 — they are blocked, not wrong). (c) Everything
+   v135/v134/v133/v132/v131/v130/v129/v128/v127/v126/v125/v124/v123/v120 closed.
+8. **Unchanged from v130-v135:** the `jl/jg + mov -1 + test/cmp` cluster (0x4260e0, 0x41d260,
    0x41cf10 — all confirmed pure MIRROR by jseqscan, i.e. lesson-#54 parks, so the only question
    left is why cl homes the count); the `movsxscan.py` ORIG-MORE list (`PlaceZone` 0x4260e0,
    `BuildQuestPathMaybe` 0x403c80, `WorldgenSelectPuzzle` 0x41eab0, `Generate` 0x41f960); ⛔ the
    `movsx` ACCUMULATOR cluster stays closed without a NEW mechanism; the remaining `framescan.py`
    hits; the 5 remaining `pushscan.py` targets; the remaining `widthscan.py` hits; the 5
    generalised `loopform.py` candidates.
-8. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
+9. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof`
    dial note). **Phase-H goals 2-5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104-v134 rules all stand; v135 re-used them all).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104-v135 rules all stand; v136 re-used them all).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
 sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps concurrently,
@@ -2122,33 +2167,43 @@ or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/`formswee
 `widthscan.py`/`framescan.py`/`mixscan.py`/`jseqscan.py`/`sbs.py`/`impcse.py` (no `--orig`) is in
 flight (they share `build/*.obj`). `thisscan.py`, `loopform.py`, `unrotscan.py`, `aliasscan.py`
 and `impcse.py --orig` are READ-ONLY.
-⭐ **v135 method note — READ THE ORIGINAL'S ARGUMENT SETUP BEFORE ANY REGISTER STORY.** The whole
-0x411180 find came from disassembling ONE arm and noticing the rect fields were loaded ONCE and
-COPIED where ours loaded them twice around a `push`. That is a 20-line read-only script
-(`progress.EXE[va - match.TEXT_VA + match.TEXT_RAW]` sliced to the Ghidra extent) and it needs no
-build, so it is safe while a sweep is in flight.
-⭐ **v135 method note — A FREE ORACLE BEATS A COMPILE.** The presence or absence of the
-`GetSafeHdc` null-test diamond decided the call form for FIVE functions at zero compile cost.
-Before probing a spelling, ask what the original would HAVE to emit under each hypothesis, and
-look for that byte pattern first.
-⭐ **v135 method note — A THREE-CELL PROBE WITH AN INERT CELL IS THE HONEST SHAPE.** Two cells
-tell you which is better; the third tells you whether the axis is real at all.
+⭐ **v136 method note — A SCRATCH `apply.py` WITH ONE FLAG PER AXIS BEATS A VARIANTS FILE when the
+edit spans several non-contiguous sites.** `vartest.py` needs ONE contiguous BASE block; the
+0x4176f0 work varied two blocks 20 lines apart. A ~60-line script that rebuilds the whole function
+body from the PRISTINE copy per cell (`apply.py <tail> <x>`) gave a clean 2x3 cross in six
+compiles, and rebuilding from pristine each time makes the cells independent by construction.
+⭐ **v136 method note — DISASSEMBLE OUR SIDE, NOT JUST THE ORIGINAL.** Both v136 constructs were
+found by putting our decode next to the original's for the SAME 0x80-byte window (a 12-line
+`ourdis.py` over `residuals.paired()`): the switch showed up as `jne`-with-arm-inline against
+`je/je/jmp`, and the nesting as one `sub` block against two. `sbs.py` could not show it — once the
+schedule shifts, its aligned pairing has nothing to pair. Lesson #56's discipline, applied to
+control flow.
+⭐ **v136 method note — A MNEMONIC CENSUS IS A PROGRESS BAR, NOT JUST A DIAGNOSIS.** Re-running
+the throwaway `Counter(mnemonic)` after every probe told me WHICH columns a change fixed
+(`jge`/`jle`/`jg`/`sub` for the nesting, `je`/`jne`/`jmp` for the switch) — that is what justified
+landing a change whose byte diff went UP, and what proved the switch was real rather than noise.
+⭐ **v135 method note — READ THE ORIGINAL'S ARGUMENT SETUP BEFORE ANY REGISTER STORY**; a 20-line
+read-only script (`progress.EXE[va - match.TEXT_VA + match.TEXT_RAW]` sliced to the Ghidra extent)
+needs no build, so it is safe while a sweep is in flight.
+⭐ **v135 method note — A FREE ORACLE BEATS A COMPILE** (the `GetSafeHdc` diamond; v136's compare
+immediate is the second instance).
+⭐ **v135 method note — A THREE-CELL PROBE WITH AN INERT CELL IS THE HONEST SHAPE.**
 ⭐ **v134 method note — THE THREE-CENSUS OPENING IS STANDARD**: `residuals.py --lenmis` (where),
 `mixscan.py` (what kind), `jseqscan.py` (which sites).
 ⭐ **v134 method note — A DIFF COUNT THAT DOES NOT MOVE IS NOT A FLAT RESULT**; when a change is
 predicted to move a specific STRUCTURE, verify the structure, not the score.
 ⭐ **v133 method notes — WHEN vartest's BASE CANNOT SPAN THE SITES, HAND-APPLY + `bytediff.py`**
 (`cp src/X.cpp <scratch>` first, apply with a `python3 - <<EOF` that ASSERTS `s.count(old) == N`
-per site AND asserts the total line count is unchanged, restore by copying the scratch file back
-— all five v135 probes were this); the frame-slot census is a 20-line throwaway; do NOT read
-`src/` while a sweep is in flight.
+per site AND asserts the total line count is unchanged, restore by copying the scratch file back);
+the frame-slot census is a 20-line throwaway; do NOT read `src/` while a sweep is in flight.
 ⭐ **v131 method note — MEASURE COLLATERAL WITH `verify.py <tu.cpp> | tail -3` FIRST** (a .cpp
 edit cannot move another TU, v112). ⚠ neither `verify.py` nor `progress.py` names WHICH function
-moved — only `exactset.py` + `comm` does; budget one run per landing (v135 ran it twice, and it
-is what let both landings be reported as +0/−0 rather than "the total didn't change").
+moved — only `exactset.py` + `comm` does. ⚠ **v136 caught a real +1/−1 this way that `verify.py`
+reported as a FLAT 88/124**: the TU count was identical because `CyclePalette` was lost inside the
+same TU. Budget one `exactset.py` run per landing and one more after the source notes.
 ⭐ **v128 method note — A COMMENT REWRITE IS A LINE-COUNT CHANGE, SO BUDGET LINES**, and re-run
-the anchor after writing the note either way (v135's +21-line `Layout` note was verified free by
-a full `exactset.py` diff, not just by the total).
+the anchor after writing the note either way (v136's note rewrite was verified free by a full
+`exactset.py` diff, not just by the total).
 ⭐ **v129 method note — `vartest.py` output is \r-heavy; pipe through `tr '\r' '\n'`**, and do NOT
 launch it as `nohup ... &` — use `run_in_background: true` with the command in the FOREGROUND.
 ⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED.** Background it.
