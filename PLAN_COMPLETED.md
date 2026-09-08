@@ -5595,3 +5595,45 @@ note SPLIT INTO TWO PROBLEMS (lesson #67), the `movsx` self-extension dictionary
 - Shell trap recorded: zsh does NOT word-split unquoted variables, so a `set -- $spec` sweep loop
   silently passed an EMPTY `--expect` and measured nothing while printing plausible headers.
 `--lenmis` unchanged at 27 residuals / 172 B.
+
+---
+
+### ⏮ v138 (2026-09-07) — held at 257 exact, +0/−0; lesson #68 and `Layout` ext−23 → ext−7
+
+**Landed.** `TextDialog::Layout` 0x4176f0 went 1396 B @ ext−23 → **1412 B @ ext−7** on two
+composing fixes, +0/−0.
+1. **`bx` assigned in BOTH ARMS (lesson #68, the converse of #59).** Ours was
+   `int bx = nBoxX; if (nMode == 0) bx -= pW->nViewLeft;` — one definition of the `nBoxX` temp
+   dominating the body, so cl kept that VALUE CSE in a register and spent a second register on a
+   copy for `bx`. The original is `int bx; if (nMode == 0) bx = nBoxX - pW->nViewLeft; else
+   bx = nBoxX;` — redefined on every path, so no register holds `nBoxX` across the merge, the
+   value CSE is unavailable, and cl falls back to an **ADDRESS CSE** (`lea edx,[esi+0x18]` plus a
+   2-byte `[edx]` reload per BLOCK). Same register COUNT on both sides — not pressure. ext−23 →
+   ext−19; the emitted ladder then reproduced the original instruction for instruction,
+   registers included.
+2. **That un-refuted the case-2 inner nTailDir ladder**, a standing ⛔ MEASURED NEGATIVE (+21 at
+   ext−23). At the new baseline it GAINED on both measures (len → 1412, diff 1036 → 1031) —
+   the v134 rule ("re-measure a function's own ⛔ list after every structural fix") paying for
+   the second session running. ext−19 → **ext−7**.
+
+**Also.** `CyclePalette` 0x415af0 recovered for the FIFTH session, and TWICE within v138 (each
+landing re-rolled the phase); minimal move was a2 → the MEMBER form, one token. ⚠ Layout is
+DOWNSTREAM of CyclePalette, so v106's downstream-only rule did NOT protect it — v116's "several
+edits make the phase an INTERACTION" governs; always re-run `exactset.py`. `--lenmis` fell
+172 B → 156 B.
+
+**Closed / retracted.** The "when does the address escape" hypothesis on 0x4176f0 is CLOSED —
+the `point[]` array's address is taken at the SAME place on both sides (the ctor loop's
+`lea ebp,[esp+0x10]`), byte-identical between the images. And the v138 ADDRESS-CSE census is
+⛔ UNSOUND and must not be rebuilt: its key was not register-blind (whether some later
+instruction dereferences *that same register* at displacement 0 is allocation, not source), so it
+rated `DrawHealthNeedle` 0x4278a0 at orig 4 / ours 26 when the two sides' `lea` lists are
+near-identical CPen/CBrush object addresses. Two real sub-findings survive, both caught by the
+positive control: our COMDATs have reloc fields ZEROED so `mov [eax+0x459558],0` decodes as
+`[eax+0]` — key on `insn.disp_size == 0`, the ENCODING, never on `disp == 0`; and the 39
+jump-table functions must be EXCLUDED.
+
+**Method notes promoted to standing rules:** always pass `--expect` and let it be wrong (the
+guard prints the true baseline and cannot be talked past); print a new census's control verdict
+LAST as well as first and never read one through `tail`; verify the SHAPE, then the SCORE, then
+the SET.

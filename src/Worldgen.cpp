@@ -7341,7 +7341,19 @@ int CDeskcppView::ShowTextDialog(CString &strText, int a, int b, int c)
 //       compound-assign spelling (301 @ 509) and `CRect rc(...)` (227 @ 493).
 //  ⇒ The open question is narrow and specific: what 1997 spelling puts four ints in the
 //  FRAME with inline load/adjust/store? Everything else about this function is solved.
-//  Its sibling DrawHealthNeedle 0x4278a0 (-17) is almost certainly the same construct.
+//  ⛔ v139 REFUTES "its sibling DrawHealthNeedle 0x4278a0 (-17) is almost certainly the same
+//  construct" — the new `stackscan.py` residency census rates the two in OPPOSITE directions:
+//  0x427490 is rd-4 (the ORIGINAL reads the frame more than we do, i.e. it homed the coords we
+//  enregister) while 0x4278a0 is rd+12 w-6 (WE read the frame more, i.e. we spilled something
+//  the original keeps in a register). `this` is also spilled on BOTH sides in 0x4278a0
+//  (`mov [ebp-0x18],ecx` at +0x23) and enregistered in the original of 0x427490, so they do not
+//  even share the `this`-residency question. Work them separately.
+//  ⭐ And a concrete v139 read on the Needle: our object-construction block caches BOTH leaf
+//  vtables in callee-saved registers (`mov edi,<CPen>` and `mov ebx,<CBrush>`) where the
+//  original caches only CPen in EBX and repeats CBrush as a 7-byte IMMEDIATE store twice
+//  (`mov dword [ebp-0x28],0x44cfec`). That is one more long-lived value on our side, and our
+//  four object slots sit 8 bytes higher than the original's (-0x18/-0x20/-0x28/-0x30 against
+//  -0x20/-0x28/-0x30/-0x38) — i.e. the original's frame carries four dwords we do not.
 //  ⭐ v123 DECOMPOSED THE -16 EXACTLY, and it re-frames the question as a REGISTER-BUDGET one.
 //  Both frames are `sub esp,0x3c` and both use SEVEN dword slots, so neither image is short of
 //  stack — the two just enregister DIFFERENT things in the same three callee-saved registers:
@@ -8412,8 +8424,18 @@ void CDeskcppView::DrawWeaponIcon(CDC *pDC)
 // ⛔ The ReleaseDC statement's SPELLING is not the lever — 5 forms measured, all at 55 B /
 // len 238: the MFC member `ReleaseDC(pDC)`, a named `HDC hdc` temp, a named hw+hdc pair, and
 // the current global form all fold identically; `pDC->GetSafeHdc()` and `GetSafeHwnd()` are
-// refuted by LENGTH (both 254, i.e. +12 past the extent). The lever, if any, is whatever
-// makes cl give the loop's `x` register EBX (as the original does) instead of EBP.]
+// refuted by LENGTH (both 254, i.e. +12 past the extent).
+// ⛔ v139 CLOSED THE LOOP-FORM AXIS TOO — the one lever the previous note nominated ("whatever
+// makes cl give the loop's `x` register EBX"). Lesson #62 says the `for`/`do`-while choice is
+// an ALLOCATION-RANK dial for exactly this kind of index contest, so it was the obvious
+// candidate; it is DEAD FLAT here. inner-`for`, outer-`for`, BOTH as `for`, and `prod`/`x`
+// hoisted to function scope with the zeroes as statements all measure 55 B / len 238 =
+// baseline exactly. The sweep is not blind — `int x` declared BEFORE `int prod` in the same
+// run measures 125 B / len 237, re-confirming v118's decl-order win as the unique optimum.
+// ⇒ With the decl, loop-form, statement-spelling and scope axes all measured, this residual
+// is a pure EBX liveness coin-flip (lesson #44) and should be treated as CLOSED unless a new
+// mechanism turns up. `stackscan.py` rates it rd-1: the single frame read is the pDC reload
+// named above, and nothing else in the function differs in residency.]
 // Dim the 576x576 canvas with a multiplicative checkerboard (zero where x*y is even), blit
 // the visible 288x288 window to the screen at (8,7), then restore the palette.
 void CDeskcppView::BlitViewportDither()
