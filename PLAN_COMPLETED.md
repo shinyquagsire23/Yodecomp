@@ -5637,3 +5637,36 @@ jump-table functions must be EXCLUDED.
 guard prints the true baseline and cannot be talked past); print a new census's control verdict
 LAST as well as first and never read one through `tail`; verify the SHAPE, then the SCORE, then
 the SET.
+
+---
+
+### ⏮ v139 PICKUP (2026-09-08 — condensed at v140)
+
+**Held at 257 exact, +0/−0.** The project's #1 structural residual fell: **`IactProbeMove`
+0x406550, 583 B @ ext+26 → 559 B @ ext+2** (diff 495 → 474), on **lesson #69** — a live range
+starts at the ASSIGNMENT, not the declaration, and the two positions are SEPARATE dials that no
+decl tool (`declorder.py`, `hoisttest.py`) can reach. Two composing halves: (a) `int found;`
+declared FIRST but ZEROED LATE flips the found-vs-`r` register contest, enregistering `found`
+and homing `r` at **[esp+0x18], the original's own slot** (583 @ +26 → 566 @ +9); (b) the dx
+side-picker written as an `if/else` rather than assign-then-overwrite lets cl coalesce `n` into
+dx's dying register (566 @ +9 → 559 @ +2). ⚠ **Both spellings of (b) emit the IDENTICAL
+instructions**, so the disassembly cannot referee them — the winning cell was nearly discarded
+as "refuted by shape", which is where the standing method note "a shape argument that refutes a
+measured gain must itself be COMPILED" comes from.
+
+Also shipped: **`tools/stackscan.py`**, the STACK-RESIDENCY census (every operand that touches
+the frame, both sides, split reads/writes/leas) — the instrument for the #43/#59/#68/#69 family
+and the one thing `mixscan.py` structurally cannot see. 9 hits, positive control clean over 226.
+⛔ Its first draft was NOT register-blind (it counted EBP operands in ESP-framed functions, where
+EBP is an ordinary callee-saved register) and **no byte-exact control could have caught that**;
+EBP now counts only under a real `push ebp; mov ebp,esp` prologue, which collapsed 9 of 26 rows
+to zero. It immediately CORRECTED a pickup entry — `DrawHealthNeedle` and `DrawHealthDial` had
+been filed as one `this`-residency question and point in OPPOSITE directions — and independently
+CONFIRMED the 0x406550 landing (rd+0 w+0 lea+0, 27/4/0 both sides).
+
+Measured negatives recorded in source notes: `ScrollZoneTransition` 0x411180's whole lesson-#69
+axis (11 cells, properly crossed per lesson #51, none lands; the one interesting cell
+`*pHide = nOldHide;` cuts the diff 761 → 602 but moves the length ext−1 → ext−8 and is a NUMBER,
+not a fact); `BlitViewportDither` 0x428e30's loop-form axis CLOSED (all cells dead flat at 55 B /
+len 238, and the sweep is not blind — `x` before `prod` measures 125 B, re-confirming v118).
+`--lenmis` fell 156 B → 132 B.

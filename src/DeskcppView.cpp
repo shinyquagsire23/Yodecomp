@@ -5421,6 +5421,28 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 //     +n-assign-late 905/602, +clock-func 905/602, +nOldHide-late 902/664,
 //     +pW-alias 865/707, and +n-init-top 920 = ext+7 / 735 (overshoots).
 //     ⇒ 602 is a NUMBER, not a fact. Do not land it.
+// (0c) ⭐ v140 CLOSED THE ASYMMETRIC HALF OF THE #69 AXIS THAT v139 LEFT OPEN. v139 moved
+//     n and n2 together; v140 moved them SEPARATELY, which is the cell lesson #69 actually
+//     prescribes, and all four are refuted:
+//       n2 declared+initialised at the very top, n still before the loop   917 = ext+4,  766
+//       n  declared+initialised at the very top, n2 still before the loop  916 = ext+3,  777
+//       n2 DECLARED at the top, ASSIGNED before the loop                   912/761 = baseline
+//       n AND n2 declared at the top, both ASSIGNED before the loop        912/761 = baseline
+//     ⇒ Two readings, both useful. (a) Moving a DECLARATION alone is inert here — exactly
+//     lesson #69's point, and the reason declorder.py/hoisttest.py were always going to come
+//     back flat. (b) Moving the ASSIGNMENT is not inert, it is WRONG: both cells overshoot the
+//     extent. So the counters' live-range starts are already correct and this whole family is
+//     now closed in BOTH directions.
+// (0d) The mnemonic + jump-sequence census says the same thing from a third side, and rules
+//     out any remaining CONTROL-FLOW defect: the deltas are je -2 / jne +2 / jmp +2 / lea -2 /
+//     add +2 / mov -1, and every one of them localises to arms 1 and 4. Their GetSafeHdc
+//     diamonds are the original's fallthrough `mov ebp,0 / test / je / mov ebp,[esi+4]` but
+//     OURS is a two-armed if/else with an extra `jmp`, because the value is going to a frame
+//     slot instead of a register — i.e. a SYMPTOM of the spill, not a second defect. Arms 2
+//     and 3 keep the source hdc in a register and their `je` matches exactly. The only other
+//     pair, the clock busy-wait's jle/jg vs our jge/jl, is a pure compare mirror = lesson #54,
+//     source-CLOSED. ⇒ there is nothing structural left here; it is the residency question and
+//     only the residency question.
 // (0b) `stackscan.py` (v139) puts a precise figure on the residency story
 //     below: the ORIGINAL spills `this` at +0x6 and RELOADS THAT ONE SLOT
 //     SIXTEEN TIMES (delta rd-14 w+8 — we read it three times and home eight

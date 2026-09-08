@@ -7611,10 +7611,39 @@ void CDeskcppView::AddHealth(int nDelta)
 }
 
 // FUNCTION: YODA 0x004278a0
-// [EFFECTIVE-WIP: insns 342/346, structure converged (early-return guard, range-pair
-// else-if quadrant chain with jump threading, shared table). Residual = the pDC/this
-// reg-vs-param-slot rotation (orig homes pDC in ESI, xe/ye in slots; ours the inverse —
-// same family as DrawHealthDial; local-copy probe inert) + default-ctor zero-reg choice.
+// [EFFECTIVE-WIP: 803 B, len 1122 vs extent 1139 = ext-17; insns 342/346, structure converged
+// (early-return guard, range-pair else-if quadrant chain with jump threading, shared table).
+//  ⭐ v140 DECOMPOSED THE -17 COMPLETELY — IT IS ONE THREE-REGISTER COLORING CHOICE, and the
+//  slot census closes exactly, which is what makes it a diagnosis and not a story. Both images
+//  save ebx+esi+edi and both SPILL `this` (EH frame, lesson #55 — not a question here).
+//    orig  registers {pDC, nLo, pOldPen}; 12 local slots, INCLUDING xe [ebp-0x14] and
+//          ye [ebp-0x10]; cx2/cy2 live only in scratch (edx/ecx) and die at the ladder.
+//    ours  registers {nLo, cx2->xe, cy2->ye}; 11 local slots, including pOldPen AND pOldBrush;
+//          pDC never leaves its parameter home [ebp+8].
+//  12 vs 11 slots = the 4-byte frame delta (`sub esp,0x50` vs `0x4c`), exactly. The byte cost
+//  also closes: our 12 extra `mov r,[ebp+8]` (3 B) vs the original's 2 B `mov r,esi` = +12 for
+//  us; its ~6 extra xe/ye stores + 2 memory pushes = +22 for it; net ~ -10 of the -17.
+//  ⇒ `stackscan.py`'s rd+12 IS the pDC parameter, read 13 times by us and ONCE by the original
+//  (`mov esi,[ebp+8]`, +0x28). Read the two censuses together before touching this again.
+//  ⛔ v140 MEASURED NEGATIVES — do not re-tread. The obvious lesson-#43 lever is WRONG:
+//    - `CDC *p = pDC;` local (before or after bReleaseDC): 1126 B @ ext-13, diff 803 -> 844.
+//      It gets the FRAME EXACTLY RIGHT (`sub esp,0x50`) and is still refuted, because `p` is
+//      HOMED to a 13th slot instead of winning esi — i.e. it adds a value rather than moving
+//      one. The slot census above says the original has no such local at all.
+//    - the if/else form `CDC *p; if (pDC == NULL) {...} else p = pDC;` (lesson #68): 1128 B
+//      @ ext-11 — the best LENGTH found — but diff 845 and `p` still homed. Not landed.
+//    - pOldPen/pOldBrush hoisted to function scope (either both or pOldPen alone): DEAD FLAT
+//      at 803/1122, so their slots are not the dial.
+//    - xe/ye hoisted out of their inner block to function scope: DEAD FLAT (also flat when
+//      crossed with the DC local, per lesson #51).
+//    - the ladder's operand ORDER (`gNeedleTable[...] + cx2` instead of `cx2 + ...`, at all
+//      four `+` sites or at the first alone): DEAD FLAT. The original lands every add in the
+//      TABLE's register and every subtract in cx2/cy2's, but cl canonicalises commutative
+//      operands (lesson #54) so the source cannot steer it.
+//  ⇒ OPEN, and now precisely stated: what makes cl STOP coalescing cx2->xe and cy2->ye? Those
+//  two webs are what win esi/edi; in the original cx2/cy2's live ranges end at the ladder (so
+//  scratch suffices) and xe/ye are homed. Break that coalescing and pDC + pOldPen inherit the
+//  registers by themselves. Nothing tried so far touches it.
 //  ⛔ v132 — A 9-BYTE LENGTH "WIN" HERE IS NUMBER-CHASING, AND THE ORIGINAL SAYS SO OUTRIGHT.
 //  The fixed declorder.py --inner exposes the run `penA,brA,penB,brB,cx,cy`; five permutations
 //  that move penB (or brB/cy) to the END measure len 1131 = ext-8 against our 1122 = ext-17,

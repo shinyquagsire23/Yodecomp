@@ -1071,9 +1071,9 @@ int CDeskcppDoc::FindTile(void *pTile)
     return r;
 }
 
-// FUNCTION: YODA 0x00403ae0  [WIP: DIFF(70), len 410 vs extent 416 — cracked so far: faithful
+// FUNCTION: YODA 0x00403ae0  [WIP: DIFF(65), len 410 vs extent 416 — cracked so far: faithful
 //   destX/destY short accumulators + per-iteration currentZone re-reads + int-promoted GetTile
-//   results + BlitMasked-arm-first.
+//   results + BlitMasked-arm-first + the v140 layer-0 `Tile *pt` temp (see below).
 //   ⭐ v117 LOCALISED THE WHOLE 6-BYTE DEFICIT: it is exactly the two `movsx ebx,bx` (+0x156) and
 //   `movsx edi,di` (+0x177) the original emits at the loop bottoms, 3 B each, each immediately
 //   followed by `add bx/di,0x20`. Nothing else is missing — with those two present the function
@@ -1120,6 +1120,28 @@ int CDeskcppDoc::FindTile(void *pTile)
 //   `GetTile((int)cx,(int)cy,..)` are inert, and `short t` is INSTRUCTIVE BUT WRONG: it moves
 //   the length -6 -> -3, i.e. it does add exactly one promotion, but on `t` rather than on the
 //   accumulator, and the diff explodes 70 -> 227. The for-loop form is refuted by length (-11).
+//   ⭐ v140 LANDED THE OTHER HALF OF THE RESIDUAL AND VERIFIED IT BY SHAPE: the layer-0 blit
+//   takes a `Tile *pt` temp exactly like layers 1 and 2, not the inline `tileArray[t]->pixels`
+//   we had. 70 B -> 65 B at UNCHANGED length (410) and an IDENTICAL exact set (+0/-0). The
+//   evidence is the SCHEDULE, not the number: the original loads the array data pointer
+//   (`mov ecx,[esi+0x84]`, +0x7e) BEFORE it pushes destY/destX, and the inline spelling
+//   structurally cannot -- cl evaluates the arguments right-to-left and the load lands one slot
+//   late. With the temp, the whole layer-0 block matches the original INSTRUCTION FOR
+//   INSTRUCTION. It also makes all three layers read alike, which is the more likely 1997 text.
+//   ⇒ THE RESIDUAL IS NOW EXACTLY THE TWO MISSING `movsx` AND NOTHING ELSE. Every remaining
+//   differing byte is downstream shift from them; there is no second defect left to find here,
+//   so a spelling sweep that does not produce a promotion cannot help.
+//   ⛔ v140 REFUTED FOUR MORE, including the whole lesson-#69 axis (decl position vs assignment
+//   position, which no previous session had run HERE): destX/destY declared at function scope
+//   with the zeroing left in place, the same with the decls ahead of `cy`, and both declared AND
+//   zeroed at the top -- all three DEAD FLAT at 70/410. So the accumulators' live-range start is
+//   not the lever either. (The layer-0 temp above is the only cell of the batch that moved.)
+//   ⚠ AND THE PARAMETER-TYPE ESCAPE IS CLOSED FROM THE CALLEE SIDE, which is what v137's
+//   forwarding-push retraction demands: BlitFast 0x408110 reads `movsx eax,word [ebp+0x18]`
+//   (destX) and `mov di,word [ebp+0x1c]` (destY), BlitMasked 0x408240 reads
+//   `movsx eax,word [ebp+0x14]` / `mov dx,word [ebp+0x18]` -- four CONSUMING 16-bit reads, not
+//   forwards. `short destX, short destY` is therefore proven from the side that counts, and an
+//   int-typed blit coordinate can NOT be the missing 32-bit use.
 //   ⇒ What survives as the open question, sharpened: cl is maintaining a 32-bit incarnation of
 //   a short whose only visible consumers are the two `short` blit parameters, i.e. the
 //   promotion looks DEAD. The preheader is `xor bx,bx` (16-bit), so the high half is never
@@ -1142,8 +1164,10 @@ void CDeskcppDoc::RefreshZone()
                 short destX = 0;
                 do {
                     int t = (short)((Zone *)currentZone)->GetTile(cx, cy, 0);
-                    if (t >= 0)
-                        pCanvas->BlitFast(tileArray[t]->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY);
+                    if (t >= 0) {
+                        Tile *pt = tileArray[t];
+                        pCanvas->BlitFast(pt->pixels, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, TILE_PIXEL_SIZE, destX, destY);
+                    }
                     t = (short)((Zone *)currentZone)->GetTile(cx, cy, 1);
                     if (t >= 0) {
                         Tile *pt = tileArray[t];
