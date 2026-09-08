@@ -511,58 +511,68 @@ void Zone::ReadIzaxIndy(CFile *pFile)
 }
 #endif
 
-// FUNCTION: YODA 0x00406550  [WIP: DIFF(495), len 583 vs extent 557 (+26). found-vs-r EBP
-//   contest: orig found=EBP/r=stack, ours r=EBP/found=stack (memory-form found tests cost the
-//   bytes). Control flow verified line-by-line against the true disasm (take-order coord-then-
-//   flag, two-store sign forms, compiler inc-ebp for the 2nd-probe found=1). n merged per orig
-//   ESI reuse.
-//   ⭐ v123 DECOMPOSED THE +26 EXACTLY (lesson #49 method) — every byte is that ONE contest and
-//   there is no missing/extra CODE. Both frames are 12 bytes and hold {savedY:2, savedX:2,
-//   this:4, ONE int:4}, so exactly one int local is memory-resident and the two images pick a
-//   DIFFERENT one. Ledger: `found` in memory costs +33 (init `mov [esp+0xc],0` 8 B vs
-//   `xor ebp,ebp` 2; four `mov [mem],1` 8 B vs `mov ebp,1` 5 / `inc ebp` 2; five `cmp [mem],0`
-//   5 B vs `test ebp,ebp` 2), `r` in a register saves -14 (no store, `sub edi,ebp` and
-//   `lea edi,[esi+ebp]` for the four uses), +2 for two `cmp [bForce],0` where the original
-//   folds the live zero as `cmp [bForce],ebp` (lesson #39), and -6 because our `return 1`
-//   early-exit is an INLINE epilogue where the original branches to a shared tail block.
-//   ⭐ v137 READ THE ORIGINAL OUT END TO END (read-only, no compile) and the CONTROL FLOW is
-//   confirmed IDENTICAL to this source instruction for instruction — so the +26 is the contest
-//   and nothing else. Original register map: esi = dx then n (they coalesce), edi = tx,
-//   ebx = ty, ebp = found; frame S0+0 savedY(w), S0+2 savedX(w), S0+4 this, S0+8 r — r stored
-//   at +0x6f, INTERLEAVED into the first GetTile's argument setup. Two details worth keeping:
-//   the merged 2nd-probe `inc ebp` at +0x1aa is cl exploiting `test ebp,ebp; je` (it knows
-//   ebp==0 in that arm, so 1 byte instead of 5 — the three 1st-probe sites keep `mov ebp,1`);
-//   and the six epilogues share bytes (`mov eax,2` then `jg` INTO the -1 return's pop run).
-//   ⛔ v137 CLOSED A THIRD AXIS — `n`'s SCOPE (lesson #37), which the SET+ORDER sweep below
-//   structurally cannot reach: declaring `int n` inside each of the three branches (3 short
-//   ranges instead of 1 long one, the hoped-for re-ranking) measures 594 B at len 594 = +11
-//   ALONE, and 495 @ +26 = exactly baseline when composed with the r-late statement order
-//   (lesson #51 cross, 4 cells). Baseline reproduces at 495/583, so the Iact.cpp phase has not
-//   rotated since v123.
-//   ⛔ TWO MORE AXES CLOSED, do not re-tread: (1) decl SET+ORDER — 10 configurations (r,n first;
-//   found last; found without initialiser; n,r swapped; savedX/savedY split; txty first) are
-//   flat or WORSE, best is the baseline 495 at +26, and `int n, r;` costs +11 more. (2) the
-//   STATEMENT ORDER around r's definition — moving `r = ...` after the savedX/savedY stores
-//   (which is where the ORIGINAL emits its store, at +0x6f right before the GetTile call) buys
-//   489 B but leaves the length at +26, i.e. below lesson #48's landing bar; the if/else
-//   spelling of the ternary is inert. Per lesson #44 this is the scratch/EBP allocation class.]
+// FUNCTION: YODA 0x00406550  [WIP: DIFF(474), len 559 vs extent 557 (+2).
+//   ⭐ v139 CLOSED 24 OF THE 26 BYTES, +0/-0 (identical exact set), on TWO COMPOSING
+//   LIVE-RANGE fixes — lesson #69. The v123/v137 diagnosis ("the whole +26 is the found-vs-r
+//   EBP contest, and there is no missing/extra CODE") was CORRECT, and the lever was never a
+//   declaration dial: it is WHERE EACH LIVE RANGE STARTS.
+//   (1) `int found;` declared FIRST but ZEROED LATE (`found = 0;` down in the setup block,
+//       after the guard) — 583 B @ +26 -> 566 B @ +9. That alone flips the contest: `found`
+//       moves into a callee-saved register (`mov ebx,1` / `test ebx,ebx`) and `r` is homed at
+//       [esp+0x18], WHICH IS THE ORIGINAL'S OWN SLOT. ⚠ BOTH halves are load-bearing and they
+//       are separate dials: with `int found;` moved to the END of the decl block the same late
+//       zero measures 583 = EXACTLY BASELINE. The oracle pins a FAMILY for the assignment's
+//       position (before r / after r / after savedX / after savedY all give 566 @ +9, diff
+//       485-486); `found = 0;` pushed past the GetTile early-return gives 563 @ +6 but diff
+//       512, so it is refuted on the diff. Landed after savedY = the idiomatic member.
+//   (2) The dx side-picker is an `if/else`, not assign-then-conditionally-overwrite:
+//       `if (dx < 0) n = tx + 1; else n = tx - 1;` — 566 B @ +9 -> 559 B @ +2.
+//       ⭐ BOTH spellings emit the IDENTICAL instruction sequence (`test/lea +1/jcc/lea -1`,
+//       no jmp), so the disassembly cannot tell them apart — what differs is that `n`'s range
+//       starts AFTER dx's last use in the if/else, so cl COALESCES n into dx's register
+//       exactly as the original does (orig esi = dx then n; ours edi, an esi<->edi rename).
+//       With `n = tx + 1;` written first the two ranges overlap, dx stays in MEMORY, and the
+//       three `test <dx-reg>,<dx-reg>` (2 B) become `cmp dword [esp+N],0` (5 B).
+//       ⚠ I nearly discarded this cell as "refuted by shape" on exactly that reasoning — the
+//       score was right and the shape argument was wrong. See lesson #69.
+//   ⭐ The ARM ORDER is pinned two ways (lesson #47): `dx < 0` first emits `lea +1` first,
+//   matching the original at +0x156, and scores best (diff 474 vs 475 for `dx >= 0` first).
+//   ⛔ The dy side-picker is INERT on LENGTH (all three spellings identical at a given dx
+//   form) — and that asymmetry is EXPLAINED, not arbitrary: dy is never enregistered in
+//   EITHER image (both read `cmp dword [esp+0x2c],0`), so there is no register for `n` to
+//   coalesce into. Written parallel to the dx picker because it ties for the best diff.
+//   ⛔ MEASURED NEGATIVE at the NEW baseline, do not re-tread: `n` scoped per branch (566,
+//   dead flat), `n` declared before `r` (flat), `r` computed before the guard (+26 and it
+//   calls GetTickCount on the out-of-bounds path, so refuted on behaviour too), `ty`
+//   declared/initialised before `tx` (564 @ +7, diff 498 = worse), reusing the PARAMETERS
+//   `x`/`y` instead of tx/ty locals (585 @ +28 — REFUTED), and lesson #59's `else found = 0;`
+//   on each first probe (568 @ +11, diff 512).
+//   ⛔ Also closed at the OLD baseline (v123/v137) and not worth re-treading: 10 decl
+//   SET+ORDER configurations, the statement order around r's definition, `n`'s scope, and the
+//   if/else spelling of the r ternary (inert).
+//   ⭐ REMAINING +2 / DIFF(474): the register map is now a clean 4-cycle bijection
+//   (orig esi=dx/n, edi=tx, ebx=ty, ebp=found; ours edi=dx/n, esi=tx, edi/esi swapped, ebx=
+//   found, ebp=n-side) = the lesson-#44 class, PLUS one real code difference: our `return 1`
+//   early-exit is an INLINE epilogue (`jge` short + mov eax,1 + the pop run) where the
+//   original branches with a 6-byte `jl` into the SHARED tail block at +0x20f. That is the
+//   epiloguescan.py family in reverse — the original SHARES an epilogue we duplicate.]
 // Movement sidestep probe: target = (x+dx, y+dy). Returns -1 out-of-bounds, 1 target free,
 // 0 blocked, or a direction code (2=E 3=W 4=S 5=N) after sidestepping around the obstacle
 // (side picked pseudo-randomly via GetTickCount parity; bForce accepts occupied sidesteps).
 // a5 is unused (caller-pushed). Used by the entity AI in GameView::Tick.
 int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
 {
-    int   found = 0;
+    int   found;
     int   tx = x + dx;
     int   ty = y + dy;
     short savedX, savedY;
     int   r, n;
-
     if (tx < 0 || ty < 0 || tx >= width || ty >= height)
         return -1;
     r = (GetTickCount() & 1) == 0 ? 1 : -1;
     savedX = (short)tx;
     savedY = (short)ty;
+    found = 0;
     if ((short)GetTile(tx, ty, 1) < 0)
         return 1;
     if (dx == 0 && dy != 0) {
@@ -592,16 +602,18 @@ int Zone::IactProbeMove(int x, int y, int dx, int dy, int a5, int bForce)
             }
         }
     } else {
-        n = tx + 1;
-        if (dx >= 0)
+        if (dx < 0)
+            n = tx + 1;
+        else
             n = tx - 1;
         if ((short)GetTile(n, ty, 1) < 0 || bForce != 0) {
             tx = n;
             found = 1;
         }
         if (!found) {
-            n = ty + 1;
-            if (dy >= 0)
+            if (dy < 0)
+                n = ty + 1;
+            else
                 n = ty - 1;
             if ((short)GetTile(tx, n, 1) < 0 || bForce != 0) {
                 ty = n;
