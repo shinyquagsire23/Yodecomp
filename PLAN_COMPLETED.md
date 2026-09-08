@@ -5547,3 +5547,23 @@ was worked at v136 — the outer ladder and the dispatch LANDED (lesson #66), th
 ladders measured NEGATIVE at both baselines. Items 2–8 (0x411180's last −1; `DrawHealthNeedle` /
 `DrawHealthDial`; the 48 decl-run residuals; `ShowWinMessage`'s last −9; the closed lists; the
 v130-v134 carry-overs; the v98 de-hex leftovers) are unchanged and restated in the v136 pickup.
+
+---
+
+### ⏮ PRIOR PICKUP (2026-09-07 v136 — held at 257 exact, +0/−0; condensed at v137)
+
+**Landed:** `TextDialog::Layout` 0x4176f0 went **999 B @ ext−35 → 1010 B @ ext−23, +0/−0**, on two
+constructs read straight off the original's BLOCK LAYOUT (lesson #66): (a) the outer bx ladder is a
+**NESTED `if/else`**, not a flat `else if` chain — a flat chain lets cl cross-jump the identical
+trailing arms, deleting one arm *and* its `jle`; its low arm carries v135's dead `cmp bx,0x20` as a
+two-arm if/else with identical bodies. This landed `jge` 2/2, `jle` 1/1, `jg` 0/0, `sub` 11/11 and
+one `jl` exactly. ⚠ `bx <= 0x100`, never `bx < 0x101` — the immediate types the operator for free
+(triage rule 14). (b) the nTailDir dispatch is a **`switch`**, not an if-chain — `je / je / jmp`
+with both arms out of line; FREE in length, −30 B of diff, landing `je` 3/3, `jne` 3/3, `jmp` 11/11.
+The byte diff ROSE 999 → 1010; landed on the LENGTH per lesson #60. `CyclePalette` 0x415af0 was
+recovered for the FOURTH session running (two tokens) by re-running its own prescribed sweep, its
+winning cell having swung BACK to v103's original spelling. `--lenmis` fell 184 B → 172 B.
+**Method notes promoted to CLAUDE.md:** a scratch `apply.py` with one flag per axis beats a variants
+file when the edit spans non-contiguous sites; disassemble OUR side next to the original for the
+same window (`sbs.py` cannot pair once the schedule shifts); a mnemonic census is a PROGRESS BAR,
+not just a diagnosis.

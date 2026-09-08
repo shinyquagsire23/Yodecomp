@@ -4455,6 +4455,17 @@ void CDeskcppView::DrawText(CDC *pDC)
 // so the initial def is dead-stored away and both arms tail-merge onto one indexed load
 // (9 B shorter, and the last 2 jne/je flips). framescan agrees from the other side: orig
 // 20 / ours 16. The search is for one more long-lived value in arm C, not for a spelling.
+// ⭐ v137 CORROBORATES THAT DIAGNOSIS FROM A THIRD SIDE, and gives it a sharper handle: a
+// BOTH-SIDES `movsx` census (lesson #56) reads ORIG {mem 3, self 2} against OURS {mem 4,
+// self 1, reg 3} — we emit THREE MORE, ~13 bytes, and ALL of them sit in this same tail:
+// ours loads+widens `word [eax+0x4bc]` TWICE (+0x63b, +0x651, 7 B each) where the original
+// does it ONCE (+0x658), and then re-widens the short in bx twice more (+0x701 `movsx eax,bx`,
+// +0x710 `movsx edx,bx`). The original's `field30 == 1` arm does none of that — it just
+// RELOADS the homed WORD (`mov edx,[ebp-0x18]; and edx,0xffff`). So the one missing long-lived
+// value is exactly what stops both of our arms from re-indexing questItemsA/B from `sSlot`;
+// find it and the 3 surplus movsx go with it. (⚠ the `self`-vs-`reg` split of a movsx is
+// REGISTER ALLOCATION, not source — see movsxscan.py's docstring — so read the TOTAL, 5 vs 8,
+// as the finding and the split only as a locator.)
 void CDeskcppView::ShowWinMessage(int x, int y, int dx, int dy)
 {
     int tx = dx + x;
@@ -9017,6 +9028,29 @@ struct TriPoint : public tagPOINT
 //       original does not do. Triage rule 13: a length gain is not a landing until the shape
 //       matches. v135's probe C (read through the pointer ONCE per arm) is byte-IDENTICAL to no
 //       pointer at all, which is what proves the axis codegen-invisible rather than merely bad.
+//   ⭐ v137 SPLIT (b) INTO TWO DIFFERENT QUESTIONS — the note above ran them together, and
+//       only ONE of them is a store-killed CSE. Read the original again:
+//         * THE x-LADDER RELOADS ARE NOT STORE-KILLED. Between the first load (+0x176
+//           `mov ecx,[edx]`) and the arm reload (+0x191 `mov eax,[edx]`) there is NO store at
+//           all — just the nViewLeft subtract and the `jl`. What happened is that the value
+//           CSE LOST ITS REGISTER and degraded into an ADDRESS CSE: cl keeps `lea edx,[esi+
+//           0x18]` and pays a 2-byte `[edx]` load per BLOCK (3 loads: +0x176/+0x191/+0x1ad).
+//           That is a register-allocation outcome, not an aliasing one.
+//         * THE rectBox RELOADS *ARE* STORE-KILLED, and case 2 proves it with no confound:
+//           +0x1fb `mov eax,[esi+0x60]` / +0x1fe `mov [esp+0x14],eax` (eax STILL holds top) /
+//           +0x202 `mov eax,[esi+0x60]` — a redundant reload of a value sitting in a live
+//           register, i.e. the store to point[0].y killed the memory CSE.
+//   ⛔ v137 MEASURED NEGATIVE — STORING THE point[] ARRAY THROUGH A POINTER. The mechanism is
+//       CONFIRMED and it is the only source lever that reaches the second family: with
+//       `TriPoint point[3]; TriPoint *pp = point;` and all 18 store sites (plus ::Polygon)
+//       going through `pp`, the member CSEs DO die — the emitted ladder reloads
+//       `[esi+0x18]` and the arms reload `[esi+0x60]`/`[esi+0x68]`, exactly the shapes we are
+//       missing. But it OVERSHOOTS: an indirect store kills the CSE after EVERY store, so we
+//       reload 3x per arm where the original reloads ONCE per block, and the length goes
+//       1396 (ext-23) -> 1424 (ext+5) for a diff of 1010 -> 1006. REFUTED on SHAPE and on
+//       LENGTH (triage rule 13) — a 4-byte diff gain at +28 bytes of length is a number.
+//       ⇒ the remaining lever must kill the CSE ONCE per block, not per store; and it must
+//       leave the x-ladder alone, since that half is an allocation question.
 //   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
 // NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
 void TextDialog::Layout(int x, int y, int nUnused)

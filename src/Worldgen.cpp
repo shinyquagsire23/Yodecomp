@@ -812,6 +812,10 @@ int CDeskcppDoc::WorldgenPlaceItemOnLock(short zoneId, int a2, short nVal, short
 }
 
 // FUNCTION: YODA 0x0041cf10
+// ⛔ v137: `declorder.py --inner`, all 9 legal orders of the four decl runs. Best cell is
+//  block@24 `paSpots,nObjs` at 289 B — a 3-byte diff cut with the LENGTH UNCHANGED at -3,
+//  i.e. below lesson #48's landing bar. RECORDED, NOT LANDED. Everything else is flat or
+//  worse (block@7 pZone/nCount/i costs 11-12 B).
 // [WIP: 295 B -> 292, LENGTH 426 -> 427 against an extent of 430. Carries its clones'
 //  `int j = 0;` after `paSpots.SetSize(0, -1)` form (0x41c580 / 0x41c730, where it is worth
 //  200+ B each) — kept here on CLONE CONSISTENCY plus a length moving toward the extent, NOT
@@ -998,6 +1002,9 @@ int CDeskcppDoc::WorldgenPlaceItemForLockChainMaybe(short zoneId, short idx, sho
 }
 
 // FUNCTION: YODA 0x0041d260
+// ⛔ v137: `declorder.py --inner` swept ALL 8 legal orders of the four decl runs
+//  (pZone/bFound/nPlaced, i/nCount, and the two j/nObjs pairs) — DEAD FLAT at 419 B @ -5.
+//  The decl axis is closed here; per lesson #41 the lever is elsewhere.
 // [EFFECTIVE: align=80, insns 164/162 -- guard ||-chain into ONE shared `return 0` was the
 // big crack (170->80). Residual: three backedge cmp-operand mirrors (orig cmp count,i;JG),
 // zero-reg-vs-imm guard compares, and the return-0 epilogue not folding into the common
@@ -3888,6 +3895,9 @@ cleanup:
 }
 
 // FUNCTION: YODA 0x00421930
+// ⛔ v137: `declorder.py --inner`, 4 legal permutations — no diff gain (i,n costs 14 B; the
+//  rest flat at 629). ⚠ block@190 `nCell,pZone` LOSES 5 bytes of LENGTH (1297, ext-13, from
+//  -8) at an unchanged diff, so the current order there is positively confirmed.
 // [EFFECTIVE-WIP: DIFF(629) at LENGTH 1302 vs the 1310 extent (-8; was -11 at 617 B).
 //   ⭐ v131 — THE RETRY LOOP IS ROTATED (lesson #46), and the instrument was the INSTRUCTION
 //   MIX, not the byte diff: at 47 % differing bytes the diff is unreadable, but decoding both
@@ -5390,6 +5400,29 @@ int CDeskcppDoc::GetZoneIndex(Zone *pZone)
 //  construct is readable — `height = canvasH - destY;` (16-bit arithmetic into a short) then
 //  `int rows = height;` (promotion into an int local). So the shape to look for is a short
 //  whose int form is materialised.
+//  ⭐ v137 ADDED A SECOND DICTIONARY ENTRY AND A PROJECT-WIDE CENSUS. A read-only scan of all
+//  410 extents finds 85 self-extension sites in 27 functions; the great majority are the
+//  ordinary `movsx eax,ax` widening of a short-returning call, and the construct that matters
+//  is the NON-eax form (the value stays in the register it was produced in): 0x403ae0 (ebx,
+//  edi), 0x408110 (edx), 0x409650 (ebx), 0x40f4b0 (edi x2), 0x41a6d0 (ebp), 0x41cdc0 (ecx),
+//  0x41d940 (ecx), 0x41ef90 (edx), 0x423df0 (edi, ebx). ⭐ TWO of those sit in BYTE-EXACT
+//  functions, so the dictionary now has two readings, not one:
+//    * Canvas::BlitFast 0x408110 +0x5d — `height = canvasH - destY;` then `int rows = height;`
+//    * WorldgenShuffleList 0x41ef90 +0x79 — `call rand / cdq / idiv [nSize] / movsx edx,dx /
+//      add edx,edx / add edx,[base]`, i.e. an INT result narrowed into a `short` and then used
+//      as an int SUBSCRIPT.
+//  ⇒ the generalised shape is: a value PRODUCED INTO a 16-bit register (a `mov r16,[mem]`
+//  load, 16-bit arithmetic, or a narrowing assignment) that is then used as an int.
+//  ⭐ v137 ALSO RE-CONFIRMED `short destX/destY` BY A SOUND ARGUMENT, replacing the weak one.
+//  The old reasoning ("all 21 blit call sites push a plain register with no sign-extension")
+//  is the FORWARDING-PUSH trap: a plain `push edi` is exactly what an `int` parameter looks
+//  like too, whenever cl maintains the extension in-register instead of at the push — which is
+//  precisely what the loop-bottom movsx here IS. The decisive fact is the register CONTENT:
+//  ebx and edi are never written in their high halves (`mov bx,4` at +0x40 and `mov di,4` at
+//  +0x50, with ebx/edi still holding the caller's values pushed at +0x03/+0x05), so the int
+//  incarnation the loop bottom maintains is provably never consumed. Same verdict, real proof.
+//  ⛔ v137: `declorder.py --inner` swept all 6 legal orders of the two decl runs (destY,y and
+//  x/destX/nY) — DEAD FLAT at 96 B / len 336. The decl axis here is now closed both ways.
 //  ⛔ 16 SPELLINGS MEASURED AND REFUTED here — do not re-tread:
 //    * int COPIES of the accumulators (`int nDestX = destX;` used as the blit args) in every
 //      placement — both/x-only/y-outer/x-inner+y-outer/declared-outer/taken-at-the-bottom/
@@ -6661,6 +6694,12 @@ int CDeskcppDoc::Populate()
 }
 
 // FUNCTION: YODA 0x004260e0
+// ⛔ v137: the v132 tool fix DID widen this seam as advertised (block@1 is a FOUR-decl run,
+//  v,found,pZone,spawns, plus two j/nObjs pairs = 26 permutations, against v131's 24), and
+//  the answer is still NEGATIVE: nothing beats the baseline 468 B @ -6. ⚠ WORTH KNOWING —
+//  the 12 orders that put `pZone` adjacent-before found/spawns commit a FOURTH callee-saved
+//  register and go to 558-570 B @ -9, so this decl block is a real allocation dial here, it
+//  just has no cell better than where we already are.
 // [WIP: DIFF(468) at LENGTH 664 vs the 671 extent (-7). reg 2-cycle {EDX,ECX} in the find
 //  loops + EH-state(-1) placement in the 0x217 found path.
 //  ⭐ v131 mixscan.py decomposes it to FIVE counts: `jl +5, jg -5, mov -1, test -1, cmp +1`.

@@ -525,7 +525,21 @@ void Zone::ReadIzaxIndy(CFile *pFile)
 //   `lea edi,[esi+ebp]` for the four uses), +2 for two `cmp [bForce],0` where the original
 //   folds the live zero as `cmp [bForce],ebp` (lesson #39), and -6 because our `return 1`
 //   early-exit is an INLINE epilogue where the original branches to a shared tail block.
-//   ⛔ TWO AXES CLOSED, do not re-tread: (1) decl SET+ORDER — 10 configurations (r,n first;
+//   ⭐ v137 READ THE ORIGINAL OUT END TO END (read-only, no compile) and the CONTROL FLOW is
+//   confirmed IDENTICAL to this source instruction for instruction — so the +26 is the contest
+//   and nothing else. Original register map: esi = dx then n (they coalesce), edi = tx,
+//   ebx = ty, ebp = found; frame S0+0 savedY(w), S0+2 savedX(w), S0+4 this, S0+8 r — r stored
+//   at +0x6f, INTERLEAVED into the first GetTile's argument setup. Two details worth keeping:
+//   the merged 2nd-probe `inc ebp` at +0x1aa is cl exploiting `test ebp,ebp; je` (it knows
+//   ebp==0 in that arm, so 1 byte instead of 5 — the three 1st-probe sites keep `mov ebp,1`);
+//   and the six epilogues share bytes (`mov eax,2` then `jg` INTO the -1 return's pop run).
+//   ⛔ v137 CLOSED A THIRD AXIS — `n`'s SCOPE (lesson #37), which the SET+ORDER sweep below
+//   structurally cannot reach: declaring `int n` inside each of the three branches (3 short
+//   ranges instead of 1 long one, the hoped-for re-ranking) measures 594 B at len 594 = +11
+//   ALONE, and 495 @ +26 = exactly baseline when composed with the r-late statement order
+//   (lesson #51 cross, 4 cells). Baseline reproduces at 495/583, so the Iact.cpp phase has not
+//   rotated since v123.
+//   ⛔ TWO MORE AXES CLOSED, do not re-tread: (1) decl SET+ORDER — 10 configurations (r,n first;
 //   found last; found without initialiser; n,r swapped; savedX/savedY split; txty first) are
 //   flat or WORSE, best is the baseline 495 at +26, and `int n, r;` costs +11 more. (2) the
 //   STATEMENT ORDER around r's definition — moving `r = ...` after the savedX/savedY stores
