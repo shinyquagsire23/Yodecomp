@@ -274,7 +274,7 @@ TWICE while the member inline precomputes the whole argument DAG and loads it on
 DIAGNOSED the whole of `Layout` 0x4176f0's −35 (lesson #65: a `cmp` with no consumer is SOURCE,
 not codegen — cl cross-jumps identical arm BODIES and strands the test, so the author repeated the
 bx range ladder inside each nTailDir arm; the mnemonic census closes on it exactly) and refuted
-that function's G1 park note. The `--lenmis` census fell 33 residuals / 321 B → 27 / 184 B.)**; **held at 257 at v136 (no new byte-match, but `Layout` 0x4176f0 — the top of `--lenmis`, and the function v135 had fully DIAGNOSED — went 999 B @ ext−35 → 1010 B @ ext−23, +0/−0, on TWO constructs read straight off the original's BLOCK LAYOUT, lesson #66: its bx ladder is a NESTED `if/else` and not a flat `else if` chain (a flat chain lets cl cross-jump the identical trailing arms and DELETE the `jle` outright), and its nTailDir dispatch is a `switch` and not an if-chain (`je / je / jmp`, both arms out of line). SEVEN mnemonic columns went from wrong to EXACT. `CyclePalette` 0x415af0 was recovered for the FOURTH session running by re-running its own prescribed sweep, and its winning cell has swung BACK to v103's original spelling. `--lenmis` fell 184 B → 172 B.)**, held at 257 at v137 (no new byte-match; a CLOSING session — `Layout` 0x4176f0's park note was SPLIT INTO TWO PROBLEMS by the free store test, lesson #67, and the only source lever for the aliasing half was REFUTED on shape and length; `IactProbeMove` 0x406550 was read out end to end and its `n`-SCOPE axis closed; FIVE of the v132 decl-run seam's named targets swept to a measured floor; and the `movsx` self-extension dictionary went from one byte-exact entry to two) ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
+that function's G1 park note. The `--lenmis` census fell 33 residuals / 321 B → 27 / 184 B.)**; **held at 257 at v136 (no new byte-match, but `Layout` 0x4176f0 — the top of `--lenmis`, and the function v135 had fully DIAGNOSED — went 999 B @ ext−35 → 1010 B @ ext−23, +0/−0, on TWO constructs read straight off the original's BLOCK LAYOUT, lesson #66: its bx ladder is a NESTED `if/else` and not a flat `else if` chain (a flat chain lets cl cross-jump the identical trailing arms and DELETE the `jle` outright), and its nTailDir dispatch is a `switch` and not an if-chain (`je / je / jmp`, both arms out of line). SEVEN mnemonic columns went from wrong to EXACT. `CyclePalette` 0x415af0 was recovered for the FOURTH session running by re-running its own prescribed sweep, and its winning cell has swung BACK to v103's original spelling. `--lenmis` fell 184 B → 172 B.)**, held at 257 at v137 (no new byte-match; a CLOSING session — `Layout` 0x4176f0's park note was SPLIT INTO TWO PROBLEMS by the free store test, lesson #67, and the only source lever for the aliasing half was REFUTED on shape and length; `IactProbeMove` 0x406550 was read out end to end and its `n`-SCOPE axis closed; FIVE of the v132 decl-run seam's named targets swept to a measured floor; and the `movsx` self-extension dictionary went from one byte-exact entry to two); **held at 257 at v138 (no new byte-match, but `Layout` 0x4176f0 went 1396 B @ ext−23 → 1412 B @ **ext−7**, +0/−0, on TWO COMPOSING fixes — lesson #68, the converse of #59: a variable REDEFINED ON EVERY PATH of an if/else cannot be CSE'd from its initializer, which is what forces the original's ADDRESS CSE + per-block reloads; landing it then UN-REFUTED the case-2 inner ladder that had been a standing MEASURED NEGATIVE, for a further 12. `CyclePalette` 0x415af0 was recovered for the FIFTH session running — and TWICE inside this one. `--lenmis` fell 172 B → 156 B)** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
 v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
@@ -793,6 +793,48 @@ instruction for instruction — it is the `nTailDir == 1` arm that mis-merges, b
 `rectBox.bottom` CSE survives the `point[]` stores and the original's does not. ⇒ a correct
 diagnosis can still be unlandable while a NEIGHBOURING defect (here a member-RELOAD/residency
 decision) blocks it; fix the blocker first and re-measure, don't respell the diagnosed construct.
+
+⭐ **A VARIABLE REDEFINED ON EVERY PATH CANNOT BE CSE'd FROM ITS INITIALIZER — THE
+CONVERSE OF LESSON #59 (v138, lesson #68).** #59 said: assign in BOTH arms of an if/else so
+cl can re-use a register whose value has just died. v138 is the same construct aimed at the
+opposite outcome — making a value die *on purpose* — and it solved the x-ladder half of
+v137's split on `Layout` 0x4176f0 (**ext−23 → ext−19**, and the ladder landing that followed
+took it to **ext−7**, +0/−0).
+- **The two spellings, and why they are not codegen-equivalent.**
+    ours  `int bx = nBoxX; if (nMode == 0) bx -= pW->nViewLeft;`
+    orig  `int bx; if (nMode == 0) bx = nBoxX - pW->nViewLeft; else bx = nBoxX;`
+  Ours has ONE definition of the `nBoxX` temp dominating the whole body, so cl keeps that
+  temp (the VALUE CSE) in a register for the later `nBoxX` reads and spends a SECOND register
+  on a copy for `bx` — `mov ecx,[esi+0x18]; mov edx,ecx; sub edx,...`. The original redefines
+  `bx` on every path, so no single register holds `nBoxX` across the merge: the value CSE is
+  unavailable and cl falls back to an **ADDRESS CSE**, `lea edx,[esi+0x18]` plus a 2-byte
+  `[edx]` reload per BLOCK. Same register COUNT on both sides — this is not pressure.
+- ⭐ **THIS IS THE MISSING HALF OF LESSON #67, AND IT RETIRES ITS OPEN QUESTION.** #67 taught
+  the discriminator (a store between load and reload ⇒ aliasing; no store ⇒ the CSE lost its
+  register, fingerprinted by cl degrading to an address CSE) and then asked "what gives it one
+  more long-lived value?". **Wrong question.** The address-CSE half is not about how many
+  values are live, it is about WHERE THE LIVE RANGE STARTS — and that is spelled in the
+  source, for free.
+- ⚠ **The oracle pins a FAMILY** (lesson #36): then-first, else-first, the ternary and a
+  two-statement then-arm all measure IDENTICALLY. Pick the member the original's FALLTHROUGH
+  pins (lesson #47) — here `cmp [esi+0x54],0 / jne` skips the subtract, so `nMode == 0` is the
+  *then* arm.
+- ⚠ **The byte diff ROSE 1010 → 1036 across it.** Land it on the LENGTH and the SHAPE
+  (lessons #60/#66, triage rule 13); the extra diff is downstream shift.
+- ⛔ **THE SEAM LOOKS EMPTY OUTSIDE 0x4176f0, and the probe that says so is UNSOUND — do not
+  rebuild it.** A census of "who holds an address CSE where the other side holds a value"
+  (`lea rD,[rB+disp]` whose rD is later dereferenced at displacement 0) reports 10 differing
+  functions, but its KEY IS NOT REGISTER-BLIND: whether some later instruction happens to
+  dereference *that same register* with no displacement is allocation, not source. It rates
+  `DrawHealthNeedle` 0x4278a0 at orig 4 / ours 26 when the two sides' `lea` lists are
+  near-identical CPen/CBrush object addresses. Same failure as `movsxscan.py`'s first draft
+  (see "census key must be register-blind"). Its two REAL sub-findings are worth keeping,
+  both caught by the positive control: (1) our COMDATs have reloc fields ZEROED, so
+  `mov [eax+0x459558],0` decodes as `[eax+0]` and masquerades as a base-only deref — key on
+  `insn.disp_size == 0`, the ENCODING, never on `disp == 0`; (2) the 39 jump-table functions
+  must be EXCLUDED (their reloc-zeroed entries decode as instructions on our side only).
+  What survives on the merits: all four ORIG-more candidates are refuted BY LENGTH before any
+  compile, because the address-CSE form ADDS bytes and none of them is length-short.
 
 ⭐ **TWO RELOADS ARE NOT ONE MECHANISM — SEPARATE THEM BEFORE YOU NAME A LEVER (v137,
 lesson #67).** When the original re-reads a member that we hold in a register, there are TWO
@@ -2105,115 +2147,110 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-07 v137 — **held at 257 exact, +0/−0. No new byte-match:
-this was a CLOSING session — six axes measured to a floor and shut, one park note SPLIT INTO TWO
-PROBLEMS (lesson #67, new), and the `movsx` dictionary doubled.** All oracles green: **257 exact**
-/ 99.17 % / link 0 unresolved / bugscan 1 HIGH (the documented benign `StartGame` 0x4037a0 `@+0x14a`
-finding) / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. `--lenmis` unchanged at **27 residuals /
-172 B**. Note edits verified free with `exactset.py` + `diff` — IDENTICAL exact set. v136 log
-condensed into PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-07 v138 — **held at 257 exact, +0/−0, but with the
+biggest structural landing since v135: `Layout` 0x4176f0 went 1396 B @ ext−23 → 1412 B @
+ext−7 on TWO COMPOSING fixes.** All oracles green: **257 exact** / 99.17 % / link 0 unresolved
+0 dup / bugscan 1 HIGH (the documented benign `StartGame` 0x4037a0 `@+0x14a` finding) 0 SHIFT /
+vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. `--lenmis` fell **172 B → 156 B** and Layout
+dropped from #2 to #6. Every landing verified with `exactset.py` + `comm` — IDENTICAL exact set,
+note edits included. v137 log condensed into PLAN_COMPLETED.md.)
 
-**▶ READ FIRST — FIFTEEN triage rules.** (1)–(14) unchanged from v136.
-(15) ⭐ **NEW (v137): BEFORE BLAMING A RELOAD ON ALIASING, LOOK FOR THE STORE.** A member the
-original re-reads and we hold in a register has two possible causes with opposite fixes — a
-store-killed CSE (aliasing) or a CSE that lost its register (pressure, fingerprinted by cl
-degrading to an ADDRESS CSE `lea r,[this+disp]` + 2-byte `[r]` loads). Full rule = lesson #67.
-Corollary: a park note listing several reloads as one symptom is hiding two problems.
+**▶ READ FIRST — SIXTEEN triage rules.** (1)–(15) unchanged from v137.
+(16) ⭐ **NEW (v138): WHEN THE ORIGINAL RELOADS A MEMBER PER BLOCK AND NO STORE EXPLAINS IT,
+CHECK WHERE THE VARIABLE'S LIVE RANGE STARTS BEFORE COUNTING REGISTERS.** A `T v = expr;
+if (c) v op= ...;` keeps `expr`'s VALUE CSE alive; a `T v; if (c) v = expr op ...; else
+v = expr;` kills it and forces the ADDRESS CSE. Full rule = lesson #68, the converse of #59.
+Corollary: v137's "find one more long-lived value" was the wrong question — the register COUNT
+was the same on both sides.
 
-**▶ WHAT LANDED** — nothing in the exact count, deliberately. The product is six closed axes plus
-two corrected notes; every number below was measured this session.
+**▶ WHAT LANDED.**
+1. **`Layout` 0x4176f0 ext−23 → ext−19** — `bx` assigned in BOTH ARMS (lesson #68). The emitted
+   ladder now reproduces the original INSTRUCTION FOR INSTRUCTION, registers included
+   (`lea edx,[esi+0x18]`, `mov ecx,[edx]`, per-block `mov eax,[edx]`).
+2. **…then ext−19 → ext−7** — that un-refuted the **case-2 inner nTailDir ladder**, a standing
+   ⛔ MEASURED NEGATIVE (it cost +21 at ext−23). At the new baseline it GAINS ON BOTH MEASURES
+   (len → 1412, diff 1036 → 1031). This is the v134 rule paying for the second session running:
+   **re-measure a function's own ⛔ list after every structural fix.**
+3. **`CyclePalette` 0x415af0 recovered for the FIFTH session, and TWICE within this one** (each
+   landing re-rolled the phase). Minimal move: a2 → the MEMBER form, one token. ⚠ Layout is
+   DOWNSTREAM of CyclePalette, so v106's downstream-only rule did NOT protect it — v116's
+   "several edits make the phase an INTERACTION" governs. Always re-run `exactset.py`.
 
 **▶ NEXT — concrete, in priority order.**
-1. ⭐ **`Layout` 0x4176f0 (−23) — RESCOPED, and this is the useful change.** Its −23 is TWO
-   independent problems, not one (lesson #67): (a) the **x-ladder** reloads are a REGISTER
-   question — there is no store between +0x176 and +0x191, so no aliasing lever can reach it, and
-   cl's `lea edx,[esi+0x18]` address CSE is the tell; (b) the **rectBox.top/bottom** reloads ARE
-   store-killed (proved at +0x1fb/+0x1fe/+0x202 — a redundant reload of a live register). ⛔ do NOT
-   re-run the pointer-store lever on (b): it works but is ALL-OR-NOTHING, reloading per STORE where
-   the original reloads per BLOCK → 1424 = ext+5. ⛔ nor v135's member-pointer probe A (refuted at
-   both baselines, on shape). ⛔ nor the inner nTailDir ladders as a spelling problem. ⇒ the open
-   question is now sharp: **what gives (a) one more long-lived value, and is there a source
-   construct that kills a member CSE once per BLOCK rather than once per store?**
-2. ⭐ **`IactProbeMove` 0x406550 (+26) — fully read out, and now THREE axes are closed.** The whole
-   +26 is one contest: the original puts `found` in EBP and homes `r` at S0+8; we do the reverse.
-   Original map: esi = dx then n, edi = tx, ebx = ty, ebp = found; frame S0+0 savedY(w), +2
-   savedX(w), +4 this, +8 r (stored at +0x6f, inside the first GetTile's arg setup). Control flow
-   verified identical instruction for instruction. ⛔ CLOSED: decl SET+ORDER (10 configs, v123),
-   statement order around `r` (v123), and NEW at v137 **`n`'s SCOPE** — `int n` inside each of the
-   three branches is 594 B @ **+11** alone and exactly baseline (495 @ +26) composed with r-late.
-   Baseline reproduces at 495/583, so the Iact.cpp phase has not rotated since v123. ⇒ the lever
-   must make cl rank a constants-only, test-only variable (`found`) ABOVE an arithmetic one (`r`);
-   nothing in the current toolbox does that, so this wants a NEW mechanism, not another sweep.
-3. ⭐ **`ShowWinMessage` 0x40f4b0 (−9) — same diagnosis as v134, now with a sharper handle.** A
-   both-sides `movsx` census reads ORIG {mem 3, self 2} vs OURS {mem 4, self 1, reg 3}: we emit
-   **three more, ~13 B, ALL in the arm-C tail**. We load+widen `word [eax+0x4bc]` twice (+0x63b,
-   +0x651) where the original does it once (+0x658), then re-widen `bx` twice (+0x701, +0x710); the
-   original's `field30 == 1` arm instead RELOADS the homed WORD (`mov edx,[ebp-0x18]; and edx,
-   0xffff`). Find the one missing long-lived value in arm C and the three surplus movsx go with it.
-4. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) / `DrawHealthDial` 0x427490 (−16)** — unchanged, now the
-   #2/#3 structural defects and still ONE `this`-residency question. ⛔ 0x427490's decl axis is
-   fully closed (39 + 15 spellings) and EBX is IDLE for its first 0xb6 bytes, so scarcity is
-   REFUTED. ⚠ read the leaf vtable stores (lesson #61) before any decl-order win on 0x4278a0.
-5. ⭐ **`ScrollZoneTransition` 0x411180's last −1** — a pure residency permutation, both sides read
-   out in its note; diff against `DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0,
-   `LoadZoneRecursive` 0x403450.
-6. ⛔ **THE v132 DECL-RUN SEAM IS NOW MOSTLY CLOSED — do not re-open the ones below.** v137 swept
-   five of the pickup's named targets with `declorder.py --inner` and every one is a measured
-   floor: `WorldgenPlaceUsefulObjectMaybe` 0x41d260 (8 perms, DEAD FLAT 419 @ −5), `PlaceZone`
-   0x4260e0 (26 perms over the WIDENED seam — the v132 fix was real, block@1 is a four-decl run —
-   nothing beats 468 @ −6; ⚠ the 12 orders putting `pZone` adjacent-before found/spawns commit a
-   FOURTH callee-save and go to 558–570 @ −9, so it IS a live dial with no better cell),
-   `DrawLocatorMap` 0x423df0 (6 perms, DEAD FLAT 96 @ −6), `WorldgenFillQuestItemSpot2Maybe`
-   0x41cf10 (9 perms; best `paSpots,nObjs` = 289 B at UNCHANGED length −3 → below lesson #48's bar,
-   RECORDED NOT LANDED), `WorldgenPlacePuzzles` 0x421930 (4 perms; ⚠ `nCell,pZone` LOSES 5 bytes of
-   length, positively confirming the current order). ⇒ what is left of the seam is the ~40 residuals
-   nobody has named; regenerate by crossing `declorder.inner_blocks` against `residuals.scan()` and
-   SKIP the `PURE-REG` ones. On this evidence its expected value is low — prefer items 1–4.
-7. ⭐ **The `movsx` self-extension family (0x403ae0 −6, 0x423df0 −6, 0x409650 +3) has a SECOND
-   dictionary entry now** — `WorldgenShuffleList` 0x41ef90 +0x79, byte-exact, where an int
-   `rand()` remainder is narrowed into a `short` and then used as an int SUBSCRIPT (the first
-   entry, `Canvas::BlitFast` 0x408110, is the `int rows = height;` merge). Generalised shape: a
-   value produced INTO a 16-bit register, then used as an int. ⚠ census on the TOTAL movsx count
-   per side, never on self-ness (that is register allocation — see lesson text). `short destX/destY`
-   is re-confirmed at v137 by a sound argument (the high halves are never written), replacing the
-   forwarding-push reasoning the note used to carry.
-8. **Unchanged from v130–v136:** the `jl/jg + mov -1 + test/cmp` cluster (0x4260e0, 0x41d260,
-   0x41cf10 — pure MIRROR = lesson-#54 parks); `movsxscan.py`'s ORIG-MORE list; the remaining
-   `framescan.py`, `pushscan.py` and `widthscan.py` hits; the 5 generalised `loopform.py`
-   candidates. ⛔ the `movsx` ACCUMULATOR cluster stays closed without a NEW mechanism.
-9. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19, DeskcppDoc's
-   `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp `sizeof` dial note).
-   **Phase-H goals 2–5 untouched** this session.
+1. ⭐ **`Layout` 0x4176f0 (−7) — the whole remainder is now ONE construct.** The case-2 arm is
+   literally ONE INSTRUCTION from the original: the store-killed reload `mov eax,[esi+0x60]` at
+   +0x202 (3 B), and the same in case 1, plus the 11-byte case-1 ladder that reload blocks.
+   ⛔ Refuted and not to be re-tread: the pointer-store lever (v137, over-kills, ext+5); v135's
+   member-pointer probe A; the case-1 ladder as a spelling problem (+32 on top of case 2);
+   ⭐ NEW at v138 — **the "when does the address escape" hypothesis is CLOSED**: the point[]
+   array's address is taken at the SAME place on both sides (the ctor loop's
+   `lea ebp,[esp+0x10]`), now byte-identical between the images. ⇒ the open question is a
+   source construct that kills a member CSE ONCE PER BLOCK. Note cl reaches the original's
+   2-loads-for-3-uses by SCHEDULING the third use's arithmetic ABOVE the second store
+   (`dec eax` at +0x1e9 precedes `mov [esp+0x1c],ecx`), so "every store kills" IS the model.
+2. ⭐ **`IactProbeMove` 0x406550 (+26) — now the #1 structural residual.** Unchanged from v137:
+   the whole +26 is one contest (original puts `found` in EBP and homes `r` at S0+8; we do the
+   reverse). ⛔ CLOSED: decl SET+ORDER, statement order around `r`, `n`'s SCOPE. Wants a NEW
+   mechanism that makes cl rank a constants-only, test-only variable above an arithmetic one.
+   ⚠ **lesson #68 is a candidate to try here first** — it is exactly a "where does the live
+   range start" lever and it is one compile.
+3. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) / `DrawHealthDial` 0x427490 (−16)** — now #2/#3, one
+   `this`-residency question. ⛔ 0x427490's decl axis fully closed; EBX idle for its first 0xb6
+   bytes so scarcity is REFUTED. ⚠ read the leaf vtable stores (lesson #61) before any
+   decl-order win on 0x4278a0. ⛔ **NEW: the v138 address-CSE probe's "orig 4 / ours 26" on
+   0x4278a0 is an ARTIFACT — ignore it** (see lesson #68's ⛔ bullet; the two sides' `lea` lists
+   are near-identical CPen/CBrush object addresses).
+4. ⭐ **`ShowWinMessage` 0x40f4b0 (−9)** — unchanged from v137: three surplus `movsx` in the
+   arm-C tail (ORIG {mem 3, self 2} vs OURS {mem 4, self 1, reg 3}); find the one missing
+   long-lived value there and all three go with it.
+5. ⭐ **`ScrollZoneTransition` 0x411180's last −1** — a pure residency permutation; diff against
+   `DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450.
+6. ⛔ **The v132 decl-run seam stays mostly closed** (v137 swept five named targets to a floor).
+   What is left is the ~40 residuals nobody has named; regenerate by crossing
+   `declorder.inner_blocks` against `residuals.scan()` and SKIP the `PURE-REG` ones. Low
+   expected value — prefer items 1–4.
+7. **Unchanged from v130–v137:** the `jl/jg + mov -1 + test/cmp` cluster (pure MIRROR = #54
+   parks); `movsxscan.py`'s ORIG-MORE list; the remaining `framescan.py`, `pushscan.py` and
+   `widthscan.py` hits; the 5 generalised `loopform.py` candidates; the `movsx` self-extension
+   family (0x403ae0 −6, 0x423df0 −6, 0x409650 +3) with its two dictionary entries.
+8. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note). **Phase-H goals 2–5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v136 rules all stand; v137 re-used them all).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v137 rules all stand; v138 re-used them all).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run long
 sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps concurrently,
 or one while any COMPILING tool is in flight (they share `build/*.obj`). `thisscan.py`,
 `loopform.py`, `unrotscan.py`, `aliasscan.py` and `impcse.py --orig` are READ-ONLY.
+⭐ **v138 method note — ALWAYS PASS `--expect`, AND LET IT BE WRONG.** The CyclePalette sweep was
+launched with a stale `--expect 12` copied from the v136 note; vartest HARD-FAILED at the baseline
+and printed the true residual (6) in the same breath, costing one cheap run and saving a whole
+sweep's worth of untrustworthy deltas. A guessed `--expect` is not a mistake to avoid — it is the
+cheapest way to *learn* the baseline, because the guard cannot be talked past.
+⭐ **v138 method note — A NEW CENSUS NEEDS ITS CONTROL PRINTED *AND READ*.** The address-CSE probe
+failed its positive control TWICE (a reloc-zeroed displacement decoding as `[eax+0]`; then a
+jump-table function) and, on the third run, produced a clean-looking 10-row table that was still
+UNSOUND for a reason no control could catch — its key was not register-blind. ⚠ And the first
+reading of its output was `tail -30`, which silently CUT the `!! CONTROL FAIL` lines above the
+table. **Print the control verdict LAST as well as first, and never read a census through `tail`.**
+⭐ **v138 method note — VERIFY THE SHAPE, THEN THE SCORE, THEN THE SET.** Both v138 landings were
+accepted only after `sbs.py` showed the emitted construct matching the original (triage rule 13),
+and each was followed by a full `exactset.py` + `comm` diff. That is 3 runs per landing and it is
+the right price: the first landing looked free, and was not — it cost CyclePalette until the sweep
+recovered it.
+⭐ **v137 method notes — A ONE-COMPILE MECHANISM TEST BEATS A SWEEP WHEN THE PARK NOTE NAMES A
+CAUSE; READ THE ORIGINAL END TO END BEFORE SWEEPING** (~40 lines of read-only capstone over
+`EXE[va - match.TEXT_VA + match.TEXT_RAW]` sliced to the Ghidra extent; needs no build, so it is
+safe while a sweep is in flight).
 ⚠ **v137 SHELL TRAP — THIS IS zsh, WHICH DOES NOT WORD-SPLIT UNQUOTED VARIABLES.** A sweep loop
-written `for spec in "0xADDR 123"; do set -- $spec; ...` silently gives `$1="0xADDR 123"` and an
-EMPTY `$2`, so `--expect` gets nothing and the whole loop no-ops while still printing its headers.
-Use `${spec%%:*}` / `${spec##*:}` on a `addr:expect` pair, and always check the echoed `--expect`
-value in the log before believing a flat result. (Same family as the harness-can-lie lessons: the
-run produced plausible output and measured nothing.)
-⭐ **v137 method note — A ONE-COMPILE MECHANISM TEST IS WORTH MORE THAN A SWEEP WHEN THE PARK NOTE
-NAMES A CAUSE.** The pointer-store probe was never plausible 1997 source; it was run to ask "IS the
-member CSE store-killed at all?", and the answer (yes for rectBox, and unreachable for nBoxX)
-re-scoped a function two sessions had failed on. Design the probe to test the MECHANISM, then worry
-about the spelling.
-⭐ **v137 method note — READ THE ORIGINAL END TO END BEFORE SWEEPING.** ~40 lines of read-only
-capstone over `EXE[va - match.TEXT_VA + match.TEXT_RAW]` sliced to the Ghidra extent recovered
-0x406550's complete register/frame map and proved its control flow identical to ours — which is
-what turned "a 495-byte residual" into "one allocation contest, and here are the five bytes of
-evidence". It needs no build, so it is safe while a sweep is in flight.
-⭐ **v136 method note — A SCRATCH `apply.py` WITH ONE FLAG PER AXIS BEATS A VARIANTS FILE when the
-edit spans several non-contiguous sites** (`vartest.py` needs ONE contiguous BASE block). Rebuild
-the whole body from a PRISTINE copy per cell, and `assert` the line count is unchanged.
-⭐ **v136 method note — DISASSEMBLE OUR SIDE, NOT JUST THE ORIGINAL.** Both v136 constructs were
-found by putting our decode next to the original's for the SAME window; `sbs.py` cannot pair once
-the schedule shifts.
-⭐ **v136 method note — A MNEMONIC CENSUS IS A PROGRESS BAR, NOT JUST A DIAGNOSIS.**
+written `for spec in "0xADDR 123"; do set -- $spec; ...` silently gives an EMPTY `$2`, so
+`--expect` gets nothing and the loop no-ops while still printing its headers. Use `${spec%%:*}` /
+`${spec##*:}` and check the echoed `--expect` value in the log.
+⭐ **v136 method notes — a scratch `apply.py` with ONE FLAG PER AXIS beats a variants file when the
+edit spans non-contiguous sites** (`vartest.py` needs ONE contiguous BASE block; rebuild the body
+from a PRISTINE copy per cell and `assert` the line count); **DISASSEMBLE OUR SIDE, NOT JUST THE
+ORIGINAL** (`sbs.py` cannot pair once the schedule shifts); **a mnemonic census is a PROGRESS BAR.**
 ⭐ **v135 method notes — READ THE ORIGINAL'S ARGUMENT SETUP BEFORE ANY REGISTER STORY; A FREE
 ORACLE BEATS A COMPILE; A THREE-CELL PROBE WITH AN INERT CELL IS THE HONEST SHAPE.**
 ⭐ **v134 method notes — THE THREE-CENSUS OPENING IS STANDARD**: `residuals.py --lenmis` (where),
@@ -2222,9 +2259,7 @@ FLAT RESULT** — verify the structure, not the score.
 ⭐ **v133 method notes — WHEN vartest's BASE CANNOT SPAN THE SITES, HAND-APPLY + `bytediff.py`**;
 do NOT read `src/` while a sweep is in flight.
 ⭐ **v131 method note — MEASURE COLLATERAL WITH `verify.py <tu.cpp> | tail -3` FIRST.** ⚠ neither
-`verify.py` nor `progress.py` names WHICH function moved — only `exactset.py` + `diff`/`comm` does,
-and v136 caught a real +1/−1 that `verify.py` reported as flat. Budget one `exactset.py` run per
-landing and one more after the source notes (v137 did exactly this: IDENTICAL set).
+`verify.py` nor `progress.py` names WHICH function moved — only `exactset.py` + `diff`/`comm` does.
 ⭐ **v129 method note — `vartest.py` output is \r-heavy; pipe through `tr '\r' '\n'`**, and do NOT
 launch it as `nohup ... &` — use `run_in_background: true`. ⚠ a 2-minute FOREGROUND `vartest.py`
 WILL time out and leave the TU MUTATED.
@@ -2232,7 +2267,7 @@ WILL time out and leave the TU MUTATED.
 the delta on every row. ⚠ **`jointdecl.py` still carries the vacuous `orig_len`** — a cheap chore.
 ⚠ **`asmscore.py` CANNOT PAIR a function whose doc comment contains a `Class::Method (` string.**
 ⭐ **A THROWAWAY PROBE beats a general tool for a one-off question — but give it a POSITIVE
-CONTROL, and promote it once it overturns something.**
+CONTROL, and promote it only once it overturns something.** (v138's did not, and was not promoted.)
 ⭐ **v130 method note — `bugscan.py --all | tail -3` shows the tail of the LOW list**, which looks
 alarmingly like a changed HIGH finding; grep for the `=== HIGH` section header instead.
 

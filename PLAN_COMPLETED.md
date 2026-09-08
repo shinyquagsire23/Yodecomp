@@ -5567,3 +5567,31 @@ winning cell having swung BACK to v103's original spelling. `--lenmis` fell 184 
 file when the edit spans non-contiguous sites; disassemble OUR side next to the original for the
 same window (`sbs.py` cannot pair once the schedule shifts); a mnemonic census is a PROGRESS BAR,
 not just a diagnosis.
+
+
+## ⏮ v137 (2026-09-07) — condensed
+
+Held at **257 exact, +0/−0**. A CLOSING session: six axes measured to a floor and shut, one park
+note SPLIT INTO TWO PROBLEMS (lesson #67), the `movsx` self-extension dictionary doubled.
+- `Layout` 0x4176f0's park note split by the FREE STORE TEST: the x-ladder reloads are NOT
+  store-killed (no store between +0x176 and +0x191; cl degraded to an ADDRESS CSE), while the
+  rectBox reloads ARE (+0x1fb/+0x1fe/+0x202 reloads a value sitting in a live register). The
+  aliasing lever (storing `point[]` through a pointer) was CONFIRMED as the mechanism but
+  REFUTED on shape and length — it kills per STORE where the original kills per BLOCK,
+  1396 (ext−23) → 1424 (ext+5). ⇒ v138 solved the x-ladder half by a different route entirely
+  (lesson #68); the rectBox half is still open.
+- `IactProbeMove` 0x406550 read out end to end; its `n`-SCOPE axis closed (594 B @ +11 alone,
+  baseline composed). Original map: esi = dx then n, edi = tx, ebx = ty, ebp = found;
+  frame S0+0 savedY(w), +2 savedX(w), +4 this, +8 r.
+- FIVE of the v132 decl-run seam's named targets swept to a measured floor: 0x41d260 (8 perms
+  flat), 0x4260e0 (26 perms over the widened seam), 0x423df0 (6 perms flat), 0x41cf10 (9 perms,
+  best below the landing bar), 0x421930 (4 perms; `nCell,pZone` LOSES 5 bytes of length,
+  positively confirming the current order).
+- `movsx` dictionary: a SECOND byte-exact entry, `WorldgenShuffleList` 0x41ef90 +0x79 (an int
+  `rand()` remainder narrowed into a `short`, then used as an int SUBSCRIPT), joining
+  `Canvas::BlitFast` 0x408110's `int rows = height;` merge. And the FORWARDING-PUSH trap
+  recurred in the parameter-TYPE guise: `short destX/destY` is right, but for the register-CONTENT
+  reason (`mov bx,4` never writes the high half), not the push-shape one.
+- Shell trap recorded: zsh does NOT word-split unquoted variables, so a `set -- $spec` sweep loop
+  silently passed an EMPTY `--expect` and measured nothing while printing plausible headers.
+`--lenmis` unchanged at 27 residuals / 172 B.
