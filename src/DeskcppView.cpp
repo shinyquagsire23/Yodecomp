@@ -5359,68 +5359,68 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 // enter-zone IACT (event 4) first with the player hidden, and stamps the
 // map cell solved + mode 3 when done. One-shot: seeds the MIDILoad
 // registry default on first use (bMidiProfileInitMaybe).
-// EFFECTIVE-WIP (255/264 insns — ours 9 SHORTER): every call, arm and
-// constant aligned; the residual is ONE register-budget decision echoed
-// TU-wide: the orig spills THIS to [esp] and n2 to [esp+0x14] (reloading
-// this before nearly every statement — the OnTimer this-reload family),
-// assigning the four callee-saved regs to pDC(ESI)/n(EDI)/per-arm scratch
-// (EBX/EBP incl. the GetSafeHdc temp); ours keeps this=ESI, pDC=EDI,
-// n2=EBX, n=EBP and reads fields directly. n/n2 decl order inert.
-// Cracks: int *pHide = &bHidePlayer pointer-local (add eax,0x2e54
-// store form), CWinApp *pApp = AfxGetApp() local (single ModuleState
-// call), GetSafeHdc() for the BitBlt src hdc, one test-eax three-way
-// dispatch (dirX >0 / <0 / else dirY), clock()+50 busy-wait, per-arm
-// duplicated Canvas::BitBlt calls cross-jumping into one tail.
-// ⭐ v121 DECOMPOSED THE -62 LENGTH DEFICIT (lesson #49 method) AND CLOSED
-// THREE AXES ON IT. Every one of the 62 missing bytes is the this/n2 SPILL
-// and nothing else: 36 B in the prologue (4x `mov ecx,[esp+0x10]` at 4 B
-// where we use esi, `mov [esp],ecx` vs `mov esi,ecx`, `mov [esp+0x14],0x10`
-// vs `mov ebp,0x10`), ~10-12 B in each arm's Canvas::BitBlt segment (the
-// same this reload + `sub eax,[esp+0x20]` vs `sub eax,ebp`) and 10 B in the
-// epilogue. The instruction streams are otherwise aligned. The original
-// enregisters only pDC(ESI)/n(EDI)/end(EBX, live across the clock() call)
-// and leaves EBP to per-arm temps; we enregister this/pDC/n/n2 and spill
-// `end` instead. So the question is only WHY cl demotes `this`, and:
-//   (1) the arm-local coordinate hypothesis is REFUTED. Each arm's original
-//       holds one rect field in TWO registers and `lea`s the other (+0x10) —
-//       arm1/2 duplicate top, arm3/4 duplicate left — which reads exactly
-//       like a symmetric `y = ...top...; x = ...left...;` pair per arm. It
-//       is not: 6 spellings (inner-decl and hoisted, both decl orders) all
-//       measure 705-708 B at length 853, i.e. WORSE, and nowhere near 913.
-//   (2) the decl dial is DEAD FLAT over 23 configurations — hoisting c/end,
-//       hoisting e, all 7 locals hoisted C-style to the top in several
-//       orders: every single one measures 702 B at length 851. Not the
-//       lesson #37/#38/#45 axis.
-//   (3) the arm order, loop form and compare direction already match.
-// ⇒ This is the v105 TU-JOINT PHASE (lesson #44's signature: one flat sweep
-// across every decl axis with the streams already aligned). Do not spend
-// another session on decl spellings here; the lever, if any, is elsewhere in
-// DeskcppView.cpp and upstream of this function.
-// ⭐ v124 LOCATED THIS FUNCTION INSIDE A PROJECT-WIDE RULE (lesson #55,
-// tools/thisscan.py) — it is no longer a lone oddity. Across the 213 byte-exact
-// __thiscall functions, a body with NO EH frame ENREGISTERS `this` (71 of 78);
-// the ONLY exceptions are the THREE that need five or more long-lived values,
-// and all three spill with the IDENTICAL prologue shape this one has:
-//   sub esp,N / mov [esp+k],ecx / push ebx / push esi / push edi / push ebp
-// i.e. ALL FOUR callee-saved registers already committed to other values, so
-// `this` has nowhere to go. There are 0 counterexamples in either direction.
-// ⭐ AND THE OTHER THREE ARE ALL BYTE-EXACT IN OUR TREE — DrawEntities 0x40b160
-// ([esp+8]), SaveZoneRecursive 0x4033b0 ([esp+4]) and LoadZoneRecursive 0x403450
-// ([esp+8]). So OUR OWN SOURCE already produces this construct three times, and
-// lesson #53's method applies directly: the fix is not a spelling of this body
-// but whatever makes cl want a FIFTH long-lived value here. We currently
-// enregister this/pDC/n/n2 (four); the original enregisters pDC/n/end/arm-temp
-// (four) and spills this + n2 (six values wanted). ⇒ the concrete next probe is
-// to find the SIXTH value the original holds — diff this function's register
-// roles against those three exact siblings rather than permuting decls again.
-// ⭐ v128 CONFIRMS THAT READING FROM A SECOND, INDEPENDENT INSTRUMENT
-// (tools/framescan.py): the original's local frame is 16 bytes and ours is 12, and
-// the missing 4 IS the `this` slot — `sub esp,0x10 / mov [esp],ecx` against our
-// `sub esp,0xc / mov esi,ecx`. Two tools that measure different things (thisscan's
-// prologue classification and the raw `sub esp,N`) agree on the same one decision,
-// which is as close to a two-sided proof as this axis gets. It also re-scopes the
-// search: we are not looking for a spelling of any statement here, we are looking
-// for ONE more long-lived value. Do not open this function without a candidate.
+// EFFECTIVE-WIP (761 B @ len 912 = the 913-byte extent MINUS 1). Every
+// call, arm, constant and coordinate expression is aligned; what is left is
+// ONE register-residency permutation (the v135 ledger at the end of this
+// note). Cracks: int *pHide = &bHidePlayer pointer-local (add eax,0x2e54
+// store form), CWinApp *pApp = AfxGetApp() local (single ModuleState call),
+// one test-eax three-way dispatch (dirX >0 / <0 / else dirY), clock()+50
+// busy-wait, per-arm duplicated Canvas::BitBlt calls cross-jumping into one
+// tail.
+// ⭐ v135 — THE SCROLL BitBlt IS THE CDC *MEMBER* FORM (lesson #35), AND
+// THAT ONE CHANGE CLOSED 61 OF THE 62 MISSING BYTES: 702 B @ 851 (ext-62)
+// -> 761 B @ 912 (ext-1), +0/-0 project-wide, no phase victims. We had
+// written the global ::BitBlt(pDC->m_hDC, ..., pDC->GetSafeHdc(), ...); the
+// original writes pDC->BitBlt(x, y, w, h, pDC, xSrc, ySrc, SRCCOPY) — i.e.
+// THE SOURCE DC IS pDC ITSELF, which is what the inline's null-test diamond
+// `mov ebp,0 / test esi,esi / je / mov ebp,[esi+4]` really is: GetSafeHdc()
+// on CDC::BitBlt's pSrcDC PARAMETER, not a hand-written call. Confirmed
+// from the other side too — the DESTINATION hdc is the last push and has NO
+// null test (`mov ecx,[esi+4]; push ecx` = the inline's own m_hDC).
+// ⭐ THE MECHANISM, which is the transferable part: A `push` IS A MEMORY
+// WRITE, SO IT KILLS A MEMBER-LOAD CSE. In the global form cl evaluates
+// each argument lazily and pushes it, so the two occurrences of
+// rectUnk3274.top (and of .left) sit on opposite sides of a push and are
+// loaded TWICE, 6 bytes each. Expanding the member inline makes cl evaluate
+// the whole argument DAG into pseudo-registers BEFORE the first push, so
+// each field is loaded ONCE and duplicated with a 2-byte register copy —
+// exactly the original's arm 1 (`mov ebx,[edx+0x3278]; mov ecx,ebx` and
+// `mov edx,[edx+0x3274]; lea eax,[edx+0x10]`). ⇒ when the original loads a
+// member ONCE and COPIES it while we load it twice around a push, the lever
+// is the CALL FORM, not a named local.
+// ⭐ AND IT IS ALSO WHAT DRIVES THE REGISTER BUDGET: precomputing lifts each
+// arm's demand from 1 live scratch to 5 (top, top-copy, left, left+16,
+// safehdc), which is why the original commits ebx AND ebp to per-arm temps
+// and then has nowhere left to keep `this`.
+// ⛔ MEASURED NEGATIVES — do not re-tread.
+// (1) The arm-local coordinate hypothesis (`int y = ...top; int x =
+//     ...left;` per arm, feeding the call) is REFUTED AT BOTH BASELINES:
+//     707 B @ 853 = ext-60 under the v135 member form, and 705-708 B @ 853
+//     across 6 spellings at v121. Reproducing the v121 number under the NEW
+//     call form is what proves the two axes are independent — the named
+//     local is simply not what the 1997 author wrote here.
+// (2) The decl dial is DEAD FLAT over 23 configurations (v121) — hoisting
+//     c/end, hoisting e, all 7 locals hoisted C-style in several orders.
+//     Not the lesson #37/#38/#45 axis.
+// (3) The arm order, loop form and compare direction already match.
+// ⭐ WHAT THE REMAINING 761 B / -1 B IS, precisely — a pure residency
+// permutation, with both sides now fully read out:
+//   orig: esi=pDC, edi=n, ebx+ebp=per-arm temps, and it SPILLS `this` to
+//         [esp] and n2 to [esp+0x14] (frame 0x10), reloading this with
+//         `mov ecx,[esp+0x10]` before nearly every statement.
+//   ours: esi=this, edi=pDC, ebp=n2, and it spills the ARM TEMPS instead
+//         (frame 0x14 — one slot MORE than the original).
+// So we are no longer missing a construct; we rank `this` top where cl
+// ranked it last. Per lesson #55 the only known no-EH-frame trigger for a
+// `this` spill is saturation of all four callee-saved registers, and the
+// three byte-exact instances of that shape (DrawEntities 0x40b160,
+// SaveZoneRecursive 0x4033b0, LoadZoneRecursive 0x403450) are the
+// lesson-#53 dictionary entries to diff against.
+// ⭐ Cheapest unworked crumb, and it is lesson #39: the epilogue
+// materialises the constant 1 ONCE (`mov edi,1` at +0x311) and shares it
+// between `activatedFlag = 1` and `flagSolved = 1`; we emit two immediate
+// stores. Worth a statement-order probe — but we are at ext-1, so it can
+// only pay inside a trade that gives a byte back somewhere.
 void CDeskcppView::ScrollZoneTransition()
 {
     CDC *pDC = GetDC();
@@ -5446,35 +5446,35 @@ void CDeskcppView::ScrollZoneTransition()
     {
         if (pWorld->scrollDirX > 0)
         {
-            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                     VIEW_PIXEL_SIZE - n2, VIEW_PIXEL_SIZE, pDC->GetSafeHdc(),
-                     pWorld->rectUnk3274.left + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top, SRCCOPY);
+            pDC->BitBlt(pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                        VIEW_PIXEL_SIZE - n2, VIEW_PIXEL_SIZE, pDC,
+                        pWorld->rectUnk3274.left + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left - n2 + VIEW_PIXEL_SIZE,
                                     pWorld->rectUnk3274.top, n2, VIEW_PIXEL_SIZE, 0, pWorld->nViewTop);
         }
         else if (pWorld->scrollDirX < 0)
         {
             int e = pWorld->rectUnk3274.left + n;
-            ::BitBlt(pDC->m_hDC, e + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top,
-                     VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, VIEW_PIXEL_SIZE, pDC->GetSafeHdc(),
-                     e, pWorld->rectUnk3274.top, SRCCOPY);
+            pDC->BitBlt(e + SCROLL_STEP_PIXELS, pWorld->rectUnk3274.top,
+                        VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, VIEW_PIXEL_SIZE, pDC,
+                        e, pWorld->rectUnk3274.top, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
                                     n + SCROLL_STEP_PIXELS, VIEW_PIXEL_SIZE, SCROLL_WRAP_SRC - n, pWorld->nViewTop);
         }
         else if (pWorld->scrollDirY < 0)
         {
             int e = pWorld->rectUnk3274.top + n;
-            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, e + SCROLL_STEP_PIXELS,
-                     VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, pDC->GetSafeHdc(),
-                     pWorld->rectUnk3274.left, e, SRCCOPY);
+            pDC->BitBlt(pWorld->rectUnk3274.left, e + SCROLL_STEP_PIXELS,
+                        VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - SCROLL_STEP_PIXELS - n, pDC,
+                        pWorld->rectUnk3274.left, e, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
                                     VIEW_PIXEL_SIZE, n + SCROLL_STEP_PIXELS, pWorld->nViewLeft, SCROLL_WRAP_SRC - n);
         }
         else if (pWorld->scrollDirY > 0)
         {
-            ::BitBlt(pDC->m_hDC, pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
-                     VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - n2, pDC->GetSafeHdc(),
-                     pWorld->rectUnk3274.left, pWorld->rectUnk3274.top + SCROLL_STEP_PIXELS, SRCCOPY);
+            pDC->BitBlt(pWorld->rectUnk3274.left, pWorld->rectUnk3274.top,
+                        VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE - n2, pDC,
+                        pWorld->rectUnk3274.left, pWorld->rectUnk3274.top + SCROLL_STEP_PIXELS, SRCCOPY);
             pWorld->pCanvas->BitBlt(pDC, pWorld->rectUnk3274.left,
                                     pWorld->rectUnk3274.top - n2 + VIEW_PIXEL_SIZE, VIEW_PIXEL_SIZE, n2,
                                     pWorld->nViewLeft, 0);
