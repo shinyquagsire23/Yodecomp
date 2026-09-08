@@ -8958,15 +8958,36 @@ struct TriPoint : public tagPOINT
 // bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
 // (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
 // out + show/hide the three CBitmapButtons (close/up/down) per the visible-line count.
-// EFFECTIVE (1419B, align 374, 407/405 insns — structure faithful): three residual families,
-// all whole-function allocator/scheduling artifacts, not source-steerable (G1):
-//   (a) cl's TRACE-DRIVEN DUPLICATION of the bx-range ladder — the original threads a dead
-//       `cmp bx,0x20; jl; cmp bx,0x100` fragment into the low-x branch AND both nTailDir arms
-//       (3 copies of a range test whose result is unused). Clean source emits none; the nested
-//       vs `else if` form only shuffles which arms cl merges (probed: nested 392 > else-if 374).
-//   (b) the two CDCs: the original keeps &rectText.top (esi+0xa0) and &nBoxX (esi+0x18) in
-//       POINTER regs (ebx/edx) and RELOADS the members (weak alias analysis vs the local point[]
-//       stores), where ours caches the values — a reload-vs-register tie-break (lesson #19).
+// EFFECTIVE-WIP (999 B @ len 1384 = the 1419-byte extent MINUS 35) — and as of v135 the WHOLE
+// -35 is diagnosed and attributed to ONE missing source construct. Do not read the old G1
+// "three families, all allocator artifacts, not source-steerable" verdict; (a) is REFUTED below.
+// ⭐ v135 — THE MISSING STRUCTURE IS AN INNER COPY OF THE bx RANGE LADDER INSIDE EACH nTailDir
+// ARM, AND IT IS SOURCE, NOT CODEGEN. The G1 note blamed "cl's trace-driven duplication of a
+// range test whose result is unused". cl does not invent a compare with no consumer. What it
+// DOES do is cross-jump two arms whose BODIES are identical, which deletes the bodies and leaves
+// the condition evaluation stranded — so a dead `cmp` is positive evidence that the 1997 source
+// evaluated it. Decoding the original's ladder end to end:
+//     +0189 cmp bx,0x90 / jl LOW ; +0193 cmp bx,0x100 / +01a1 jle M ; else H
+//           — M and H bodies are BOTH `sub eax,0x10`, i.e. IDENTICAL, which positively CONFIRMS
+//             our two textually identical arms are real source and not a transcription slip.
+//     +01ad LOW arm carries a DEAD `cmp bx,0x20` (no consumer at all).
+//     +01d0 and +01f0 — each nTailDir arm carries a FULL dead `cmp bx,0x20 / jl / cmp bx,0x100`,
+//           both edges landing on the same block.
+//   ⇒ the author repeated the same bx ladder inside the tail-direction arms with identical
+//     bodies in every arm. THE ARITHMETIC CLOSES EXACTLY, which is what makes this a diagnosis
+//     rather than a story: a mnemonic census gives cmp -5, jl -3, jle -1, and the original has
+//     cmp 0x90 x1 + cmp 0x20 x3 + cmp 0x100 x3 = 7 against our 2 (-5), jl 3 against our 0 (-3),
+//     jle 1 against our 0 (-1). Nothing else in the mix is missing. ⚠ mixscan.py EXCLUDES this
+//     function (trailing jump table), so census it with a throwaway Counter over sbs's decode.
+// ⛔ (b) IS REFUTED AS A SOURCE AXIS — v135, three probes, and the third is decisive.
+//     A  `int *pbx = &nBoxX;` + `*pbx` at all six point-store sites .. 1015 B @ 1404 = ext-15
+//     B  the pointer used only for the `bx` read ..................... 1003 B @ 1392 = ext-27
+//     C  `int v = *pbx;` read ONCE per arm .......................... 999 B @ 1384 = BASELINE
+//   C is byte-IDENTICAL to no pointer at all, so reading through a member pointer is CODEGEN-
+//   INVISIBLE here ⇒ the original's `lea edx,[esi+0x18]` and `lea ebx,[esi+0xa0]` are cl
+//   ADDRESSING artifacts, NOT a source address-of, and A's 20 bytes of length are SPURIOUS extra
+//   reloads (A emits 2-3 loads per arm where the original emits exactly ONE). A was NOT landed:
+//   it is a number, not a fact. ⇒ Chase the ladder in (a); leave the member reads alone.
 //   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
 // NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
 void TextDialog::Layout(int x, int y, int nUnused)
