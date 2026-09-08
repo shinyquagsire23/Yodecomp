@@ -7940,8 +7940,20 @@ void CDeskcppView::OnDestroy()
 // {dc=member, a1=member, a2=GLOBAL, rp=member}. ⭐ Note a2 has swung BACK to the global form,
 // i.e. to v103's ORIGINAL spelling — which is the sharpest possible demonstration that none of
 // these call forms is evidence about the 1997 source. Cost of the v136 landing: +0 / -0.
+// ⚠⚠ AND A FIFTH TIME AT v138 — twice in the SAME session, which is new and worth knowing.
+// Layout 0x4176f0's two v138 landings each re-rolled the phase, so the sweep had to be run
+// TWICE: after the bx live-range fix the unique minimal cell was rp -> global, and after the
+// case-2 ladder landed on top of it the exact cells moved again to {dc=m,a1=m,a2=m} x {rp=m|g}
+// plus {dc=g,a1=m,a2=m,rp=m}. Minimal move from the v136 spelling: a2 -> the MEMBER form, one
+// token. a2 has now been global (v103), member (v134), global (v136) and member (v138) — four
+// swings across four phases, which retires any idea that one of them is the 1997 spelling.
+// Cost of the v138 landings: +0 / -0.
+// ⚠ NOTE Layout is DOWNSTREAM of this function in the file, so v106's "the joint phase is
+// downstream-only" did NOT protect it. That rule was measured on a single edit; v116 already
+// recorded that several edits landing together make the phase a genuine INTERACTION. Treat an
+// upstream function as at risk after any multi-edit landing, and re-run exactset.py.
 // ⚠ If this reads 6 or 12 again, re-run the 16/32-combination sweep before believing anything
-// else. It has paid FOUR times now and has never cost more than two tokens.
+// else. It has paid FIVE times now and has never cost more than two tokens.
 // ---------------------------------------------------------------------------
 void CDeskcppView::CyclePalette()
 {
@@ -8107,7 +8119,7 @@ void CDeskcppView::CyclePalette()
     CDC *pDC = GetDC();
     CPalette *pOldPal = pDC->SelectPalette(pWorld->pPalette, 0);
     pWorld->pPalette->AnimatePalette(10, 5, &pWorld->sysPalette[10]);
-    ::AnimatePalette((HPALETTE)pWorld->pPalette->m_hObject, 160, 86, &pWorld->sysPalette[160]);
+    pWorld->pPalette->AnimatePalette(160, 86, &pWorld->sysPalette[160]);
     pDC->RealizePalette();
     pDC->SelectPalette(pOldPal, 0);
     ReleaseDC(pDC);
@@ -8976,7 +8988,10 @@ struct TriPoint : public tagPOINT
 // bubble RECTs, RoundRect the frame, MoveWindow the child CEdit, then draw the tail triangle
 // (Polygon fill + a white-pen MoveTo/LineTo along the box edge, restored to black pen) and lay
 // out + show/hide the three CBitmapButtons (close/up/down) per the visible-line count.
-// EFFECTIVE-WIP (1010 B @ len 1396 = the 1419-byte extent MINUS 23) — v136 landed 12 of
+// EFFECTIVE-WIP (1031 B @ len 1412 = the 1419-byte extent MINUS 7) — v138 landed 16 more
+// (+0/-0) on top of v136's 12, by SOLVING the x-ladder half of v137's split; the remaining -7
+// is ONE construct, named at the end of (b). Earlier text below kept for the descent. v136 had
+// landed 12 of
 // v135's diagnosed -35 (+0/-0, no phase victims), and the rest is now decomposed instruction
 // by instruction below. Do not read the old G1 "three families, all allocator artifacts, not
 // source-steerable" verdict; (a) is REFUTED, and two of its constructs are now IN the source.
@@ -9051,6 +9066,52 @@ struct TriPoint : public tagPOINT
 //       LENGTH (triage rule 13) — a 4-byte diff gain at +28 bytes of length is a number.
 //       ⇒ the remaining lever must kill the CSE ONCE per block, not per store; and it must
 //       leave the x-ladder alone, since that half is an allocation question.
+//   ⭐⭐ v138 SOLVED THE x-LADDER HALF — AND THE LEVER IS LESSON #59 RUN BACKWARDS (ext-23 ->
+//       ext-19, then the case-2 ladder fell out for a further 12; total -23 -> -7, +0/-0).
+//       v137 correctly said the x-ladder reloads are an ALLOCATION outcome and not aliasing,
+//       then looked for "one more long-lived value". There is none to find: the question is
+//       not how many registers are live, it is WHERE `bx`'s LIVE RANGE STARTS.
+//         * We wrote `int bx = nBoxX; if (nMode == 0) bx -= ...;` — ONE definition of the
+//           nBoxX temp dominating everything, so cl keeps that temp (the VALUE CSE) in a
+//           register for the later point[].x reads and spends a second register on a COPY for
+//           bx: `mov ecx,[esi+0x18]; mov edx,ecx; sub edx,...`.
+//         * The original assigns in BOTH ARMS — `int bx; if (nMode == 0) bx = nBoxX - pW->
+//           nViewLeft; else bx = nBoxX;`. cl still hoists the common load, but now the value
+//           is only nBoxX on ONE path, so no single register holds it across the merge: the
+//           VALUE CSE is unavailable and cl falls back to the ADDRESS CSE
+//           `lea edx,[esi+0x18]` + a 2-byte `[edx]` reload per ladder BLOCK. That is exactly
+//           the shape v137 described, and it now matches INSTRUCTION FOR INSTRUCTION —
+//           including the register assignment (edx=&nBoxX, ecx=bx).
+//       ⇒ THE GENERAL RULE (the converse of #59, and worth carrying): #59 said assign in both
+//       arms so a DYING register can be re-used. Here the same construct is used to make a
+//       value DIE — an if/else that redefines the variable on every path prevents cl from
+//       CSE-ing the initializer's load into a long-lived register, which is what forces the
+//       original's per-block reloads. A `T v = expr; if (c) v op= ...;` and a
+//       `T v; if (c) v = expr op ...; else v = expr;` are NOT codegen-equivalent even though
+//       every compiler folds them to the same value.
+//       ⚠ All FOUR spellings (then-first, else-first, ternary, and a two-statement then-arm)
+//       measure IDENTICALLY (1400 @ ext-19), so the oracle pins a FAMILY (lesson #36); the
+//       member taken is the one the original's FALLTHROUGH pins — `cmp [esi+0x54],0 / jne`
+//       skips the subtract, so nMode == 0 is the *then* arm (lesson #47).
+//       ⚠ The byte diff ROSE 1010 -> 1036 across this step. Land it on the LENGTH and on the
+//       SHAPE (lessons #60/#66, triage rule 13) — the extra diff is the downstream shift.
+//   ⭐ AND IT UN-REFUTED HALF OF (a), WHICH IS THE v134 RULE PAYING AGAIN. With the x-ladder
+//       fixed, the case-2 inner ladder measured at the NEW baseline is a GAIN ON BOTH
+//       MEASURES — len 1400 (ext-19) -> 1412 (ext-7) AND diff 1036 -> 1031 — where at ext-23
+//       it had cost +21. LANDED as the flat 3-arm chain with three identical bodies, and the
+//       emitted arm now reproduces the original exactly: `cmp ecx,0x20 / jl / cmp ecx,0x100 /
+//       mov eax,[esi+0x60] / mov [esp+0x14],eax / ...`. ⛔ case 1 is STILL refuted (+32 on top
+//       of case 2; flat-both = ext+25, nest-both = ext+45) and for the reason this note has
+//       predicted since v136: its three bodies do not cross-jump, because ours computes both
+//       derived values BEFORE the first store (`lea eax,[ecx-1]; add ecx,0xf`) while the
+//       original recomputes them from a RELOAD after it.
+//   ⇒ ⭐ THE WHOLE OF THE REMAINING -7 IS NOW ONE CONSTRUCT: the store-killed rectBox reload,
+//       3 bytes in each arm, plus the 11-byte case-1 ladder it blocks. The case-2 arm is
+//       literally ONE instruction from the original (`mov eax,[esi+0x60]` at +0x202). Every
+//       aliasing hypothesis that reaches it is refuted above; and v138 positively CLOSED the
+//       obvious remaining one — the point[] array's address escapes at the SAME place on both
+//       sides (the ctor loop's `lea ebp,[esp+0x10]`, now byte-identical between the images),
+//       so a difference in WHEN the address is taken cannot be the cause either.
 //   (c) the rectClose/Up/Down store scheduling + this landing in ESI. G1.
 // NOTE 0x004186e0 = TriPoint::TriPoint (this TU's last function, EXACT) — the array ctor.
 void TextDialog::Layout(int x, int y, int nUnused)
@@ -9082,9 +9143,9 @@ void TextDialog::Layout(int x, int y, int nUnused)
     nTotalLines = pParentView->wndDialogText.SendMessage(EM_GETLINECOUNT, 0, 0);
 
     TriPoint point[3];
-    int bx = nBoxX;
-    if (nMode == 0)
-        bx -= pParentView->pWorld->nViewLeft;
+    int bx;
+    if (nMode == 0) bx = nBoxX - pParentView->pWorld->nViewLeft;
+    else bx = nBoxX;
     if (bx >= 144)
     {
         if (bx > 0x100)
@@ -9123,9 +9184,24 @@ void TextDialog::Layout(int x, int y, int nUnused)
         point[2].y = rectBox.bottom - 1;
         break;
     case 2:
-        point[0].y = rectBox.top;
-        point[1].y = rectBox.top - 0x10;
-        point[2].y = rectBox.top;
+        if (bx < 0x20)
+        {
+            point[0].y = rectBox.top;
+            point[1].y = rectBox.top - 0x10;
+            point[2].y = rectBox.top;
+        }
+        else if (bx <= 0x100)
+        {
+            point[0].y = rectBox.top;
+            point[1].y = rectBox.top - 0x10;
+            point[2].y = rectBox.top;
+        }
+        else
+        {
+            point[0].y = rectBox.top;
+            point[1].y = rectBox.top - 0x10;
+            point[2].y = rectBox.top;
+        }
         break;
     }
     ::Polygon(hdc, point, 3);
