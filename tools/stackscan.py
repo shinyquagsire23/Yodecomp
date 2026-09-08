@@ -21,10 +21,21 @@ measure of the lesson #43/#59/#68/#69 family:
     `DrawHealthDial` 0x427490 (-16) is the model case: the original feeds nine Chord pushes
     out of four frame slots while we push two coords straight from EDI/EBX.
 
-⭐ THE KEY IS REGISTER-BLIND BY CONSTRUCTION, which is the property the `movsxscan.py` and
-v138 address-CSE drafts both got wrong (see "census key must be register-blind"): it records
-only THAT a stack slot was touched, never which register the value moved to or from. Whether
-the allocator picked esi or edi cannot move a single column here.
+⭐ THE KEY MUST BE REGISTER-BLIND, and getting there took a second draft. It records only
+THAT a stack slot was touched, never which register the value moved to or from, so whether
+the allocator picked esi or edi cannot move a column.
+
+⛔ THE FIRST DRAFT WAS NOT, AND ITS POSITIVE CONTROL COULD NOT CATCH IT. It treated any
+EBP-based memory operand as frame traffic. But cl 10.20 only makes EBP a frame pointer when
+the function needs one (an EH frame, `push ebp; mov ebp,esp`); in an ESP-framed function EBP
+is an ordinary callee-saved register, so `lea eax,[ebp+ecx*2]` is ARITHMETIC. That draft
+ranked `DrawTileAt` 0x40a3a0 at `lea+3 rd+1` purely because the original parks `this` in EBP
+and we park `pCell` there — a pure register swap its own source note had recorded for the
+life of the project. A byte-exact control can never see this: identical bytes means identical
+registers. ⇒ EBP counts as a frame base ONLY when the prologue establishes an EBP frame,
+which is decided per side, from the prologue, below. Generalise the shape, not the fix: ask
+of every census column "would this move if only the register allocator changed its mind?" —
+and note that a positive control proves a tool right about the NULL case only.
 
 ⚠ A hit is a CANDIDATE, not a defect — a differing stack-traffic count can equally be the
 downstream shadow of a control-flow difference. Cross it with `mixscan.py` first: if mixscan
@@ -58,11 +69,35 @@ from capstone import x86
 _md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 _md.detail = True
 
-_STACK = (x86.X86_REG_ESP, x86.X86_REG_EBP, x86.X86_REG_SP, x86.X86_REG_BP)
 
 
-def frame_traffic(buf, va):
-    """(reads, writes, leas) over stack-based memory operands. Register-BLIND."""
+def has_ebp_frame(buf, va):
+    """True iff the prologue establishes EBP as a FRAME POINTER (`push ebp; mov ebp,esp`).
+
+    ⚠ Load-bearing, not a nicety — see the ⛔ note above. Read it from the PROLOGUE and stop
+    at the first call/branch, the same discipline savescan.py/thisscan.py needed: a linear
+    sweep of a whole body desyncs on embedded EH data or a jump table.
+    """
+    prev = None
+    for ins in _md.disasm(bytes(buf[:64]), va):
+        if ins.mnemonic in ("call", "jmp", "ret") or ins.mnemonic.startswith("j"):
+            break
+        if (ins.mnemonic == "mov" and ins.op_str.replace(" ", "") == "ebp,esp"
+                and prev == "push ebp"):
+            return True
+        prev = ins.mnemonic + " " + ins.op_str
+    return False
+
+
+def frame_traffic(buf, va, ebp_frame):
+    """(reads, writes, leas) over stack-based memory operands. Register-BLIND.
+
+    `ebp_frame` gates whether EBP-based operands count at all; without it EBP is just a
+    general callee-saved register and its addressing is arithmetic, not frame traffic.
+    """
+    stack = (x86.X86_REG_ESP, x86.X86_REG_SP)
+    if ebp_frame:
+        stack += (x86.X86_REG_EBP, x86.X86_REG_BP)
     r = w = l = 0
     for ins in _md.disasm(bytes(buf), va):
         try:
@@ -72,7 +107,7 @@ def frame_traffic(buf, va):
         for op in ops:
             if op.type != x86.X86_OP_MEM:
                 continue
-            if op.mem.base not in _STACK and op.mem.index not in _STACK:
+            if op.mem.base not in stack and op.mem.index not in stack:
                 continue
             if ins.mnemonic == "lea":
                 l += 1
@@ -91,7 +126,7 @@ def main():
     show_all = "--all" in sys.argv
     floor = int(sys.argv[sys.argv.index("--min") + 1]) if "--min" in sys.argv else 0
 
-    rows, control, failures = [], 0, []
+    rows, control, failures, mixed = [], 0, [], []
     for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "*.cpp"))):
         for va, name, code, relocs in residuals.paired(cpp):
             L = match.trim_pad(code)
@@ -103,8 +138,13 @@ def main():
             om = match.mask(residuals.EXE[foff:foff + L], relocs, L)
             ndiff = sum(1 for i in range(min(len(cm), len(om))) if cm[i] != om[i])
 
-            o = frame_traffic(residuals.EXE[foff:foff + ext], va)
-            u = frame_traffic(code[:L], va)
+            oe = has_ebp_frame(residuals.EXE[foff:foff + ext], va)
+            ue = has_ebp_frame(code[:L], va)
+            if oe != ue:                 # not comparable: different frame KIND, and that is
+                mixed.append((va, name, oe, ue))   # a finding in its own right
+                continue
+            o = frame_traffic(residuals.EXE[foff:foff + ext], va, oe)
+            u = frame_traffic(code[:L], va, ue)
             d = tuple(u[i] - o[i] for i in range(3))
 
             if ndiff == 0 and L == ext:                      # positive control
@@ -136,6 +176,9 @@ def main():
         print("0x%08x %-22s %-40s %+6d %5d %14s %14s   rd%+d w%+d lea%+d"
               % (va, cpp, name[:40], dl, ndiff,
                  "%d/%d/%d" % o, "%d/%d/%d" % u, d[0], d[1], d[2]))
+    for va, name, oe, ue in mixed:
+        print("!! FRAME-KIND MISMATCH 0x%08x %s: orig ebp-frame=%s ours=%s (not scored)"
+              % (va, name, oe, ue))
     print("\n%d residual(s) listed. positive control: %d byte-exact functions, ALL CLEAN."
           % (len(rows), control))
     return 0
