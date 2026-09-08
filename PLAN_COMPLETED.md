@@ -5347,3 +5347,177 @@ loads are at the head because the SOURCE puts them there (`int px = pWorld->play
 lesson #43). And it wrote `WORD id` up as a ⛔ MEASURED NEGATIVE "REFUTED BY LENGTH" at +39;
 at the v134 phase, after the arm-order fix, the same edit is an 8-byte GAIN. **A ⛔ list is
 phase-relative** — triage rule 12.
+
+---
+
+### ⏮ v134 PICKUP (2026-09-07 — condensed at v135; held at 257 exact, +0/−0)
+
+**Landed:** `ShowWinMessage` 0x40f4b0 1671 B @ ext+36 → 817 B @ ext−9 on four composing
+structural fixes (tail-merged arm polarity, two-armed arm-C selector, `WORD id`, head member
+loads as named locals); `tools/jseqscan.py` + lesson #63 (the conditional-jump SEQUENCE census,
+LCS-aligned); `CyclePalette` 0x415af0 recovered for one token after a phase rotation.
+**Superseded at v135:** its item 1 (`ScrollZoneTransition` 0x411180, −62) is CLOSED to ext−1 by
+lesson #64 — the CDC member call form. Everything else in the list below is still open and is
+carried forward in the v135 pickup.
+
+<details><summary>full v134 pickup text</summary>
+
+### ⏭ NEXT SESSION PICKUP (2026-09-07 v134 — **held at 257 exact, +0/−0, and the session's
+product is the biggest single structural landing in many sessions plus a NEW INSTRUMENT:
+`ShowWinMessage` 0x40f4b0 went 1671 B @ ext+36 → 817 B @ len 1980 = ext−9 on FOUR COMPOSING
+fixes, and `tools/jseqscan.py` — the conditional-jump SEQUENCE census, lesson #63 — is what
+found them.**
+All oracles green: **257 exact** / 99.17 % / link 0 unresolved / bugscan 1 HIGH (the
+documented benign `StartGame` 0x4037a0 `@+0x14a` finding) / vt 10 CLEAN / msg 11 CLEAN /
+arity 0 mismatches / framescan 15 hits control CLEAN / jseqscan control CLEAN over 226.
+v133 log condensed into PLAN_COMPLETED.md.)
+
+**▶ READ FIRST — TWELVE triage rules now.** (1)-(11) unchanged from v133 (lesson #54 park on
+`cmp-swap`/`jcc-mirror`/`lea-sib-swap`/`operand-reassoc`; `thisscan.py` before any
+negative-length register mystery; lesson #56 census our own side; `pushscan.py` early; a park
+note's byte count is PHASE-RELATIVE; `framescan.py` alongside `--lenmis`; never hand-read a raw
+extent delta; a census keyed on a register-dependent property is not a structural census;
+`mixscan.py` BEFORE `sbs.py` — `PURE-REG` means source-CLOSED; read the leaf VTABLE STORES
+before landing a decl-order win that reorders construction; before paying for a phase victim,
+re-run the sweep that originally landed IT — **this fired AGAIN at v134 and recovered
+`CyclePalette` 0x415af0 for ONE TOKEN for the second session running**).
+(12) ⭐ **NEW (v134): A FUNCTION'S OWN ⛔ MEASURED-NEGATIVE LIST IS PHASE-RELATIVE. Re-measure
+its two or three cheapest entries before starting.** v133 wrote `WORD id` on 0x40f4b0 up as
+"REFUTED BY LENGTH, 2028 = +39"; after the arm-order fix it measures 2011 = +22, an 8-byte
+GAIN, and it is what unblocked everything after it. One compile each.
+
+**▶ WHAT LANDED**
+1. ⭐ **`ShowWinMessage` 0x40f4b0 — 1671 B @ +36 → 817 B @ 1980 = ext−9, +0/−0.** Four fixes,
+   each read out of the original's control flow, and they COMPOSE (lesson #51): each of the
+   last three is refuted or inert at the baseline before it. (a) the `field30 == 1` selector
+   is spelled **`if (field30 != 1) B; else A;`** — cl INVERTS the source polarity wherever it
+   tail-merges the arms; all 28 conditional jumps then agreed. (b) the two arm-C selectors are
+   TWO-ARMED, not one-armed (one-armed re-measures 2014 @ +25). (c) **`WORD id`** in arm C.
+   (d) **the head member loads are NAMED LOCALS** — `int px = pWorld->playerX; int py =
+   pWorld->playerY;` with each arm computing `int n = py * 10 + px;` (lesson #43). ⭐ v133's
+   "cl hoists playerX/playerY speculatively; find what blocks it" was the wrong question:
+   **it is not a hoist, the loads are at the head because the SOURCE puts them there.**
+   Landing (d) also freed EBX for the zero constant, so arm A's five `= 0` stores went from
+   `mov mem,imm32` to `mov mem,ebx` and its whole tail now matches instruction-for-instruction.
+2. ⭐ **`tools/jseqscan.py` + lesson #63** (both above). Its positional first draft claimed 14
+   flips on `LoadWorld` 0x421fd0 that do not exist — read that part of the lesson before
+   writing any new census whose alignment model is an assumption.
+3. **`CyclePalette` 0x415af0 refit AGAIN** (a2 `::AnimatePalette` → the member form, one
+   token). Third phase rotation in three sessions; its note now says so explicitly.
+
+**▶ NEXT — concrete, in priority order.**
+1. ⭐ **`ScrollZoneTransition` 0x411180 (−62) is now unambiguously the biggest named unknown**
+   — 0x40f4b0 has left the top of `--lenmis` and this leads it. Everything v133 said still
+   stands and THREE instruments now agree from three sides: `framescan` 16 vs 12 (the missing
+   4 IS the `this` slot), `thisscan` (the original is the 4th and only unsolved instance of
+   lesson #55's saturated no-EH-frame SPILL shape — `sub esp,0x10 / mov [esp],ecx / push
+   ebx,esi,edi,ebp`), and now `jseqscan` (a SHAPE hit, orig-only `jg@+2f1`/`jle@+303` vs
+   ours-only `jge@+2b8`/`jl@+2c3` — i.e. a moved or differently-shaped compare block, NOT a
+   simple mirror). The original holds ONE MORE non-`this` long-lived value than we do. ⭐ v134
+   suggests exactly where to look: on 0x40f4b0 that one extra value turned out to be a MEMBER
+   LOAD the source names as a head local. Try the same shape here.
+2. ⭐ **Finish 0x40f4b0's last −9.** It is ONE arm-C allocation decision and it is fully
+   scoped in the source note: the original homes n*52 to `[ebp-0x20]` and `id` to the CString
+   slot `[-0x18]`, so its initial `id = questItemsA.GetAt(sSlot)` store survives ahead of the
+   cellQuestSlot6 test and the `field30 == 1` arm RELOADS it; we keep both in registers, the
+   initial def is dead-stored away, and both arms tail-merge onto one indexed load (9 B
+   shorter, and the last 2 POLARITY flips). framescan agrees: orig 20 / ours 16. Search for
+   one more long-lived value in arm C, not for a spelling — the ⛔ list in the note is long.
+3. ⭐ **Work the rest of the 48 residuals that gained a decl run at v132** — still only 4 are
+   swept, and this is the one big unworked seam. Regenerate by crossing
+   `declorder.inner_blocks` against `residuals.scan()`. ⚠ SKIP the `PURE-REG` ones
+   (`InitInstance` 0x4198c0, `DrawPlayer` 0x41a6d0, `TransitionZoneDoor` 0x40e9d0,
+   `WorldEntryStepMaybe` 0x409c10, `BlitMasked` 0x408240) — source-CLOSED however big the run.
+   Best unworked, all length-mismatched: `WorldgenPlaceUsefulObjectMaybe` 0x41d260 (−5, three
+   runs), `Layout` 0x4176f0 (−35, two), `ScrollZoneTransition` 0x411180 (−62, three),
+   `DrawLocatorMap` 0x423df0 (−6).
+4. ⭐ **`this`-RESIDENCY is still ONE question across two functions with opposite signs** —
+   `DrawHealthDial` 0x427490 (−16) and 0x411180 above. ⛔ the decl axis on 0x427490 is fully
+   closed (39 + 15 spellings) and EBX is IDLE for its first 0xb6 bytes, so register scarcity
+   is REFUTED as the cause.
+5. ⛔ **CLOSED at v134 — do not re-tread.** (a) 0x40f4b0: function-scope `int n` (2019 @ +30,
+   so per-arm `int n` is positively CONFIRMED); all four head decl spellings (ty-first,
+   `x + dx`, split decl+assign) DEAD FLAT at 1980; the container call form on all three arm
+   conditions byte-IDENTICAL; `int sSlot` = 2002 @ +13 (short confirmed a third time);
+   `int id` = 826; the one-armed arm-C selector = 2014 @ +25. (b) `WorldgenPlacePuzzles`
+   0x421930's jseqscan SHAPE+POLARITY hit IS its existing block-sinking bullet — annotated in
+   the source note, do not re-open it from the census. (c) `IactProbeMove` 0x406550's single
+   POLARITY hit is the known inline-vs-shared `return 1` epilogue, already in its ⛔ ledger.
+   (d) Everything v133/v132/v131/v130/v129/v128/v127/v126/v125/v124/v123/v120 closed.
+6. **Unchanged from v130-v133:** the `jl/jg + mov -1 + test/cmp` cluster (0x4260e0, 0x41d260,
+   0x41cf10 — all now confirmed pure MIRROR by jseqscan, i.e. lesson-#54 parks, so the only
+   question left there is why cl homes the count); the `movsxscan.py` ORIG-MORE list
+   (`PlaceZone` 0x4260e0, `BuildQuestPathMaybe` 0x403c80, `WorldgenSelectPuzzle` 0x41eab0,
+   `Generate` 0x41f960); ⛔ the `movsx` ACCUMULATOR cluster stays closed without a NEW
+   mechanism; the remaining `framescan.py` hits; the 5 remaining `pushscan.py` targets; the
+   remaining `widthscan.py` hits; the 5 generalised `loopform.py` candidates.
+7. **Still open from v98:** de-hex leftovers (`0x68`->PLAN_WALL, TileFlags bits 16-19,
+   DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
+   `sizeof` dial note). **Phase-H goals 2-5 untouched** this session.
+
+**▶ HOW TO WORK THE DIAL SAFELY (v104-v133 rules all stand; v134 re-used them all).**
+Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
+long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
+`git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
+concurrently, or one while `progress.py`/`exactset.py`/`residuals.py`/`jointdecl.py`/
+`formsweep.py`/`armscan.py`/`dtorscan.py`/`declorder.py`/`aritycheck.py`/`epiloguescan.py`/
+`pushscan.py`/`xjumpscan.py`/`widthscan.py`/`framescan.py`/`mixscan.py`/`jseqscan.py`/
+`sbs.py`/`impcse.py` (no `--orig`) is in flight (they share `build/*.obj`). `thisscan.py`,
+`loopform.py`, `unrotscan.py`, `aliasscan.py` and `impcse.py --orig` are READ-ONLY.
+⭐ **v134 method note — THE THREE-CENSUS OPENING IS NOW STANDARD AND IT COST ~4 MINUTES.**
+`residuals.py --lenmis` (where), `mixscan.py` (what kind), `jseqscan.py` (which sites). On
+0x40f4b0 that sequence went from "the richest unworked residual, cause unknown" to five
+located defects before a single compile was spent on a spelling.
+⭐ **v134 method note — A DIFF COUNT THAT DOES NOT MOVE IS NOT A FLAT RESULT.** The arm-order
+fix scored 2025/1671 → 2025/1671, byte-for-byte the same two numbers, because the two arms
+are the same SIZE and swapping them relocates mismatches without changing the count. It was
+right, and the only way to see it was to re-extract the jcc sequence. ⇒ when a change is
+predicted to move a specific STRUCTURE, verify the structure, not the score.
+⭐ **v133/v134 method note — DISASSEMBLE THE ORIGINAL DIRECTLY WHILE A SWEEP IS IN FLIGHT.**
+A sweep locks `src/` and `build/*.obj`, but `EXE[va - match.TEXT_VA + match.TEXT_RAW]` sliced
+to the Ghidra extent needs neither. ⚠ `progress.EXE` is the reader; never mask the original
+through OUR reloc offsets (the v121 trap).
+⭐ **v133 method note — WHEN vartest's BASE CANNOT SPAN THE SITES, HAND-APPLY + `bytediff.py`.**
+`cp src/X.cpp <scratch>` first, apply with a `python3 - <<EOF` that ASSERTS `s.count(old) == N`
+per site, measure, restore by copying the scratch file back. Four of v134's probes were this.
+⭐ **v133 method note — THE FRAME-SLOT CENSUS IS A 20-LINE THROWAWAY.** framescan gives a size
+delta; regex every `[ebp - 0xNN]` on BOTH sides and print `(displacement, use-count)` and you
+get the *shape*. It read 0x40f4b0's slot COLOURING in one run.
+⭐ **v132 method note — DO NOT READ `src/` WHILE A SWEEP IS IN FLIGHT** (`vartest.py` rewrites
+the body in place; wait for the `[restored <file>]` line).
+⭐ **v132 method note — A NEW SCAN GETS ITS SUPERSET/NULL CONTROL BEFORE ITS OUTPUT.**
+⭐ **v131 method note — MEASURE COLLATERAL WITH `verify.py <tu.cpp> | tail -3` FIRST** (a .cpp
+edit cannot move another TU, v112). ⚠ **but neither `verify.py` nor `progress.py` names WHICH
+function moved**, and v134 hit the reverse of v133's trap: `progress.py` reported the TU column
+going 88 → 89 with the project total UNCHANGED at 257, which is the shared-COMDAT accounting
+quirk, not a gain. Only `exactset.py` + `comm` answers "which"; budget one run per landing.
+⭐ **v129 method note — TO SWEEP A SECOND AXIS ON TOP OF AN UNLANDED FIRST ONE, APPLY THE
+FIRST BY HAND**, then run `vartest.py` with `--expect <the new baseline>`.
+⭐ **v129 method note — `vartest.py` output is \r-heavy; pipe through `tr '\r' '\n'`**, and do
+NOT launch it as `nohup ... &` — use `run_in_background: true` with the command in the
+FOREGROUND.
+⭐ **v128 method note — A COMMENT REWRITE IS A LINE-COUNT CHANGE, SO BUDGET LINES**, and re-run
+`progress.py` AFTER writing the note either way (v134's three note rewrites were verified free
+by exactly that).
+⭐ **v128 method note — `formsweep.py`'s `--expect-exact` is the TU's OWN count.**
+⭐ **v127 method note — TO SETTLE "WAS THIS EXACT BEFORE?", COMPILE THE OLD FILE.**
+⚠ `formsweep.py` ENFORCES line-neutrality and SKIPS a non-neutral edit — pad with blank lines.
+⚠ **A per-TU sweep is NOT sufficient when the edit is in a header** — that needs `exactset.py`.
+⚠ **A 2-minute foreground `vartest.py` WILL time out and leave the TU MUTATED.** Background it.
+⭐ **`vartest.py` prints the REAL extent** — `ext=<extent> <signed delta>`. Read the delta on
+every row; it refutes a variant before you look at a register (it killed function-scope `int n`
+and `int sSlot` this session). ⚠ **`jointdecl.py` still carries the vacuous `orig_len`** — a
+cheap, worthwhile chore.
+⚠ **`asmscore.py` CANNOT PAIR a function whose doc comment contains a `Class::Method (` string.**
+⭐ **Use `tools/sbs.py` to READ a residual** — but run `mixscan.py` and `jseqscan.py` FIRST to
+know what you are looking for.
+⭐ **A THROWAWAY PROBE beats a general tool for a one-off question — but give it a POSITIVE
+CONTROL, and promote it once it overturns something** (that is exactly how `jseqscan.py` was
+born this session).
+⚠ and census each side STRUCTURALLY, never through positional alignment (lesson #56 — and now
+lesson #63, which is the same mistake made inside a single tool's alignment model).
+⭐ **v130 method note — `bugscan.py --all | tail -3` shows the tail of the LOW list**, which
+looks alarmingly like a changed HIGH finding; grep for the `=== HIGH` section header instead.
+
+
+</details>
