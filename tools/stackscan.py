@@ -54,7 +54,8 @@ The verdict is printed BOTH before and after the table — v138 lost a control f
 
 Usage:  python3 tools/stackscan.py [--all] [--min N]
         --all   include length-EXACT residuals too (default: only length mismatches)
-        --min N only show functions whose total |delta| is at least N
+        --min N only show functions whose total |delta| is at least N (default 1;
+                pass --min 0 to see the length-mismatched residuals that AGREE)
 
 ⚠ COMPILES (it needs our own COMDATs) — do not run it while a vartest/declorder sweep is in
 flight; they fight over build/*.obj.
@@ -124,7 +125,10 @@ def frame_traffic(buf, va, ebp_frame):
 
 def main():
     show_all = "--all" in sys.argv
-    floor = int(sys.argv[sys.argv.index("--min") + 1]) if "--min" in sys.argv else 0
+    # default 1, not 0: a "hit" means a NONZERO delta. At --min 0 the table also lists
+    # the length-mismatched residuals whose residency already AGREES, which is 17 rows of
+    # noise and made the documented green state ("9 hits") disagree with the output.
+    floor = int(sys.argv[sys.argv.index("--min") + 1]) if "--min" in sys.argv else 1
 
     rows, control, failures, mixed = [], 0, [], []
     for cpp in sorted(glob.glob(os.path.join(ROOT, "src", "*.cpp"))):
