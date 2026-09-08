@@ -2263,7 +2263,8 @@ Corollary: run `stackscan.py` first; it names which side spilled what.
 2. **`tools/stackscan.py`** — the stack-residency census (see the standing bullet). It
    CONFIRMED the landing from a second side (0x406550 is now rd+0 w+0 lea+0, 27/4/0 both
    sides) and CORRECTED a pickup entry (see item 3).
-3. **Two measured negatives recorded in source notes**: `BlitViewportDither` 0x428e30's
+3. **Three measured negatives recorded in source notes**: `ScrollZoneTransition`
+   0x411180's whole lesson-#69 axis (11 cells, see item 1), `BlitViewportDither` 0x428e30's
    loop-form axis is CLOSED (inner-`for`, outer-`for`, both, and function-scope `prod`/`x` all
    dead flat at 55 B / len 238; the sweep is not blind — `x` before `prod` measures 125 B,
    re-confirming v118's decl-order win), and `DrawHealthNeedle` is NOT "the same construct" as
@@ -2278,8 +2279,15 @@ Corollary: run `stackscan.py` first; it names which side spilled what.
    values in them and we fit three plus `this` ⇒ **we are short exactly one long-lived value**
    (lesson #55's 4th instance, `framescan` agreeing: orig frame 16 vs ours 12 = the `this`
    slot). ⛔ v135 already landed the call form here (lesson #64) and refuted the arm-local
-   coordinate hypothesis at both baselines. ⭐ **Try lesson #69 first** — it is one compile per
-   cell and it is precisely a "which value wins the register" lever.
+   coordinate hypothesis at both baselines. ⛔ **AND v139 CLOSED THE LESSON-#69 AXIS ITSELF** —
+   11 cells, properly crossed per lesson #51, none lands (full table in the source note). The
+   one interesting cell is `*pHide = nOldHide;`, which cuts the diff **761 → 602** (the largest
+   diff cut available here) and is still refuted: the length goes ext−1 → ext−8, away from the
+   extent, and no cross recovers it. ⇒ **602 is a number, not a fact — do not land it.**
+   What is left needs a mechanism that CREATES one more long-lived value; the three byte-exact
+   lesson-#53 dictionary entries for the saturated-no-EH shape (`DrawEntities` 0x40b160,
+   `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) are what to diff against, and
+   nobody has actually done that diff.
 2. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) — the #1 length residual, and now separated from its
    sibling.** stackscan: **rd+12 w−6**, i.e. WE spilled something the original enregisters ⇒
    the lesson-#69 direction, unlike 0x427490. Concrete v139 read: our ctor block caches BOTH

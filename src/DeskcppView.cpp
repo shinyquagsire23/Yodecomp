@@ -5404,6 +5404,30 @@ void CDeskcppView::OnDragItem(int x, int y, Tile *pTile)
 // safehdc), which is why the original commits ebx AND ebp to per-arm temps
 // and then has nowhere left to keep `this`.
 // ⛔ MEASURED NEGATIVES — do not re-tread.
+// (0) ⭐ v139 SWEPT THE LIVE-RANGE AXIS (lesson #69) AND CROSSED IT PROPERLY
+//     (lesson #51) — 11 cells, NONE lands, baseline -1/761 stands. This is
+//     the axis the v138 pickup nominated, so it is now closed:
+//       no-pHide (drop the alias, read+write through pWorld->)  912/761 = baseline
+//       n/n2 declared early + ASSIGNED before the loop            912/761 = baseline
+//       c/end hoisted to function scope                           912/761 = baseline
+//       n/n2 declared AND initialised at the very top             923 = ext+10, 738
+//       pW = pWorld cached across the whole body                  863 = ext-50, 698
+//     ⚠ The one interesting cell is `*pHide = nOldHide;` — writing the flag
+//     back THROUGH the existing alias instead of through `pWorld->`. It cuts
+//     the diff 761 -> 602, THE LARGEST SINGLE DIFF CUT AVAILABLE HERE, and it
+//     is still REFUTED: the length goes 912 -> 905, i.e. ext-1 -> ext-8, away
+//     from the extent (lesson #48's bar, and we are already SHORT). Crossed
+//     with all four other cells per lesson #51 and it does not recover:
+//     +n-assign-late 905/602, +clock-func 905/602, +nOldHide-late 902/664,
+//     +pW-alias 865/707, and +n-init-top 920 = ext+7 / 735 (overshoots).
+//     ⇒ 602 is a NUMBER, not a fact. Do not land it.
+// (0b) `stackscan.py` (v139) puts a precise figure on the residency story
+//     below: the ORIGINAL spills `this` at +0x6 and RELOADS THAT ONE SLOT
+//     SIXTEEN TIMES (delta rd-14 w+8 — we read it three times and home eight
+//     values it enregisters). Both sides save the same three registers, so the
+//     original fits four other values in them and we fit three plus `this`:
+//     we are short EXACTLY ONE long-lived value, and no source-level
+//     live-range lever tried so far creates one.
 // (1) The arm-local coordinate hypothesis (`int y = ...top; int x =
 //     ...left;` per arm, feeding the call) is REFUTED AT BOTH BASELINES:
 //     707 B @ 853 = ext-60 under the v135 member form, and 705-708 B @ 853
