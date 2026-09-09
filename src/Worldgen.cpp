@@ -5411,6 +5411,18 @@ int CDeskcppDoc::GetZoneIndex(Zone *pZone)
 //    * WorldgenShuffleList 0x41ef90 +0x79 — `call rand / cdq / idiv [nSize] / movsx edx,dx /
 //      add edx,edx / add edx,[base]`, i.e. an INT result narrowed into a `short` and then used
 //      as an int SUBSCRIPT.
+//  ⭐ v141 SHARPENED THE SEAM FOR THIS FUNCTION AND ITS TWIN, and the finding lives in the
+//  0x403ae0 note in WorldgenHelpers.cpp — read it before touching this one. Short version:
+//  a NEW standalone compiler probe (a ~30-line replica of the loop, byte-faithful to our
+//  COMDAT) shows that ONE int-typed use of the accumulator puts the promotion EXACTLY where
+//  the original has it (immediately before the 16-bit `add`); but every constructible int
+//  consumer is refuted — an inline taking `int` is byte-IDENTICAL to baseline, `int`
+//  parameters explode to a per-use `movsx`, and casts/`+0` fold away. Both blit callees
+//  CONSUME their coordinate slots as words, so no int consumer exists here. A both-sides
+//  census puts the `movsx r32,r16` + 16-bit-`add` pair at exactly 5 sites / 3 functions of
+//  the ORIGINAL (0x403ae0 x2, 0x423df0 x2, 0x409650 x1), NONE byte-exact — so this seam has
+//  NO dictionary entry — and at ZERO sites in our own 583 COMDATs. 0x409650 is the only one
+//  of the three whose int use is visible (`lea ecx,[ebx+edi]`).
 //  ⇒ the generalised shape is: a value PRODUCED INTO a 16-bit register (a `mov r16,[mem]`
 //  load, 16-bit arithmetic, or a narrowing assignment) that is then used as an int.
 //  ⭐ v137 ALSO RE-CONFIRMED `short destX/destY` BY A SOUND ARGUMENT, replacing the weak one.
@@ -7640,10 +7652,34 @@ void CDeskcppView::AddHealth(int nDelta)
 //      four `+` sites or at the first alone): DEAD FLAT. The original lands every add in the
 //      TABLE's register and every subtract in cx2/cy2's, but cl canonicalises commutative
 //      operands (lesson #54) so the source cannot steer it.
-//  ⇒ OPEN, and now precisely stated: what makes cl STOP coalescing cx2->xe and cy2->ye? Those
-//  two webs are what win esi/edi; in the original cx2/cy2's live ranges end at the ladder (so
-//  scratch suffices) and xe/ye are homed. Break that coalescing and pDC + pOldPen inherit the
-//  registers by themselves. Nothing tried so far touches it.
+//  ⛔ v141 BROKE THE COALESCING AND *DISPROVED* v140's CAUSAL CHAIN — read this before
+//  believing the paragraph it replaces. v140 ended "break that coalescing and pDC + pOldPen
+//  inherit the registers by themselves". The coalescing HAS now been broken, three ways, and
+//  they do NOT inherit anything:
+//    - `POINT ptEnd;` / `CPoint ptEnd;` / `int pe[2];` in place of `int xe, ye;` (cl 10.20 will
+//      not enregister an aggregate member, so the needle end is forced to memory in x,y order —
+//      which is also what the original's ADJACENT [ebp-0x14]/[ebp-0x10] slot pair looks like).
+//      All three land `sub esp,0x50` = the ORIGINAL'S FRAME EXACTLY, i.e. 12 slots, closing the
+//      4-byte frame delta v140 measured. And all three are worth ONE byte of diff (803 -> 802)
+//      at UNCHANGED length 1122, with pDC still read from `[ebp+8]` THIRTEEN times.
+//    ⇒ so the frame delta and the pDC residency are TWO problems, not one (the v137 rule again).
+//  ⛔ AND IT IS NOT REGISTER PRESSURE AT ALL. Moving cx2/cy2's computation below the
+//  `if (nLo == 0) return;` shortens their live ranges out of the callee-saved class (the `lea
+//  esi/edi` pair disappears); pDC is STILL read 13 times from `[ebp+8]` (1125 B, diff 810).
+//  Freeing esi/edi does not buy pDC a register, so no amount of work on xe/ye/cx2/cy2 can.
+//  ⛔ The `CDC *p = pDC;` local is REFUTED FOR A SHARPER REASON than v140 recorded: `p` is not
+//  merely "homed to a 13th slot", it INHERITS the whole access pattern — 15 reads of [ebp-0x10]
+//  replacing 13 reads of [ebp+8] — so it is strictly worse. Composing it with the aggregate
+//  (lesson #51) is worse still: 1126 B, diff 845, frame 0x54 = 13 slots.
+//  ⭐ THE REAL QUESTION IS NOW A PARAMETER-PROMOTION QUESTION, AND OUR OWN TREE ALREADY
+//  ANSWERS IT SOMEWHERE (lesson #53). A census of our 198 EH-framed COMDATs for "a pointer
+//  parameter read ONCE into a callee-saved register" finds 10, and two of them are this
+//  function's own neighbours compiled from OUR source: `DrawHealthDial` 0x427490 and
+//  `DrawDirectionArrows` 0x4270f0 — both `(CDC *pDC)`, both with a bReleaseDC/pOldPal/
+//  FromHandle head that is CHARACTER-IDENTICAL to this one, and in both cl promotes pDC.
+//  Byte-EXACT entries to read as well: `ReadZone`, `OnEraseBkgnd` 0x40ebe0, `TextDialog::
+//  TextDialog`. ⇒ the next session's job is to diff DrawHealthDial's BODY against this one for
+//  whatever makes cl promote the parameter — it is NOT the head, and it is not pressure.
 //  ⛔ v132 — A 9-BYTE LENGTH "WIN" HERE IS NUMBER-CHASING, AND THE ORIGINAL SAYS SO OUTRIGHT.
 //  The fixed declorder.py --inner exposes the run `penA,brA,penB,brB,cx,cy`; five permutations
 //  that move penB (or brB/cy) to the END measure len 1131 = ext-8 against our 1122 = ext-17,

@@ -1146,7 +1146,52 @@ int CDeskcppDoc::FindTile(void *pTile)
 //   a short whose only visible consumers are the two `short` blit parameters, i.e. the
 //   promotion looks DEAD. The preheader is `xor bx,bx` (16-bit), so the high half is never
 //   established before the first iteration either — which rules out an int-typed blit
-//   parameter as the cause. Still open: push/mov scheduling at the blit sites.]
+//   parameter as the cause.
+//   ⭐ v141 IDENTIFIED THE MISSING CONSTRUCT'S SHAPE EXACTLY, with a NEW STANDALONE COMPILER
+//   PROBE (a ~30-line .cpp replica of this loop compiled on its own -- it reproduces our COMDAT
+//   instruction for instruction at 318 B, so each hypothesis costs ~20 s instead of a full TU).
+//   Feeding the replica ONE int-typed use of the accumulator (`pc->P(destX + destY);`) emits
+//   `movsx eax,bx` IMMEDIATELY BEFORE `add bx,0x20` -- the original's placement EXACTLY, and per
+//   v130 self-vs-scratch (`movsx ebx,bx` vs `movsx eax,bx`) is register allocation, not source.
+//   ⇒ THE MISSING THING IS A SINGLE INT-TYPED USE of destX and of destY per iteration, sunk by
+//   cl to the loop bottom -- and it must EMIT NO CODE OF ITS OWN, because the original is 131
+//   insns to our 129, i.e. exactly the two movsx and nothing else.
+//   ⛔ v141 REFUTED EVERY INT CONSUMER THAT CAN BE CONSTRUCTED, on the replica:
+//     - an INLINE member taking `int` that forwards to the short blit (`Draw(void*,int,int)`) --
+//       this was the v140 pickup's one named un-probed reading, and it is **byte-IDENTICAL to
+//       baseline** (318 B). cl folds the int->short narrowing at the inner call and the promotion
+//       never materialises. CLOSED.
+//     - `int` coordinate PARAMETERS on both blits: 348 B, a scratch `movsx` at EVERY use site
+//       (not one at the loop bottom). Refuted independently of the callee evidence below.
+//     - explicit `(int)destX` casts and `destX + 0` at all five argument sites: byte-IDENTICAL
+//       to baseline (cl folds the cast to the short parameter type before codegen).
+//     - `int` accumulators re-narrowed each iteration (`destX = (short)(destX + 0x20)`) -- emits
+//       the movsx AFTER the add and a 32-bit `xor ebx,ebx` preheader, against the original's
+//       16-bit `xor bx,bx`; `(short)destX + 0x20` gives `movsx` + a 32-bit `add ebx,0x20`.
+//     - int COPIES of the accumulators at the top or the bottom of the body (340/341 B),
+//       `unsigned short` accumulators (byte-identical), function-scope declarations (identical).
+//   ⚠ AND THE CALLEE EVIDENCE WAS RE-DERIVED FIRST-HAND rather than trusted (lesson #56):
+//   BlitFast 0x408110 reads `movsx eax,word [ebp+0x18]` / `mov di,word [ebp+0x1c]`, BlitMasked
+//   0x408240 `movsx eax,word [ebp+0x14]` / `mov dx,word [ebp+0x18]`. Four CONSUMING 16-bit reads
+//   ⇒ the coordinate parameters really are `short`, so no int consumer exists in this source.
+//   ⭐ BOTH-SIDES CENSUS (lesson #56): the `movsx r32,r16` + 16-bit `add/inc` of the SAME
+//   register pair occurs at exactly FIVE sites in THREE functions of the ORIGINAL -- 0x403ae0
+//   (x2), 0x423df0 (x2) and ZoneTransitionStep 0x409650 (x1) -- and NONE of the three is
+//   byte-exact, so the lesson-#53 dictionary has NO entry to copy. Our own tree emits the pair
+//   ZERO times in 583 COMDATs, while emitting 106 self-form movsx overall (so the absence is
+//   specific to this construct, not to the self form).
+//   ⭐ 0x409650 IS THE ONE SITE WHERE THE INT USE IS VISIBLE: it emits `lea ecx,[ebx+edi]`
+//   twice per iteration, i.e. a genuine `destX + destY` int expression passed as an argument.
+//   0x403ae0 and 0x423df0 have NO 32-bit consumer at all -- ebx/edi are touched ONLY by the five
+//   `push` pairs and the loop-bottom movsx/add (verified by grepping every ebx/edi operand in
+//   both extents). The preheaders are 16-bit (`xor bx,bx` / `xor di,di`), so the 32-bit
+//   incarnation is not even live on the first iteration.
+//   ⇒ NEXT, IF ANYONE RETURNS: the open question is now precise and narrow -- what int-typed
+//   use of a short emits NO instruction of its own? Everything that feeds an existing `push`,
+//   addressing mode or compare has been checked and none applies here. Until such a construct is
+//   named, treat this as the boundary of what the source can express; do NOT re-run spelling
+//   sweeps (~90 refuted across v117/v122/v130/v140/v141). The replica probe is the cheap way to
+//   test any new candidate -- rebuild it before guessing.]
 // Redraw the whole current zone into the offscreen canvas: 3 layers per cell; layers 1/2 use the
 // masked blit for game-object tiles.
 void CDeskcppDoc::RefreshZone()

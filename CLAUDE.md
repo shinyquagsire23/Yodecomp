@@ -9,7 +9,7 @@ modify this file with any useful notes that will aid other/later Claudes.
 v1–v71 milestone chain, and the ⭐ **KEY codegen lessons #1–#40 + MFC-matching lessons** (later lessons #41–#47 are standing bullets in this file) (cite as
 "PLAN_COMPLETED.md lesson #N"). This file carries only what's needed to work NOW.
 
-## Where the project stands (2026-09-08, v139; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**; **held at 256 at v125 — no new byte-match; the session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` ("the original CSEs the GetSysColor import address and we do not") is FALSE — we emit the identical construct in a different register — and it had already become the v124 pickup's #1 priority. Also `DrawTextA` 0x40f060, the project's last 2-byte residual, CLOSED under lesson #54's new REASSOCIATION guise, and a new both-sides census `tools/impcse.py` whose 5-function output REPLACES the refuted target list**; **256→257 at v126 — +3 REAL (`OnDraw` 0x409110 386 B→0 and `OnUpdate` 0x408e70 283 B→0, both on lesson #52 CALL DUPLICATION found by the new `tools/pushscan.py`; `CyclePalette` 0x415af0 fell out downstream) MINUS 2 to the TU joint phase, a USER-APPROVED trade — plus `DrawWeaponBox` 0x428ac0 301 B→16 with its LENGTH onto the extent, and v121's lesson-#52 census REOPENED as too narrow (`tools/xjumpscan.py`, 6 hits→12)**; **257→258 at v127 — `FindEntityAt` 0x40b210 recovered (+1/−0), one of the two functions v126's phase rotation cost; plus a NEW ORACLE `tools/widthscan.py` (the parameter-TYPE gap `aritycheck.py` is structurally blind to, 12 hits) and lesson #58: a decl-order match on a PHASE VICTIM is not evidence about the source, because BOTH spellings are byte-exact — each at a different phase**)
+## Where the project stands (2026-09-08, v141; re-baselined 217→234 at v100 (MEASUREMENT FIX); 234→237 at v102, 237→240 at v103, 240→244 at v104, 244→247 at v105, 247→249 at v106, 249→250 at v107, 250→251 at v108, 251→255 at v110 (REAL MATCHES); **255→252 at v114 — a DELIBERATE, user-approved re-baseline DOWN**, see below; held at 252 at v115; **252→255 at v116 (REAL MATCHES — the CONTAINER CALL FORM, lesson #48)**; held at 255 at v117, which landed no new match but cut 654 bytes of residual STRUCTURALLY via the new LENGTH census, lesson #49; **255→257 at v118 (REAL MATCHES — the MEMBER-ALIAS/CSE-reload dial, lesson #50, plus the INNER-BLOCK decl axis no tool could reach)**; **257→258 at v119 (REAL MATCH — the COMPOSITE LEVER, lesson #51: two dials that each measure WORSE alone, including on LENGTH, landing together; it also cut 1029 bytes of residual across four more functions and put four more LENGTHS exactly on their Ghidra extents)**; **258→255 at v120 — the SECOND DELIBERATE, user-approved re-baseline DOWN, for a real ARITY BUG in `TextDialog::Layout`, see below; v120 also cut 1050 bytes of residual across three functions and put two more LENGTHS exactly on their extents**; **255→256 at v121 (REAL MATCH — the CROSS-JUMPED IF/ELSE, lesson #52: a constant argument materialized by a BRANCH in the original is two duplicated CALLS tail-merged, not an expression)**; **held at 256 at v122 — no new byte-match, but `OnNewDocument` 0x41bb10's LENGTH went 946 -> 975 = its extent EXACTLY (537 B -> 422) on a RECOVERED MISSING SOURCE CONSTRUCT, the house CATCH_ALL+THROW_LAST, found by lesson #53's read-it-out-of-your-own-exact-code method**; **held at 256 at v123 — no new byte-match, but the SIX closest-to-exact functions in the project (11 bytes total) were PROVEN unreachable from the source and closed: lesson #54, the compare-encoding peephole**; **held at 256 at v124 — no new byte-match, but the v123 pickup's #1 open question was ANSWERED for the common case by lesson #55, the `this`-RESIDENCY rule (`tools/thisscan.py`): an EH frame is the dial, and cl 10.20 SPILLS `this` by default under one (68 of 75) while ENREGISTERING it without one (71 of 78, 0 counterexamples). v124 also closed a SEVENTH function under lesson #54 (the LEA SIB guise) and positively CONFIRMED `DrawHealthDial`'s statement order from the EH state store**; **held at 256 at v125 — no new byte-match; the session's product is a RETRACTION: v124's named mechanism for `DrawHealthDial` ("the original CSEs the GetSysColor import address and we do not") is FALSE — we emit the identical construct in a different register — and it had already become the v124 pickup's #1 priority. Also `DrawTextA` 0x40f060, the project's last 2-byte residual, CLOSED under lesson #54's new REASSOCIATION guise, and a new both-sides census `tools/impcse.py` whose 5-function output REPLACES the refuted target list**; **256→257 at v126 — +3 REAL (`OnDraw` 0x409110 386 B→0 and `OnUpdate` 0x408e70 283 B→0, both on lesson #52 CALL DUPLICATION found by the new `tools/pushscan.py`; `CyclePalette` 0x415af0 fell out downstream) MINUS 2 to the TU joint phase, a USER-APPROVED trade — plus `DrawWeaponBox` 0x428ac0 301 B→16 with its LENGTH onto the extent, and v121's lesson-#52 census REOPENED as too narrow (`tools/xjumpscan.py`, 6 hits→12)**; **257→258 at v127 — `FindEntityAt` 0x40b210 recovered (+1/−0), one of the two functions v126's phase rotation cost; plus a NEW ORACLE `tools/widthscan.py` (the parameter-TYPE gap `aritycheck.py` is structurally blind to, 12 hits) and lesson #58: a decl-order match on a PHASE VICTIM is not evidence about the source, because BOTH spellings are byte-exact — each at a different phase**)
 
 ⛔ **v114 RE-BASELINED THE ANCHOR DOWN, 255 → 252, ON PURPOSE (user-approved).** This is the
 first deliberate DECREASE in the project's history and it is not a regression to bisect. A
@@ -294,7 +294,7 @@ cannot. Its residual is now EXACTLY the two missing `movsx` and nothing else. v1
 DECOMPOSED the two sharpest length residuals to a single named decision each — `DrawHealthNeedle`
 0x4278a0's −17 is one three-register coloring choice whose 12-vs-11 slot ledger closes to the
 byte, and `ScrollZoneTransition` 0x411180's −1 is proven to have NO structural remainder — with
-9 measured negatives between them)** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
+9 measured negatives between them)**; **held at 257 at v141 (no new byte-match and no code change — a DIAGNOSTIC session whose product is a new instrument and two RETRACTIONS of v140's own forward claims. The **STANDALONE COMPILER PROBE** — a ~30-line .cpp replica of one block, compiled alone, reproducing our COMDAT instruction for instruction — makes a hypothesis cost ~20 s instead of a full TU compile and cannot perturb the anchor. With it, `RefreshZone` 0x403ae0's missing construct was pinned to *a single int-typed use of the accumulator that emits no code of its own*, and EVERY constructible int consumer was refuted — including the v140 pickup's one named un-probed reading (an inline taking `int`, byte-IDENTICAL to baseline); a both-sides census puts the pattern at 5 sites / 3 functions of the original, none byte-exact (so the lesson-#53 dictionary has NO entry) and 0 sites in our own 583 COMDATs. And on `DrawHealthNeedle` 0x4278a0 the coalescing v140 named as the blocker WAS broken — `POINT`/`CPoint`/`int[2]` for the needle end all land `sub esp,0x50` = the original's frame EXACTLY — yet pDC still loses its register, and freeing esi/edi outright does not buy it one either. ⇒ that residual is a PARAMETER-PROMOTION question, and our own tree already answers it: 10 of our 198 EH-framed COMDATs promote a pointer parameter, two of them (`DrawHealthDial` 0x427490, `DrawDirectionArrows` 0x4270f0) being `(CDC *pDC)` neighbours with a character-identical head)** ⭐ **v100's +17 was a MEASUREMENT CORRECTION, not 17 new byte-matches** — those functions
 were ALREADY byte-exact and were being scored against the WRONG addresses; do not read it as progress on
 matching. **v102's +3 and v103's +3 ARE matching** (v102: the TextDialog scroll family, via `CWnd::SendMessage`;
 v103: `ParseSnds` via a buffer SIZE, `OnEraseBkgnd` + `CyclePalette` via the member-call form;
@@ -921,6 +921,34 @@ reads/writes/leas.
   ⇒ **Generalise: a positive control proves a tool right about the NULL case and says nothing
   about whether its KEY models reality** (the v134 jseqscan lesson, in the census-key guise).
   Ask of every column: *would this move if only the register allocator changed its mind?*
+
+⭐ **THE STANDALONE COMPILER PROBE — ASK cl DIRECTLY INSTEAD OF ASKING THE ANCHOR (v141,
+lesson #70).** Every dial tool in this project measures a hypothesis by editing a real TU and
+recompiling it (~2 min, mutates `src/`, can rotate the TU phase, and answers only "did the byte
+count move"). When a residual is down to ONE construct, that is the wrong instrument. Instead
+write a ~30-line `.cpp` holding stub structs and a COPY of the block, compile it alone with the
+anchor's exact `cl` line, and disassemble the `.obj` with `match.coff_functions`. On
+`RefreshZone` 0x403ae0 the replica reproduced our COMDAT's inner loop **instruction for
+instruction at 318 B**, after which each hypothesis cost ~20 s — v141 ran ~15 spellings through
+it, in the time one `vartest.py` sweep takes, and closed the axis.
+- ⭐ **Put SEVERAL variants in ONE file as separate member functions**; one compile answers a
+  whole battery, and the sizes line up in a single grep.
+- ⭐ **It answers "what does cl DO with this construct", which is a different and often better
+  question than "does this land".** It is what proved the missing thing on 0x403ae0 is *a single
+  int-typed use of the accumulator*: one such use puts the promotion at exactly the original's
+  offset. It equally proved the v140 pickup's named candidate (an inline taking `int`) emits
+  **byte-identical** code, which no amount of staring at the disassembly would have shown.
+- ⚠ **Give it the same positive control as any census: the replica must reproduce OUR CURRENT
+  output before a variant means anything.** A replica that differs from our COMDAT is measuring
+  a different function.
+- ⚠ **Confirm any winner in the real TU** — the replica has no TU phase, no EH frame from
+  neighbouring objects, and no lesson-#23 line sensitivity.
+- ⚠ **`match.trim_pad()` returns a LENGTH, not bytes.** `bytes(match.trim_pad(code))` yields a
+  zero-filled buffer that disassembles to nothing — i.e. it reports "our side never emits this
+  construct", the most seductive possible wrong answer. Use `code[:match.trim_pad(code)]`, and
+  keep a control that counts the construct unconditionally. (The "nothing to do" family again.)
+- ⚠ Do not name the scratch disassembler `dis.py`; it shadows the stdlib module capstone
+  imports, and the traceback points at your own file's second line.
 
 ⭐ **THE SLOT CENSUS: LABEL THE WHOLE FRAME WITHOUT DECODING A LINE OF LOGIC (v140) — a
 ~15-line throwaway probe that settles "who spilled what", which `stackscan.py` can only TOTAL.**
@@ -2284,124 +2312,130 @@ Resources: **`make_res.py`** (+`reslib.py`), `extract_res.py`.
    the lessons lists (PLAN_COMPLETED.md) or the standing-lesson bullets here; sync new struct fields/renames
    to Ghidra (or list as PENDING); `save_program`; commit with a descriptive message.
 
-### ⏭ NEXT SESSION PICKUP (2026-09-08 v140 — **held at 257 exact, +0/−0.** `RefreshZone`
-0x403ae0 went 70 B → **65 B** at unchanged length on a construct VERIFIED BY SHAPE (lesson
-#64's discipline, not its lever), and the project's two sharpest length residuals —
-`ScrollZoneTransition` 0x411180 and `DrawHealthNeedle` 0x4278a0 — were both DECOMPOSED TO A
-SINGLE NAMED DECISION with 9 measured negatives between them. All oracles green: **257 exact**
-/ 99.17 % / link 0 unresolved 0 dup / bugscan 1 HIGH (the documented benign `StartGame`
-0x4037a0 `@+0x14a` finding) 0 SHIFT / vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches /
-stackscan 9 hits control CLEAN over 226 / framescan 15 hits control CLEAN. Every landing and
-every note edit verified with `exactset.py` + `diff` — IDENTICAL exact set three times.
-v139 log condensed into PLAN_COMPLETED.md.)
+### ⏭ NEXT SESSION PICKUP (2026-09-08 v141 — **held at 257 exact, +0/−0.** A CLOSING/
+DIAGNOSTIC session with no code change: the project's two closest-to-exact length residuals
+were both driven to a single, sharply-stated open question, and in both cases the v140 pickup's
+own named next step was REFUTED at the mechanism level. The session's product is a new
+instrument — the **STANDALONE COMPILER PROBE** — plus two rewritten source notes and one
+retracted causal claim. All oracles green: **257 exact** / 99.17 % / link 0 unresolved 0 dup /
+bugscan 1 HIGH (the documented benign `StartGame` 0x4037a0 `@+0x14a` finding) 0 SHIFT 0 SWAP /
+vt 10 CLEAN / msg 11 CLEAN / arity 0 mismatches. Exact set verified IDENTICAL by
+`exactset.py` + `diff` twice, after each note landing.)
 
-**▶ READ FIRST — EIGHTEEN triage rules.** (1)–(17) unchanged from v139.
-(18) ⭐ **NEW (v140): A DIFF CUT AT UNCHANGED LENGTH IS LANDABLE — IF THE EMITTED SCHEDULE
-GOES FROM WRONG TO INSTRUCTION-FOR-INSTRUCTION IDENTICAL.** Lesson #48's bar ("byte-exact, or
-a large diff cut WITH the length improving") governs call-form conversions, where the number
-is the only evidence. It does NOT govern a construct whose effect is a SCHEDULE you can read
-on both sides: 0x403ae0's layer-0 `Tile *pt` temp cut 5 bytes and moved the length not at all,
-and it is right because the original hoists the array-data load ABOVE the argument pushes and
-the inline spelling structurally cannot. Verify the shape, then bank it (the constructive form
-of v135's "verify the shape, not the score").
+**▶ READ FIRST — NINETEEN triage rules.** (1)–(18) unchanged from v140.
+(19) ⭐ **NEW (v141): WHEN A RESIDUAL IS DOWN TO ONE CONSTRUCT, STOP EDITING THE TU AND BUILD A
+STANDALONE REPLICA.** A ~30-line `.cpp` holding stub structs and a copy of the loop/block,
+compiled on its own with the anchor's flags, reproduced `RefreshZone` 0x403ae0's inner loop
+INSTRUCTION FOR INSTRUCTION (318 B). Each hypothesis then costs ~20 s and one `objdis` grep
+instead of a full TU compile + `bytediff`, and it CANNOT perturb the anchor, so it is safe to
+iterate on freely. v141 ran ~15 spellings through it in the time one `vartest.py` sweep takes.
+⚠ It answers "what does cl do with this construct", NOT "does this land" — confirm any winner
+in the real TU. ⚠ Give it the usual positive control: the replica must reproduce OUR CURRENT
+output before any variant means anything.
 
-**▶ WHAT LANDED.**
-1. **`RefreshZone` 0x403ae0, 70 B → 65 B at len 410, +0/−0** — the layer-0 blit takes a
-   `Tile *pt` temp exactly like layers 1 and 2. The evidence is the schedule: the original
-   loads `[esi+0x84]` at +0x7e BEFORE pushing destY/destX; with the temp the whole layer-0
-   block matches instruction for instruction. ⇒ **the residual is now EXACTLY the two missing
-   `movsx` and nothing else** — every other differing byte is downstream shift from them.
-2. **Three source notes rewritten from vague to decomposed** (0x403ae0, 0x4278a0, 0x411180).
-   The 0x4278a0 one replaces "the pDC/this reg-vs-param-slot rotation" — which was not what is
-   happening — with a slot-by-slot ledger that closes to the byte.
+**▶ WHAT LANDED.** No byte-match and no code change — two source notes rewritten from
+"open question" to "closed axis + one precise remaining question", and one v140 claim retracted.
 
 **▶ NEXT — concrete, in priority order.**
-1. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) — now the best-understood open target in the tree,
-   and its open question is a single sentence.** The −17 is ONE three-register coloring choice:
-   the original colors {pDC, nLo, pOldPen} and homes xe/ye (12 slots); we color
-   {nLo, cx2→xe, cy2→ye} and home pOldPen/pOldBrush (11 slots). 12 vs 11 slots IS the 4-byte
-   frame delta, and the byte cost closes to ~10 of the 17. ⇒ **the whole question is: what
-   makes cl stop COALESCING cx2→xe and cy2→ye?** Those two webs are what win esi/edi; in the
-   original cx2/cy2 die at the ladder so scratch suffices, and pDC + pOldPen inherit the
-   registers by themselves. ⛔ Refuted at v140 and recorded in the note: the `CDC *p = pDC;`
-   local in three forms (it gets `sub esp,0x50` EXACTLY right and is still wrong — `p` becomes
-   a 13th slot instead of winning esi), pOldPen/pOldBrush scope, xe/ye scope, and the ladder's
-   commutative operand order. Nothing tried so far touches the coalescing itself.
-2. ⭐ **`RefreshZone` 0x403ae0 (−6, 65 B) and its twin `DrawLocatorMap` 0x423df0 (−6) — the
-   closest pair to byte-exact in the tree, and now fully isolated.** Two `movsx r32,r16`
-   immediately before a 16-bit `add`, 3 B each; nothing else differs. ⚠ **The parameter-type
-   escape is now CLOSED from the side that counts** (v137's forwarding-push rule): BlitFast
-   0x408110 CONSUMES `movsx eax,word [ebp+0x18]` / `mov di,word [ebp+0x1c]` and BlitMasked
-   0x408240 `movsx eax,word [ebp+0x14]` / `mov dx,word [ebp+0x18]` — four consuming 16-bit
-   reads, so `short destX, short destY` is proven and an int blit coordinate can NOT be the
-   missing 32-bit use. ⛔ v140 also refuted the lesson-#69 axis HERE (decl at function scope
-   with the zeroing left in place, decls ahead of `cy`, and declared+zeroed at the top — all
-   dead flat at 70/410), on top of ~50 spellings refuted at v117/v122/v130. ⇒ **The lever must
-   CREATE a 32-bit consumer of the accumulator.** The lesson-#53 dictionary entry to copy is
-   `WorldgenShuffleList` 0x41ef90 +0x57 — byte-exact, `movsx eax,di ; inc di`, and our own
-   source there is `temp.SetAt(i, 0xffff); i++;`, i.e. **a `short` passed as an `int` argument
-   to an INLINE (so the promotion materialises with no push) immediately before its own 16-bit
-   increment.** Nobody has looked for an inline in RefreshZone's loop bottom that could take
-   destX/destY. That is the one un-probed reading and it is cheap.
-3. ⭐ **`ScrollZoneTransition` 0x411180 (−1) — still one byte from its extent, and now proven
-   to be a PURE residency permutation with no structural remainder.** v140 added two closures:
-   (a) the ASYMMETRIC lesson-#69 cells v139 never ran (n and n2 moved separately, 4 cells) —
-   declaration-only moves are inert, assignment moves OVERSHOOT the extent (916/917), so the
-   counters' live ranges are already right in both directions; (b) the jump-sequence census
-   shows every control-flow delta (je −2 / jne +2 / jmp +2) localises to arms 1 and 4 as a
-   SYMPTOM of the srcHdc spill, and the only other pair is a lesson-#54 compare mirror. ⇒ what
-   is left needs a mechanism that CREATES one more long-lived value (orig colors {pDC, n} +
-   two per-arm temps; we color {this, pDC, n, n2}). The three byte-exact lesson-#53 dictionary
-   entries for the saturated-no-EH shape are `DrawEntities` 0x40b160, `SaveZoneRecursive`
-   0x4033b0, `LoadZoneRecursive` 0x403450 — v140 confirmed all three carry the same
-   `sub esp,N / mov [esp+k],ecx / push ebx/esi/edi/ebp` prologue as 0x411180's original, so the
-   SHAPE is confirmed present on both sides; what nobody has done is diff their SOURCES for
-   what gives them a fourth long-lived value.
-4. ⭐ **`DrawHealthDial` 0x427490 (−16)** — rd−4, the OPPOSITE direction to the Needle (the
-   original homed four coords we enregister). ⚠ v139's correction stands: these two are NOT the
-   same problem. ~60 compiles of refuted axes already in its note.
-5. ⭐ **`ShowWinMessage` 0x40f4b0 (−9)** — rd−2 w−1; unchanged, three surplus `movsx` in the
-   arm-C tail.
-6. ⭐ **`Layout` 0x4176f0 (−7)** — unchanged from v138: the store-killed reload
-   `mov eax,[esi+0x60]` at +0x202 plus the 11-byte case-1 ladder it blocks. Read the v138 ⛔
-   list first; stackscan and mixscan both skip it (jump table), so use `sbs.py`.
-7. **`IactProbeMove` 0x406550's last +2** — residency is EXACT on both sides now, so what is
-   left is a lesson-#44 bijection PLUS one real difference: our `return 1` early-exit is an
-   INLINE epilogue where the original branches with a 6-byte `jl` into the SHARED tail at
-   +0x20f. That is `epiloguescan.py`'s family IN REVERSE and the tool only looks one way.
+1. ⭐ **`DrawHealthNeedle` 0x4278a0 (−17) — THE QUESTION HAS CHANGED, and v140's stated causal
+   chain is RETRACTED.** v140 said "break the cx2→xe / cy2→ye coalescing and pDC + pOldPen
+   inherit the registers by themselves". v141 broke it three ways — `POINT ptEnd;` /
+   `CPoint ptEnd;` / `int pe[2];` instead of `int xe, ye;`, since cl 10.20 will not enregister
+   an aggregate member — and **all three land `sub esp,0x50` = the original's frame EXACTLY**
+   (closing v140's 4-byte frame delta) while pDC stays read 13 times from `[ebp+8]` and the
+   diff moves 803 → 802 at unchanged length. It is also **not pressure**: computing cx2/cy2
+   below the `if (nLo == 0) return;` frees esi/edi outright and pDC *still* does not get one.
+   ⇒ **The residual is a PARAMETER-PROMOTION question, and our own tree already answers it
+   somewhere (lesson #53).** A census of our 198 EH-framed COMDATs for "a pointer parameter
+   read ONCE into a callee-saved register" finds **10**, two of which are this function's
+   neighbours compiled from OUR OWN source: `DrawHealthDial` 0x427490 and `DrawDirectionArrows`
+   0x4270f0 — both `(CDC *pDC)`, both with a bReleaseDC/pOldPal/FromHandle head that is
+   CHARACTER-IDENTICAL to 0x4278a0's, and in both cl promotes pDC to a register. Byte-EXACT
+   entries to read too: `ReadZone`, `OnEraseBkgnd` 0x40ebe0, `TextDialog::TextDialog`.
+   ⇒ **The job is to diff DrawHealthDial's BODY against DrawHealthNeedle's for whatever makes
+   cl promote the parameter.** It is not the head and it is not the register budget.
+   ⛔ Refuted at v141 on top of v140's list: the three aggregate forms (alone and composed with
+   the DC local, lesson #51), the late cx2/cy2 declaration, and `CDC *p = pDC;` — the last for a
+   SHARPER reason than v140 recorded: `p` does not merely occupy a 13th slot, it INHERITS the
+   whole access pattern (15 reads of `[ebp-0x10]` replacing 13 of `[ebp+8]`), so it is strictly
+   worse. ⚠ v141's own first read of that cell was WRONG because the probe column counted only
+   `[ebp + 8]` references and `p` had moved to `[ebp-0x10]`: **a residency column must count the
+   variable's home, not one candidate address** (the register-blind-key lesson, in a new guise).
+2. ⭐ **`RefreshZone` 0x403ae0 (−6, 65 B) and `DrawLocatorMap` 0x423df0 (−6) — the missing
+   construct's SHAPE is now pinned exactly, and the seam has no dictionary entry.** Feeding the
+   standalone replica ONE int-typed use of the accumulator emits `movsx eax,bx` IMMEDIATELY
+   BEFORE `add bx,0x20` — the original's placement EXACTLY (self-vs-scratch is allocation, v130).
+   ⇒ **the missing thing is a single int-typed use of destX and of destY per iteration that
+   EMITS NO CODE OF ITS OWN** (the original is 131 insns to our 129 = exactly the two movsx).
+   ⛔ Every constructible int consumer is refuted on the replica: an **inline member taking
+   `int`** that forwards to the short blit — the v140 pickup's one named un-probed reading — is
+   **byte-IDENTICAL to baseline**; `int` coordinate parameters explode to 348 B with a scratch
+   movsx at every use; `(int)` casts and `+ 0` fold away; `int` accumulators re-narrowed each
+   iteration put the movsx AFTER the add with a 32-bit preheader; int copies, `unsigned short`,
+   and function-scope decls are inert. The callee evidence was RE-DERIVED first-hand (four
+   consuming 16-bit reads across BlitFast/BlitMasked), so no int consumer exists in this source.
+   ⭐ Both-sides census: the `movsx r32,r16` + 16-bit `add/inc` of the SAME register occurs at
+   exactly **5 sites in 3 functions** of the original (0x403ae0 ×2, 0x423df0 ×2, 0x409650 ×1),
+   **none byte-exact** — so there is NO lesson-#53 entry to copy — and at **0 sites in our own
+   583 COMDATs**. 0x409650 is the only one whose int use is visible (`lea ecx,[ebx+edi]`).
+   ⇒ Treat as the boundary of what the source can express until someone names an int-typed use
+   of a short that emits no instruction; do NOT re-run spelling sweeps (~90 refuted).
+3. ⭐ **`ScrollZoneTransition` 0x411180 (−1)** — unchanged from v140: a pure residency
+   permutation with no structural remainder; needs a mechanism that creates one more long-lived
+   value. Diff the SOURCES of the three byte-exact saturated-no-EH dictionary entries
+   (`DrawEntities` 0x40b160, `SaveZoneRecursive` 0x4033b0, `LoadZoneRecursive` 0x403450) for
+   what gives them a fourth. ⚠ This is the SAME SHAPE of question as item 1 — both are "why
+   does cl enregister a value here and not there", and a dictionary-diff is the method for both.
+4. ⭐ **`DrawHealthDial` 0x427490 (−16)** — rd−4, the OPPOSITE direction to the Needle. ⭐ NEW
+   REASON TO DO IT ALONGSIDE ITEM 1: it is one of the two functions whose pDC IS promoted in our
+   build, so it is the control specimen for the Needle's question, not just another residual.
+5. ⭐ **`ShowWinMessage` 0x40f4b0 (−9)** — rd−2 w−1; three surplus `movsx` in the arm-C tail.
+6. ⭐ **`Layout` 0x4176f0 (−7)** — unchanged from v138; read the v138 ⛔ list first. stackscan
+   and mixscan both skip it (jump table), so use `sbs.py`.
+7. **`IactProbeMove` 0x406550's last +2** — our `return 1` early-exit is an INLINE epilogue where
+   the original branches into the SHARED tail at +0x20f; `epiloguescan.py` only looks one way.
    Cheap: teach it to look both ways.
 8. **The four remaining `stackscan` rd−1 functions** (`PlaceZone` 0x4260e0 −6,
    `WorldgenPlaceUsefulObjectMaybe` 0x41d260 −5, `TransitionZoneXWing` 0x40e7c0 −4,
-   `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 −3): each is "the original makes ONE frame read
-   we don't" = lesson #50's member-alias dial. Unworked on this axis. (0x428e30 is closed.)
-9. **Unchanged from v130–v139:** the `jl/jg + mov -1 + test/cmp` cluster (pure MIRROR = #54
+   `WorldgenFillQuestItemSpot2Maybe` 0x41cf10 −3) — each is lesson #50's member-alias dial,
+   unworked on that axis.
+9. **Unchanged from v130–v140:** the `jl/jg + mov -1 + test/cmp` cluster (pure MIRROR = #54
    parks); `movsxscan.py`'s ORIG-MORE list; the remaining `framescan.py`, `pushscan.py` and
    `widthscan.py` hits; the 5 generalised `loopform.py` candidates.
 10. **Still open from v98:** de-hex leftovers (`0x68`→PLAN_WALL, TileFlags bits 16-19,
    DeskcppDoc's `0xffffffff`/`0x11/0x10/0xe` codes, `WORLD_GRID_SIZE 10`, the Canvas.cpp
    `sizeof` dial note). **Phase-H goals 2–5 untouched** this session.
 
-**▶ HOW TO WORK THE DIAL SAFELY (v104–v139 rules all stand; v140 re-used them all).**
+**▶ HOW TO WORK THE DIAL SAFELY (v104–v140 rules all stand).**
 Every sweep MUTATES a source file — always `git status --porcelain src/` AFTER each one; run
 long sweeps with `run_in_background` writing to a LOG FILE; restore a single function from
 `git show HEAD:<file>`, never `git checkout <file>` mid-sweep; never run two sweeps
 concurrently, or one while any COMPILING tool is in flight (they share `build/*.obj`).
 `thisscan.py`, `loopform.py`, `unrotscan.py`, `aliasscan.py` and `impcse.py --orig` are
 READ-ONLY.
-⭐ **v140 method note — THE SLOT CENSUS IS A ~15-LINE PROBE AND IT SETTLES "WHO SPILLED WHAT"
-IN ONE READ.** Regex every `[ebp±N]` / `[esp±N]` operand out of BOTH disassemblies and print
-`Counter(displacement)`. The reference COUNT per slot identifies the variable (a 3-ref slot is
-a store + two pushes; a 2-ref slot is a store + one read), so you can label the whole frame
-without decoding a line of logic — that is how 0x4278a0's 12-vs-11 ledger and its 4-byte frame
-delta closed in one run. `stackscan.py` gives the TOTALS; this gives the ASSIGNMENT.
-⭐ **v140 method note — A ONE-LINE `if` BODY CANNOT HOLD A DECLARATION.** A probe cell that
-introduces a temp under a braceless `if (c)` fails to COMPILE, and `bytediff.py` reports that
-as an EMPTY ROW in a batch loop rather than an error — it looked exactly like a flat result.
-Print `FAILED` explicitly in the grep, or the cell silently disappears.
-⭐ **v140 method note — MEASURE WHAT YOU SHIP, TWICE.** The probe cell was line-neutral; the
-committed form uses natural braces (+2 lines). Re-ran `bytediff.py` AND `exactset.py` on the
-shipped text (65 B, identical set), then AGAIN after the comment-only note edits, which add
-~60 lines across three TUs. Both held; do not assume a comment block is free.
+⛔ **v141 TRAP — `open(path,'w')` TRUNCATES BEFORE IT WRITES, so an exception inside the write
+DESTROYS THE FILE.** A `UnicodeEncodeError` (these sources are **UTF-8**, not latin-1 — they are
+full of ⭐/⇒/⚠) emptied `WorldgenHelpers.cpp` mid-edit. ⇒ **build the new text in memory, write
+it to a TEMP file, then `cp` it over the source** — and always `open(..., encoding='utf-8')`.
+Recovery is `git show HEAD:<file> > <file>` (which is also the only safe restore mid-sweep).
+⭐ **v141 method note — THE STANDALONE COMPILER PROBE (triage rule 19).** Stub structs + a copy
+of the block + the anchor's exact `cl` line; disassemble the `.obj` with `match.coff_functions`
+and grep for the construct. Put SEVERAL variants in ONE file as separate member functions —
+one compile answers a whole battery. ⚠ **`match.trim_pad()` returns a LENGTH, not bytes** —
+`bytes(match.trim_pad(code))` silently yields a zero buffer that disassembles to nothing, which
+reads exactly like "our side never emits this construct". Caught only by a positive control that
+counted ALL movsx; use `code[:match.trim_pad(code)]`. ⚠ Do not name a scratch file `dis.py` —
+it shadows the stdlib module capstone imports, with a baffling traceback.
+⭐ **v141 method note — CENSUS BOTH SIDES BEFORE CONCLUDING A CONSTRUCT IS UNREACHABLE.** The
+"we never emit this" claim is only interesting next to a count of what we DO emit: our tree has
+**106 self-form `movsx` and 0** of the loop-bottom pairs, which is what makes the absence
+specific rather than a toolchain property. Same run also produced the parameter-promotion
+dictionary (10 hits / 198 EH-framed COMDATs) that reframed item 1.
+⭐ **v140 method notes still standing:** the SLOT CENSUS (`Counter()` every `[ebp±N]` operand on
+both sides — the ref count per slot names the variable); a one-line `if` body cannot hold a
+declaration and `bytediff.py` reports the failure as an EMPTY ROW, so print `FAILED` explicitly;
+MEASURE WHAT YOU SHIP, TWICE (comment blocks are not free until verified — v141 re-verified
+both note landings with `exactset.py` + `diff`).
 ⭐ **v139 method notes still standing:** a shape argument that REFUTES a measured gain must
 itself be compiled; a guessed `--expect` is the cheapest way to learn a baseline; restore a
 stashed file with `cp`, never `git checkout`.
@@ -2418,10 +2452,14 @@ root.
 background job with `until grep -q <sentinel> <logfile>; do sleep 10; done`.
 ⭐ **v136 method notes — a scratch `apply.py` with ONE FLAG PER AXIS beats a variants file when
 the edit spans non-contiguous sites** (rebuild the body from a PRISTINE copy per cell and
-`assert` the line count — v140 leaned on this for all four functions); **DISASSEMBLE OUR SIDE,
-NOT JUST THE ORIGINAL**; **a mnemonic census is a PROGRESS BAR.**
+`assert` the line count — v141 leaned on this for the whole DrawHealthNeedle battery, and the
+line-count assert is what kept every cell honest); **DISASSEMBLE OUR SIDE, NOT JUST THE
+ORIGINAL**; **a mnemonic census is a PROGRESS BAR.**
 ⭐ **v135 method notes — READ THE ORIGINAL'S ARGUMENT SETUP BEFORE ANY REGISTER STORY; A FREE
-ORACLE BEATS A COMPILE; A THREE-CELL PROBE WITH AN INERT CELL IS THE HONEST SHAPE.**
+ORACLE BEATS A COMPILE; A THREE-CELL PROBE WITH AN INERT CELL IS THE HONEST SHAPE.** (v141 used
+the free-oracle move twice: the blit callees' 16-bit reads, and the fact that OUR first `Pie`
+already loads cx/cy once and pushes each twice — which refuted a lesson-#64 call-form
+hypothesis with zero compiles.)
 ⭐ **v134 method notes — THE FOUR-CENSUS OPENING IS STANDARD**: `residuals.py --lenmis`
 (where), `mixscan.py` (what kind), `jseqscan.py` (which sites), `stackscan.py` (who spilled
 what). **A DIFF COUNT THAT DOES NOT MOVE IS NOT A FLAT RESULT** — verify the structure.
